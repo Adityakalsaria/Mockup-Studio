@@ -449,7 +449,17 @@ export default function EditorShell() {
   const startMirror = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
+        // Unconstrained, the browser hands back the window at full Retina
+        // resolution and whatever frame rate it can manage — a texture upload
+        // per frame far larger than a phone screen on screen can show. 1440
+        // and 30fps is already more than the mesh resolves, and it is the
+        // difference between the mirror sharing the GPU with a live pose and
+        // fighting it.
+        video: {
+          frameRate: { ideal: 30, max: 30 },
+          width: { max: 1440 },
+          height: { max: 1440 },
+        },
         audio: false,
       });
       // Ending the share from the browser's own "Stop sharing" bar fires here.

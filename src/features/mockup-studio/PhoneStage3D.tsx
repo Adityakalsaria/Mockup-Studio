@@ -278,10 +278,47 @@ function CanvasRefBridge({
  * loop the transform easing uses; it stops the moment the texture is not a
  * video, so a still screen costs nothing.
  */
+type FrameCallbackVideo = HTMLVideoElement & {
+  requestVideoFrameCallback?: (cb: () => void) => number;
+  cancelVideoFrameCallback?: (handle: number) => void;
+};
+
 function VideoFrameDriver({ texture }: { texture: Texture | null }) {
-  const isVideo = Boolean((texture as { isVideoTexture?: boolean } | null)?.isVideoTexture);
+  const invalidate = useThree((state) => state.invalidate);
+  const video = (texture as { image?: FrameCallbackVideo } | null)?.image;
+  const isVideo = Boolean(
+    (texture as { isVideoTexture?: boolean } | null)?.isVideoTexture && video,
+  );
+  // Chrome and Safari both have this; it fires once per decoded frame.
+  const perFrame = typeof video?.requestVideoFrameCallback === "function";
+
+  // Ask for a render when the video actually produces a frame, rather than at
+  // display rate.
+  //
+  // Blindly invalidating every frame meant a 30fps capture drove 120 renders a
+  // second on a 120Hz display — four GPU uploads of a full-resolution frame for
+  // every one that changed. On its own that was survivable because nothing else
+  // wanted the GPU; with a live pose easing at the same time it was not, and
+  // the two features appeared to fight each other.
+  useEffect(() => {
+    if (!isVideo || !perFrame || !video) return;
+    let handle = 0;
+    let cancelled = false;
+    const onFrame = () => {
+      if (cancelled) return;
+      invalidate();
+      handle = video.requestVideoFrameCallback!(onFrame);
+    };
+    handle = video.requestVideoFrameCallback!(onFrame);
+    return () => {
+      cancelled = true;
+      video.cancelVideoFrameCallback?.(handle);
+    };
+  }, [isVideo, perFrame, video, invalidate]);
+
+  // Fallback for anything without the callback: the old behaviour.
   useFrame((state) => {
-    if (isVideo) state.invalidate();
+    if (isVideo && !perFrame) state.invalidate();
   });
   return null;
 }
