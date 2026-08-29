@@ -2,7 +2,7 @@
  * The device registry.
  *
  * Adding a device is an entry here plus a GLB in
- * `public/figma-assets/koshstudio/models/` — no changes to the renderer.
+ * `public/figma-assets/mockup-studio/models/` — no changes to the renderer.
  *
  * Most of what used to be hand-tuned per model is now measured at load time
  * instead: PhoneStage3D finds the model's own screen mesh (whichever one
@@ -72,7 +72,7 @@ export interface Device {
   credit: string;
 }
 
-const MODELS = "/figma-assets/koshstudio/models";
+const MODELS = "/figma-assets/mockup-studio/models";
 
 export const DEVICES: Device[] = [
   {

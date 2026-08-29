@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import KoshstudioClient from "@/features/koshstudio/KoshstudioClient";
+import MockupStudioClient from "@/features/mockup-studio/MockupStudioClient";
 import { SITE_NAME, absoluteUrl } from "@/lib/metadata";
 
 /**
@@ -8,10 +8,10 @@ import { SITE_NAME, absoluteUrl } from "@/lib/metadata";
  * into the new shell. Deleting it before then would lose working tools.
  */
 export const metadata: Metadata = {
-  title: `Koshstudio (classic) | ${SITE_NAME}`,
-  description: "Previous Koshstudio workspace, kept during the editor redesign.",
+  title: `MockupStudio (classic) | ${SITE_NAME}`,
+  description: "Previous MockupStudio workspace, kept during the editor redesign.",
   alternates: {
-    canonical: absoluteUrl("/koshstudio/classic"),
+    canonical: absoluteUrl("/mockup-studio/classic"),
   },
   robots: {
     index: false,
@@ -19,6 +19,6 @@ export const metadata: Metadata = {
   },
 };
 
-export default function KoshstudioClassicPage() {
-  return <KoshstudioClient />;
+export default function MockupStudioClassicPage() {
+  return <MockupStudioClient />;
 }

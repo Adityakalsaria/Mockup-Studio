@@ -658,11 +658,11 @@ html.lenis body {
 /* ===========================
    Reduced Motion (WCAG)
    =========================== */
-/* Koshstudio system-menu items — flat #fff @ 5% pill highlight on hover. */
-.koshstudio-menu-item {
+/* MockupStudio system-menu items — flat #fff @ 5% pill highlight on hover. */
+.mockup-studio-menu-item {
   position: relative;
 }
-.koshstudio-menu-item::before {
+.mockup-studio-menu-item::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -672,18 +672,18 @@ html.lenis body {
   opacity: 0;
   transition: opacity 180ms ease-out;
 }
-.koshstudio-menu-item:hover::before,
-.koshstudio-menu-item:focus-visible::before {
+.mockup-studio-menu-item:hover::before,
+.mockup-studio-menu-item:focus-visible::before {
   opacity: 1;
 }
-.koshstudio-menu-item:active::before {
+.mockup-studio-menu-item:active::before {
   opacity: 1.4;
 }
 
-/* Koshstudio mount animations — used with `key={value}` to play a soft
+/* MockupStudio mount animations — used with `key={value}` to play a soft
    fade-up whenever the underlying value changes (currency switch,
    randomize, etc). Keep durations short — life, not a parade. */
-@keyframes koshstudio-fade-up {
+@keyframes mockup-studio-fade-up {
   from {
     opacity: 0;
     transform: translateY(4px);
@@ -693,10 +693,10 @@ html.lenis body {
     transform: translateY(0);
   }
 }
-.koshstudio-fade-up {
-  animation: koshstudio-fade-up 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+.mockup-studio-fade-up {
+  animation: mockup-studio-fade-up 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
 }
-@keyframes koshstudio-cross-fade {
+@keyframes mockup-studio-cross-fade {
   from {
     opacity: 0;
   }
@@ -704,13 +704,13 @@ html.lenis body {
     opacity: 1;
   }
 }
-.koshstudio-cross-fade {
-  animation: koshstudio-cross-fade 240ms ease-out both;
+.mockup-studio-cross-fade {
+  animation: mockup-studio-cross-fade 240ms ease-out both;
 }
 /* Slot-machine-style digit reveal — each character translates up from
    below its own line height, fades in, and settles. Combined with a
    per-character animation-delay for the staggered "rolling" feel. */
-@keyframes koshstudio-digit-rise {
+@keyframes mockup-studio-digit-rise {
   from {
     opacity: 0;
     transform: translateY(60%);
@@ -722,20 +722,20 @@ html.lenis body {
     filter: blur(0);
   }
 }
-.koshstudio-digit-rise {
+.mockup-studio-digit-rise {
   display: inline-block;
-  animation: koshstudio-digit-rise 420ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  animation: mockup-studio-digit-rise 420ms cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 @media (prefers-reduced-motion: reduce) {
-  .koshstudio-fade-up,
-  .koshstudio-cross-fade,
-  .koshstudio-digit-rise {
+  .mockup-studio-fade-up,
+  .mockup-studio-cross-fade,
+  .mockup-studio-digit-rise {
     animation: none !important;
   }
 }
 
-/* Koshstudio range slider — pill thumb, blue-fill track, tick dots below. */
-.koshstudio-thin-range {
+/* MockupStudio range slider — pill thumb, blue-fill track, tick dots below. */
+.mockup-studio-thin-range {
   --fill-pct: 0%;
   appearance: none;
   -webkit-appearance: none;
@@ -751,7 +751,7 @@ html.lenis body {
   outline: none;
   cursor: pointer;
 }
-.koshstudio-thin-range::-webkit-slider-thumb {
+.mockup-studio-thin-range::-webkit-slider-thumb {
   appearance: none;
   -webkit-appearance: none;
   width: 24px;
@@ -763,10 +763,10 @@ html.lenis body {
   cursor: pointer;
   transition: transform 0.12s ease;
 }
-.koshstudio-thin-range::-webkit-slider-thumb:active {
+.mockup-studio-thin-range::-webkit-slider-thumb:active {
   transform: scale(1.06);
 }
-.koshstudio-thin-range::-moz-range-thumb {
+.mockup-studio-thin-range::-moz-range-thumb {
   width: 24px;
   height: 18px;
   border-radius: 999px;
@@ -776,56 +776,56 @@ html.lenis body {
   cursor: pointer;
   transition: transform 0.12s ease;
 }
-.koshstudio-thin-range::-moz-range-thumb:active {
+.mockup-studio-thin-range::-moz-range-thumb:active {
   transform: scale(1.06);
 }
 
-/* Koshstudio number-input boxes — hide native spinner controls */
-.koshstudio-number-input {
+/* MockupStudio number-input boxes — hide native spinner controls */
+.mockup-studio-number-input {
   appearance: textfield;
   -moz-appearance: textfield;
 }
-.koshstudio-number-input::-webkit-outer-spin-button,
-.koshstudio-number-input::-webkit-inner-spin-button {
+.mockup-studio-number-input::-webkit-outer-spin-button,
+.mockup-studio-number-input::-webkit-inner-spin-button {
   appearance: none;
   -webkit-appearance: none;
   margin: 0;
 }
 
-/* Koshstudio screen scroll: hide scrollbar but keep scroll functional */
-.koshstudio-scroll-hide {
+/* MockupStudio screen scroll: hide scrollbar but keep scroll functional */
+.mockup-studio-scroll-hide {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-.koshstudio-scroll-hide::-webkit-scrollbar {
+.mockup-studio-scroll-hide::-webkit-scrollbar {
   display: none;
   width: 0;
   height: 0;
 }
 
-/* react-colorful overrides for the Koshstudio color picker popover. */
-.koshstudio-color-picker {
+/* react-colorful overrides for the MockupStudio color picker popover. */
+.mockup-studio-color-picker {
   width: 100% !important;
   height: auto !important;
   gap: 12px;
 }
-.koshstudio-color-picker .react-colorful__saturation {
+.mockup-studio-color-picker .react-colorful__saturation {
   border-radius: 12px;
   border-bottom: none;
   height: 168px;
   margin-bottom: 12px;
 }
-.koshstudio-color-picker .react-colorful__hue {
+.mockup-studio-color-picker .react-colorful__hue {
   height: 14px;
   border-radius: 999px;
 }
-.koshstudio-color-picker .react-colorful__pointer {
+.mockup-studio-color-picker .react-colorful__pointer {
   width: 18px;
   height: 18px;
   border-width: 2px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
-.koshstudio-color-picker .react-colorful__saturation-pointer {
+.mockup-studio-color-picker .react-colorful__saturation-pointer {
   width: 20px;
   height: 20px;
 }

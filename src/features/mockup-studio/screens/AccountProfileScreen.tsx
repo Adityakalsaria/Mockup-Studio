@@ -8,25 +8,25 @@ import Image from "next/image";
 import Button from "@/components/ui/Button";
 
 const ICON = {
-  copy: "/figma-assets/koshstudio/account-profile/icons/copy.svg",
-  chevronRight: "/figma-assets/koshstudio/account-profile/icons/chevron-right.svg",
-  share: "/figma-assets/koshstudio/account-profile/icons/share.svg",
-  moreDots: "/figma-assets/koshstudio/account-profile/icons/more-dots.svg",
-  arrowLeft: "/figma-assets/koshstudio/account-profile/icons/arrow-left.svg",
-  question: "/figma-assets/koshstudio/account-profile/icons/question.svg",
-  feesCard: "/figma-assets/koshstudio/account-profile/icons/fees-card.svg",
-  cellular: "/figma-assets/koshstudio/account-profile/icons/cellular.svg",
-  wifi: "/figma-assets/koshstudio/account-profile/icons/wifi.svg",
-  battery: "/figma-assets/koshstudio/account-profile/icons/battery.svg",
-  bankAvatar: "/figma-assets/koshstudio/account-profile/icons/bank-avatar.svg",
-  statusPending: "/figma-assets/koshstudio/account-profile/icons/status-pending.svg",
-  statusFailed: "/figma-assets/koshstudio/account-profile/icons/status-failed.svg",
-  statusFailedX: "/figma-assets/koshstudio/account-profile/icons/status-failed-x.svg",
-  flag24: "/figma-assets/koshstudio/account-profile/icons/flag-24.svg",
-  flag32: "/figma-assets/koshstudio/account-profile/icons/flag-32.svg",
-  franklin: "/figma-assets/koshstudio/account-profile/icons/franklin.png",
-  cross: "/figma-assets/koshstudio/account-profile/icons/cross.svg",
-  check: "/figma-assets/koshstudio/account-profile/icons/check.svg",
+  copy: "/figma-assets/mockup-studio/account-profile/icons/copy.svg",
+  chevronRight: "/figma-assets/mockup-studio/account-profile/icons/chevron-right.svg",
+  share: "/figma-assets/mockup-studio/account-profile/icons/share.svg",
+  moreDots: "/figma-assets/mockup-studio/account-profile/icons/more-dots.svg",
+  arrowLeft: "/figma-assets/mockup-studio/account-profile/icons/arrow-left.svg",
+  question: "/figma-assets/mockup-studio/account-profile/icons/question.svg",
+  feesCard: "/figma-assets/mockup-studio/account-profile/icons/fees-card.svg",
+  cellular: "/figma-assets/mockup-studio/account-profile/icons/cellular.svg",
+  wifi: "/figma-assets/mockup-studio/account-profile/icons/wifi.svg",
+  battery: "/figma-assets/mockup-studio/account-profile/icons/battery.svg",
+  bankAvatar: "/figma-assets/mockup-studio/account-profile/icons/bank-avatar.svg",
+  statusPending: "/figma-assets/mockup-studio/account-profile/icons/status-pending.svg",
+  statusFailed: "/figma-assets/mockup-studio/account-profile/icons/status-failed.svg",
+  statusFailedX: "/figma-assets/mockup-studio/account-profile/icons/status-failed-x.svg",
+  flag24: "/figma-assets/mockup-studio/account-profile/icons/flag-24.svg",
+  flag32: "/figma-assets/mockup-studio/account-profile/icons/flag-32.svg",
+  franklin: "/figma-assets/mockup-studio/account-profile/icons/franklin.png",
+  cross: "/figma-assets/mockup-studio/account-profile/icons/cross.svg",
+  check: "/figma-assets/mockup-studio/account-profile/icons/check.svg",
 };
 
 // Served from public/ rather than lottie.host so the studio runs with no
@@ -251,7 +251,7 @@ function FeesAndLimitsSheet({
           {/* Scrollable body */}
           <div
             data-fees-sheet-scroll
-            className="koshstudio-scroll-hide absolute inset-0 z-0 overflow-y-auto px-[20px]"
+            className="mockup-studio-scroll-hide absolute inset-0 z-0 overflow-y-auto px-[20px]"
             style={{
               paddingTop: 86,
               paddingBottom: 24,
@@ -428,7 +428,7 @@ function MoreOptionsMenu({
                 onClose();
                 item.onClick?.();
               }}
-              className="koshstudio-menu-item koshstudio-fade-up flex h-[40px] w-full items-center px-[12px] text-left text-[15px] leading-[20px] text-white outline-none focus:outline-none"
+              className="mockup-studio-menu-item mockup-studio-fade-up flex h-[40px] w-full items-center px-[12px] text-left text-[15px] leading-[20px] text-white outline-none focus:outline-none"
               style={{ animationDelay: `${80 + index * 50}ms` }}
             >
               <span className="relative z-[1]">{item.label}</span>
@@ -830,13 +830,13 @@ function HelpSheet({
               <div className="flex w-full flex-col items-center gap-[4px] text-center">
                 <p
                   key={title}
-                  className="koshstudio-fade-up w-full text-[16px] font-medium leading-[24px] text-white"
+                  className="mockup-studio-fade-up w-full text-[16px] font-medium leading-[24px] text-white"
                 >
                   {title}
                 </p>
                 <p
                   key={description}
-                  className="koshstudio-fade-up w-full text-[14px] leading-[20px] text-white/45"
+                  className="mockup-studio-fade-up w-full text-[14px] leading-[20px] text-white/45"
                   style={{ animationDelay: "60ms" }}
                 >
                   {description}
@@ -1060,13 +1060,13 @@ function BankProfileTitle({
     >
       <div
         key={flagSrc}
-        className="koshstudio-cross-fade relative h-[32px] w-[32px] overflow-hidden rounded-full"
+        className="mockup-studio-cross-fade relative h-[32px] w-[32px] overflow-hidden rounded-full"
       >
         <Image src={flagSrc} alt="" width={32} height={32} className="h-full w-full" />
       </div>
       <p
         key={title}
-        className="koshstudio-fade-up text-center text-[16px] font-medium leading-[24px] text-white"
+        className="mockup-studio-fade-up text-center text-[16px] font-medium leading-[24px] text-white"
       >
         {title}
       </p>
@@ -1106,7 +1106,7 @@ function AccountArtworkOverlay({
         alt=""
         width={186}
         height={isPreCroppedArtwork ? 80 : 224}
-        className="koshstudio-cross-fade absolute right-0"
+        className="mockup-studio-cross-fade absolute right-0"
         draggable={false}
         style={{
           width: 186,
@@ -1170,7 +1170,7 @@ function BankDetailRow({
           {row.value.split("").map((char, i) => (
             <span
               key={`${i}-${char}`}
-              className="koshstudio-digit-rise"
+              className="mockup-studio-digit-rise"
               style={{
                 animationDelay: `${rowOffsetMs + Math.min(i * 28, 500)}ms`,
               }}
@@ -1203,7 +1203,7 @@ function AccountInformationCard({
       <div className="relative w-full bg-white/[0.08] px-[20px] py-[20px]">
         <p
           key={description}
-          className="koshstudio-fade-up w-[213px] text-[14px] leading-[20px] text-white/65"
+          className="mockup-studio-fade-up w-[213px] text-[14px] leading-[20px] text-white/65"
         >
           {description}
         </p>
@@ -1381,7 +1381,7 @@ function TransactionRow({
             {dollarsDisplay.split("").map((char, i) => (
               <span
                 key={`${tx.id}-d-${i}`}
-                className="koshstudio-digit-rise"
+                className="mockup-studio-digit-rise"
                 style={{ animationDelay: `${i * 35}ms` }}
               >
                 {char}
@@ -1392,7 +1392,7 @@ function TransactionRow({
             {`.${cents}`.split("").map((char, i) => (
               <span
                 key={`${tx.id}-c-${i}`}
-                className="koshstudio-digit-rise"
+                className="mockup-studio-digit-rise"
                 style={{
                   animationDelay: `${(dollarsDisplay.length + i) * 35}ms`,
                 }}
@@ -1692,7 +1692,7 @@ export default function AccountProfileScreen({
 
         <div
           ref={scrollRef}
-          className="koshstudio-scroll-hide absolute inset-0 z-10"
+          className="mockup-studio-scroll-hide absolute inset-0 z-10"
           style={{
             overflowY: "scroll",
             paddingTop: 92,

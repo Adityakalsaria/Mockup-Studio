@@ -15,23 +15,23 @@ import {
 } from "./AccountProfileScreen";
 
 const ICON = {
-  cellular: "/figma-assets/koshstudio/account-profile/icons/cellular.svg",
-  wifi: "/figma-assets/koshstudio/account-profile/icons/wifi.svg",
-  battery: "/figma-assets/koshstudio/account-profile/icons/battery.svg",
-  cardArt: "/figma-assets/koshstudio/card-screen/card-art.svg",
-  visaLogo: "/figma-assets/koshstudio/card-screen/visa-logo.svg",
-  koshIcon: "/figma-assets/koshstudio/card-screen/kosh-icon.svg",
-  avatar: "/figma-assets/koshstudio/card-screen/avatar.jpg",
-  headerCard: "/figma-assets/koshstudio/card-screen/header-card.svg",
-  tabKosh: "/figma-assets/koshstudio/card-screen/tab-kosh.svg",
-  tabBank: "/figma-assets/koshstudio/card-screen/tab-bank.svg",
-  tabCard: "/figma-assets/koshstudio/card-screen/tab-card.svg",
-  tabGift: "/figma-assets/koshstudio/card-screen/tab-gift.svg",
-  actionPlus: "/figma-assets/koshstudio/card-screen/action-plus.svg",
-  actionCard: "/figma-assets/koshstudio/card-screen/action-card.svg",
-  actionLock: "/figma-assets/koshstudio/card-screen/action-lock.svg",
-  actionLimit: "/figma-assets/koshstudio/card-screen/action-limit.svg",
-  actionCross: "/figma-assets/koshstudio/card-screen/action-cross.svg",
+  cellular: "/figma-assets/mockup-studio/account-profile/icons/cellular.svg",
+  wifi: "/figma-assets/mockup-studio/account-profile/icons/wifi.svg",
+  battery: "/figma-assets/mockup-studio/account-profile/icons/battery.svg",
+  cardArt: "/figma-assets/mockup-studio/card-screen/card-art.svg",
+  visaLogo: "/figma-assets/mockup-studio/card-screen/visa-logo.svg",
+  koshIcon: "/figma-assets/mockup-studio/card-screen/kosh-icon.svg",
+  avatar: "/figma-assets/mockup-studio/card-screen/avatar.jpg",
+  headerCard: "/figma-assets/mockup-studio/card-screen/header-card.svg",
+  tabKosh: "/figma-assets/mockup-studio/card-screen/tab-kosh.svg",
+  tabBank: "/figma-assets/mockup-studio/card-screen/tab-bank.svg",
+  tabCard: "/figma-assets/mockup-studio/card-screen/tab-card.svg",
+  tabGift: "/figma-assets/mockup-studio/card-screen/tab-gift.svg",
+  actionPlus: "/figma-assets/mockup-studio/card-screen/action-plus.svg",
+  actionCard: "/figma-assets/mockup-studio/card-screen/action-card.svg",
+  actionLock: "/figma-assets/mockup-studio/card-screen/action-lock.svg",
+  actionLimit: "/figma-assets/mockup-studio/card-screen/action-limit.svg",
+  actionCross: "/figma-assets/mockup-studio/card-screen/action-cross.svg",
 };
 
 const SCREEN_WIDTH = 402;
@@ -262,7 +262,7 @@ function ActionButtonsRow() {
     <div
       data-debug-name="ActionButtonsRow"
       data-debug-group="row"
-      className="koshstudio-scroll-hide -my-[12px] w-full overflow-x-auto py-[12px]"
+      className="mockup-studio-scroll-hide -my-[12px] w-full overflow-x-auto py-[12px]"
       style={{ scrollbarWidth: "none" }}
     >
       <div className="inline-flex items-center gap-[8px]">
@@ -500,7 +500,7 @@ export default function CardScreen({
     >
       <div
         ref={scrollRef}
-        className="koshstudio-scroll-hide absolute inset-0 z-10"
+        className="mockup-studio-scroll-hide absolute inset-0 z-10"
         onScroll={(event) => {
           setScrollTop(event.currentTarget.scrollTop);
         }}

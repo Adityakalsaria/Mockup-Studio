@@ -59,7 +59,7 @@ export default function EditorShell() {
   const screenVideo = (screenTexture as { image?: HTMLVideoElement } | null)?.image;
   // three's own flag rather than `instanceof HTMLVideoElement`. This runs
   // during render, and render happens on the server too, where that global
-  // does not exist — the prerender of /koshstudio failed on exactly that.
+  // does not exist — the prerender of /mockup-studio failed on exactly that.
   const isVideoScreen = Boolean(
     (screenTexture as { isVideoTexture?: boolean } | null)?.isVideoTexture && screenVideo,
   );
@@ -434,7 +434,7 @@ export default function EditorShell() {
 
     const link = document.createElement("a");
     link.href = out.toDataURL("image/png");
-    link.download = "koshstudio.png";
+    link.download = "mockup-studio.png";
     link.click();
   }, []);
 
@@ -503,13 +503,13 @@ export default function EditorShell() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `koshstudio.${extension}`;
+      link.download = `mockup-studio.${extension}`;
       link.click();
       // Revoking immediately can cancel the download in some browsers; one
       // turn of the event loop is enough for the click to be picked up.
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch (error) {
-      console.warn("koshstudio: video export failed", error);
+      console.warn("mockup-studio: video export failed", error);
     } finally {
       setRecordProgress(null);
       playheadRef.current = 0;

@@ -31,11 +31,11 @@ export interface ScreenPreset {
   src: string;
 }
 
-// Drop PNGs into /public/figma-assets/koshstudio/screen-presets/ and add an
+// Drop PNGs into /public/figma-assets/mockup-studio/screen-presets/ and add an
 // entry below. id is used as a React key + flow id so make it unique. label
 // is just for accessibility — not rendered. src must start with a leading
 // slash so it resolves from /public.
-const PRESET_BASE = "/figma-assets/koshstudio/screen-presets";
+const PRESET_BASE = "/figma-assets/mockup-studio/screen-presets";
 export const SCREEN_PRESETS: ScreenPreset[] = [
   { id: "dark", label: "Dark", src: `${PRESET_BASE}/dark.png` },
   { id: "dark-2", label: "Dark 2", src: `${PRESET_BASE}/dark-2.png` },

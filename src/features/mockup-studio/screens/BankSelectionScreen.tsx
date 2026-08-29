@@ -7,12 +7,12 @@ import Image from "next/image";
 import Button from "@/components/ui/Button";
 
 const ICON = {
-  arrowLeft: "/figma-assets/koshstudio/account-profile/icons/arrow-left.svg",
-  bank: "/figma-assets/koshstudio/account-profile/icons/bank-avatar.svg",
-  check: "/figma-assets/koshstudio/account-profile/icons/check.svg",
-  cellular: "/figma-assets/koshstudio/account-profile/icons/cellular.svg",
-  wifi: "/figma-assets/koshstudio/account-profile/icons/wifi.svg",
-  battery: "/figma-assets/koshstudio/account-profile/icons/battery.svg",
+  arrowLeft: "/figma-assets/mockup-studio/account-profile/icons/arrow-left.svg",
+  bank: "/figma-assets/mockup-studio/account-profile/icons/bank-avatar.svg",
+  check: "/figma-assets/mockup-studio/account-profile/icons/check.svg",
+  cellular: "/figma-assets/mockup-studio/account-profile/icons/cellular.svg",
+  wifi: "/figma-assets/mockup-studio/account-profile/icons/wifi.svg",
+  battery: "/figma-assets/mockup-studio/account-profile/icons/battery.svg",
 };
 
 const SCREEN_WIDTH = 402;
@@ -204,7 +204,7 @@ function FeeRow({ priceText }: { priceText: string }) {
         {priceText.split("").map((char, i) => (
           <span
             key={`${i}-${char}`}
-            className="koshstudio-digit-rise"
+            className="mockup-studio-digit-rise"
             style={{ animationDelay: `${Math.min(i * 28, 280)}ms` }}
           >
             {char}

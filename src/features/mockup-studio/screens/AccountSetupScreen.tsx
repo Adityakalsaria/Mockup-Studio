@@ -9,14 +9,14 @@ import Button from "@/components/ui/Button";
 import emptyStateAnimationData from "../assets/usd-account-empty-state.json";
 
 const ICON = {
-  arrowLeft: "/figma-assets/koshstudio/account-profile/icons/arrow-left.svg",
-  question: "/figma-assets/koshstudio/account-profile/icons/question.svg",
-  feesCard: "/figma-assets/koshstudio/account-profile/icons/fees-card.svg",
-  share: "/figma-assets/koshstudio/account-profile/icons/share.svg",
-  moreDots: "/figma-assets/koshstudio/account-profile/icons/more-dots.svg",
-  cellular: "/figma-assets/koshstudio/account-profile/icons/cellular.svg",
-  wifi: "/figma-assets/koshstudio/account-profile/icons/wifi.svg",
-  battery: "/figma-assets/koshstudio/account-profile/icons/battery.svg",
+  arrowLeft: "/figma-assets/mockup-studio/account-profile/icons/arrow-left.svg",
+  question: "/figma-assets/mockup-studio/account-profile/icons/question.svg",
+  feesCard: "/figma-assets/mockup-studio/account-profile/icons/fees-card.svg",
+  share: "/figma-assets/mockup-studio/account-profile/icons/share.svg",
+  moreDots: "/figma-assets/mockup-studio/account-profile/icons/more-dots.svg",
+  cellular: "/figma-assets/mockup-studio/account-profile/icons/cellular.svg",
+  wifi: "/figma-assets/mockup-studio/account-profile/icons/wifi.svg",
+  battery: "/figma-assets/mockup-studio/account-profile/icons/battery.svg",
 };
 
 const SCREEN_WIDTH = 402;
@@ -321,7 +321,7 @@ function FeesAndLimitsRow() {
       />
       <p className="flex-1 text-[15px] font-medium leading-[24px] text-white">Fees and limits</p>
       <Image
-        src="/figma-assets/koshstudio/account-profile/icons/chevron-right.svg"
+        src="/figma-assets/mockup-studio/account-profile/icons/chevron-right.svg"
         alt=""
         width={6}
         height={11}
@@ -520,7 +520,7 @@ export default function AccountSetupScreen({
 
         <div
           ref={scrollRef}
-          className="koshstudio-scroll-hide absolute inset-0 z-10"
+          className="mockup-studio-scroll-hide absolute inset-0 z-10"
           style={{
             overflowY: "scroll",
             paddingTop: 152,

@@ -1,9 +1,9 @@
-# koshstudio
+# mockup-studio
 
 The Kosh device studio — a 3D phone stage for rendering app screens as stills and video —
 plus the koshmoney.com site it was built inside.
 
-Copied from the `koshstudio` branch of the Kosh website repo.
+Copied from the `mockup-studio` branch of the Kosh website repo.
 
 ## Requirements
 
@@ -19,8 +19,8 @@ npm run dev
 
 Then open:
 
-- **http://localhost:3000/koshstudio** — the studio (editor, timeline, export)
-- http://localhost:3000/koshstudio/classic — the earlier non-3D version
+- **http://localhost:3000/mockup-studio** — the studio (editor, timeline, export)
+- http://localhost:3000/mockup-studio/classic — the earlier non-3D version
 
 `npm install` is not optional. `next.config.ts` imports `@content-collections/next`; without
 the install, the config fails to load and every route dies.
@@ -45,16 +45,16 @@ routes degrade, e.g. `/r/<code>` and `/odyssey/<code>` return 404 for every code
 ## Layout
 
 ```
-src/app/koshstudio/            routes (page, classic, layout)
-src/features/koshstudio/       the studio itself
-  ├── KoshstudioClient.tsx     top-level client component
+src/app/mockup-studio/            routes (page, classic, layout)
+src/features/mockup-studio/       the studio itself
+  ├── MockupStudioClient.tsx     top-level client component
   ├── PhoneStage3D.tsx         r3f scene, GLB device
   ├── StudioEnvironment.tsx    HDRI lighting
   ├── editor/                  EditorShell, Timeline, TopBar, RightPanel, editorState
   ├── screens/                 the app screens rendered onto the phone
   ├── recordVideo.ts           MP4/WebM capture
   └── renderVideoExact.ts      frame-exact export
-public/figma-assets/koshstudio/  studio assets (~24 MB, incl. GLB phone models)
+public/figma-assets/mockup-studio/  studio assets (~24 MB, incl. GLB phone models)
 src/components/                shared UI — see docs/design-system.md
 docs/                          design system + implementation notes
 ```

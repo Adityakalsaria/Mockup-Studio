@@ -93,7 +93,7 @@ export function useScreenTexture(
 
     if (autoPlay) {
       void video.play().catch((error) => {
-        console.warn("koshstudio: screen video failed to play", error);
+        console.warn("mockup-studio: screen video failed to play", error);
       });
     }
 
@@ -134,7 +134,7 @@ export function useScreenTexture(
         setTexture(loaded);
       },
       (error) => {
-        console.warn("koshstudio: screen image failed to load", error);
+        console.warn("mockup-studio: screen image failed to load", error);
       },
     );
 
@@ -200,7 +200,7 @@ export function useScreenTexture(
         // A failed capture leaves the previous texture in place, which reads as
         // "the screen did not change" rather than as a black phone — but it
         // must not be silent, or a blank phone looks like a placement bug.
-        console.warn("koshstudio: screen capture failed", error);
+        console.warn("mockup-studio: screen capture failed", error);
       }
     };
 

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-export default function KoshstudioLayout({
+export default function MockupStudioLayout({
   children,
 }: {
   children: React.ReactNode;

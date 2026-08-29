@@ -7,7 +7,7 @@ import { Vector3 } from "three";
 import type { BlurSettings } from "./blurStyles";
 
 /**
- * The lens blur — ultramock's signature look, and the one thing koshstudio
+ * The lens blur — ultramock's signature look, and the one thing mockup-studio
  * could not do while the screen was a DOM overlay floating in front of the
  * canvas: both passes below read the depth or the frame buffer, and DOM
  * participates in neither.

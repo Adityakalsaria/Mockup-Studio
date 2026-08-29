@@ -260,8 +260,8 @@ const SCREEN_NATIVE_HEIGHT = 874;
 const LOCKED_SCREEN_MASK_SCALE = 1.02;
 const LOCKED_SCREEN_MASK_CORNER_RADIUS = 30;
 
-const RAIL_PREVIEW_BLACK = "/figma-assets/koshstudio/rails/black.png";
-const RAIL_PREVIEW_COSMIC_ORANGE = "/figma-assets/koshstudio/rails/cosmic-orange.png";
+const RAIL_PREVIEW_BLACK = "/figma-assets/mockup-studio/rails/black.png";
+const RAIL_PREVIEW_COSMIC_ORANGE = "/figma-assets/mockup-studio/rails/cosmic-orange.png";
 
 const RAIL_OPTIONS = [
   {
@@ -367,7 +367,7 @@ const ACCOUNT_VARIANTS = {
     title: "Virtual USD account",
     description: "This account is only to receive ACH and Wire payments",
     flagSrc: "/figma-assets/usd-account-list/us-flag.svg",
-    artworkSrc: "/figma-assets/koshstudio/account-profile/icons/franklin.png",
+    artworkSrc: "/figma-assets/mockup-studio/account-profile/icons/franklin.png",
     bankAddress: "1801 Main St., Kansas City, MO 64108",
   },
   eur: {
@@ -376,7 +376,7 @@ const ACCOUNT_VARIANTS = {
     title: "Virtual EUR account",
     description: "This account is only to receive SEPA and Wire payments",
     flagSrc: "/figma-assets/usd-account-list/eur-flag.svg",
-    artworkSrc: "/figma-assets/koshstudio/account-profile/eur-header-artwork-v3.png",
+    artworkSrc: "/figma-assets/mockup-studio/account-profile/eur-header-artwork-v3.png",
     bankAddress: "2 Grand Canal Square, Dublin D02 A342, Ireland",
   },
   aed: {
@@ -385,7 +385,7 @@ const ACCOUNT_VARIANTS = {
     title: "Virtual AED account",
     description: "This account is only to receive UAE local transfers",
     flagSrc: "/figma-assets/usd-account-list/aed-flag.svg",
-    artworkSrc: "/figma-assets/koshstudio/account-profile/aed-header-artwork.png",
+    artworkSrc: "/figma-assets/mockup-studio/account-profile/aed-header-artwork.png",
     bankAddress: "Sheikh Zayed Road, Trade Centre, Dubai, UAE",
   },
   gbp: {
@@ -394,7 +394,7 @@ const ACCOUNT_VARIANTS = {
     title: "Virtual GBP account",
     description: "This account is only to receive Faster Payments and CHAPS",
     flagSrc: "/figma-assets/usd-account-list/gbp-flag.svg",
-    artworkSrc: "/figma-assets/koshstudio/account-profile/gbp-header-artwork-v2.png",
+    artworkSrc: "/figma-assets/mockup-studio/account-profile/gbp-header-artwork-v2.png",
     bankAddress: "1 Churchill Place, Canary Wharf, London E14 5HP, UK",
   },
   swift: {
@@ -403,7 +403,7 @@ const ACCOUNT_VARIANTS = {
     title: "Virtual SWIFT account",
     description: "This account is only to receive international SWIFT payments",
     flagSrc: "/figma-assets/usd-account-list/swift-flag.svg",
-    artworkSrc: "/figma-assets/koshstudio/account-profile/franklin.png",
+    artworkSrc: "/figma-assets/mockup-studio/account-profile/franklin.png",
     bankAddress: "25 Cabot Square, Canary Wharf, London E14 4QA, UK",
   },
 } as const;
@@ -963,7 +963,7 @@ function HexInputField({
               <HexColorPicker
                 color={resolved}
                 onChange={(next) => onChange(next.toUpperCase())}
-                className="koshstudio-color-picker"
+                className="mockup-studio-color-picker"
               />
             </div>,
             document.body,
@@ -1226,7 +1226,7 @@ function SliderRow({
           onDoubleClick={() => {
             if (resettable && resetValue !== undefined) onChange(resetValue);
           }}
-          className="koshstudio-thin-range w-full"
+          className="mockup-studio-thin-range w-full"
           style={
             { "--fill-pct": `${fillPct}%` } as React.CSSProperties
           }
@@ -1978,7 +1978,7 @@ function RightControls({
                     onChange={(e) =>
                       onSelectAccountVariant(e.target.value as AccountVariantId)
                     }
-                    className="koshstudio-select absolute inset-0 w-full appearance-none rounded-[10px] border border-white/10 bg-white/[0.04] pl-[12px] pr-[28px] text-[13px] font-medium leading-[20px] text-white outline-none"
+                    className="mockup-studio-select absolute inset-0 w-full appearance-none rounded-[10px] border border-white/10 bg-white/[0.04] pl-[12px] pr-[28px] text-[13px] font-medium leading-[20px] text-white outline-none"
                   >
                     {Object.values(ACCOUNT_VARIANTS).map((option) => (
                       <option key={option.id} value={option.id} className="bg-[#141414] text-white">
@@ -2707,7 +2707,7 @@ function Canvas({
   const screenTopPct = baseScreenTopPct - (screenHeightPct - baseScreenHeightPct) / 2;
   const screenRadiusXPct = (screenMaskCornerRadius / SCREEN_NATIVE_WIDTH) * 100;
   const screenRadiusYPct = (screenMaskCornerRadius / SCREEN_NATIVE_HEIGHT) * 100;
-  const screenClassName = debugOutlines ? "koshstudio-debug-outlines" : "";
+  const screenClassName = debugOutlines ? "mockup-studio-debug-outlines" : "";
 
   const screenNode = customScreenSrc ? (
     <div
@@ -2944,7 +2944,7 @@ function Canvas({
   );
 }
 
-export default function KoshstudioClient() {
+export default function MockupStudioClient() {
   const [controlsView, setControlsView] = useState<ControlsView>("edit");
   const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("png");
   const [selectedSizeId, setSelectedSizeId] = useState<SizeId>("large");
@@ -3391,11 +3391,11 @@ export default function KoshstudioClient() {
       }
 
       const link = document.createElement("a");
-      link.download = `koshstudio-${Date.now()}.${formatOption.extension}`;
+      link.download = `mockup-studio-${Date.now()}.${formatOption.extension}`;
       link.href = dataUrl;
       link.click();
     } catch (error) {
-      console.error("Koshstudio download failed", error);
+      console.error("MockupStudio download failed", error);
     } finally {
       for (let i = restores.length - 1; i >= 0; i--) restores[i]();
     }
@@ -3409,7 +3409,7 @@ export default function KoshstudioClient() {
     if (!debugOutlines) return;
     let raf = 0;
     const measure = () => {
-      const root = document.querySelector<HTMLElement>(".koshstudio-debug-outlines");
+      const root = document.querySelector<HTMLElement>(".mockup-studio-debug-outlines");
       if (!root) return;
       const elements = root.querySelectorAll<HTMLElement>("[data-debug-name]");
       elements.forEach((el) => {
@@ -3497,20 +3497,20 @@ export default function KoshstudioClient() {
           /* Debug outline color cascade — set --debug-color on each tagged
              group; descendants inherit via CSS variable cascade and recolor
              both their outline and any nested label badge automatically. */
-          .koshstudio-debug-outlines { --debug-color: 255, 0, 153; }
-          .koshstudio-debug-outlines [data-debug-group="screen"] { --debug-color: 255, 80, 80; }
-          .koshstudio-debug-outlines [data-debug-group="chrome"] { --debug-color: 255, 165, 0; }
-          .koshstudio-debug-outlines [data-debug-group="card"]   { --debug-color: 80, 200, 120; }
-          .koshstudio-debug-outlines [data-debug-group="row"]    { --debug-color: 255, 220, 80; }
-          .koshstudio-debug-outlines [data-debug-group="title"]  { --debug-color: 200, 140, 255; }
-          .koshstudio-debug-outlines [data-debug-group="button"] { --debug-color: 120, 180, 255; }
+          .mockup-studio-debug-outlines { --debug-color: 255, 0, 153; }
+          .mockup-studio-debug-outlines [data-debug-group="screen"] { --debug-color: 255, 80, 80; }
+          .mockup-studio-debug-outlines [data-debug-group="chrome"] { --debug-color: 255, 165, 0; }
+          .mockup-studio-debug-outlines [data-debug-group="card"]   { --debug-color: 80, 200, 120; }
+          .mockup-studio-debug-outlines [data-debug-group="row"]    { --debug-color: 255, 220, 80; }
+          .mockup-studio-debug-outlines [data-debug-group="title"]  { --debug-color: 200, 140, 255; }
+          .mockup-studio-debug-outlines [data-debug-group="button"] { --debug-color: 120, 180, 255; }
 
-          .koshstudio-debug-outlines,
-          .koshstudio-debug-outlines * {
+          .mockup-studio-debug-outlines,
+          .mockup-studio-debug-outlines * {
             outline: 1px solid rgba(var(--debug-color, 255, 0, 153), 0.85) !important;
             outline-offset: -1px !important;
           }
-          .koshstudio-debug-outlines [data-debug-name]::after {
+          .mockup-studio-debug-outlines [data-debug-name]::after {
             content: attr(data-debug-name) ' ' attr(data-debug-size);
             position: absolute;
             top: 0;
@@ -3537,7 +3537,7 @@ export default function KoshstudioClient() {
           <div className="space-y-[var(--space-16)] px-[var(--space-24)] py-[var(--space-24)] text-center">
             <KoshLogo tone="light" width={132} height={28} priority className="mx-auto" />
             <p className="text-[15px] leading-[22px] text-white/58">
-              Koshstudio layout is desktop-first for now.
+              MockupStudio layout is desktop-first for now.
             </p>
           </div>
         </GlassCard>
