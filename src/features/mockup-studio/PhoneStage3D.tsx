@@ -13,13 +13,14 @@ import { sampleAnimation, type Animation } from "./animation";
 import { recolorBodyTexture } from "./bodyTexture";
 import { StudioEnvironment } from "./StudioEnvironment";
 import { isBlurActive, type BlurSettings } from "./blurStyles";
+import type { Quat } from "./gyro/quaternion";
 
 // Lazy so `postprocessing` only reaches the browser when a blur is switched
 // on. It is by far the heaviest thing this feature can pull in.
 const DepthOfFieldLayer = lazy(() => import("./DepthOfFieldLayer"));
 
 import type React from "react";
-import { MeshBasicMaterial } from "three";
+import { MeshBasicMaterial, Quaternion } from "three";
 import type { Group, Mesh, MeshStandardMaterial } from "three";
 
 export type Phone3DRail = {
@@ -961,6 +962,10 @@ function ProceduralPhoneScene({
 // same smoothing pipeline and never snaps.
 const TRANSFORM_EASE_TIME = 0.18;
 
+/** Scratch target for the live-pose slerp. Module scope so the frame loop
+    does not allocate a quaternion sixty times a second. */
+const LIVE_TARGET = new Quaternion();
+
 function PhoneScene({
   rail,
   screenTexture,
@@ -977,6 +982,7 @@ function PhoneScene({
   animation,
   timeRef,
   playing,
+  livePose,
 }: {
   rail: Phone3DRail | undefined;
   screenTexture: Texture | null;
@@ -986,6 +992,16 @@ function PhoneScene({
   animation?: Animation;
   timeRef?: React.MutableRefObject<number>;
   playing?: boolean;
+  /**
+   * A real phone's orientation, when one is paired. Sampled here in the frame
+   * loop for the same reason playback is: at 30 samples a second, routing it
+   * through React would re-render the whole editor instead of the scene.
+   *
+   * Applied to the group's quaternion rather than to its Euler angles — the
+   * feed is already a quaternion, and converting to Euler to ease it would
+   * reintroduce exactly the gimbal lock the quaternion exists to avoid.
+   */
+  livePose?: React.RefObject<Quat> | null;
   rotateX: number;
   rotateY: number;
   rotateZ: number;
@@ -1059,15 +1075,27 @@ function PhoneScene({
     g.scale.setScalar(s + (sz - s) * k);
     g.position.x += (ox - g.position.x) * k;
     g.position.y += (oy - g.position.y) * k;
-    g.rotation.x += (rx - g.rotation.x) * k;
-    g.rotation.y += (ry - g.rotation.y) * k;
-    g.rotation.z += (rz - g.rotation.z) * k;
+
+    const live = livePose?.current;
+    if (live) {
+      // Same easing constant as every other transform, so the phone answers a
+      // real tilt with the same weight it answers a slider.
+      LIVE_TARGET.set(live.x, live.y, live.z, live.w);
+      g.quaternion.slerp(LIVE_TARGET, k);
+      // A live feed never settles, so it drives the demand loop itself.
+      state.invalidate();
+    } else {
+      g.rotation.x += (rx - g.rotation.x) * k;
+      g.rotation.y += (ry - g.rotation.y) * k;
+      g.rotation.z += (rz - g.rotation.z) * k;
+    }
 
     // Settled is measured against the largest remaining delta rather than each
     // axis separately: rotation in radians and scale in units are different
     // magnitudes, and stopping on whichever finishes first leaves the others
     // frozen mid-move.
     const settled =
+      !live &&
       Math.abs(sz - g.scale.x) < 1e-4 &&
       Math.abs(ox - g.position.x) < 1e-4 &&
       Math.abs(oy - g.position.y) < 1e-4 &&
@@ -1138,6 +1166,7 @@ export default function PhoneStage3D({
   animation,
   timeRef,
   playing,
+  livePose,
   canvasRef,
   captureRef,
   recorderRef,
@@ -1165,6 +1194,9 @@ export default function PhoneStage3D({
   animation?: Animation;
   timeRef?: React.MutableRefObject<number>;
   playing?: boolean;
+  /** A paired phone's live orientation. Overrides the rotation props while
+      present — see the note on PhoneScene. */
+  livePose?: React.RefObject<Quat> | null;
   canvasRef?: React.MutableRefObject<HTMLCanvasElement | null>;
   captureRef?: React.MutableRefObject<StageCapture | null>;
   /** Frame-by-frame access, for recording video. */
@@ -1235,6 +1267,7 @@ export default function PhoneStage3D({
           animation={animation}
           timeRef={timeRef}
           playing={playing}
+          livePose={livePose}
         />
         {isBlurActive(blur) ? (
           <Suspense fallback={null}>

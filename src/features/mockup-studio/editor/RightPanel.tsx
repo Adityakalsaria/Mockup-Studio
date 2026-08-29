@@ -26,7 +26,7 @@ import {
 import { DEFAULT_EDITOR_STATE, RANGES, type EditorState } from "./editorState";
 import type { AnimatableKey } from "../animation";
 
-type SectionId = "source" | "mockup" | "camera" | "blur" | "background";
+type SectionId = "source" | "phone" | "mockup" | "camera" | "blur" | "background";
 
 export function RightPanel({
   state,
@@ -38,6 +38,15 @@ export function RightPanel({
   canMirror,
   onStartMirror,
   onStopMirror,
+  onPair,
+  phoneConnected,
+  phoneQr,
+  phoneSecure,
+  phoneReason,
+  phoneZeroed,
+  liveMotion,
+  onToggleLiveMotion,
+  onSetZero,
   theme,
   onToggleTheme,
   onResetCamera,
@@ -58,6 +67,17 @@ export function RightPanel({
   canMirror: boolean;
   onStartMirror: () => void;
   onStopMirror: () => void;
+  /** Arms pairing — opens the event stream and fetches the QR. */
+  onPair: () => void;
+  phoneConnected: boolean;
+  /** Inline SVG, generated server-side so there is no image request. */
+  phoneQr: string | null;
+  phoneSecure: boolean;
+  phoneReason: string | null;
+  phoneZeroed: boolean;
+  liveMotion: boolean;
+  onToggleLiveMotion: (next: boolean) => void;
+  onSetZero: () => void;
   theme: "light" | "dark";
   onToggleTheme: () => void;
   onResetCamera: () => void;
@@ -219,6 +239,71 @@ export function RightPanel({
             <PillButton onClick={onStartMirror}>Mirror a window</PillButton>
           </div>
         ) : null}
+      </PanelSection>
+
+      {/* ----------------------------------------------------------- PHONE */}
+      <PanelSection
+        title="Phone"
+        expanded={isOpen("phone")}
+        onToggle={() => {
+          toggle("phone");
+          // Opening the section is what arms pairing: closed, nothing fetches
+          // a QR and no event stream is held open.
+          if (!isOpen("phone")) onPair();
+        }}
+      >
+        <div className="flex flex-col gap-[10px]">
+          <div className="flex items-center gap-[6px]">
+            <span
+              className="h-[7px] w-[7px] rounded-full"
+              style={{ background: phoneConnected ? "var(--ks-accent)" : "var(--ks-line-strong)" }}
+            />
+            <span className="ks-label" style={{ color: "var(--ks-text-dim)" }}>
+              {phoneConnected ? "Phone connected" : "Scan to connect a phone"}
+            </span>
+          </div>
+
+          {/* The QR is only a shortcut for typing the LAN URL — the phone still
+              has to grant motion access itself, which iOS only allows from a
+              tap on the phone. */}
+          {phoneQr && !phoneConnected ? (
+            <div
+              className="mx-auto w-[132px] rounded-[var(--ks-r)] bg-white p-[8px]"
+              // The QR is generated server-side as an inline SVG, so there is
+              // no image request and nothing to load.
+              dangerouslySetInnerHTML={{ __html: phoneQr }}
+            />
+          ) : null}
+
+          {!phoneSecure ? (
+            <p className="ks-micro" style={{ color: "var(--ks-text-faint)", lineHeight: 1.5 }}>
+              This page is on http. iOS only releases motion data over https —
+              start with <code>npm run dev:https</code>.
+            </p>
+          ) : null}
+
+          {phoneReason ? (
+            <p className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>{phoneReason}</p>
+          ) : null}
+
+          {phoneConnected ? (
+            <>
+              <Toggle
+                label="Live motion"
+                checked={liveMotion}
+                onChange={onToggleLiveMotion}
+              />
+              <PillButton onClick={onSetZero}>
+                {phoneZeroed ? "Re-zero" : "Set zero"}
+              </PillButton>
+              <p className="ks-micro" style={{ color: "var(--ks-text-faint)", lineHeight: 1.5 }}>
+                Hold the phone how you want it to sit, then set zero. While live
+                motion is on, the rotation sliders and any rotation keyframes
+                are ignored.
+              </p>
+            </>
+          ) : null}
+        </div>
       </PanelSection>
 
       {/* ---------------------------------------------------------- MOCKUP */}

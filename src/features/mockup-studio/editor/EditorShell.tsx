@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePhoneLink } from "../gyro/usePhoneLink";
 import PhoneStage3D, { type StageCapture, type StageRecorder } from "../PhoneStage3D";
 import { DEFAULT_BLUR } from "../blurStyles";
 import { backgroundCss, paintBackground } from "../backgrounds";
@@ -56,6 +57,11 @@ export default function EditorShell() {
 
   // A live window capture, when one is running. See `startMirror` below.
   const [liveStream, setLiveStream] = useState<MediaStream | null>(null);
+  // Phone pairing. Off until the panel is opened, so a session that never
+  // pairs opens no event stream and fetches no QR.
+  const [pairing, setPairing] = useState(false);
+  const [liveMotion, setLiveMotion] = useState(false);
+  const phone = usePhoneLink(pairing);
   // Resolved in an effect, not during render: this route is prerendered, and
   // `navigator` does not exist on the server. Starting false also means the
   // control never flashes in before we know the browser can honour it.
@@ -661,6 +667,7 @@ export default function EditorShell() {
               rotateX={effective.xAxis}
               rotateY={effective.yAxis}
               rotateZ={effective.zAxis}
+              livePose={liveMotion && phone.connected ? phone.poseRef : null}
               offsetX={effective.panX * 100}
               offsetY={effective.panY * 100}
               scale={effective.zoom * 100}
@@ -728,6 +735,21 @@ export default function EditorShell() {
           canMirror={canMirror}
           onStartMirror={startMirror}
           onStopMirror={stopMirror}
+          onPair={() => setPairing(true)}
+          phoneConnected={phone.connected}
+          phoneQr={phone.qr}
+          phoneSecure={phone.secure}
+          phoneReason={phone.reason}
+          phoneZeroed={phone.zeroed}
+          liveMotion={liveMotion}
+          onToggleLiveMotion={(next) => {
+            setLiveMotion(next);
+            // Zeroing on the way in means the phone starts facing the camera
+            // rather than facing magnetic north, which is what makes it feel
+            // like it snapped to a sensible pose instead of a random one.
+            if (next) phone.setZero();
+          }}
+          onSetZero={phone.setZero}
           theme={theme}
           onToggleTheme={toggleTheme}
           onResetCamera={() =>
