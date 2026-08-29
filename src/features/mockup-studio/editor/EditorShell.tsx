@@ -672,6 +672,8 @@ export default function EditorShell() {
                 scale: effective.screenScale,
                 offsetX: effective.screenOffsetX,
                 offsetY: effective.screenOffsetY,
+                // A mirrored device screen already contains its own island.
+                sourceHasNotch: Boolean(liveStream),
               }}
               offsetX={effective.panX * 100}
               offsetY={effective.panY * 100}

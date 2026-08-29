@@ -34,7 +34,17 @@ import type { Group, Mesh, MeshStandardMaterial } from "three";
  * `scale` 1 is the fitted size; above 1 zooms in and crops more. The offsets
  * are fractions of the screen, so they mean the same thing on any device.
  */
-export type ScreenFit = { scale: number; offsetX: number; offsetY: number };
+export type ScreenFit = {
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+  /**
+   * True when the source is a mirror of a real device, whose capture already
+   * contains the status bar and dynamic island. Drawing the model's own notch
+   * on top of that gives two islands stacked on each other.
+   */
+  sourceHasNotch?: boolean;
+};
 
 export const DEFAULT_SCREEN_FIT: ScreenFit = { scale: 1, offsetX: 0, offsetY: 0 };
 
@@ -933,7 +943,8 @@ function GLBPhoneScene({
           fit={screenFit}
         />
       )}
-      {!isBound && device.notch ? (
+      {/* Suppressed for a live mirror: the captured screen already has one. */}
+      {!isBound && device.notch && !screenFit?.sourceHasNotch ? (
         <NotchPlane
           notch={device.notch}
           native={device.screenNative}
