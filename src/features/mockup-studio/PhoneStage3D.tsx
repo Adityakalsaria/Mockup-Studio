@@ -872,12 +872,61 @@ function GLBPhoneScene({
   // both default to true — leave it and the screenshot renders upside down.
   const invalidate = useThree((state) => state.invalidate);
   const maxAnisotropy = useThree((state) => state.gl.capabilities.getMaxAnisotropy());
+  // Pulled apart so the effect depends on the three numbers rather than on the
+  // object, which the editor rebuilds every render — depending on the object
+  // would rebind every material on every frame.
+  const fitScale = screenFit?.scale ?? DEFAULT_SCREEN_FIT.scale;
+  const fitOffsetX = screenFit?.offsetX ?? DEFAULT_SCREEN_FIT.offsetX;
+  const fitOffsetY = screenFit?.offsetY ?? DEFAULT_SCREEN_FIT.offsetY;
   useEffect(() => {
     if (!screenMaterials.length) return;
     /* eslint-disable react-hooks/immutability -- three.js state lives on the
        objects themselves: assigning a map and raising needsUpdate is the only
        way to rebind a material. Both the texture and the materials are owned
        by this component, so nothing outside it observes the mutation. */
+    // Fit the source to the model's own screen, then apply the manual nudge.
+    //
+    // This has to happen HERE as well as in ScreenPlane, and that is the whole
+    // reason the zoom control appeared to do nothing: when the GLB carries a
+    // screen material the texture is bound straight to it and ScreenPlane is
+    // never rendered, so the fit that lives there never ran. This path used to
+    // set `repeat` to a bare flip, which stretched every non-matching source.
+    //
+    // `center` is (0.5, 0.5) below, so `repeat` scales about the middle and
+    // the crop needs no centring offset of its own — unlike ScreenPlane, whose
+    // centre is the origin.
+    const applyFit = () => {
+      if (!screenTexture) return;
+      const image = screenTexture.image as
+        | (HTMLVideoElement & { width: number; height: number })
+        | undefined;
+      const srcWidth = image?.videoWidth || image?.width || 0;
+      const srcHeight = image?.videoHeight || image?.height || 0;
+
+      const flip = device.screenFlipX ? -1 : 1;
+      let fx = 1;
+      let fy = 1;
+
+      if (srcWidth && srcHeight) {
+        const screenAspect = screen
+          ? screen.width / screen.height
+          : device.screenNative.width / device.screenNative.height;
+        const srcAspect = srcWidth / srcHeight;
+        if (srcAspect > screenAspect) fx = screenAspect / srcAspect;
+        else if (srcAspect < screenAspect) fy = srcAspect / screenAspect;
+      }
+
+      const zoom = fitScale > 0 ? fitScale : 1;
+      fx /= zoom;
+      fy /= zoom;
+
+      screenTexture.center.set(0.5, 0.5);
+      screenTexture.repeat.set(fx * flip, fy);
+      screenTexture.offset.set(-fitOffsetX * fx, fitOffsetY * fy);
+      screenTexture.needsUpdate = true;
+      invalidate();
+    };
+
     for (const material of screenMaterials) {
       if (screenTexture) {
         screenTexture.flipY = false;
@@ -886,13 +935,8 @@ function GLBPhoneScene({
         // exactly the setting that decides whether a screenshot stays legible
         // there or smears into mush.
         screenTexture.anisotropy = maxAnisotropy;
-        // Mirror about the centre rather than by offsetting: `center` makes
-        // a negative repeat flip in place, so the UVs stay inside 0..1 and
-        // the wrap mode does not have to change with it.
-        screenTexture.center.set(0.5, 0.5);
-        screenTexture.repeat.set(device.screenFlipX ? -1 : 1, 1);
         screenTexture.colorSpace = SRGBColorSpace;
-        screenTexture.needsUpdate = true;
+        applyFit();
       }
       material.map = screenTexture;
       // No source: the screen is off. Near-black rather than pure, so the
@@ -902,7 +946,29 @@ function GLBPhoneScene({
     }
     /* eslint-enable react-hooks/immutability */
     invalidate();
-  }, [screenMaterials, screenTexture, device, invalidate, maxAnisotropy]);
+
+    // A video does not know its size until metadata lands, and a shared window
+    // can be resized mid-stream. Without these the crop is computed once
+    // against a size that no longer holds.
+    const image = screenTexture?.image as HTMLVideoElement | undefined;
+    if (!image || typeof image.videoWidth !== "number") return;
+    image.addEventListener("loadedmetadata", applyFit);
+    image.addEventListener("resize", applyFit);
+    return () => {
+      image.removeEventListener("loadedmetadata", applyFit);
+      image.removeEventListener("resize", applyFit);
+    };
+  }, [
+    screenMaterials,
+    screenTexture,
+    device,
+    invalidate,
+    maxAnisotropy,
+    screen,
+    fitScale,
+    fitOffsetX,
+    fitOffsetY,
+  ]);
 
   // Placement comes from the model's own screen mesh where there is one, and
   // falls back to the old percentage guesses only if a model ships without a
