@@ -966,6 +966,18 @@ const TRANSFORM_EASE_TIME = 0.18;
     does not allocate a quaternion sixty times a second. */
 const LIVE_TARGET = new Quaternion();
 
+/**
+ * The GLB is authored facing away from the camera, so something has to turn it
+ * around before you can see the screen. In manual mode that something is
+ * `DEFAULT_EDITOR_STATE.yAxis`, which is 180 for exactly this reason.
+ *
+ * A live pose replaces the rotation outright rather than adding to it, so it
+ * skipped that correction and the phone showed its back. Composing the facing
+ * in here — local-side, so it is applied before the device orientation — puts
+ * the screen front-on at rest and leaves the tilt behaviour untouched.
+ */
+const MODEL_FACING = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI);
+
 function PhoneScene({
   rail,
   screenTexture,
@@ -1080,7 +1092,7 @@ function PhoneScene({
     if (live) {
       // Same easing constant as every other transform, so the phone answers a
       // real tilt with the same weight it answers a slider.
-      LIVE_TARGET.set(live.x, live.y, live.z, live.w);
+      LIVE_TARGET.set(live.x, live.y, live.z, live.w).multiply(MODEL_FACING);
       g.quaternion.slerp(LIVE_TARGET, k);
       // A live feed never settles, so it drives the demand loop itself.
       state.invalidate();
