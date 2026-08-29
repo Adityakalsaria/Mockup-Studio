@@ -34,6 +34,10 @@ export function RightPanel({
   sourceSrc,
   onPickSource,
   onClearSource,
+  isMirroring,
+  canMirror,
+  onStartMirror,
+  onStopMirror,
   theme,
   onToggleTheme,
   onResetCamera,
@@ -46,6 +50,14 @@ export function RightPanel({
   sourceSrc: string | null;
   onPickSource: () => void;
   onClearSource: () => void;
+  /** A live window capture is currently driving the screen. */
+  isMirroring: boolean;
+  /** False where the browser has no `getDisplayMedia` — every mobile browser,
+      and any insecure context. Hides the control rather than offering a button
+      that can only fail. */
+  canMirror: boolean;
+  onStartMirror: () => void;
+  onStopMirror: () => void;
   theme: "light" | "dark";
   onToggleTheme: () => void;
   onResetCamera: () => void;
@@ -108,7 +120,39 @@ export function RightPanel({
         expanded={isOpen("source")}
         onToggle={() => toggle("source")}
       >
-        {sourceSrc ? (
+        {/* A live mirror outranks the upload in the texture hook, so it has to
+            outrank it here too — showing the old still under a running mirror
+            would say the phone is displaying something it is not. */}
+        {isMirroring ? (
+          <div
+            className="relative grid h-[132px] w-full place-items-center overflow-hidden rounded-[var(--ks-r)]"
+            style={{ background: "var(--ks-ctl)" }}
+          >
+            <div className="flex flex-col items-center gap-[6px]">
+              <span
+                className="h-[7px] w-[7px] rounded-full"
+                style={{ background: "var(--ks-accent)" }}
+              />
+              <span className="ks-label" style={{ color: "var(--ks-ctl-text)" }}>
+                Mirroring a window
+              </span>
+              <span className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>
+                Live on the phone
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={onStopMirror}
+              aria-label="Stop mirroring"
+              className="absolute right-[8px] top-[8px] grid h-[20px] w-[20px] place-items-center rounded-full"
+              style={{ background: "rgba(0,0,0,0.4)", color: "#fff" }}
+            >
+              <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden>
+                <path d="M1 1 9 9M9 1 1 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+        ) : sourceSrc ? (
           <div
             className="relative h-[132px] w-full overflow-hidden rounded-[var(--ks-r)]"
             style={{ background: "var(--ks-ctl)" }}
@@ -165,6 +209,16 @@ export function RightPanel({
             </span>
           </button>
         )}
+
+        {/* Mirror any window the OS will share: a phone mirrored over USB
+            (scrcpy, QuickTime), a simulator, or a browser tab. The web cannot
+            capture a phone's own screen from the phone, so the desktop picking
+            up a mirror window is the whole trick. */}
+        {!isMirroring && canMirror ? (
+          <div className="mt-[8px]">
+            <PillButton onClick={onStartMirror}>Mirror a window</PillButton>
+          </div>
+        ) : null}
       </PanelSection>
 
       {/* ---------------------------------------------------------- MOCKUP */}

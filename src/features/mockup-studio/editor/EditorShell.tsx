@@ -54,14 +54,38 @@ export default function EditorShell() {
   const recorderRef = useRef<StageRecorder | null>(null);
   const screenHostRef = useRef<HTMLDivElement>(null);
 
+  // A live window capture, when one is running. See `startMirror` below.
+  const [liveStream, setLiveStream] = useState<MediaStream | null>(null);
+  // Resolved in an effect, not during render: this route is prerendered, and
+  // `navigator` does not exist on the server. Starting false also means the
+  // control never flashes in before we know the browser can honour it.
+  const [canMirror, setCanMirror] = useState(false);
+  useEffect(() => {
+    setCanMirror(typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia);
+  }, []);
+
   // autoPlay off: the timeline drives the clip, see the sync effect below.
-  const screenTexture = useScreenTexture(screenHostRef, sourceSrc ?? undefined, 2, false);
+  const screenTexture = useScreenTexture(
+    screenHostRef,
+    sourceSrc ?? undefined,
+    2,
+    false,
+    liveStream,
+  );
   const screenVideo = (screenTexture as { image?: HTMLVideoElement } | null)?.image;
   // three's own flag rather than `instanceof HTMLVideoElement`. This runs
   // during render, and render happens on the server too, where that global
   // does not exist — the prerender of /mockup-studio failed on exactly that.
+  //
+  // A live mirror is deliberately NOT a video screen. It is backed by the same
+  // VideoTexture, but everything downstream of this flag — the filmstrip, the
+  // clip length, seeking the element to the playhead — assumes a file with a
+  // duration you can scrub. A stream has neither, so treating it as a clip
+  // gives a timeline of NaN and seeks that throw.
   const isVideoScreen = Boolean(
-    (screenTexture as { isVideoTexture?: boolean } | null)?.isVideoTexture && screenVideo,
+    (screenTexture as { isVideoTexture?: boolean } | null)?.isVideoTexture &&
+      screenVideo &&
+      !liveStream,
   );
 
   // Owned here rather than in the timeline because the clip's length is not
@@ -394,6 +418,41 @@ export default function EditorShell() {
 
   const pickSource = () => fileInputRef.current?.click();
 
+  const stopMirror = useCallback(() => {
+    setLiveStream((current) => {
+      current?.getTracks().forEach((track) => track.stop());
+      return null;
+    });
+  }, []);
+
+  // The picker itself is the OS window chooser, so anything the system will
+  // share works: a phone mirrored over USB, a simulator, another browser tab.
+  const startMirror = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false,
+      });
+      // Ending the share from the browser's own "Stop sharing" bar fires here.
+      // Without this the panel would keep claiming to mirror a window whose
+      // track has already gone black.
+      stream.getVideoTracks()[0]?.addEventListener("ended", () => setLiveStream(null));
+      setLiveStream((previous) => {
+        previous?.getTracks().forEach((track) => track.stop());
+        return stream;
+      });
+    } catch (error) {
+      // Dismissing the picker rejects. That is a normal outcome, not a fault,
+      // so it must not surface as an error.
+      if ((error as DOMException)?.name === "NotAllowedError") return;
+      console.warn("mockup-studio: could not start mirroring", error);
+    }
+  }, []);
+
+  // Tracks outlive React, so an unmount without this leaves the browser's
+  // "sharing your screen" bar up with nothing behind it.
+  useEffect(() => stopMirror, [stopMirror]);
+
   const onFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     if (!file) return;
@@ -665,6 +724,10 @@ export default function EditorShell() {
             setSourceSrc(null);
             setSourceName(null);
           }}
+          isMirroring={Boolean(liveStream)}
+          canMirror={canMirror}
+          onStartMirror={startMirror}
+          onStopMirror={stopMirror}
           theme={theme}
           onToggleTheme={toggleTheme}
           onResetCamera={() =>

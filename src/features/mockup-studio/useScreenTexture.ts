@@ -59,11 +59,59 @@ export function useScreenTexture(
    * against.
    */
   autoPlay = true,
+  /**
+   * A live capture — `getDisplayMedia` of a window, so a real device mirrored
+   * over USB (scrcpy, QuickTime) or a simulator lands on the phone as it moves.
+   *
+   * Last in the parameter list because the call sites pass positionally.
+   *
+   * It outranks every other source: while a stream is attached the upload, the
+   * preset and the React-screen capture are all skipped, since "what is on this
+   * window right now" is the only thing that can be meant by a live mirror.
+   */
+  liveStream?: MediaStream | null,
 ): Texture | null {
   const [texture, setTexture] = useState<Texture | null>(null);
   // The texture currently in the scene, so a superseded capture is disposed
   // rather than leaking a GPU allocation per screen change.
   const liveRef = useRef<Texture | null>(null);
+
+  // ── Live stream: the same VideoTexture trick, fed by a MediaStream ───────
+  //
+  // Identical to the video branch below except the frames arrive from a track
+  // instead of a file, so there is no `loop` and no seeking — and `autoPlay` is
+  // ignored, because a live stream has no timeline for the editor to own.
+  useEffect(() => {
+    if (!liveStream) return;
+
+    const video = document.createElement("video");
+    video.srcObject = liveStream;
+    video.muted = true;
+    video.playsInline = true;
+
+    const texture = new VideoTexture(video);
+    texture.colorSpace = SRGBColorSpace;
+    texture.minFilter = LinearFilter;
+    texture.magFilter = LinearFilter;
+
+    liveRef.current?.dispose();
+    liveRef.current = texture;
+    setTexture(texture);
+
+    void video.play().catch((error) => {
+      console.warn("mockup-studio: live screen failed to play", error);
+    });
+
+    return () => {
+      video.pause();
+      // Detaching the stream is what releases the decoder. The tracks
+      // themselves belong to whoever called getDisplayMedia — stopping them
+      // here would kill the share on every re-render.
+      video.srcObject = null;
+      texture.dispose();
+      if (liveRef.current === texture) liveRef.current = null;
+    };
+  }, [liveStream]);
 
   // ── Video source: a moving screen ───────────────────────────────────────
   //
@@ -72,6 +120,7 @@ export function useScreenTexture(
   // it exists to decode frames, and `playsInline` + `muted` are what let it
   // autoplay at all, since every browser blocks audible autoplay.
   useEffect(() => {
+    if (liveStream) return;
     if (!directSrc || !isVideoSource(directSrc)) return;
 
     const video = document.createElement("video");
@@ -106,10 +155,11 @@ export function useScreenTexture(
       texture.dispose();
       if (liveRef.current === texture) liveRef.current = null;
     };
-  }, [directSrc, autoPlay]);
+  }, [directSrc, autoPlay, liveStream]);
 
   // ── Fast path: an image source loads straight onto the mesh ──────────────
   useEffect(() => {
+    if (liveStream) return;
     if (!directSrc || isVideoSource(directSrc)) return;
     let cancelled = false;
 
@@ -141,11 +191,12 @@ export function useScreenTexture(
     return () => {
       cancelled = true;
     };
-  }, [directSrc]);
+  }, [directSrc, liveStream]);
 
   // ── Slow path: rasterise the built-in React screens ─────────────────────
   useEffect(() => {
-    // Any direct source wins; there is nothing to capture.
+    // A live stream or any direct source wins; there is nothing to capture.
+    if (liveStream) return;
     if (directSrc) return;
     const el = sourceRef.current;
     if (!el) return;
@@ -226,7 +277,7 @@ export function useScreenTexture(
       window.clearTimeout(timer);
       observer.disconnect();
     };
-  }, [sourceRef, directSrc, pixelRatio]);
+  }, [sourceRef, directSrc, pixelRatio, liveStream]);
 
   // Dispose on unmount only — the effect above handles replacement.
   useEffect(() => {
