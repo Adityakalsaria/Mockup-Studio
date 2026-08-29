@@ -26,6 +26,12 @@ export interface EditorState {
   xAxis: number;
   yAxis: number;
   zAxis: number;
+  /** Manual nudge on the screen crop, on top of the automatic fit. Needed for
+      a mirrored window, whose chrome sits on one edge only — a centred crop
+      leaves the content sitting low. */
+  screenScale: number;
+  screenOffsetX: number;
+  screenOffsetY: number;
   zoom: number;
   panX: number;
   panY: number;
@@ -56,6 +62,9 @@ export const DEFAULT_EDITOR_STATE: EditorState = {
   xAxis: 0,
   yAxis: 180,
   zAxis: 0,
+  screenScale: 1,
+  screenOffsetX: 0,
+  screenOffsetY: 0,
   zoom: 0.85,
   panX: 0,
   panY: 0,
@@ -75,6 +84,10 @@ export const RANGES = {
   // the range instead of overflowing the readout.
   yAxis: { min: -360, max: 360, step: 1 },
   zAxis: { min: -180, max: 180, step: 1 },
+  // Fractions of the screen, so a nudge means the same on any device.
+  screenScale: { min: 0.5, max: 2, step: 0.01 },
+  screenOffsetX: { min: -0.5, max: 0.5, step: 0.005 },
+  screenOffsetY: { min: -0.5, max: 0.5, step: 0.005 },
   zoom: { min: 0.5, max: 10.5, step: 0.01 },
   panX: { min: -1, max: 1, step: 0.01 },
   panY: { min: -1, max: 1, step: 0.01 },

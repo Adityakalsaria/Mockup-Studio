@@ -239,6 +239,38 @@ export function RightPanel({
             <PillButton onClick={onStartMirror}>Mirror a window</PillButton>
           </div>
         ) : null}
+
+        {/* Nudge on top of the automatic centre-crop. A mirrored window carries
+            chrome on one edge only, so the fit lands it low or high; a
+            screenshot needs none of this and leaves these at their defaults. */}
+        {isMirroring || sourceSrc ? (
+          <div className="mt-[10px]">
+            <ParamRow
+              label="Screen zoom"
+              value={state.screenScale}
+              {...RANGES.screenScale}
+              defaultValue={DEFAULT_EDITOR_STATE.screenScale}
+              decimals={2}
+              onChange={(screenScale) => onChange({ screenScale })}
+            />
+            <ParamRow
+              label="Screen X"
+              value={state.screenOffsetX}
+              {...RANGES.screenOffsetX}
+              defaultValue={DEFAULT_EDITOR_STATE.screenOffsetX}
+              decimals={3}
+              onChange={(screenOffsetX) => onChange({ screenOffsetX })}
+            />
+            <ParamRow
+              label="Screen Y"
+              value={state.screenOffsetY}
+              {...RANGES.screenOffsetY}
+              defaultValue={DEFAULT_EDITOR_STATE.screenOffsetY}
+              decimals={3}
+              onChange={(screenOffsetY) => onChange({ screenOffsetY })}
+            />
+          </div>
+        ) : null}
       </PanelSection>
 
       {/* ----------------------------------------------------------- PHONE */}

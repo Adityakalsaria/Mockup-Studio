@@ -23,6 +23,21 @@ import type React from "react";
 import { MeshBasicMaterial, Quaternion } from "three";
 import type { Group, Mesh, MeshStandardMaterial } from "three";
 
+/**
+ * Manual nudge on top of the automatic screen fit.
+ *
+ * The fit centre-crops the source to the phone's screen, which is right for a
+ * screenshot but rarely right for a mirrored window: the mirror app's chrome
+ * sits on one edge only, so a centred crop leaves the content sitting low or
+ * high. These let you push it back into place.
+ *
+ * `scale` 1 is the fitted size; above 1 zooms in and crops more. The offsets
+ * are fractions of the screen, so they mean the same thing on any device.
+ */
+export type ScreenFit = { scale: number; offsetX: number; offsetY: number };
+
+export const DEFAULT_SCREEN_FIT: ScreenFit = { scale: 1, offsetX: 0, offsetY: 0 };
+
 export type Phone3DRail = {
   previewSrc: string;
   previewLayout: { width: number; height: number };
@@ -438,6 +453,7 @@ function ScreenPlane({
   facing = 1,
   cornerRadiusPct,
   insetPct,
+  fit = DEFAULT_SCREEN_FIT,
 }: {
   texture: Texture | null;
   width: number;
@@ -447,6 +463,7 @@ function ScreenPlane({
   facing?: 1 | -1;
   cornerRadiusPct: number;
   insetPct: number;
+  fit?: ScreenFit;
 }) {
   const geometry = useMemo(
     () =>
@@ -465,7 +482,7 @@ function ScreenPlane({
     if (!texture?.image) return;
     const img = texture.image as HTMLVideoElement & { width: number; height: number };
 
-    const fit = () => {
+    const applyFit = () => {
       // A <video> carries its real size on videoWidth/videoHeight. `width` and
       // `height` are the HTML attributes, which are 0 on an element nobody
       // sized — so reading those alone silently skipped the fit for every
@@ -492,23 +509,40 @@ function ScreenPlane({
         texture.repeat.set(1, scale);
         texture.offset.set(0, (1 - scale) / 2);
       }
+
+      // Manual nudge, applied to whatever the automatic fit decided.
+      //
+      // Zooming shrinks the sampled window and has to re-centre on the same
+      // point, or turning the dial would slide the image toward a corner
+      // instead of scaling about the middle. The pans are then a fraction of
+      // the visible window, so a nudge moves the same apparent distance
+      // whatever the zoom.
+      const zoom = fit.scale > 0 ? fit.scale : 1;
+      const rx = texture.repeat.x / zoom;
+      const ry = texture.repeat.y / zoom;
+      texture.offset.set(
+        texture.offset.x + (texture.repeat.x - rx) / 2 - fit.offsetX * rx,
+        texture.offset.y + (texture.repeat.y - ry) / 2 + fit.offsetY * ry,
+      );
+      texture.repeat.set(rx, ry);
+
       texture.needsUpdate = true;
     };
 
-    fit();
+    applyFit();
 
     // A still knows its size the moment it decodes; a video does not, and a
     // live capture can change size mid-stream when the shared window is
     // resized. Both cases have to re-fit or the crop is computed once against
     // a size that no longer holds.
     if (typeof img.videoWidth !== "number") return;
-    img.addEventListener("loadedmetadata", fit);
-    img.addEventListener("resize", fit);
+    img.addEventListener("loadedmetadata", applyFit);
+    img.addEventListener("resize", applyFit);
     return () => {
-      img.removeEventListener("loadedmetadata", fit);
-      img.removeEventListener("resize", fit);
+      img.removeEventListener("loadedmetadata", applyFit);
+      img.removeEventListener("resize", applyFit);
     };
-  }, [texture, width, height]);
+  }, [texture, width, height, fit.scale, fit.offsetX, fit.offsetY]);
 
   if (!texture) return null;
   return (
@@ -578,10 +612,12 @@ function GLBPhoneScene({
   screenTexture,
   device,
   finishId,
+  screenFit,
 }: {
   screenTexture: Texture | null;
   device: Device;
   finishId?: string;
+  screenFit?: ScreenFit;
 }) {
   const { color: bodyColor, metalness: bodyMetalness, roughness: bodyRoughness } =
     getFinish(finishId);
@@ -894,6 +930,7 @@ function GLBPhoneScene({
           facing={facing}
           cornerRadiusPct={device.screenCornerRadiusPct}
           insetPct={device.screenInsetPct}
+          fit={screenFit}
         />
       )}
       {!isBound && device.notch ? (
@@ -915,10 +952,12 @@ function ProceduralPhoneScene({
   rail,
   screenTexture,
   device,
+  screenFit,
 }: {
   rail: Phone3DRail | undefined;
   screenTexture: Texture | null;
   device: Device;
+  screenFit?: ScreenFit;
 }) {
   const aspect = rail
     ? rail.previewLayout.width / rail.previewLayout.height
@@ -975,6 +1014,7 @@ function ProceduralPhoneScene({
           (device.screenNative.height / device.screenNative.width)
         }
         position={[screenCenterX, screenCenterY, overlayZ]}
+        fit={screenFit}
         cornerRadiusPct={device.screenCornerRadiusPct}
         insetPct={device.screenInsetPct}
       />
@@ -1021,6 +1061,7 @@ function PhoneScene({
   timeRef,
   playing,
   livePose,
+  screenFit,
 }: {
   rail: Phone3DRail | undefined;
   screenTexture: Texture | null;
@@ -1040,6 +1081,8 @@ function PhoneScene({
    * reintroduce exactly the gimbal lock the quaternion exists to avoid.
    */
   livePose?: React.RefObject<Quat> | null;
+  /** Manual nudge on the screen crop. */
+  screenFit?: ScreenFit;
   rotateX: number;
   rotateY: number;
   rotateZ: number;
@@ -1167,6 +1210,7 @@ function PhoneScene({
               rail={rail}
               screenTexture={screenTexture}
               device={device}
+              screenFit={screenFit}
             />
           }
         >
@@ -1174,6 +1218,7 @@ function PhoneScene({
             screenTexture={screenTexture}
             device={device}
             finishId={finishId}
+            screenFit={screenFit}
           />
         </Suspense>
       ) : (
@@ -1205,6 +1250,7 @@ export default function PhoneStage3D({
   timeRef,
   playing,
   livePose,
+  screenFit,
   canvasRef,
   captureRef,
   recorderRef,
@@ -1235,6 +1281,8 @@ export default function PhoneStage3D({
   /** A paired phone's live orientation. Overrides the rotation props while
       present — see the note on PhoneScene. */
   livePose?: React.RefObject<Quat> | null;
+  /** Manual nudge on the screen crop — see ScreenFit. */
+  screenFit?: ScreenFit;
   canvasRef?: React.MutableRefObject<HTMLCanvasElement | null>;
   captureRef?: React.MutableRefObject<StageCapture | null>;
   /** Frame-by-frame access, for recording video. */
@@ -1306,6 +1354,7 @@ export default function PhoneStage3D({
           timeRef={timeRef}
           playing={playing}
           livePose={livePose}
+          screenFit={screenFit}
         />
         {isBlurActive(blur) ? (
           <Suspense fallback={null}>
