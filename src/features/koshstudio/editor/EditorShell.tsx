@@ -1,0 +1,687 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import PhoneStage3D, { type StageCapture, type StageRecorder } from "../PhoneStage3D";
+import { DEFAULT_BLUR } from "../blurStyles";
+import { backgroundCss, paintBackground } from "../backgrounds";
+import { pickRecordingFormat, recordStageVideo } from "../recordVideo";
+import { renderVideoExact, supportsExactRender } from "../renderVideoExact";
+import {
+  hasKeys,
+  keyAt,
+  putKey,
+  removeKey,
+  sampleAnimation,
+  type AnimatableKey,
+} from "../animation";
+import { Timeline } from "./Timeline";
+import { fitToClip, getMotionPreset } from "./motionPresets";
+import { useFilmstrip } from "./useFilmstrip";
+import { useScreenTexture } from "../useScreenTexture";
+import { RightPanel } from "./RightPanel";
+import { TopBar, getRatio } from "./TopBar";
+import { EditorTheme } from "./theme";
+import { useEditorTheme } from "./primitives";
+import { DEFAULT_EDITOR_STATE, RANGES, type EditorState } from "./editorState";
+
+/**
+ * The editor, laid out as the KOSH frame lays it out: a top bar with the
+ * canvas taking the whole column beneath it, and a fixed 290px panel down the
+ * right. Every gap is the frame's 14px.
+ */
+export default function EditorShell() {
+  const [theme, toggleTheme] = useEditorTheme();
+  const [state, setState] = useState<EditorState>(DEFAULT_EDITOR_STATE);
+
+  const [sourceSrc, setSourceSrc] = useState<string | null>(null);
+  const [sourceName, setSourceName] = useState<string | null>(null);
+  // null when idle; 0..1 while recording, which is also what disables Export.
+  const [recordProgress, setRecordProgress] = useState<number | null>(null);
+
+  const [timelineOpen, setTimelineOpen] = useState(false);
+  const [exportFps, setExportFps] = useState(60);
+  const [exportScale, setExportScale] = useState(2);
+  const [playhead, setPlayhead] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [scrubbing, setScrubbing] = useState(false);
+  const [ratioId, setRatioId] = useState("fill");
+  // null = Fill: the canvas takes the whole workspace instead of letterboxing.
+  const ratio = getRatio(ratioId);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const captureRef = useRef<StageCapture | null>(null);
+  const recorderRef = useRef<StageRecorder | null>(null);
+  const screenHostRef = useRef<HTMLDivElement>(null);
+
+  // autoPlay off: the timeline drives the clip, see the sync effect below.
+  const screenTexture = useScreenTexture(screenHostRef, sourceSrc ?? undefined, 2, false);
+  const screenVideo = (screenTexture as { image?: HTMLVideoElement } | null)?.image;
+  // three's own flag rather than `instanceof HTMLVideoElement`. This runs
+  // during render, and render happens on the server too, where that global
+  // does not exist — the prerender of /koshstudio failed on exactly that.
+  const isVideoScreen = Boolean(
+    (screenTexture as { isVideoTexture?: boolean } | null)?.isVideoTexture && screenVideo,
+  );
+
+  // Owned here rather than in the timeline because the clip's length is not
+  // just a drawing detail: it decides the timeline's duration and it is what
+  // the playhead is wrapped against. Reading `video.duration` off the live
+  // element instead looked simpler and silently never updated — `duration`
+  // goes from NaN to a number when metadata lands, and that is a mutation on
+  // an object React has no reason to re-render for.
+  const clip = useFilmstrip(isVideoScreen ? sourceSrc : null, 10);
+
+  // Read at click time, not capture time: keeping the backdrop in a ref stops
+  // `exportPng` taking a new identity on every colour nudge.
+  // Read at click time so `exportPng` keeps a stable identity.
+  const exportScaleRef = useRef(exportScale);
+  useEffect(() => {
+    exportScaleRef.current = exportScale;
+  }, [exportScale]);
+
+  const backgroundRef = useRef(state.background);
+  useEffect(() => {
+    backgroundRef.current = state.background;
+  }, [state.background]);
+
+  const { animation } = state;
+
+  // Callbacks below must stay identity-stable (PointerDragRotation binds them
+  // once), so anything they need to read live goes through a ref.
+  const playheadRef = useRef(0);
+  const playingRef = useRef(false);
+  const animatedRef = useRef(false);
+  const clipVideoRef = useRef<HTMLVideoElement | null>(null);
+  const clipLengthRef = useRef(0);
+  useEffect(() => {
+    playingRef.current = playing;
+  }, [playing]);
+  useEffect(() => {
+    // Only follow React while paused: during playback the ref is the source
+    // of truth and the state is the copy, not the other way round.
+    if (!playingRef.current) playheadRef.current = playhead;
+  }, [playhead]);
+
+  // What the stage and the panel actually show.
+  //
+  // A property with keys is owned by its track — its static value is only a
+  // fallback for the properties that have none. Doing this at the point of
+  // use rather than by writing sampled values back into state is what keeps
+  // scrubbing from destroying the poses you keyed.
+  const sampled = useMemo(
+    () => sampleAnimation(animation, playhead),
+    [animation, playhead],
+  );
+  const effective = useMemo(() => ({ ...state, ...sampled }), [state, sampled]);
+  const effectiveRef = useRef(effective);
+  useEffect(() => {
+    effectiveRef.current = effective;
+  }, [effective]);
+
+  // Editing a value that is already animated writes a key at the playhead
+  // rather than a static value — otherwise the edit would appear to do
+  // nothing, because the track would immediately sample over the top of it.
+  const change = useCallback((patch: Partial<EditorState>) => {
+    setState((prev) => {
+      const next = { ...prev, ...patch };
+      const tracks = { ...prev.animation.tracks };
+      let touched = false;
+      for (const [name, value] of Object.entries(patch)) {
+        const key = name as AnimatableKey;
+        if (typeof value !== "number" || !tracks[key]?.length) continue;
+        tracks[key] = putKey(tracks[key], playheadRef.current, value);
+        touched = true;
+      }
+      return touched ? { ...next, animation: { ...prev.animation, tracks } } : next;
+    });
+  }, []);
+
+  // Cursor-drag rotation. The functional update matters: a drag fires a move
+  // per frame, and reading `state` from the render closure would drop every
+  // delta React batched into the same render.
+  const nudgeRotation = useCallback(
+    ({ dx, dy }: { dx: number; dy: number }) => {
+      // Reads the sampled value, not the stored one, so dragging an animated
+      // axis continues from where it looks rather than snapping to its static
+      // value first.
+      const base = effectiveRef.current;
+      change({ yAxis: base.yAxis + dx * 0.4, xAxis: base.xAxis + dy * 0.4 });
+    },
+    [change],
+  );
+
+  // Wheel / pinch zoom, matching the "Scroll" hint on the Zoom row. The stage
+  // reports scale in percentage points; editor zoom is the same number over
+  // 100, and it is clamped to the slider's own range so the two agree.
+  const nudgeZoom = useCallback(
+    (deltaPct: number) => {
+      const current = effectiveRef.current.zoom;
+      change({
+        zoom: Math.max(
+          RANGES.zoom.min,
+          Math.min(RANGES.zoom.max, current + deltaPct / 100),
+        ),
+      });
+    },
+    [change],
+  );
+
+  const setAnimation = useCallback((patch: Partial<typeof DEFAULT_EDITOR_STATE.animation>) => {
+    setState((prev) => ({ ...prev, animation: { ...prev.animation, ...patch } }));
+  }, []);
+
+  /** The diamond: key this property here, or drop the key that is already here. */
+  const toggleKey = useCallback((property: AnimatableKey) => {
+    setState((prev) => {
+      const time = playheadRef.current;
+      const keys = prev.animation.tracks[property];
+      const existing = keyAt(keys, time);
+      const value = sampleAnimation(prev.animation, time)[property] ?? prev[property];
+      const nextKeys = existing
+        ? removeKey(keys, time)
+        : putKey(keys, time, value as number);
+      const tracks = { ...prev.animation.tracks };
+      // An empty array and no track are the same thing; keeping the empty one
+      // would leave a lane in the timeline with nothing in it.
+      if (nextKeys.length) tracks[property] = nextKeys;
+      else delete tracks[property];
+      return { ...prev, animation: { ...prev.animation, tracks } };
+    });
+  }, []);
+
+  const moveKey = useCallback((property: AnimatableKey, from: number, to: number) => {
+    setState((prev) => {
+      const keys = prev.animation.tracks[property];
+      const moving = keyAt(keys, from);
+      if (!moving) return prev;
+      const clamped = Math.max(0, Math.min(prev.animation.durationSec, to));
+      return {
+        ...prev,
+        animation: {
+          ...prev.animation,
+          tracks: {
+            ...prev.animation.tracks,
+            [property]: putKey(removeKey(keys, from), clamped, moving.value),
+          },
+        },
+      };
+    });
+  }, []);
+
+  const dropKey = useCallback((property: AnimatableKey, time: number) => {
+    setState((prev) => {
+      const nextKeys = removeKey(prev.animation.tracks[property], time);
+      const tracks = { ...prev.animation.tracks };
+      if (nextKeys.length) tracks[property] = nextKeys;
+      else delete tracks[property];
+      return { ...prev, animation: { ...prev.animation, tracks } };
+    });
+  }, []);
+
+  // Playback.
+  //
+  // The clock lives in a ref and the scene reads it inside its own frame loop.
+  // React is told the time roughly ten times a second, and only so the
+  // readout and the playhead marker move — pushing it every frame re-rendered
+  // the whole editor at 60Hz and that reconciliation was the stutter.
+  useEffect(() => {
+    if (!playing) return;
+    let raf = 0;
+    let lastUiPush = 0;
+    const startedAt = performance.now();
+    const from = playheadRef.current >= animation.durationSec ? 0 : playheadRef.current;
+    const tick = (now: number) => {
+      const elapsed = (now - startedAt) / 1000;
+      const next = from + elapsed;
+      // Loops, because a mockup animation is something you watch repeat while
+      // you tune it, not something you play once.
+      const wrapped = next >= animation.durationSec;
+      playheadRef.current = wrapped ? next % animation.durationSec : next;
+      // The clip is free-running during playback, so when the timeline loops
+      // it has to be brought back too. Without this a 3-second timeline over
+      // a 12-second clip plays a different slice of footage on every pass.
+      if (wrapped && clipVideoRef.current && clipLengthRef.current) {
+        clipVideoRef.current.currentTime =
+          playheadRef.current % clipLengthRef.current;
+      }
+      if (now - lastUiPush > 90) {
+        lastUiPush = now;
+        setPlayhead(playheadRef.current);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      // Land the UI on wherever the clock actually stopped.
+      setPlayhead(playheadRef.current);
+    };
+  }, [playing, animation.durationSec]);
+
+  const keyedNow = useMemo(() => {
+    const out: Partial<Record<AnimatableKey, boolean>> = {};
+    for (const [property, keys] of Object.entries(animation.tracks)) {
+      out[property as AnimatableKey] = Boolean(keyAt(keys, playhead));
+    }
+    return out;
+  }, [animation.tracks, playhead]);
+
+  const animated = hasKeys(animation);
+
+  useEffect(() => {
+    animatedRef.current = animated;
+  }, [animated]);
+
+  // ── The timeline owns the clip ──────────────────────────────────────────
+  //
+  // Left to itself a video element just loops, and what the phone shows has
+  // nothing to do with where the playhead is. You cannot key a camera move
+  // against a moment in the footage you cannot navigate to. So the playhead
+  // is the clock for both: scrub and the clip lands on that frame, play and
+  // it runs alongside, pause and it stops where you stopped.
+  const clipLength = clip.duration;
+
+  const clipVideo = isVideoScreen && screenVideo ? screenVideo : null;
+
+  useEffect(() => {
+    clipVideoRef.current = clipVideo;
+    clipLengthRef.current = clipLength;
+  }, [clipVideo, clipLength]);
+
+  // Transport: start and stop, and nothing else.
+  //
+  // This used to be one effect with `playhead` in its dependencies, which
+  // meant every UI tick during playback — ten a second — re-ran it and
+  // re-seeked a video that was already playing. Ten seeks a second is not
+  // playback; the decoder spent its time jumping rather than decoding, and
+  // the clip stuttered and stalled. Starting is a one-off, so it lives in an
+  // effect that only reacts to starting.
+  useEffect(() => {
+    if (!clipVideo || !clipLength) return;
+    if (!playing) {
+      clipVideo.pause();
+      return;
+    }
+    clipVideo.currentTime = playheadRef.current % clipLength;
+    void clipVideo.play().catch(() => {});
+    return () => clipVideo.pause();
+  }, [playing, clipVideo, clipLength]);
+
+  // Scrubbing: only while paused. During playback the clip and the playhead
+  // are both running off the wall clock, so they stay together on their own
+  // and any correction here would be a seek fighting the decoder.
+  useEffect(() => {
+    if (!clipVideo || !clipLength || playing) return;
+
+    const target = playhead % clipLength;
+
+    // Seeks are coalesced, and this is what makes scrubbing usable.
+    //
+    // Assigning `currentTime` straight from this effect meant one seek per
+    // pointermove. A seek is not cheap — the decoder has to find the nearest
+    // keyframe and roll forward — so a drag queued dozens of them, each
+    // arriving after the pointer had already moved on, and the preview
+    // lurched between stale frames instead of following the cursor.
+    //
+    // Deferring to the next animation frame collapses a burst of moves into
+    // one seek, because a newer playhead cancels this effect before its frame
+    // runs. Retrying while `seeking` is true means the LAST position always
+    // lands, rather than being dropped because the decoder happened to be
+    // busy when the drag ended.
+    let raf = 0;
+    const apply = () => {
+      raf = 0;
+      if (clipVideo.seeking) {
+        raf = requestAnimationFrame(apply);
+        return;
+      }
+      if (Math.abs(clipVideo.currentTime - target) > 1 / 120) {
+        clipVideo.currentTime = target;
+      }
+    };
+    raf = requestAnimationFrame(apply);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [playing, playhead, clipVideo, clipLength]);
+
+  // A clip's own length is the only duration that means anything when one is
+  // loaded, so adopt it — but only while nothing has been keyed yet, or this
+  // would move the ground under an animation someone had already built.
+  const adoptedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!clipLength || !sourceSrc || adoptedFor.current === sourceSrc) return;
+    adoptedFor.current = sourceSrc;
+    if (animatedRef.current) return;
+    setState((prev) => ({
+      ...prev,
+      animation: {
+        ...prev.animation,
+        durationSec: Math.min(30, Math.max(0.5, Number(clipLength.toFixed(2)))),
+      },
+    }));
+    setTimelineOpen(true);
+  }, [clipLength, sourceSrc]);
+
+  // Presets are built from the pose on screen, so applying one keeps the shot
+  // you framed and only decides how the camera gets there.
+  const applyMotionPreset = useCallback((id: string) => {
+    const preset = getMotionPreset(id);
+    if (!preset) return;
+    const pose = effectiveRef.current;
+    setPlaying(false);
+    setPlayhead(0);
+    setState((prev) => ({
+      ...prev,
+      animation: {
+        // The chosen easing survives; only the tracks and length change.
+        easing: prev.animation.easing,
+        ...fitToClip(
+          preset.build({
+            xAxis: pose.xAxis,
+            yAxis: pose.yAxis,
+            zAxis: pose.zAxis,
+            zoom: pose.zoom,
+            panX: pose.panX,
+            panY: pose.panY,
+          }),
+          clipLengthRef.current,
+        ),
+      },
+    }));
+  }, []);
+
+  const pickSource = () => fileInputRef.current?.click();
+
+  const onFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    setSourceName(file.name);
+    reader.onload = () => setSourceSrc(String(reader.result));
+    reader.readAsDataURL(file);
+  };
+
+  // Export composites rather than just reading the canvas.
+  //
+  // The WebGL buffer contains the phone and nothing else — the backdrop is a
+  // CSS layer sitting behind a transparent canvas, so a straight `toDataURL`
+  // hands back a phone floating on nothing regardless of what the editor
+  // shows. Painting the same backdrop underneath is what makes the file match
+  // the screen. "None" paints nothing, and the PNG keeps its alpha.
+  const exportPng = useCallback(async () => {
+    const scale = exportScaleRef.current;
+    const url = captureRef.current?.(scale);
+    if (!url) return;
+
+    const shot = new Image();
+    shot.src = url;
+    try {
+      await shot.decode();
+    } catch {
+      return;
+    }
+
+    const out = document.createElement("canvas");
+    out.width = shot.width;
+    out.height = shot.height;
+    const ctx = out.getContext("2d");
+    if (!ctx) return;
+
+    paintBackground(ctx, backgroundRef.current, out.width, out.height, scale);
+    ctx.drawImage(shot, 0, 0);
+
+    const link = document.createElement("a");
+    link.href = out.toDataURL("image/png");
+    link.download = "koshstudio.png";
+    link.click();
+  }, []);
+
+  // Video export.
+  //
+  // Length comes from the clip on the screen rather than a setting, because
+  // for a mockup that is the only length that means anything: one clean loop
+  // of whatever is playing. With no video loaded there is nothing moving to
+  // record, so this stays disabled rather than producing five seconds of a
+  // still image.
+  const exportVideo = useCallback(async () => {
+    const recorder = recorderRef.current;
+    if (!recorder || recordProgress !== null) return;
+    const video = isVideoScreen ? screenVideo : null;
+    // `duration` is NaN until metadata lands, and Infinity for a stream.
+    const clipLength = video && Number.isFinite(video.duration) ? video.duration : 0;
+    // With both a keyed animation and a video screen, the animation is the
+    // one someone authored a length for, so it wins; the clip loops under it.
+    const length = animated ? animation.durationSec : clipLength || 5;
+
+    setPlaying(false);
+    setRecordProgress(0);
+    const durationSec = Math.min(30, Math.max(0.5, length));
+    // Straight into the ref the scene samples from — no React render per
+    // frame, the scene reads this clock itself inside its own frame loop.
+    const onTime = animated
+      ? (seconds: number) => {
+          playheadRef.current = Math.min(seconds, animation.durationSec);
+        }
+      : undefined;
+
+    try {
+      let blob: Blob;
+      let extension: string;
+
+      if (supportsExactRender()) {
+        // The good path: encode frame by frame with timestamps we choose, so
+        // the file does not inherit this machine's stutters.
+        blob = await renderVideoExact({
+          recorder,
+          background: backgroundRef.current,
+          scale: exportScale,
+          durationSec,
+          fps: exportFps,
+          video,
+          videoTexture: isVideoScreen ? screenTexture : null,
+          onTime,
+          onProgress: setRecordProgress,
+        });
+        extension = "mp4";
+      } else {
+        const result = await recordStageVideo({
+          recorder,
+          background: backgroundRef.current,
+          scale: exportScale,
+          durationSec,
+          fps: exportFps,
+          video,
+          onTime,
+          onProgress: setRecordProgress,
+        });
+        blob = result.blob;
+        extension = result.format.extension;
+      }
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `koshstudio.${extension}`;
+      link.click();
+      // Revoking immediately can cancel the download in some browsers; one
+      // turn of the event loop is enough for the click to be picked up.
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch (error) {
+      console.warn("koshstudio: video export failed", error);
+    } finally {
+      setRecordProgress(null);
+      playheadRef.current = 0;
+      setPlayhead(0);
+    }
+  }, [
+    isVideoScreen,
+    screenVideo,
+    screenTexture,
+    recordProgress,
+    animated,
+    animation.durationSec,
+    exportFps,
+    exportScale,
+  ]);
+
+  return (
+    <div className="ks h-screen w-screen overflow-hidden" data-ks-theme={theme}>
+      <EditorTheme />
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        onChange={onFile}
+        className="hidden"
+      />
+
+      {/* The rasterise source for React-rendered screens. Offscreen, but not
+          display:none — a hidden node has no box and captures blank. */}
+      <div
+        ref={screenHostRef}
+        aria-hidden
+        className="pointer-events-none fixed left-[-10000px] top-0"
+      />
+
+      <div className="flex h-full w-full gap-[var(--ks-gap)] p-[var(--ks-gap)]">
+        <div className="flex min-w-0 flex-1 flex-col gap-[10px]">
+          {/* Above the canvas: the export menu is absolutely positioned and
+              the canvas frame comes later in the DOM, so without this it
+              would paint over the menu. */}
+          <div className="relative z-30 flex">
+            <TopBar
+              theme={theme}
+              ratioId={ratioId}
+              onRatioChange={setRatioId}
+              timelineOpen={timelineOpen || animated}
+              onToggleTimeline={() => setTimelineOpen((open) => !open)}
+              onExportPng={exportPng}
+              onExportVideo={exportVideo}
+              canExportVideo={
+                (isVideoScreen || animated) &&
+                (supportsExactRender() || Boolean(pickRecordingFormat()))
+              }
+              recordProgress={recordProgress}
+            />
+          </div>
+
+          {/* The workspace is the whole column; the framed canvas inside it is
+              only as big as the chosen ratio allows. `container-type: size`
+              is what lets the frame size itself off the workspace in CSS —
+              `cqw`/`cqh` are the two numbers needed to fit a ratio inside a
+              box, and reading them here avoids a resize observer that would
+              re-render the scene on every drag of the window edge. */}
+          <div
+            className="relative grid min-h-0 flex-1 place-items-center"
+            style={{ containerType: "size" }}
+          >
+            <div
+              className="relative overflow-hidden rounded-[var(--ks-r-panel)] border"
+              style={{
+                ...backgroundCss(state.background),
+                borderColor: "var(--ks-line-strong)",
+                ...(ratio === null
+                  ? { width: "100%", height: "100%" }
+                  : {
+                      aspectRatio: String(ratio),
+                      // Whichever of the two constraints binds first wins, so
+                      // the frame always fits and never overflows.
+                      width: `min(100cqw, ${ratio} * 100cqh)`,
+                    }),
+              }}
+            >
+            <PhoneStage3D
+              rail={undefined}
+              screenTexture={screenTexture}
+              deviceId={state.deviceId}
+              finishId={state.finishId}
+              blur={state.blur}
+              rotateX={effective.xAxis}
+              rotateY={effective.yAxis}
+              rotateZ={effective.zAxis}
+              offsetX={effective.panX * 100}
+              offsetY={effective.panY * 100}
+              scale={effective.zoom * 100}
+              // Easing is a lag filter — right for a slider nudge, wrong for
+              // playback, where it would smear every keyframe 0.18s late and
+              // round off the poses that were keyed deliberately.
+              // Scrubbing counts as immediate too. The transform easing is a
+              // 0.18s lag filter, and under a drag that is not smoothing —
+              // it is the phone arriving where the cursor was a moment ago.
+              immediate={playing || scrubbing || recordProgress !== null}
+              animation={animation}
+              timeRef={playheadRef}
+              playing={playing || recordProgress !== null}
+              heightPct={100}
+              canvasRef={canvasRef}
+              captureRef={captureRef}
+              recorderRef={recorderRef}
+              onRotateDrag={nudgeRotation}
+              onScaleWheel={nudgeZoom}
+            />
+            </div>
+          </div>
+
+          {timelineOpen || animated ? (
+            <Timeline
+              animation={animation}
+              playhead={playhead}
+              playing={playing}
+              onSeek={(time) => {
+                setPlaying(false);
+                setPlayhead(time);
+              }}
+              onTogglePlay={() => setPlaying((p) => !p)}
+              onScrubbingChange={setScrubbing}
+              onDurationChange={(durationSec) => setAnimation({ durationSec })}
+              onMoveKey={moveKey}
+              onRemoveKey={dropKey}
+              onClear={() => {
+                setPlaying(false);
+                setPlayhead(0);
+                setAnimation({ tracks: {} });
+              }}
+              onApplyPreset={applyMotionPreset}
+              onEasingChange={(easing) => setAnimation({ easing })}
+              exportFps={exportFps}
+              onExportFpsChange={setExportFps}
+              exportScale={exportScale}
+              onExportScaleChange={setExportScale}
+              clip={clip}
+              clipName={sourceName ?? "Clip"}
+            />
+          ) : null}
+        </div>
+
+        <RightPanel
+          state={effective}
+          onChange={change}
+          sourceSrc={sourceSrc}
+          onPickSource={pickSource}
+          onClearSource={() => {
+            setSourceSrc(null);
+            setSourceName(null);
+          }}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onResetCamera={() =>
+            change({
+              xAxis: DEFAULT_EDITOR_STATE.xAxis,
+              yAxis: DEFAULT_EDITOR_STATE.yAxis,
+              zAxis: DEFAULT_EDITOR_STATE.zAxis,
+              zoom: DEFAULT_EDITOR_STATE.zoom,
+              panX: DEFAULT_EDITOR_STATE.panX,
+              panY: DEFAULT_EDITOR_STATE.panY,
+            })
+          }
+          onResetBlur={() => change({ blur: DEFAULT_BLUR })}
+          keyedNow={keyedNow}
+          onToggleKey={toggleKey}
+        />
+      </div>
+    </div>
+  );
+}

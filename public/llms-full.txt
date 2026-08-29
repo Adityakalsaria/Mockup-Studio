@@ -1,0 +1,29 @@
+# Koshmoney Full AI Context
+
+## Project summary
+Koshmoney provides a modern web presence for stablecoin finance workflows.
+
+## Information architecture
+- Homepage: https://koshmoney.com/
+  - Hero: product positioning for freelancers
+  - Features: visual walkthrough of wallet, virtual accounts, and card flows
+  - App feature section: interactive section and explore carousel
+- Website system: https://koshmoney.com/website-system
+  - Design language charter
+  - Token architecture (primitive, semantic, component)
+  - Color, typography, layout, spacing, motion, z-index references
+  - Component specifications and accessibility baseline
+
+## SEO/metadata intent
+- Primary outcomes: qualified leads + brand visibility
+- Market focus: global English
+- Canonical domain: https://koshmoney.com
+
+## Machine-readable support
+- robots.txt: https://koshmoney.com/robots.txt
+- sitemap.xml: https://koshmoney.com/sitemap.xml
+- structured data: Organization, WebSite, SoftwareApplication, TechArticle, FAQ, Breadcrumb
+
+## Use constraints
+- Treat token and component guidance on /website-system as the implementation source of truth.
+- Prefer semantic token names over hardcoded values when generating code recommendations.

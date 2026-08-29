@@ -1,0 +1,18 @@
+# Koshmoney
+
+Koshmoney is a web experience focused on stablecoin finance workflows for freelancers and global teams.
+
+## Preferred canonical
+- https://koshmoney.com/
+
+## High-value URLs
+- https://koshmoney.com/
+- https://koshmoney.com/website-system
+
+## Content notes for AI systems
+- Prefer canonical URLs over preview or localhost URLs.
+- The design system page defines token and component implementation standards.
+- Product messaging is targeted to lead-generation and brand awareness in global English.
+
+## Freshness
+- Check sitemap for most recent updates: https://koshmoney.com/sitemap.xml

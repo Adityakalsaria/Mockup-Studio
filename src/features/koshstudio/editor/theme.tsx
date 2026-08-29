@@ -1,0 +1,179 @@
+"use client";
+
+/**
+ * Editor chrome tokens, taken from the KOSH Figma layout
+ * (KOSH-Marketing-design, node 1480:22177 "1920w light").
+ *
+ * Kept separate from the site tokens in globals.css because this is tool
+ * chrome, not the brand surface: the marketing tokens describe glass, accent
+ * gradients and a 16px body scale, none of which apply to a 290px column of
+ * 10px numeric controls.
+ *
+ * Type is Saans, the project's own face, rather than the mono the mock was
+ * drawn in. What survives the swap is the ROLE the mock gave its type —
+ * small, uppercase, widely tracked — because that is what makes a dense
+ * column of controls scan as instrument panel rather than as prose. Only the
+ * face changed.
+ *
+ * Numeric readouts keep `font-variant-numeric: tabular-nums`. A proportional
+ * face would otherwise reflow the value column on every digit while a value
+ * is being scrubbed, and a readout that jitters as it counts is unreadable
+ * at exactly the moment it matters.
+ *
+ * Measurements are the Figma frame's, not approximations:
+ *   frame 1920x1200, container inset 14px
+ *   canvas    inset 50px top / 290px right / 194px bottom
+ *   timeline  194px tall, 10px below the canvas
+ *   both panels rounded 16px, 1px rgba(0,0,0,0.15) border
+ */
+export const EDITOR_THEME_CSS = `
+.ks {
+  /* Light — the frame as drawn. */
+  --ks-page: #E9E9E9;
+  --ks-surface: rgba(255, 255, 255, 0.72);
+  --ks-surface-solid: #FFFFFF;
+  --ks-canvas: #F1F1F3;
+  --ks-row: rgba(0, 0, 0, 0.03);
+  --ks-row-hover: rgba(0, 0, 0, 0.06);
+  --ks-row-strong: rgba(0, 0, 0, 0.04);
+  --ks-line: rgba(0, 0, 0, 0.08);
+  --ks-line-strong: rgba(0, 0, 0, 0.15);
+  --ks-hairline: rgba(0, 0, 0, 0.1);
+
+  /* Zinc, as the file uses it. */
+  --ks-text: #18181B;
+  --ks-text-strong: #3F3F46;
+  --ks-text-dim: #52525C;
+  --ks-text-muted: #71717B;
+  --ks-text-faint: #9F9FA9;
+
+  /* Control-row internals, taken literally from the frame. */
+  --ks-ctl: rgba(0, 0, 0, 0.04);
+  --ks-ctl-fill: rgba(0, 0, 0, 0.1);
+  --ks-ctl-text: rgba(0, 0, 0, 0.6);
+  --ks-badge: rgba(0, 0, 0, 0.08);
+  --ks-badge-text: rgba(0, 0, 0, 0.35);
+  --ks-tab-active: rgba(255, 255, 255, 0.72);
+  --ks-tab-active-text: rgba(0, 0, 0, 0.9);
+  --ks-tab-text: rgba(0, 0, 0, 0.35);
+
+  --ks-track: rgba(0, 0, 0, 0.04);
+  --ks-clip: rgba(0, 0, 0, 0.06);
+
+  --ks-accent: #FD631F;
+  --ks-accent-strong: rgba(253, 99, 31, 0.85);
+  --ks-accent-line: rgba(253, 99, 31, 0.5);
+  --ks-accent-wash: rgba(253, 99, 31, 0.14);
+  --ks-accent-wash-soft: rgba(253, 99, 31, 0.1);
+  --ks-accent-text: #FFFFFF;
+
+  /* Ours, not the mock's. */
+  --ks-font: var(--font-sans, var(--font-saans), system-ui, sans-serif);
+
+  --ks-r-sm: 4px;
+  --ks-r: 8px;
+  --ks-r-pill: 12.8px;
+  --ks-r-panel: 16px;
+
+  --ks-gap: 14px;
+  --ks-topbar-h: 50px;
+  --ks-panel-w: 290px;
+  --ks-timeline-h: 194px;
+  --ks-row-h: 36px;
+  --ks-row-gap: 6px;
+  --ks-val-w: 52px;
+  --ks-kf-w: 30px;
+  --ks-reset-w: 22px;
+  --ks-panel-pad: 16px;
+
+  font-family: var(--ks-font);
+  color: var(--ks-text);
+  background: var(--ks-page);
+}
+
+.ks[data-ks-theme="dark"] {
+  --ks-page: #0B0B0C;
+  --ks-surface: rgba(24, 24, 27, 0.72);
+  --ks-surface-solid: #18181B;
+  --ks-canvas: #0D0D0E;
+  --ks-row: rgba(255, 255, 255, 0.04);
+  --ks-row-hover: rgba(255, 255, 255, 0.08);
+  --ks-row-strong: rgba(255, 255, 255, 0.05);
+  --ks-line: rgba(255, 255, 255, 0.08);
+  --ks-line-strong: rgba(255, 255, 255, 0.14);
+  --ks-hairline: rgba(255, 255, 255, 0.1);
+
+  --ks-text: #F1F1F3;
+  --ks-text-strong: #D4D4D8;
+  --ks-text-dim: #A1A1AA;
+  --ks-text-muted: #8A8A93;
+  --ks-text-faint: #5E5E66;
+
+  --ks-ctl: rgba(255, 255, 255, 0.05);
+  --ks-ctl-fill: rgba(255, 255, 255, 0.12);
+  --ks-ctl-text: rgba(255, 255, 255, 0.62);
+  --ks-badge: rgba(255, 255, 255, 0.1);
+  --ks-badge-text: rgba(255, 255, 255, 0.38);
+  --ks-tab-active: rgba(255, 255, 255, 0.1);
+  --ks-tab-active-text: rgba(255, 255, 255, 0.92);
+  --ks-tab-text: rgba(255, 255, 255, 0.38);
+
+  --ks-track: rgba(255, 255, 255, 0.05);
+  --ks-clip: rgba(255, 255, 255, 0.08);
+}
+
+/* Section headers and control labels. 10px mono, uppercase, wide tracking —
+   one class because it is on nearly every element in the panel. */
+.ks-label {
+  font-size: 10px;
+  line-height: 15px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+/* Section titles track noticeably wider than control labels in the file. */
+.ks-section-label {
+  font-size: 10px;
+  line-height: 15px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  font-weight: 400;
+}
+
+.ks-value {
+  font-size: 11px;
+  line-height: 16.5px;
+  letter-spacing: 0.88px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.ks-micro {
+  font-size: 9px;
+  line-height: 12px;
+  letter-spacing: 0.54px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+/* Scrub fields must not select text mid-drag, or the panel highlights the
+   moment the pointer leaves the row. */
+.ks-scrub {
+  cursor: ew-resize;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.ks-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.ks-scroll::-webkit-scrollbar-thumb {
+  background: var(--ks-line-strong);
+  border-radius: 3px;
+}
+.ks-scroll::-webkit-scrollbar-track { background: transparent; }
+`;
+
+export function EditorTheme() {
+  return <style>{EDITOR_THEME_CSS}</style>;
+}

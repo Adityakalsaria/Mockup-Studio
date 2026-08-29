@@ -1,0 +1,11 @@
+<svg preserveAspectRatio="none" width="100%" height="100%" overflow="visible" style="display: block;" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="icon/arrow down in round/24" clip-path="url(#clip0_0_214)">
+<circle id="Ellipse 312" cx="8" cy="8" r="8" fill="var(--fill-0, #FFB400)"/>
+<path id="Ellipse 313" d="M12 8C12 7.07458 11.6791 6.17779 11.092 5.46243C10.505 4.74707 9.688 4.2574 8.78036 4.07686C7.87272 3.89632 6.93056 4.03607 6.11441 4.47231C5.29826 4.90856 4.65863 5.61429 4.30448 6.46927C3.95034 7.32424 3.9036 8.27557 4.17224 9.16114C4.44087 10.0467 5.00826 10.8117 5.77772 11.3259C6.54718 11.84 7.4711 12.0714 8.39207 11.9807" stroke="var(--stroke-0, white)" stroke-width="2" stroke-linecap="round"/>
+</g>
+<defs>
+<clipPath id="clip0_0_214">
+<rect width="16" height="16" fill="white"/>
+</clipPath>
+</defs>
+</svg>
