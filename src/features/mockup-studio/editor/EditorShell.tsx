@@ -23,7 +23,12 @@ import { RightPanel } from "./RightPanel";
 import { TopBar, getRatio } from "./TopBar";
 import { EditorTheme } from "./theme";
 import { useEditorTheme } from "./primitives";
-import { DEFAULT_EDITOR_STATE, RANGES, type EditorState } from "./editorState";
+import {
+  DEFAULT_EDITOR_STATE,
+  MIRROR_SCREEN_FIT,
+  RANGES,
+  type EditorState,
+} from "./editorState";
 
 /**
  * The editor, laid out as the KOSH frame lays it out: a top bar with the
@@ -429,6 +434,14 @@ export default function EditorShell() {
       current?.getTracks().forEach((track) => track.stop());
       return null;
     });
+    // Back to a neutral crop: the mirror preset exists to cancel a mirror
+    // window's chrome, and leaving it on would quietly crop the next upload.
+    setState((prev) => ({
+      ...prev,
+      screenScale: DEFAULT_EDITOR_STATE.screenScale,
+      screenOffsetX: DEFAULT_EDITOR_STATE.screenOffsetX,
+      screenOffsetY: DEFAULT_EDITOR_STATE.screenOffsetY,
+    }));
   }, []);
 
   // The picker itself is the OS window chooser, so anything the system will
@@ -447,6 +460,10 @@ export default function EditorShell() {
         previous?.getTracks().forEach((track) => track.stop());
         return stream;
       });
+      // Start from the fit that suits a mirror window rather than from the
+      // neutral crop, so the content lands in the right place without having
+      // to be dialled in by hand every session. Still adjustable afterwards.
+      setState((prev) => ({ ...prev, ...MIRROR_SCREEN_FIT }));
     } catch (error) {
       // Dismissing the picker rejects. That is a normal outcome, not a fault,
       // so it must not surface as an error.

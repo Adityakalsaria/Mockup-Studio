@@ -75,6 +75,23 @@ export const DEFAULT_EDITOR_STATE: EditorState = {
 };
 
 /** Ranges live beside the state so the panel and the shot lerp agree. */
+/**
+ * Where the screen fit starts when a live mirror begins.
+ *
+ * A mirror window is not a clean screenshot: the mirroring app puts its own
+ * border and title bar around the device, and only on some edges — so the
+ * automatic centre-crop lands the content slightly low and slightly small.
+ * These are the numbers that put it back, measured against iPhone Mirroring.
+ *
+ * Applied on start and cleared on stop, so an uploaded screenshot -- which
+ * needs none of this -- is never cropped by it.
+ */
+export const MIRROR_SCREEN_FIT = {
+  screenScale: 1.05,
+  screenOffsetX: 0,
+  screenOffsetY: 0.02,
+} as const;
+
 export const RANGES = {
   xAxis: { min: -180, max: 180, step: 1 },
   // Wider than the other two axes on purpose. The default pose sits at 180,
