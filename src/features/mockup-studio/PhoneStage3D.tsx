@@ -463,25 +463,51 @@ function ScreenPlane({
   // was cropping the right-hand edge off screenshots.
   useEffect(() => {
     if (!texture?.image) return;
-    const img = texture.image as { width: number; height: number };
-    if (!img.width || !img.height) return;
-    const planeAspect = width / height;
-    const srcAspect = img.width / img.height;
-    if (Math.abs(srcAspect - planeAspect) < 0.001) {
-      texture.repeat.set(1, 1);
-      texture.offset.set(0, 0);
-    } else if (srcAspect > planeAspect) {
-      // Image is wider: keep full height, trim the sides evenly.
-      const scale = planeAspect / srcAspect;
-      texture.repeat.set(scale, 1);
-      texture.offset.set((1 - scale) / 2, 0);
-    } else {
-      // Image is taller: keep full width, trim top and bottom evenly.
-      const scale = srcAspect / planeAspect;
-      texture.repeat.set(1, scale);
-      texture.offset.set(0, (1 - scale) / 2);
-    }
-    texture.needsUpdate = true;
+    const img = texture.image as HTMLVideoElement & { width: number; height: number };
+
+    const fit = () => {
+      // A <video> carries its real size on videoWidth/videoHeight. `width` and
+      // `height` are the HTML attributes, which are 0 on an element nobody
+      // sized — so reading those alone silently skipped the fit for every
+      // moving source and the frame arrived stretched to the plane.
+      const srcWidth = img.videoWidth || img.width;
+      const srcHeight = img.videoHeight || img.height;
+      if (!srcWidth || !srcHeight) return;
+
+      const planeAspect = width / height;
+      const srcAspect = srcWidth / srcHeight;
+      if (Math.abs(srcAspect - planeAspect) < 0.001) {
+        texture.repeat.set(1, 1);
+        texture.offset.set(0, 0);
+      } else if (srcAspect > planeAspect) {
+        // Source is wider: keep full height, trim the sides evenly. This is
+        // what crops a mirrored window's chrome and letterboxing away instead
+        // of squeezing a landscape desktop window onto a portrait screen.
+        const scale = planeAspect / srcAspect;
+        texture.repeat.set(scale, 1);
+        texture.offset.set((1 - scale) / 2, 0);
+      } else {
+        // Source is taller: keep full width, trim top and bottom evenly.
+        const scale = srcAspect / planeAspect;
+        texture.repeat.set(1, scale);
+        texture.offset.set(0, (1 - scale) / 2);
+      }
+      texture.needsUpdate = true;
+    };
+
+    fit();
+
+    // A still knows its size the moment it decodes; a video does not, and a
+    // live capture can change size mid-stream when the shared window is
+    // resized. Both cases have to re-fit or the crop is computed once against
+    // a size that no longer holds.
+    if (typeof img.videoWidth !== "number") return;
+    img.addEventListener("loadedmetadata", fit);
+    img.addEventListener("resize", fit);
+    return () => {
+      img.removeEventListener("loadedmetadata", fit);
+      img.removeEventListener("resize", fit);
+    };
   }, [texture, width, height]);
 
   if (!texture) return null;
