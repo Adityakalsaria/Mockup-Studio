@@ -35,8 +35,8 @@ Do not invent a new visual language if the repo already has an established one f
 
 ### Typography
 
-- Default to the local `Saans` font configured in [src/lib/fonts.ts](/Users/akash/github/Koshmoney.com/src/lib/fonts.ts).
-- Preserve the type scale defined in [src/features/design-system/data/foundations.ts](/Users/akash/github/Koshmoney.com/src/features/design-system/data/foundations.ts).
+- Default to the local `Saans` font configured in [src/lib/fonts.ts](src/lib/fonts.ts).
+- Preserve the type scale defined in [src/features/design-system/data/foundations.ts](src/features/design-system/data/foundations.ts).
 - Use existing utility classes like `type-display`, `type-h1`, `type-h2`, `type-body-l`, `type-body-m`, `type-action`, and `type-micro`.
 - Keep hierarchy obvious before adding decorative visuals.
 
@@ -177,4 +177,4 @@ When asked to design or update a landing page or section:
 
 For the detailed component, section, route, and design-system catalog, use:
 
-[docs/design-engineer-agent-reference.md](/Users/akash/github/Koshmoney.com/docs/design-engineer-agent-reference.md)
+[docs/design-engineer-agent-reference.md](docs/design-engineer-agent-reference.md)

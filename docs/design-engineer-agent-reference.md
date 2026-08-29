@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document backs the Koshmoney Design Engineer agent defined in [AGENTS.md](/Users/akash/github/Koshmoney.com/AGENTS.md).
+This document backs the Koshmoney Design Engineer agent defined in [AGENTS.md](AGENTS.md).
 
 It is built from:
 
@@ -32,8 +32,8 @@ These are recurring patterns visible in the available local Koshmoney work:
 
 Source:
 
-- [src/lib/fonts.ts](/Users/akash/github/Koshmoney.com/src/lib/fonts.ts)
-- [src/features/design-system/data/foundations.ts](/Users/akash/github/Koshmoney.com/src/features/design-system/data/foundations.ts)
+- [src/lib/fonts.ts](src/lib/fonts.ts)
+- [src/features/design-system/data/foundations.ts](src/features/design-system/data/foundations.ts)
 
 Rules:
 
@@ -61,7 +61,7 @@ Representative scale:
 
 Source:
 
-- [src/features/design-system/data/foundations.ts](/Users/akash/github/Koshmoney.com/src/features/design-system/data/foundations.ts)
+- [src/features/design-system/data/foundations.ts](src/features/design-system/data/foundations.ts)
 
 Visual character:
 
@@ -97,7 +97,7 @@ Common stops:
 
 Source:
 
-- [src/lib/breakpoints.ts](/Users/akash/github/Koshmoney.com/src/lib/breakpoints.ts)
+- [src/lib/breakpoints.ts](src/lib/breakpoints.ts)
 
 Current contract:
 
@@ -116,7 +116,7 @@ Practical reading:
 
 Source:
 
-- [src/features/design-system/data/materials.ts](/Users/akash/github/Koshmoney.com/src/features/design-system/data/materials.ts)
+- [src/features/design-system/data/materials.ts](src/features/design-system/data/materials.ts)
 
 Material patterns already present:
 
@@ -132,7 +132,7 @@ Use materials to support hierarchy, not as decoration alone.
 
 Source:
 
-- [src/features/design-system/DesignSystemPage.tsx](/Users/akash/github/Koshmoney.com/src/features/design-system/DesignSystemPage.tsx)
+- [src/features/design-system/DesignSystemPage.tsx](src/features/design-system/DesignSystemPage.tsx)
 - current `/website-system/motion`
 
 Rules:
@@ -186,7 +186,7 @@ Recent project-specific motion decisions:
 
 Source:
 
-- [src/app/page.tsx](/Users/akash/github/Koshmoney.com/src/app/page.tsx)
+- [src/app/page.tsx](src/app/page.tsx)
 
 Current stack:
 
@@ -210,8 +210,8 @@ Character:
 
 Source:
 
-- [src/app/usd-account/page.tsx](/Users/akash/github/Koshmoney.com/src/app/usd-account/page.tsx)
-- [src/app/usd-account-list-preview/UsdAccountListPreviewClient.tsx](/Users/akash/github/Koshmoney.com/src/app/usd-account-list-preview/UsdAccountListPreviewClient.tsx)
+- [src/app/usd-account/page.tsx](src/app/usd-account/page.tsx)
+- [src/app/usd-account-list-preview/UsdAccountListPreviewClient.tsx](src/app/usd-account-list-preview/UsdAccountListPreviewClient.tsx)
 
 Current stack:
 
@@ -241,7 +241,7 @@ Character:
 
 Source:
 
-- [src/components/layout/Navbar.tsx](/Users/akash/github/Koshmoney.com/src/components/layout/Navbar.tsx)
+- [src/components/layout/Navbar.tsx](src/components/layout/Navbar.tsx)
 
 Use for:
 
@@ -258,7 +258,7 @@ Notes:
 
 Source:
 
-- [src/components/layout/Header.tsx](/Users/akash/github/Koshmoney.com/src/components/layout/Header.tsx)
+- [src/components/layout/Header.tsx](src/components/layout/Header.tsx)
 
 Use for:
 
@@ -269,7 +269,7 @@ Use for:
 
 Source:
 
-- [src/components/layout/Container.tsx](/Users/akash/github/Koshmoney.com/src/components/layout/Container.tsx)
+- [src/components/layout/Container.tsx](src/components/layout/Container.tsx)
 
 Use for:
 
@@ -280,7 +280,7 @@ Use for:
 
 Source:
 
-- [src/components/layout/Footer.tsx](/Users/akash/github/Koshmoney.com/src/components/layout/Footer.tsx)
+- [src/components/layout/Footer.tsx](src/components/layout/Footer.tsx)
 
 Use for:
 
@@ -292,7 +292,7 @@ Use for:
 
 Source:
 
-- [src/components/ui/Button.tsx](/Users/akash/github/Koshmoney.com/src/components/ui/Button.tsx)
+- [src/components/ui/Button.tsx](src/components/ui/Button.tsx)
 
 Purpose:
 
@@ -312,7 +312,7 @@ Notes:
 
 Source:
 
-- [src/components/ui/Badge.tsx](/Users/akash/github/Koshmoney.com/src/components/ui/Badge.tsx)
+- [src/components/ui/Badge.tsx](src/components/ui/Badge.tsx)
 
 Purpose:
 
@@ -326,7 +326,7 @@ Use when:
 
 Source:
 
-- [src/components/ui/FeatureCard.tsx](/Users/akash/github/Koshmoney.com/src/components/ui/FeatureCard.tsx)
+- [src/components/ui/FeatureCard.tsx](src/components/ui/FeatureCard.tsx)
 
 Purpose:
 
@@ -340,7 +340,7 @@ Use when:
 
 Source:
 
-- [src/components/ui/FeatureIcons.tsx](/Users/akash/github/Koshmoney.com/src/components/ui/FeatureIcons.tsx)
+- [src/components/ui/FeatureIcons.tsx](src/components/ui/FeatureIcons.tsx)
 
 Purpose:
 
@@ -350,7 +350,7 @@ Purpose:
 
 Source:
 
-- [src/components/ui/FloatingCta.tsx](/Users/akash/github/Koshmoney.com/src/components/ui/FloatingCta.tsx)
+- [src/components/ui/FloatingCta.tsx](src/components/ui/FloatingCta.tsx)
 
 Purpose:
 
@@ -364,7 +364,7 @@ Use when:
 
 Source:
 
-- [src/components/ui/LogoMarquee.tsx](/Users/akash/github/Koshmoney.com/src/components/ui/LogoMarquee.tsx)
+- [src/components/ui/LogoMarquee.tsx](src/components/ui/LogoMarquee.tsx)
 
 Purpose:
 
@@ -378,7 +378,7 @@ Use when:
 
 Source:
 
-- [src/components/ui/PlatformStoreIcon.tsx](/Users/akash/github/Koshmoney.com/src/components/ui/PlatformStoreIcon.tsx)
+- [src/components/ui/PlatformStoreIcon.tsx](src/components/ui/PlatformStoreIcon.tsx)
 
 Purpose:
 
@@ -388,7 +388,7 @@ Purpose:
 
 Source:
 
-- [src/components/ui/CookieBanner.tsx](/Users/akash/github/Koshmoney.com/src/components/ui/CookieBanner.tsx)
+- [src/components/ui/CookieBanner.tsx](src/components/ui/CookieBanner.tsx)
 
 Purpose:
 
@@ -398,7 +398,7 @@ Purpose:
 
 Source:
 
-- [src/components/ui/PhoneFrame.tsx](/Users/akash/github/Koshmoney.com/src/components/ui/PhoneFrame.tsx)
+- [src/components/ui/PhoneFrame.tsx](src/components/ui/PhoneFrame.tsx)
 
 Purpose:
 
@@ -412,7 +412,7 @@ Use when:
 
 Source:
 
-- [src/components/ui/AnimatedElement.tsx](/Users/akash/github/Koshmoney.com/src/components/ui/AnimatedElement.tsx)
+- [src/components/ui/AnimatedElement.tsx](src/components/ui/AnimatedElement.tsx)
 
 Purpose:
 
@@ -422,7 +422,7 @@ Purpose:
 
 Source:
 
-- [src/components/ui/FloatingQRCode.tsx](/Users/akash/github/Koshmoney.com/src/components/ui/FloatingQRCode.tsx)
+- [src/components/ui/FloatingQRCode.tsx](src/components/ui/FloatingQRCode.tsx)
 
 Purpose:
 
@@ -436,7 +436,7 @@ Use when:
 
 Source:
 
-- [src/components/ui/GlassCard.tsx](/Users/akash/github/Koshmoney.com/src/components/ui/GlassCard.tsx)
+- [src/components/ui/GlassCard.tsx](src/components/ui/GlassCard.tsx)
 
 Purpose:
 
@@ -450,7 +450,7 @@ Use when:
 
 Source:
 
-- [src/components/ui/TrustBadge.tsx](/Users/akash/github/Koshmoney.com/src/components/ui/TrustBadge.tsx)
+- [src/components/ui/TrustBadge.tsx](src/components/ui/TrustBadge.tsx)
 
 Purpose:
 
@@ -547,11 +547,11 @@ Every section below lives in `src/components/sections`.
 
 These areas have been edited repeatedly and should be changed carefully:
 
-- [src/components/sections/KeyFeatures.tsx](/Users/akash/github/Koshmoney.com/src/components/sections/KeyFeatures.tsx)
-- [src/components/sections/PowerfulFeatures.tsx](/Users/akash/github/Koshmoney.com/src/components/sections/PowerfulFeatures.tsx)
-- [src/components/sections/UsdAccountList.tsx](/Users/akash/github/Koshmoney.com/src/components/sections/UsdAccountList.tsx)
-- [src/features/design-system/DesignSystemPage.tsx](/Users/akash/github/Koshmoney.com/src/features/design-system/DesignSystemPage.tsx)
-- [src/app/usd-account-list-preview/UsdAccountListPreviewClient.tsx](/Users/akash/github/Koshmoney.com/src/app/usd-account-list-preview/UsdAccountListPreviewClient.tsx)
+- [src/components/sections/KeyFeatures.tsx](src/components/sections/KeyFeatures.tsx)
+- [src/components/sections/PowerfulFeatures.tsx](src/components/sections/PowerfulFeatures.tsx)
+- [src/components/sections/UsdAccountList.tsx](src/components/sections/UsdAccountList.tsx)
+- [src/features/design-system/DesignSystemPage.tsx](src/features/design-system/DesignSystemPage.tsx)
+- [src/app/usd-account-list-preview/UsdAccountListPreviewClient.tsx](src/app/usd-account-list-preview/UsdAccountListPreviewClient.tsx)
 
 Typical edit patterns there:
 
@@ -577,9 +577,9 @@ When the design engineer agent works in this repo, it should:
 
 Inspect these files first:
 
-- [src/app/page.tsx](/Users/akash/github/Koshmoney.com/src/app/page.tsx)
-- [src/app/usd-account/page.tsx](/Users/akash/github/Koshmoney.com/src/app/usd-account/page.tsx)
-- [src/app/usd-account-list-preview/UsdAccountListPreviewClient.tsx](/Users/akash/github/Koshmoney.com/src/app/usd-account-list-preview/UsdAccountListPreviewClient.tsx)
-- [src/features/design-system/DesignSystemPage.tsx](/Users/akash/github/Koshmoney.com/src/features/design-system/DesignSystemPage.tsx)
-- [src/features/design-system/data/foundations.ts](/Users/akash/github/Koshmoney.com/src/features/design-system/data/foundations.ts)
-- [src/features/design-system/data/component-specs.ts](/Users/akash/github/Koshmoney.com/src/features/design-system/data/component-specs.ts)
+- [src/app/page.tsx](src/app/page.tsx)
+- [src/app/usd-account/page.tsx](src/app/usd-account/page.tsx)
+- [src/app/usd-account-list-preview/UsdAccountListPreviewClient.tsx](src/app/usd-account-list-preview/UsdAccountListPreviewClient.tsx)
+- [src/features/design-system/DesignSystemPage.tsx](src/features/design-system/DesignSystemPage.tsx)
+- [src/features/design-system/data/foundations.ts](src/features/design-system/data/foundations.ts)
+- [src/features/design-system/data/component-specs.ts](src/features/design-system/data/component-specs.ts)
