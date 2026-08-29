@@ -744,10 +744,16 @@ export default function EditorShell() {
           liveMotion={liveMotion}
           onToggleLiveMotion={(next) => {
             setLiveMotion(next);
-            // Zeroing on the way in means the phone starts facing the camera
-            // rather than facing magnetic north, which is what makes it feel
-            // like it snapped to a sensible pose instead of a random one.
-            if (next) phone.setZero();
+            if (next) {
+              // Choosing Gyro is itself the intent to pair, so it arms the
+              // link — otherwise the mode would sit there waiting for a phone
+              // whose stream nobody had opened.
+              setPairing(true);
+              // Zeroing on the way in means the phone starts facing the camera
+              // rather than facing magnetic north, which is what makes it feel
+              // like it snapped to a sensible pose instead of a random one.
+              phone.setZero();
+            }
           }}
           onSetZero={phone.setZero}
           theme={theme}

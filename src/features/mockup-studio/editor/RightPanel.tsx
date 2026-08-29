@@ -286,22 +286,14 @@ export function RightPanel({
             <p className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>{phoneReason}</p>
           ) : null}
 
+          {/* Pairing status only. The Manual/Gyro switch lives in Camera,
+              beside the rotation rows it replaces. */}
           {phoneConnected ? (
-            <>
-              <Toggle
-                label="Live motion"
-                checked={liveMotion}
-                onChange={onToggleLiveMotion}
-              />
-              <PillButton onClick={onSetZero}>
-                {phoneZeroed ? "Re-zero" : "Set zero"}
-              </PillButton>
-              <p className="ks-micro" style={{ color: "var(--ks-text-faint)", lineHeight: 1.5 }}>
-                Hold the phone how you want it to sit, then set zero. While live
-                motion is on, the rotation sliders and any rotation keyframes
-                are ignored.
-              </p>
-            </>
+            <p className="ks-micro" style={{ color: "var(--ks-text-faint)", lineHeight: 1.5 }}>
+              {liveMotion
+                ? "Driving rotation. Switch back to Manual under Camera to use the sliders."
+                : "Ready. Switch Camera to Gyro to drive the mockup with it."}
+            </p>
           ) : null}
         </div>
       </PanelSection>
@@ -398,9 +390,41 @@ export function RightPanel({
 
         {cameraTab === "manual" ? (
           <>
+            {/* Where the rotation comes from. It lives here, directly above the
+                axis rows, because those rows are exactly what it takes over —
+                putting it in the Phone section left you reading one part of the
+                panel to understand why another had stopped responding. */}
+            <div className="mb-[8px] mt-[8px]">
+              <Tabs
+                value={liveMotion ? "phone" : "manual"}
+                onChange={(next) => onToggleLiveMotion(next === "phone")}
+                options={[
+                  { id: "manual", label: "Manual" },
+                  { id: "phone", label: "Gyro" },
+                ]}
+              />
+            </div>
+
+            {liveMotion ? (
+              <div className="flex flex-col gap-[8px] pb-[4px]">
+                <p className="ks-micro" style={{ color: "var(--ks-text-faint)", lineHeight: 1.5 }}>
+                  {phoneConnected
+                    ? "Rotation is coming from the phone. Hold it how you want the mockup to sit, then set zero."
+                    : "No phone is sending yet — open the Phone section and scan the code."}
+                </p>
+                {phoneConnected ? (
+                  <PillButton onClick={onSetZero}>
+                    {phoneZeroed ? "Re-zero" : "Set zero"}
+                  </PillButton>
+                ) : null}
+              </div>
+            ) : (
+              <>
             <ParamRow label="X axis" hint="Drag" value={state.xAxis} {...RANGES.xAxis} defaultValue={DEFAULT_EDITOR_STATE.xAxis} keyframed={keyedNow.xAxis} onKeyframe={() => onToggleKey("xAxis")} onChange={(xAxis) => onChange({ xAxis })} />
             <ParamRow label="Y axis" hint="Drag" value={state.yAxis} {...RANGES.yAxis} defaultValue={DEFAULT_EDITOR_STATE.yAxis} keyframed={keyedNow.yAxis} onKeyframe={() => onToggleKey("yAxis")} onChange={(yAxis) => onChange({ yAxis })} />
             <ParamRow label="Z axis" value={state.zAxis} {...RANGES.zAxis} defaultValue={DEFAULT_EDITOR_STATE.zAxis} keyframed={keyedNow.zAxis} onKeyframe={() => onToggleKey("zAxis")} onChange={(zAxis) => onChange({ zAxis })} />
+              </>
+            )}
             <ParamRow label="Zoom" hint="Scroll" value={state.zoom} {...RANGES.zoom} defaultValue={DEFAULT_EDITOR_STATE.zoom} decimals={2} keyframed={keyedNow.zoom} onKeyframe={() => onToggleKey("zoom")} onChange={(zoom) => onChange({ zoom })} />
             {/* No "Space drag" hint on the pans: the canvas only handles
                 drag-rotate and wheel-zoom, so panning is these rows only. */}
