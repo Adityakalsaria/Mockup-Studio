@@ -107,7 +107,7 @@ export function Timeline({
 
   return (
     <div
-      className="flex shrink-0 flex-col gap-[6px] rounded-[var(--ks-r-panel)] border px-[10px] py-[8px]"
+      className="flex shrink-0 flex-col gap-[8px] rounded-[var(--ks-r-panel)] border px-[12px] py-[8px]"
       style={{
         background: "var(--ks-surface)",
         borderColor: "var(--ks-line-strong)",
@@ -115,7 +115,7 @@ export function Timeline({
       }}
     >
       {/* Transport */}
-      <div className="flex items-center gap-[10px]">
+      <div className="flex items-center gap-[12px]">
         <button
           type="button"
           onClick={onTogglePlay}
@@ -144,7 +144,7 @@ export function Timeline({
         <label className="relative ml-auto flex items-center">
           <span className="sr-only">Motion preset</span>
           <span
-            className="ks-label flex h-[24px] items-center gap-[5px] rounded-[var(--ks-r-pill)] border px-[9px]"
+            className="ks-label flex h-[24px] items-center gap-[4px] rounded-[var(--ks-r-pill)] border px-[8px]"
             style={{ borderColor: "var(--ks-hairline)", color: "var(--ks-text-dim)" }}
           >
             Motion
@@ -176,12 +176,12 @@ export function Timeline({
           </select>
         </label>
 
-        <label className="ks-micro flex items-center gap-[5px]" style={{ color: "var(--ks-text-faint)" }}>
+        <label className="ks-micro flex items-center gap-[4px]" style={{ color: "var(--ks-text-faint)" }}>
           Easing
           <select
             value={animation.easing}
             onChange={(event) => onEasingChange(event.currentTarget.value as Easing)}
-            className="ks-label rounded-[var(--ks-r-sm)] px-[5px] py-[2px] focus:outline-none"
+            className="ks-label rounded-[var(--ks-r-sm)] px-[4px] py-[4px] focus:outline-none"
             style={{ background: "var(--ks-ctl)", color: "var(--ks-ctl-text)" }}
           >
             {EASINGS.map((option) => (
@@ -192,12 +192,12 @@ export function Timeline({
           </select>
         </label>
 
-        <label className="ks-micro flex items-center gap-[5px]" style={{ color: "var(--ks-text-faint)" }}>
+        <label className="ks-micro flex items-center gap-[4px]" style={{ color: "var(--ks-text-faint)" }}>
           Res
           <select
             value={exportScale}
             onChange={(event) => onExportScaleChange(Number(event.currentTarget.value))}
-            className="ks-label rounded-[var(--ks-r-sm)] px-[5px] py-[2px] focus:outline-none"
+            className="ks-label rounded-[var(--ks-r-sm)] px-[4px] py-[4px] focus:outline-none"
             style={{ background: "var(--ks-ctl)", color: "var(--ks-ctl-text)" }}
           >
             <option value={1}>1x</option>
@@ -207,12 +207,12 @@ export function Timeline({
           </select>
         </label>
 
-        <label className="ks-micro flex items-center gap-[5px]" style={{ color: "var(--ks-text-faint)" }}>
+        <label className="ks-micro flex items-center gap-[4px]" style={{ color: "var(--ks-text-faint)" }}>
           FPS
           <select
             value={exportFps}
             onChange={(event) => onExportFpsChange(Number(event.currentTarget.value))}
-            className="ks-label rounded-[var(--ks-r-sm)] px-[5px] py-[2px] focus:outline-none"
+            className="ks-label rounded-[var(--ks-r-sm)] px-[4px] py-[4px] focus:outline-none"
             style={{ background: "var(--ks-ctl)", color: "var(--ks-ctl-text)" }}
           >
             <option value={30}>30</option>
@@ -220,7 +220,7 @@ export function Timeline({
           </select>
         </label>
 
-        <label className="ks-micro flex items-center gap-[6px]" style={{ color: "var(--ks-text-faint)" }}>
+        <label className="ks-micro flex items-center gap-[8px]" style={{ color: "var(--ks-text-faint)" }}>
           Duration
           <input
             type="number"
@@ -232,7 +232,7 @@ export function Timeline({
               const next = Number(event.currentTarget.value);
               if (Number.isFinite(next)) onDurationChange(Math.min(30, Math.max(0.5, next)));
             }}
-            className="ks-label w-[46px] rounded-[var(--ks-r-sm)] px-[5px] py-[2px] text-right focus:outline-none"
+            className="ks-label w-[46px] rounded-[var(--ks-r-sm)] px-[4px] py-[4px] text-right focus:outline-none"
             style={{ background: "var(--ks-ctl)", color: "var(--ks-ctl-text)" }}
           />
           s
@@ -242,7 +242,7 @@ export function Timeline({
           type="button"
           onClick={onClear}
           disabled={!tracks.length}
-          className="ks-micro rounded-[var(--ks-r-sm)] px-[6px] py-[3px] disabled:opacity-40"
+          className="ks-micro rounded-[var(--ks-r-sm)] px-[8px] py-[4px] disabled:opacity-40"
           style={{ background: "var(--ks-badge)", color: "var(--ks-text-dim)" }}
         >
           Clear
@@ -289,7 +289,7 @@ export function Timeline({
               >
                 <span className="h-[5px] w-px" style={{ background: "var(--ks-line-strong)" }} />
                 <span
-                  className="ks-micro -translate-x-1/2 pl-[1px]"
+                  className="ks-micro -translate-x-1/2 pl-[4px]"
                   style={{ color: "var(--ks-text-faint)" }}
                 >
                   {t}s
@@ -305,7 +305,7 @@ export function Timeline({
               look like it overruns, and a 2-second clip that repeats should
               visibly repeat. Stretched thumbnails said neither. */}
           {clipRepeats ? (
-            <div className="relative mb-[5px] h-[36px] w-full overflow-hidden">
+            <div className="relative mb-[4px] h-[36px] w-full overflow-hidden">
               {Array.from({ length: clipRepeats }, (_, repeat) => (
                 <div
                   key={repeat}
@@ -333,7 +333,7 @@ export function Timeline({
                   ))}
                   {repeat === 0 ? (
                     <span
-                      className="ks-micro pointer-events-none absolute left-[6px] top-1/2 -translate-y-1/2 rounded-[3px] px-[4px] py-[1px]"
+                      className="ks-micro pointer-events-none absolute left-[6px] top-1/2 -translate-y-1/2 rounded-[3px] px-[4px] py-[4px]"
                       style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
                     >
                       {clipName} · {formatTime(clip.duration)}
@@ -384,7 +384,7 @@ export function Timeline({
               </div>
             ))
           ) : (
-            <div className="ks-micro py-[6px]" style={{ color: "var(--ks-text-faint)" }}>
+            <div className="ks-micro py-[8px]" style={{ color: "var(--ks-text-faint)" }}>
               Press the ◆ beside any camera value to key it at the playhead.
             </div>
           )}
@@ -396,7 +396,7 @@ export function Timeline({
             style={{ left: pct(playhead), background: "var(--ks-accent)" }}
           >
             <span
-              className="ks-micro absolute -top-[1px] left-0 -translate-x-1/2 rounded-[3px] px-[4px] py-[1px] tabular-nums"
+              className="ks-micro absolute -top-[1px] left-0 -translate-x-1/2 rounded-[3px] px-[4px] py-[4px] tabular-nums"
               style={{
                 background: "var(--ks-accent)",
                 color: "var(--ks-accent-text)",

@@ -100,6 +100,11 @@ export const EDITOR_THEME_CSS = `
      lozenge, and nothing in the kit does that. */
   --ks-r-panel: 16px;
   --ks-r-card: 12px;
+  /* Menus and their rows. A menu is a container, not a control — at capsule
+     radius it becomes a lozenge, and its rows grow ends wider than the text
+     inside them. */
+  --ks-r-menu: 10px;
+  --ks-r-menu-item: 6px;
 
   /* Easing. The built-in CSS curves are too weak to read as intentional —
      the plain ease-out barely differs from linear over 200ms. These are the
@@ -115,7 +120,28 @@ export const EDITOR_THEME_CSS = `
   --ks-lift: 0 3px 8px rgba(0, 0, 0, 0.12), 0 1px 1px rgba(0, 0, 0, 0.16);
   --ks-lift-soft: 0 2px 6px rgba(0, 0, 0, 0.1), 0 1px 1px rgba(0, 0, 0, 0.08);
 
-  --ks-gap: 14px;
+  /* Spacing scale.
+     Twelve different values were in use — 1,2,3,4,5,6,7,8,9,10,12,14 — none
+     of them chosen against the others. At that point spacing stops being a
+     system and becomes a series of local guesses, and the panel reads as
+     slightly loose in some places and slightly tight in others without any
+     one gap looking wrong.
+
+     Four steps, on a 4px grid, each with a job:
+       4   inside a compact element — a menu's own padding, a chip's gaps
+       8   between siblings — rows, columns, the parts of a card
+       12  inside a control — the inset from a pill's edge to its text
+       16  a container's inset — the panel, a section, the space between them
+
+     Numbers measured from Apple's kit are exempt and stay exactly as they
+     are: the segmented control's 2px track padding and 4px segment gap, the
+     switch's 2px knob inset. Those are control specs, not layout. */
+  --ks-space-1: 4px;
+  --ks-space-2: 8px;
+  --ks-space-3: 12px;
+  --ks-space-4: 16px;
+
+  --ks-gap: var(--ks-space-4);
   /* Apple's sidebar is 320. Ours was 290, which is where every "scale it
      down to fit" compromise came from — at 320 the real control sizes fit
      without shrinking any of them. */
@@ -129,19 +155,19 @@ export const EDITOR_THEME_CSS = `
   /* The macOS control inset. Ours was 10, which read as cramped once the
      shapes became capsules — a capsule's corners eat horizontal space that a
      rectangle's do not, so the same number reads tighter. */
-  --ks-ctl-pad: 14px;
-  --ks-row-gap: 8px;
+  --ks-ctl-pad: var(--ks-space-3);
+  --ks-row-gap: var(--ks-space-2);
   /* Between the columns WITHIN a row. Was 2px, which is a hairline: fine
      between rectangles, wrong between capsules, where two pills that close
      read as one shape with a nick in it. */
-  --ks-col-gap: 6px;
+  --ks-col-gap: var(--ks-space-2);
   /* Wider than before: 13px tabular figures need the room 11px did not, and a
      clipped number is worse than a narrower label. */
   --ks-val-w: 62px;
   --ks-kf-w: 30px;
   --ks-reset-w: 22px;
   /* 16, as the kit insets its sidebar content. */
-  --ks-panel-pad: 16px;
+  --ks-panel-pad: var(--ks-space-4);
 
   font-family: var(--ks-font);
   color: var(--ks-text);

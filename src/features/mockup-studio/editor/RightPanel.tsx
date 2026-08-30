@@ -188,7 +188,7 @@ export function RightPanel({
             className="relative grid h-[132px] w-full place-items-center overflow-hidden rounded-[var(--ks-r-card)]"
             style={{ background: "var(--ks-ctl)" }}
           >
-            <div className="flex flex-col items-center gap-[6px]">
+            <div className="flex flex-col items-center gap-[8px]">
               <span
                 className="h-[7px] w-[7px] rounded-full"
                 style={{ background: "var(--ks-accent)" }}
@@ -250,7 +250,7 @@ export function RightPanel({
           <button
             type="button"
             onClick={onPickSource}
-            className="flex h-[132px] w-full flex-col items-center justify-center gap-[6px] rounded-[var(--ks-r-card)] border border-dashed transition-colors"
+            className="flex h-[132px] w-full flex-col items-center justify-center gap-[8px] rounded-[var(--ks-r-card)] border border-dashed transition-colors"
             style={{ borderColor: "var(--ks-line-strong)", background: "var(--ks-row)" }}
           >
             <Icon name="upload" />
@@ -277,7 +277,7 @@ export function RightPanel({
             chrome on one edge only, so the fit lands it low or high; a
             screenshot needs none of this and leaves these at their defaults. */}
         {isMirroring || sourceSrc ? (
-          <div className="mt-[10px]">
+          <div className="mt-[12px]">
             <ParamRow
               label="Screen zoom"
               value={state.screenScale}
@@ -317,8 +317,8 @@ export function RightPanel({
           if (!isOpen("phone")) onPair();
         }}
       >
-        <div className="flex flex-col gap-[10px]">
-          <div className="flex items-center gap-[6px]">
+        <div className="flex flex-col gap-[12px]">
+          <div className="flex items-center gap-[8px]">
             <span
               className="h-[7px] w-[7px] rounded-full"
               style={{ background: phoneConnected ? "var(--ks-accent)" : "var(--ks-line-strong)" }}
@@ -370,7 +370,7 @@ export function RightPanel({
         onToggle={() => toggle("mockup")}
       >
         <div
-          className="flex h-[44px] w-full items-center gap-[10px] rounded-[var(--ks-r)] px-[10px]"
+          className="flex h-[44px] w-full items-center gap-[12px] rounded-[var(--ks-r)] px-[12px]"
           style={{ background: "var(--ks-ctl)" }}
         >
           <span
@@ -402,11 +402,11 @@ export function RightPanel({
         {/* Finish as swatches, not a dropdown: colour is the one property you
             pick by looking at it, and a list of names makes you open a menu
             to compare two greys. */}
-        <div className="flex flex-col gap-[6px] pt-[2px]">
+        <div className="flex flex-col gap-[8px] pt-[4px]">
           <span className="ks-label" style={{ color: "var(--ks-text-muted)" }}>
             Finish
           </span>
-          <div className="flex flex-wrap gap-[6px]">
+          <div className="flex flex-wrap gap-[8px]">
             {FINISHES.map((f) => {
               const selected = f.id === state.finishId;
               return (
@@ -441,7 +441,7 @@ export function RightPanel({
       )}
 
       {side === "right" && (
-        <div className="pb-[10px]">
+        <div className="pb-[12px]">
           <Tabs
             value={rightTab}
             onChange={setRightTab}
@@ -460,7 +460,7 @@ export function RightPanel({
       {/* The shot: how it moves, what the lens does, what sits behind it. */}
       {side === "right" && rightTab === "shot" && (
         <>
-          <div className="pb-[10px]">
+          <div className="pb-[12px]">
             <AspectSelect ratioId={ratioId} onRatioChange={onRatioChange} />
           </div>
       {/* ---------------------------------------------------------- CAMERA */}
@@ -696,7 +696,7 @@ export function RightPanel({
         ) : null}
 
         {background.kind === "transparent" ? (
-          <p className="ks-micro py-[6px]" style={{ color: "var(--ks-text-faint)" }}>
+          <p className="ks-micro py-[8px]" style={{ color: "var(--ks-text-faint)" }}>
             Exports with a transparent background. The chequerboard is the
             editor showing you where there are no pixels.
           </p>
@@ -709,7 +709,7 @@ export function RightPanel({
       </div>
 
       {side === "right" ? (
-        <div className="shrink-0 px-[var(--ks-panel-pad)] pb-[10px] pt-[4px]">
+        <div className="shrink-0 px-[var(--ks-panel-pad)] pb-[12px] pt-[4px]">
           <ExportMenu
             onExportPng={onExportPng}
             onExportVideo={onExportVideo}
@@ -745,7 +745,7 @@ function FocusPad({
   };
 
   return (
-    <div className="flex flex-col gap-[6px] pt-[4px]">
+    <div className="flex flex-col gap-[8px] pt-[4px]">
       <span className="ks-label" style={{ color: "var(--ks-text-muted)" }}>
         Focus position
       </span>

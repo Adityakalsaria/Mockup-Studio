@@ -167,7 +167,7 @@ function PresetCard({
       onFocus={() => setPlaying(true)}
       onBlur={() => setPlaying(false)}
       title={preset.hint}
-      className="ks-press ks-press-lg group flex flex-col gap-[5px] rounded-[var(--ks-r-card)] p-[6px] text-left"
+      className="ks-press ks-press-lg group flex flex-col gap-[4px] rounded-[var(--ks-r-card)] p-[8px] text-left"
       style={{ background: "var(--ks-row)" }}
     >
       <div
@@ -210,7 +210,7 @@ export function MotionPanel({
   const reducedMotion = usePrefersReducedMotion();
 
   return (
-    <div className="flex flex-col gap-[14px] pb-[14px]">
+    <div className="flex flex-col gap-[16px] pb-[16px]">
       <p className="ks-micro" style={{ color: "var(--ks-text-faint)", lineHeight: 1.5 }}>
         {reducedMotion
           ? "Click to apply. Cards show a still from each move."
@@ -222,14 +222,14 @@ export function MotionPanel({
         const presets = MOTION_PRESETS.filter((preset) => preset.kind === group.kind);
         if (!presets.length) return null;
         return (
-          <div key={group.kind} className="flex flex-col gap-[7px]">
+          <div key={group.kind} className="flex flex-col gap-[8px]">
             <span className="ks-section-label" style={{ color: "var(--ks-text-muted)" }}>
               {/* The picker's labels carry an explanation after an em dash,
                   which is useful in a dropdown and too long for a column
                   this narrow. */}
               {group.label.split(" — ")[0]}
             </span>
-            <div className="grid grid-cols-2 gap-[7px]">
+            <div className="grid grid-cols-2 gap-[8px]">
               {presets.map((preset) => (
                 <PresetCard
                   key={preset.id}

@@ -68,7 +68,7 @@ export function AspectSelect({
       <span className="ks-label" style={{ color: "var(--ks-text-dim)" }}>
         Frame
       </span>
-      <span className="ks-label flex items-center gap-[6px]" style={{ color: "var(--ks-ctl-text)" }}>
+      <span className="ks-label flex items-center gap-[8px]" style={{ color: "var(--ks-ctl-text)" }}>
         {active?.label ?? "Fill"}
         <Icon name="chevronDown" size={12} />
       </span>
@@ -145,7 +145,7 @@ export function ExportMenu({
         disabled={recording}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
-        className="ks-press ks-label flex h-[var(--ks-row-h)] w-full items-center justify-center gap-[6px] rounded-[var(--ks-r)] disabled:opacity-60"
+        className="ks-press ks-label flex h-[var(--ks-row-h)] w-full items-center justify-center gap-[8px] rounded-[var(--ks-r)] disabled:opacity-60"
         style={{ background: "var(--ks-accent-wash)", color: "var(--ks-accent)" }}
       >
         {recording ? `Recording ${Math.round((recordProgress ?? 0) * 100)}%` : "Export"}
@@ -155,7 +155,7 @@ export function ExportMenu({
       {menuOpen && !recording ? (
         <div
           role="menu"
-          className="ks-menu absolute bottom-[calc(var(--ks-row-h)+6px)] right-0 z-20 flex w-full flex-col gap-[2px] rounded-[var(--ks-r)] border p-[4px]"
+          className="ks-menu absolute bottom-[calc(var(--ks-row-h)+6px)] right-0 z-20 flex w-full flex-col gap-[2px] rounded-[var(--ks-r-menu)] border p-[4px]"
           style={{
             background: "var(--ks-surface-solid)",
             borderColor: "var(--ks-line-strong)",
@@ -208,20 +208,21 @@ function ExportItem({
       role="menuitem"
       onClick={onClick}
       disabled={disabled}
-      // Apple's menu rows are padded 10px top and bottom with a 2px gap
-      // between title and subtitle, and 6px in from the left. Ours were 6 and
-      // 1 -- tighter than a menu wants to be. A menu is a list you read, not a
-      // panel you operate, and it can afford the room.
-      className="ks-press flex w-full flex-col items-start gap-[2px] rounded-[var(--ks-r-sm)] pl-[6px] pr-[8px] py-[10px] text-left hover:bg-[var(--ks-row)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
+      // A menu row is a container, not a control: a real radius rather than
+      // the capsule the control tokens now carry, which gave each row ends
+      // wider than the words inside it.
+      className="ks-press flex w-full flex-col items-start gap-[2px] rounded-[var(--ks-r-menu-item)] pl-[12px] pr-[12px] py-[8px] text-left hover:bg-[var(--ks-row)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
     >
-      {/* The kit sets menu titles at 17/20 with -0.43px tracking and
-          subtitles at 13/18 — larger than a panel control, because a menu is
-          read rather than operated. */}
+      {/* 13/18 with an 11px subtitle — the macOS menu size, not the iOS one.
+          iOS sets menu titles at 17 because the whole system is scaled for a
+          phone held at arm's length; borrowed into a desktop panel whose every
+          other label is 13, it reads as another app's menu pasted in. */}
       <span
         style={{
-          fontSize: 17,
-          lineHeight: "20px",
-          letterSpacing: "-0.43px",
+          fontSize: 13,
+          lineHeight: "18px",
+          letterSpacing: "-0.08px",
+          fontWeight: 510,
           color: "var(--ks-text)",
         }}
       >
@@ -229,9 +230,9 @@ function ExportItem({
       </span>
       <span
         style={{
-          fontSize: 13,
-          lineHeight: "18px",
-          letterSpacing: "-0.08px",
+          fontSize: 11,
+          lineHeight: "15px",
+          letterSpacing: "-0.04px",
           color: "var(--ks-text-muted)",
         }}
       >

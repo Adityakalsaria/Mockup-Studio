@@ -76,7 +76,7 @@ export function PanelSection({
       </div>
 
       {expanded ? (
-        <div className="flex flex-col gap-[var(--ks-row-gap)] pb-[14px]">{children}</div>
+        <div className="flex flex-col gap-[var(--ks-row-gap)] pb-[16px]">{children}</div>
       ) : null}
     </section>
   );
@@ -90,7 +90,7 @@ export function PanelSection({
 function HintBadge({ text }: { text: string }) {
   return (
     <span
-      className="ml-[6px] shrink-0 rounded-[4px] px-[4px] py-[2px]"
+      className="ml-[8px] shrink-0 rounded-[4px] px-[4px] py-[4px]"
       style={{
         background: "var(--ks-badge)",
         color: "var(--ks-badge-text)",
@@ -398,7 +398,7 @@ export function ControlRow({
   return (
     <div className="flex w-full items-stretch gap-[var(--ks-col-gap)]">
       <div
-        className="flex h-[var(--ks-row-h)] min-w-0 flex-1 items-center justify-between rounded-[var(--ks-r)] pl-[var(--ks-ctl-pad)] pr-[10px]"
+        className="flex h-[var(--ks-row-h)] min-w-0 flex-1 items-center justify-between rounded-[var(--ks-r)] pl-[var(--ks-ctl-pad)] pr-[12px]"
         style={{ background: "var(--ks-ctl)" }}
       >
         <span className="ks-label" style={{ color: "var(--ks-ctl-text)" }}>
@@ -445,13 +445,13 @@ export function ColorRow({
   return (
     <div className="flex w-full items-stretch gap-[var(--ks-col-gap)]">
       <div
-        className="flex h-[var(--ks-row-h)] min-w-0 flex-1 items-center justify-between rounded-[var(--ks-r)] pl-[var(--ks-ctl-pad)] pr-[10px]"
+        className="flex h-[var(--ks-row-h)] min-w-0 flex-1 items-center justify-between rounded-[var(--ks-r)] pl-[var(--ks-ctl-pad)] pr-[12px]"
         style={{ background: "var(--ks-ctl)" }}
       >
         <span className="ks-label" style={{ color: "var(--ks-ctl-text)" }}>
           {label}
         </span>
-        <span className="flex items-center gap-[6px]">
+        <span className="flex items-center gap-[8px]">
           <input
             value={draft ?? value}
             onChange={(event) => setDraft(event.currentTarget.value)}
@@ -500,7 +500,7 @@ export function SwatchGrid({
   onChange: (next: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-[5px] pt-[2px]">
+    <div className="flex flex-wrap gap-[4px] pt-[4px]">
       {options.map((color) => {
         const selected = color.toLowerCase() === value.toLowerCase();
         return (
@@ -687,7 +687,7 @@ export function InlineSelect<T extends string>({
         value={value}
         aria-label={label}
         onChange={(event) => onChange(event.currentTarget.value as T)}
-        className="ks-label cursor-pointer appearance-none bg-transparent pr-[14px] text-right focus:outline-none"
+        className="ks-label cursor-pointer appearance-none bg-transparent pr-[16px] text-right focus:outline-none"
         style={{ color: "var(--ks-text)" }}
       >
         {options.map((option) => (
