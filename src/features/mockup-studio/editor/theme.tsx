@@ -358,6 +358,54 @@ export const EDITOR_THEME_CSS = `
   .ks-material::after { display: none; }
 }
 
+/* ------------------------------------------------------- CONTROL GLASS --
+   The half of Liquid Glass that works on a flat ground.
+
+   The panels refract, because the stage is behind them. A control cannot:
+   sitting on a fill, on a track, on a panel that is already blurring at 24px,
+   roughly a fifth of the stage reaches it and arrives flat. A displacement map
+   there would cost a canvas and an SVG filter per control to bend nothing.
+
+   What DOES survive is the other half — how glass catches light at its rim.
+   A bright edge where a surface faces the light, dimmer where it turns away,
+   and a soft inner glow along the top. That reads as a physical cap on any
+   background, because it is about the object rather than what is behind it. */
+.ks-glass {
+  position: relative;
+  isolation: isolate;
+}
+.ks-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.35) 30%,
+    rgba(255, 255, 255, 0) 55%,
+    rgba(0, 0, 0, 0.06) 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+[data-ks-theme="dark"] .ks-glass::after {
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(255, 255, 255, 0.12) 30%,
+    rgba(255, 255, 255, 0) 55%,
+    rgba(0, 0, 0, 0.25) 100%
+  );
+}
+@media (prefers-reduced-transparency: reduce) {
+  .ks-glass::after { display: none; }
+}
+
 /* Where scrolling content meets floating chrome, fade it out rather than
    ruling a line under it. A 1px divider says "two boxes"; the fade says the
    content continues underneath, which is what is actually happening. */

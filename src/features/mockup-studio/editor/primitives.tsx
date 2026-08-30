@@ -288,7 +288,7 @@ export function ParamRow({
           }}
         >
           <span
-            className="absolute top-1/2 -translate-y-1/2 rounded-full"
+            className="ks-glass absolute top-1/2 -translate-y-1/2 rounded-full"
             style={{
               right: KNOB_INSET,
               width: KNOB,
@@ -618,7 +618,7 @@ export function Tabs<T extends string>({
           reads the second as the same object it was already looking at. */}
       <span
         aria-hidden
-        className="ks-tab-indicator absolute inset-y-[2px] left-[2px] rounded-full"
+        className="ks-glass ks-tab-indicator absolute inset-y-[2px] left-[2px] rounded-full"
         style={{
           // Each segment is an equal share of what is left after the padding
           // and the gaps between them.
