@@ -164,9 +164,6 @@ export const EDITOR_THEME_CSS = `
      between rectangles, wrong between capsules, where two pills that close
      read as one shape with a nick in it. */
   --ks-col-gap: var(--ks-space-2);
-  /* Wider than before: 13px tabular figures need the room 11px did not, and a
-     clipped number is worse than a narrower label. */
-  --ks-val-w: 62px;
   --ks-kf-w: 30px;
   --ks-reset-w: 22px;
   /* 16, as the kit insets its sidebar content. */

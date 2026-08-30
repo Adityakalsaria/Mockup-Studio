@@ -252,43 +252,47 @@ export function ParamRow({
           className="absolute inset-y-0 left-0"
           style={{ width: `${fillPct}%`, background: "var(--ks-ctl-fill)" }}
         />
-        <span className="relative flex h-full items-center pl-[var(--ks-ctl-pad)] pr-[8px]">
-          <span className="ks-label truncate" style={{ color: "var(--ks-ctl-text)" }}>
+        {/* Label and value in one control, rather than a slider and a
+            separate readout beside it.
+            The pill held a number the row is already about, and it cost 62px
+            of a 282px panel — a quarter of the width, on every row, to repeat
+            what the fill behind it was showing. Inside, the number sits at the
+            end of the thing it belongs to and the track gets the space back. */}
+        <span className="relative flex h-full items-center gap-[8px] pl-[var(--ks-ctl-pad)] pr-[var(--ks-ctl-pad)]">
+          <span className="ks-label min-w-0 flex-1 truncate" style={{ color: "var(--ks-ctl-text)" }}>
             {label}
           </span>
+          {editing ? (
+            <input
+              autoFocus
+              value={draft}
+              onChange={(event) => setDraft(event.currentTarget.value)}
+              onBlur={commitDraft}
+              onPointerDown={(event) => event.stopPropagation()}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") commitDraft();
+                if (event.key === "Escape") setEditing(false);
+              }}
+              className="ks-value w-[56px] shrink-0 bg-transparent text-right focus:outline-none"
+              style={{ color: "var(--ks-text)" }}
+            />
+          ) : (
+            <span
+              // The scrub owns the pointer, so the double-click that opens the
+              // field has to be caught here and kept from starting a drag.
+              onDoubleClick={(event) => {
+                event.stopPropagation();
+                setDraft(shown);
+                setEditing(true);
+              }}
+              className="ks-value shrink-0 tabular-nums"
+              style={{ color: "var(--ks-text)" }}
+            >
+              {shown}
+              {suffix ?? ""}
+            </span>
+          )}
         </span>
-      </div>
-
-      <div
-        onDoubleClick={() => {
-          setDraft(shown);
-          setEditing(true);
-        }}
-        className="flex h-[var(--ks-row-h)] w-[var(--ks-val-w)] shrink-0 items-center justify-end rounded-[var(--ks-r)] px-[12px]"
-        style={{ background: "var(--ks-ctl)" }}
-      >
-        {editing ? (
-          <input
-            autoFocus
-            value={draft}
-            onChange={(event) => setDraft(event.currentTarget.value)}
-            onBlur={commitDraft}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") commitDraft();
-              if (event.key === "Escape") setEditing(false);
-            }}
-            className="w-full bg-transparent text-right text-[10px] focus:outline-none"
-            style={{ color: "var(--ks-text)", fontVariantNumeric: "tabular-nums" }}
-          />
-        ) : (
-          <span
-            className="truncate text-[10px]"
-            style={{ color: "var(--ks-ctl-text)", fontVariantNumeric: "tabular-nums" }}
-          >
-            {shown}
-            {suffix ?? ""}
-          </span>
-        )}
       </div>
 
       {defaultValue !== undefined ? (
