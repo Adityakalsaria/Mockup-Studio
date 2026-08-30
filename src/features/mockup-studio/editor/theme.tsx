@@ -473,6 +473,15 @@ export const EDITOR_THEME_CSS = `
       env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
 
+  /* One step at a time. Both panels stay MOUNTED and one is hidden, rather
+     than the inactive one being unmounted -- a panel remembers which of its
+     sections you left open, and unmounting would reset that every time you
+     stepped away and back. */
+  .ks[data-ks-step="device"] [data-ks-panel="scene"],
+  .ks[data-ks-step="scene"] [data-ks-panel="device"] {
+    display: none;
+  }
+
   .ks {
     --ks-row-h: 44px;
     --ks-track-h: 36px;

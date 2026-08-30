@@ -142,7 +142,7 @@ export function RightPanel({
   return (
     <aside
       ref={glassRef}
-      className="ks-material flex w-full flex-col overflow-hidden rounded-[var(--ks-r-panel)] border laptop:h-full laptop:w-[var(--ks-panel-w)] laptop:shrink-0"
+      className="ks-material flex h-full w-full flex-col overflow-hidden rounded-[var(--ks-r-panel)] border laptop:w-[var(--ks-panel-w)] laptop:shrink-0"
       style={{
         background: "var(--ks-surface)",
         borderColor: "var(--ks-line-strong)",
@@ -170,7 +170,7 @@ export function RightPanel({
           whether or not the scrollbar overlays. */}
       <div
         data-lenis-prevent
-        className="ks-scroll flex flex-col px-[var(--ks-panel-pad)] laptop:min-h-0 laptop:flex-1 laptop:overflow-y-auto laptop:overflow-x-hidden laptop:[scrollbar-gutter:stable_both-edges]">
+        className="ks-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-[var(--ks-panel-pad)] [scrollbar-gutter:stable_both-edges]">
       {/* Panel chrome: the theme toggle, on the right panel only — two of them
           would be two controls for one piece of state. The left panel keeps
           the empty bar so both columns start their sections at one height. */}

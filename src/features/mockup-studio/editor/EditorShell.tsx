@@ -21,7 +21,7 @@ import { useScreenTexture } from "../useScreenTexture";
 import { RightPanel } from "./RightPanel";
 import { getRatio } from "./framing";
 import { EditorTheme } from "./theme";
-import { useEditorTheme } from "./primitives";
+import { Tabs, useEditorTheme } from "./primitives";
 import {
   DEFAULT_EDITOR_STATE,
   MIRROR_SCREEN_FIT,
@@ -60,6 +60,9 @@ export default function EditorShell() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const backgroundInputRef = useRef<HTMLInputElement>(null);
+  /** Which of the two mobile steps is showing. Ignored above `laptop`, where
+      both panels are on screen at once. */
+  const [mobileStep, setMobileStep] = useState<"device" | "scene">("device");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const captureRef = useRef<StageCapture | null>(null);
   const recorderRef = useRef<StageRecorder | null>(null);
@@ -717,8 +720,17 @@ export default function EditorShell() {
    * their gutters, and enough canvas left to hold a phone -- so 1000 is the
    * first breakpoint that fits it.
    *
-   * Below it: the page scrolls, and the stage, both panels and the timeline
-   * stack in that order. There is no arrangement of 640px of panel at 390.
+   * Below it: the viewport is still locked, and the stage is pinned to the top
+   * where it stays visible while you work. The two panels become two steps
+   * under it, one at a time, and whichever is showing scrolls inside itself.
+   * The alternative -- letting the page scroll, with both panels stacked --
+   * put the thing you are adjusting off screen the moment you reached the
+   * control that adjusts it.
+   *
+   * Which step is showing is a data attribute rather than a media query read
+   * in JS: the panels both stay mounted and CSS hides one, so a step keeps its
+   * expanded sections, and there is no first paint in the wrong layout while
+   * the client works out how wide it is.
    *
    * Note the breakpoint names: this project sets `--breakpoint-lg: initial`
    * and defines tablet/laptop/desktop instead, so a stray `lg:` compiles to
@@ -726,8 +738,9 @@ export default function EditorShell() {
    */
   return (
     <div
-      className="ks min-h-screen w-screen laptop:h-screen laptop:overflow-hidden"
+      className="ks h-screen w-screen overflow-hidden"
       data-ks-theme={theme}
+      data-ks-step={mobileStep}
     >
       <EditorTheme />
 
@@ -762,8 +775,23 @@ export default function EditorShell() {
             puts the stage behind the glass, which is also how Apple builds
             chrome: a layer with content running under it, not an opaque strip
             that consumes a column. */}
-        <div className="flex w-full flex-col gap-[var(--ks-gap)] laptop:relative laptop:min-h-0 laptop:flex-1 laptop:flex-row laptop:gap-0">
-        <div className="order-2 w-full laptop:absolute laptop:left-0 laptop:top-0 laptop:z-20 laptop:h-full laptop:w-auto">
+        <div className="flex min-h-0 w-full flex-1 flex-col gap-[var(--ks-gap)] laptop:relative laptop:flex-row laptop:gap-0">
+        {/* The two steps. Hidden above `laptop`, where both panels are on
+            screen at once and there is nothing to step between. Numbered
+            because they are a sequence -- pick the device, then frame the
+            shot -- rather than two equal views of the same thing. */}
+        <div className="order-2 shrink-0 laptop:hidden">
+          <Tabs
+            value={mobileStep}
+            onChange={setMobileStep}
+            options={[
+              { id: "device", label: "1  Device" },
+              { id: "scene", label: "2  Shot" },
+            ]}
+          />
+        </div>
+
+        <div data-ks-panel="device" className="order-3 min-h-0 w-full flex-1 laptop:absolute laptop:left-0 laptop:top-0 laptop:z-20 laptop:h-full laptop:w-auto laptop:flex-none">
         <RightPanel side="left"
           state={effective}
           onChange={change}
@@ -817,7 +845,7 @@ export default function EditorShell() {
         />
         </div>
 
-        <div className="order-1 flex h-[46vh] min-w-0 flex-col laptop:h-auto laptop:flex-1 laptop:px-[calc(var(--ks-panel-w)+var(--ks-gap))]">
+        <div className="order-1 flex h-[36vh] shrink-0 min-w-0 flex-col laptop:h-auto laptop:shrink laptop:flex-1 laptop:px-[calc(var(--ks-panel-w)+var(--ks-gap))]">
           {/* The workspace is the whole column; the framed canvas inside it is
               only as big as the chosen ratio allows. `container-type: size`
               is what lets the frame size itself off the workspace in CSS —
@@ -891,7 +919,7 @@ export default function EditorShell() {
             component: which sections it draws is the only difference, and
             splitting the file would have duplicated every control to express
             that. */}
-        <div className="order-3 w-full laptop:absolute laptop:right-0 laptop:top-0 laptop:z-20 laptop:h-full laptop:w-auto">
+        <div data-ks-panel="scene" className="order-4 min-h-0 w-full flex-1 laptop:absolute laptop:right-0 laptop:top-0 laptop:z-20 laptop:h-full laptop:w-auto laptop:flex-none">
         <RightPanel side="right"
           state={effective}
           onChange={change}
