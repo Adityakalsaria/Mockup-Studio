@@ -351,15 +351,15 @@ export default function EditorShell() {
    */
   const clipTimeFor = useCallback(
     (time: number) => {
-      if (!clipLength) return 0;
+      if (!clipLength || sourceLength <= 0) return 0;
       const local = time - sourceStart;
       if (local <= 0) return 0;
-      if (local >= sourceLength) {
-        // Land exactly on the last frame the span reached, not on the end of
-        // the file, which may be far past where the layer stopped.
-        return Math.min(sourceLength, clipLength) % clipLength || clipLength;
-      }
-      return local % clipLength;
+      // Held a hair inside the end rather than on it. Seeking to exactly the
+      // duration lands past the last frame and a decoder hands back a blank —
+      // which is what a black phone screen at the end of a clip actually was.
+      const capped = Math.min(local, sourceLength - 1e-3);
+      const wrapped = capped % clipLength;
+      return wrapped < 0 ? 0 : wrapped;
     },
     [clipLength, sourceStart, sourceLength],
   );
