@@ -363,6 +363,17 @@ export const EDITOR_THEME_CSS = `
   mask-image: linear-gradient(to bottom, transparent 0, #000 14px);
 }
 
+/* Scrolls, shows nothing.
+   For the timeline, where both bars sit across the middle of the frame rather
+   than at the edge of a column: the horizontal one runs under the lanes and
+   the vertical one down the middle of the window, and neither is telling you
+   anything the ruler and the track rows do not. */
+.ks-scroll-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.ks-scroll-hidden::-webkit-scrollbar { width: 0; height: 0; }
+
 .ks-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
 .ks-scroll::-webkit-scrollbar-thumb {
   background: var(--ks-line-strong);

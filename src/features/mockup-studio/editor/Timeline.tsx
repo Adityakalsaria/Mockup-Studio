@@ -278,7 +278,7 @@ export function Timeline({
           the playhead follows the cursor rather than only the thin line. */}
       <div
         data-lenis-prevent
-        className="ks-scroll flex min-h-0 flex-1 items-stretch overflow-y-auto"
+        className="ks-scroll-hidden flex min-h-0 flex-1 items-stretch overflow-y-auto"
       >
         {/* The name gutter is its own column with a divider, rather than
             labels hung off the left edge of the lane. That divider is what
@@ -309,7 +309,7 @@ export function Timeline({
         <div
           ref={scrollRef}
           data-lenis-prevent
-          className="ks-scroll min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
+          className="ks-scroll-hidden min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
         >
         <div
           ref={laneRef}
