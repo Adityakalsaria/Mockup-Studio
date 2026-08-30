@@ -674,6 +674,8 @@ export default function EditorShell() {
             }
           }}
           onSetZero={phone.setZero}
+          easing={animation.easing}
+          onApplyPreset={applyMotionPreset}
           theme={theme}
           onToggleTheme={toggleTheme}
           onResetCamera={() =>
@@ -816,6 +818,8 @@ export default function EditorShell() {
             }
           }}
           onSetZero={phone.setZero}
+          easing={animation.easing}
+          onApplyPreset={applyMotionPreset}
           theme={theme}
           onToggleTheme={toggleTheme}
           onResetCamera={() =>

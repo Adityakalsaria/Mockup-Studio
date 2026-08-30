@@ -24,6 +24,8 @@ import {
   type BackgroundKind,
 } from "../backgrounds";
 import { DEFAULT_EDITOR_STATE, RANGES, type EditorState } from "./editorState";
+import { MotionPanel } from "./MotionPanel";
+import type { Easing } from "../animation";
 import type { AnimatableKey } from "../animation";
 
 type SectionId = "source" | "phone" | "mockup" | "camera" | "blur" | "background";
@@ -48,6 +50,8 @@ export function RightPanel({
   liveMotion,
   onToggleLiveMotion,
   onSetZero,
+  easing,
+  onApplyPreset,
   theme,
   onToggleTheme,
   onResetCamera,
@@ -85,6 +89,9 @@ export function RightPanel({
   liveMotion: boolean;
   onToggleLiveMotion: (next: boolean) => void;
   onSetZero: () => void;
+  /** Passed to the motion previews so they play the easing you have chosen. */
+  easing: Easing;
+  onApplyPreset: (id: string) => void;
   theme: "light" | "dark";
   onToggleTheme: () => void;
   onResetCamera: () => void;
@@ -97,6 +104,10 @@ export function RightPanel({
     () => new Set<SectionId>(["source", "mockup", "camera", "blur", "background"]),
   );
   const [cameraTab, setCameraTab] = useState<"manual" | "presets">("manual");
+  // Which half of the right panel is showing. Motion is a browsing task —
+  // twenty three cards you scan — and the shot controls are an adjusting one;
+  // stacking them in one scroll made both worse.
+  const [rightTab, setRightTab] = useState<"shot" | "motion">("shot");
 
   const toggle = (id: SectionId) =>
     setOpen((prev) => {
@@ -421,8 +432,25 @@ export function RightPanel({
         </>
       )}
 
-      {/* The shot: how it moves, what the lens does, what sits behind it. */}
       {side === "right" && (
+        <div className="pb-[10px]">
+          <Tabs
+            value={rightTab}
+            onChange={setRightTab}
+            options={[
+              { id: "shot", label: "Shot" },
+              { id: "motion", label: "Motion" },
+            ]}
+          />
+        </div>
+      )}
+
+      {side === "right" && rightTab === "motion" ? (
+        <MotionPanel easing={easing} onApplyPreset={onApplyPreset} />
+      ) : null}
+
+      {/* The shot: how it moves, what the lens does, what sits behind it. */}
+      {side === "right" && rightTab === "shot" && (
         <>
       {/* ---------------------------------------------------------- CAMERA */}
       <PanelSection
