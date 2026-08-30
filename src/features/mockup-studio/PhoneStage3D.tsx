@@ -21,7 +21,7 @@ const DepthOfFieldLayer = lazy(() => import("./DepthOfFieldLayer"));
 
 import type React from "react";
 import { MeshBasicMaterial, Quaternion } from "three";
-import type { Group, Mesh, MeshStandardMaterial } from "three";
+import type { Group, Mesh, MeshStandardMaterial, PerspectiveCamera } from "three";
 
 /**
  * Manual nudge on top of the automatic screen fit.
@@ -320,6 +320,38 @@ function VideoFrameDriver({ texture }: { texture: Texture | null }) {
   useFrame((state) => {
     if (isVideo && !perFrame) state.invalidate();
   });
+  return null;
+}
+
+/**
+ * Applies the field of view to the live camera.
+ *
+ * The `camera` prop on r3f's Canvas is initial state — it builds a camera from
+ * it once and never looks at it again, so changing fov there does nothing
+ * after mount. The camera has to be reached inside the scene and told, and
+ * then told to rebuild its projection matrix, which is the step that actually
+ * changes what is drawn.
+ *
+ * Worth knowing what this is: fov is the LENS, where zoom is the distance.
+ * Widening it while pulling the phone closer keeps the phone the same size and
+ * changes everything around it — which is the dolly zoom, and was impossible
+ * here while the lens was a constant.
+ */
+function CameraFov({ fov }: { fov: number }) {
+  const camera = useThree((state) => state.camera);
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    const perspective = camera as PerspectiveCamera;
+    if (perspective.isPerspectiveCamera !== true || perspective.fov === fov) return;
+    /* eslint-disable react-hooks/immutability -- three.js state lives on the
+       objects themselves: setting fov and rebuilding the projection matrix is
+       the only way to change a camera's lens. The camera is owned by the
+       canvas this component sits in, so nothing outside observes it. */
+    perspective.fov = fov;
+    perspective.updateProjectionMatrix();
+    /* eslint-enable react-hooks/immutability */
+    invalidate();
+  }, [camera, fov, invalidate]);
   return null;
 }
 
@@ -1364,6 +1396,7 @@ export default function PhoneStage3D({
   timeRef,
   playing,
   livePose,
+  fov = 38,
   screenFit,
   canvasRef,
   captureRef,
@@ -1395,6 +1428,8 @@ export default function PhoneStage3D({
   /** A paired phone's live orientation. Overrides the rotation props while
       present — see the note on PhoneScene. */
   livePose?: React.RefObject<Quat> | null;
+  /** Camera field of view, in degrees. */
+  fov?: number;
   /** Manual nudge on the screen crop — see ScreenFit. */
   screenFit?: ScreenFit;
   canvasRef?: React.MutableRefObject<HTMLCanvasElement | null>;
@@ -1418,7 +1453,8 @@ export default function PhoneStage3D({
       ) : null}
       <Canvas
         className="!h-full !w-full"
-        camera={{ position: [0, 0, 1.8], fov: 38 }}
+        // Initial only — r3f reads this once. CameraFov keeps it current.
+        camera={{ position: [0, 0, 1.8], fov }}
         // `preserveDrawingBuffer` is gone with the html-to-image export that
         // needed it: export now renders on demand and reads the buffer in the
         // same tick, so the driver is free to discard it as usual.
@@ -1451,6 +1487,7 @@ export default function PhoneStage3D({
           />
         ) : null}
         <StudioEnvironment />
+        <CameraFov fov={fov} />
         <PhoneScene
           rail={rail}
           screenTexture={screenTexture}

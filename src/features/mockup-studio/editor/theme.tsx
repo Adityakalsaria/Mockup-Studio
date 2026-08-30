@@ -160,7 +160,7 @@ export const EDITOR_THEME_CSS = `
      shapes became capsules — a capsule's corners eat horizontal space that a
      rectangle's do not, so the same number reads tighter. */
   --ks-ctl-pad: var(--ks-space-3);
-  --ks-row-gap: var(--ks-space-2);
+  --ks-row-gap: var(--ks-space-1);
   /* Between the columns WITHIN a row.
      Zero now that the keyframe button has no pill of its own: there are no
      longer two shapes needing to be told apart, and every pixel of gap was

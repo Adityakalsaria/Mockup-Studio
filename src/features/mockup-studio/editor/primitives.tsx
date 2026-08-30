@@ -223,36 +223,19 @@ export function ParamRow({
   const shown = formatValue(value, decimals);
 
   return (
-    <div className="flex w-full flex-col gap-[var(--ks-space-1)]">
-      {/* The name sits above the track, with the row's two buttons beside it.
-          It used to be inside the control, which was fine while the control
-          was a bar and stopped being fine the moment it grew a knob: at a low
-          value the knob parks on top of the word. Above, the track is free to
-          be nothing but a track, and it gets the full width. */}
-      <div className="flex items-center gap-[var(--ks-space-2)] px-[var(--ks-space-1)]">
-        <span className="ks-label min-w-0 flex-1 truncate" style={{ color: "var(--ks-text-dim)" }}>
-          {label}
-        </span>
+    <div className="flex w-full flex-col">
+      {/* The name sits above the track. It used to be inside the control,
+          which was fine while the control was a bar and stopped being fine the
+          moment it grew a knob: at a low value the knob parks on the word.
+          Above, the track is free to be nothing but a track. */}
+      <span
+        className="ks-label truncate px-[var(--ks-space-1)]"
+        style={{ color: "var(--ks-text-dim)" }}
+      >
+        {label}
+      </span>
 
-        {animatable ? (
-          <KeyframeButton active={Boolean(keyframed)} onClick={onKeyframe} label={label} />
-        ) : null}
-
-        {defaultValue !== undefined ? (
-          <ResetButton
-            label={label}
-            // Compared with a tolerance, not `!==`. These values arrive from
-            // drag arithmetic and from interpolated keyframes, so a row
-            // sitting visually at its default is routinely a float hair away
-            // from it, and an exact test would leave the button lit with
-            // nothing to do.
-            dirty={Math.abs(value - defaultValue) > 1e-6}
-            shown={formatValue(defaultValue, decimals)}
-            onClick={() => onChange(defaultValue)}
-          />
-        ) : null}
-      </div>
-
+      <div className="flex w-full items-center">
       <div
         role="slider"
         tabIndex={0}
@@ -277,7 +260,7 @@ export function ParamRow({
           event.preventDefault();
           onChange(clamp(quantise(value + dir * step * (event.shiftKey ? 10 : 1))));
         }}
-        className="ks-scrub relative h-[var(--ks-track-h)] w-full overflow-hidden rounded-full focus:outline-none focus-visible:ring-1"
+        className="ks-scrub relative h-[var(--ks-track-h)] min-w-0 flex-1 overflow-hidden rounded-full focus:outline-none focus-visible:ring-1"
         style={{ background: "var(--ks-ctl)" }}
       >
         {/* The fill is a CAPSULE and the knob is its end cap.
@@ -330,6 +313,27 @@ export function ParamRow({
             style={{ color: "var(--ks-text)", background: "var(--ks-ctl)" }}
           />
         ) : null}
+      </div>
+
+      {/* Beside the track, not above it: they act on the value the track
+          holds, and a control sitting next to what it affects needs no label
+          to explain the relationship. */}
+      {animatable ? (
+        <KeyframeButton active={Boolean(keyframed)} onClick={onKeyframe} label={label} />
+      ) : null}
+
+      {defaultValue !== undefined ? (
+        <ResetButton
+          label={label}
+          // Compared with a tolerance, not `!==`. These values arrive from drag
+          // arithmetic and from interpolated keyframes, so a row sitting
+          // visually at its default is routinely a float hair away from it,
+          // and an exact test would leave the button lit with nothing to do.
+          dirty={Math.abs(value - defaultValue) > 1e-6}
+          shown={formatValue(defaultValue, decimals)}
+          onClick={() => onChange(defaultValue)}
+        />
+      ) : null}
       </div>
     </div>
   );
