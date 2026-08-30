@@ -149,15 +149,21 @@ export function Timeline({
 
   return (
     <div
-      className="flex shrink-0 flex-col gap-[8px] rounded-[var(--ks-r-panel)] border px-[12px] py-[8px]"
+      // Fixed height, whatever is in it.
+      //
+      // The timeline grew a row per animated property, so keying a sixth
+      // pushed it past the bottom of the window and took the last lane with
+      // it. A tool's chrome should not change size because of what you are
+      // working on: the lanes scroll inside it now, and the transport stays
+      // where you left it.
+      className="ks-material flex h-[var(--ks-timeline-h)] shrink-0 flex-col gap-[8px] overflow-hidden rounded-[var(--ks-r-panel)] border px-[12px] py-[8px]"
       style={{
         background: "var(--ks-surface)",
         borderColor: "var(--ks-line-strong)",
-        backdropFilter: "blur(6px)",
       }}
     >
       {/* Transport */}
-      <div className="flex items-center gap-[12px]">
+      <div className="flex shrink-0 items-center gap-[12px]">
         <button
           type="button"
           onClick={onTogglePlay}
@@ -310,7 +316,10 @@ export function Timeline({
 
       {/* Ruler + lanes. One scrub surface: pointer anywhere in here seeks, so
           the playhead follows the cursor rather than only the thin line. */}
-      <div className="flex items-stretch">
+      <div
+        data-lenis-prevent
+        className="ks-scroll flex min-h-0 flex-1 items-stretch overflow-y-auto"
+      >
         {/* The name gutter is its own column with a divider, rather than
             labels hung off the left edge of the lane. That divider is what
             makes a timeline read as two synchronised halves — names here,
@@ -319,7 +328,10 @@ export function Timeline({
           style={{ width: LABEL_WIDTH, borderColor: "var(--ks-line)" }}
           className="shrink-0 border-r"
         >
-          <div className="h-[16px]" />
+          <div
+            className="sticky top-0 z-20 h-[16px]"
+            style={{ background: "var(--ks-surface)" }}
+          />
           {clipRepeats ? <div className="mb-[4px] h-[36px]" /> : null}
           {tracks.map(({ key, label }) => (
             <div
@@ -366,8 +378,14 @@ export function Timeline({
             onScrubbingChange(false);
           }}
         >
-          {/* Ruler */}
-          <div className="relative h-[16px]">
+          {/* Ruler.
+              Sticky, because it lives inside the vertical scroller with the
+              lanes — without this it scrolls away the moment there are more
+              tracks than fit, and the times go with it. */}
+          <div
+            className="sticky top-0 z-20 h-[16px]"
+            style={{ background: "var(--ks-surface)" }}
+          >
             {ticks.map((t) => (
               <span
                 key={t}
