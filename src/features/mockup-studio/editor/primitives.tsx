@@ -137,6 +137,10 @@ function KeyframeButton({
  * feedback, and double-click types an exact value for the cases scrubbing
  * cannot hit on purpose.
  */
+/** Just under the row height, so the knob nearly fills the track the way
+    Apple's slider handle does rather than floating in the middle of it. */
+const KNOB = 26;
+
 export function ParamRow({
   label,
   value,
@@ -255,6 +259,34 @@ export function ParamRow({
           className="absolute inset-y-0 left-0"
           style={{ width: `${fillPct}%`, background: "var(--ks-ctl-fill)" }}
         />
+        {/* The knob, at the end of the fill.
+            A filled bar says how far along the value is; a knob says the bar
+            is a thing you can take hold of. Without it the row reads as a
+            progress indicator that happens to respond to dragging.
+
+            It travels inside a track inset by half its own width, so its
+            centre runs from half-in to half-out and it never hangs over
+            either end — which is what happens if you position it at the fill
+            percentage directly. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0"
+          style={{ left: KNOB / 2 + 3, right: KNOB / 2 + 3 }}
+        >
+          <span
+            className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+            style={{
+              left: `${fillPct}%`,
+              width: KNOB,
+              height: KNOB,
+              background: "var(--ks-surface-solid)",
+              // The ring reads as the edge of a physical cap; the drop is what
+              // puts it ON the track rather than in it.
+              boxShadow:
+                "0 1px 3px rgba(0,0,0,0.18), 0 0 0 0.5px rgba(0,0,0,0.06)",
+            }}
+          />
+        </span>
         {/* Label and value in one control, rather than a slider and a
             separate readout beside it.
             The pill held a number the row is already about, and it cost 62px
