@@ -50,6 +50,7 @@ export function Timeline({
   onDurationChange,
   onMoveKey,
   onRemoveKey,
+  onSetKeyEasing,
   onClear,
   onScrubbingChange,
   onEasingChange,
@@ -71,6 +72,7 @@ export function Timeline({
   onDurationChange: (seconds: number) => void;
   onMoveKey: (property: AnimatableKey, from: number, to: number) => void;
   onRemoveKey: (property: AnimatableKey, time: number) => void;
+  onSetKeyEasing: (property: AnimatableKey, time: number, easing: Easing) => void;
   onClear: () => void;
   /** True for the duration of a playhead drag, so the stage can stop easing. */
   onScrubbingChange: (active: boolean) => void;
@@ -128,6 +130,11 @@ export function Timeline({
   // deleted or dragged to a new time, and clearing that from an effect would
   // mean a setState in the effect body and a second render every time. Reading
   // it through the track instead means a stale pick simply resolves to null.
+  /** Two adjacent keys on one track: the span whose curve is being edited. */
+  const [pickedSegment, setPickedSegment] = useState<
+    { property: AnimatableKey; from: number; to: number } | null
+  >(null);
+
   const selectedKey = useMemo(() => {
     if (!pickedKey) return null;
     const exists = (animation.tracks[pickedKey.property] ?? []).some(
@@ -135,6 +142,23 @@ export function Timeline({
     );
     return exists ? pickedKey : null;
   }, [pickedKey, animation.tracks]);
+
+  // Same reasoning as the key pick: derived, so a segment whose keys have
+  // moved or gone simply stops being selected.
+  const selectedSegment = useMemo(() => {
+    if (!pickedSegment) return null;
+    const keys = animation.tracks[pickedSegment.property] ?? [];
+    const from = keys.findIndex((k) => k.time === pickedSegment.from);
+    const to = keys.findIndex((k) => k.time === pickedSegment.to);
+    return from >= 0 && to === from + 1 ? pickedSegment : null;
+  }, [pickedSegment, animation.tracks]);
+
+  /** What the toolbar's picker is pointed at: one segment, or the whole clip. */
+  const editingEasing: Easing = useMemo(() => {
+    if (!selectedSegment) return animation.easing;
+    const keys = animation.tracks[selectedSegment.property] ?? [];
+    return keys.find((k) => k.time === selectedSegment.from)?.easing ?? animation.easing;
+  }, [selectedSegment, animation.tracks, animation.easing]);
 
   useEffect(() => {
     if (!selectedKey) return;
@@ -324,8 +348,24 @@ export function Timeline({
             you are working — anchoring to zero would push the thing you were
             looking at off screen every time you zoomed in. */}
 
+        {/* One picker, pointed at whatever is selected.
+            With a segment picked it edits that segment's curve; with nothing
+            picked it edits the clip's. A second picker for the same job would
+            have to explain which of the two was in charge. */}
         <div className="flex items-center gap-[var(--ks-space-2)]">
-          <EasingPicker value={animation.easing} onChange={onEasingChange} />
+          {selectedSegment ? (
+            <span className="ks-micro" style={{ color: "var(--ks-accent)" }}>
+              Segment
+            </span>
+          ) : null}
+          <EasingPicker
+            value={editingEasing}
+            onChange={(easing) =>
+              selectedSegment
+                ? onSetKeyEasing(selectedSegment.property, selectedSegment.from, easing)
+                : onEasingChange(easing)
+            }
+          />
         </div>
 
         <Divider />
@@ -573,6 +613,18 @@ export function Timeline({
                     </span>
                   </span>
                 ) : null}
+                {selectedSegment?.property === key ? (
+                  <span
+                    aria-hidden
+                    className="absolute top-1/2 h-[3px] -translate-y-1/2 rounded-full"
+                    style={{
+                      left: at(selectedSegment.from),
+                      width: span(selectedSegment.to - selectedSegment.from),
+                      background: "var(--ks-accent)",
+                      opacity: 0.55,
+                    }}
+                  />
+                ) : null}
                 {(animation.tracks[key] ?? []).map((k) => (
                   <button
                     key={k.time}
@@ -581,6 +633,28 @@ export function Timeline({
                     aria-label={`${label} keyframe at ${formatTime(k.time)}`}
                     onPointerDown={(event) => {
                       event.stopPropagation();
+                      // Shift or cmd on a second key of the SAME track makes a
+                      // segment of the two, provided they are neighbours --
+                      // there is no curve "between" two keys with another in
+                      // the middle, so anything else falls back to a new pick.
+                      const extending =
+                        (event.shiftKey || event.metaKey) &&
+                        selectedKey?.property === key &&
+                        selectedKey.time !== k.time;
+                      if (extending) {
+                        const times = (animation.tracks[key] ?? []).map((x) => x.time);
+                        const a = times.indexOf(selectedKey.time);
+                        const b = times.indexOf(k.time);
+                        if (Math.abs(a - b) === 1) {
+                          setPickedSegment({
+                            property: key,
+                            from: times[Math.min(a, b)],
+                            to: times[Math.max(a, b)],
+                          });
+                          return;
+                        }
+                      }
+                      setPickedSegment(null);
                       setSelectedKey({ property: key, time: k.time });
                       setDragging({ property: key, from: k.time });
                       onSeek(k.time);

@@ -21,6 +21,19 @@ export type AnimatableKey = (typeof ANIMATABLE)[number]["key"];
 export interface Keyframe {
   time: number;
   value: number;
+  /**
+   * Easing for the segment that STARTS here, overriding the animation's own.
+   *
+   * On the keyframe rather than on a separate segment list because a segment
+   * has no identity of its own -- it is defined by the two keys either side,
+   * and both of those move. Hanging it on the leading key means dragging a
+   * keyframe carries its outgoing curve with it and deleting one cannot leave
+   * an easing behind pointing at a segment that no longer exists.
+   *
+   * Absent means "whatever the animation is set to", which is what keeps the
+   * global picker working for tracks nobody has touched.
+   */
+  easing?: Easing;
 }
 
 export interface Animation {
@@ -278,12 +291,15 @@ export function sampleTrack(
   const span = b.time - a.time;
   if (span <= 0) return b.value;
 
-  if (easing.kind === "smooth") {
+  // The leading key's own easing wins over the animation's.
+  const segment = a.easing ?? easing;
+
+  if (segment.kind === "smooth") {
     const m = monotoneTangents(keys);
     return hermite(a, b, m[i], m[i + 1], time);
   }
   const t = (time - a.time) / span;
-  return a.value + (b.value - a.value) * easingCurve(easing)(t);
+  return a.value + (b.value - a.value) * easingCurve(segment)(t);
 }
 
 /** Every animated property's value at a moment. Unanimated ones are absent. */

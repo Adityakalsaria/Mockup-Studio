@@ -13,6 +13,7 @@ import {
   removeKey,
   sampleAnimation,
   type AnimatableKey,
+  type Easing,
 } from "../animation";
 import { Timeline } from "./Timeline";
 import { fitToClip, getMotionPreset } from "./motionPresets";
@@ -395,6 +396,27 @@ export default function EditorShell() {
       return { ...prev, animation: { ...prev.animation, tracks } };
     });
   }, []);
+
+  /**
+   * Set the easing for the segment starting at `time`.
+   *
+   * Written onto the leading keyframe, so it travels with that key when it is
+   * dragged and disappears with it when it is deleted.
+   */
+  const setKeyEasing = useCallback(
+    (property: AnimatableKey, time: number, easing: Easing) => {
+      setState((prev) => {
+        const keys = prev.animation.tracks[property];
+        if (!keys) return prev;
+        const next = keys.map((k) => (k.time === time ? { ...k, easing } : k));
+        return {
+          ...prev,
+          animation: { ...prev.animation, tracks: { ...prev.animation.tracks, [property]: next } },
+        };
+      });
+    },
+    [],
+  );
 
   const moveKey = useCallback((property: AnimatableKey, from: number, to: number) => {
     setState((prev) => {
@@ -1181,6 +1203,7 @@ export default function EditorShell() {
             onDurationChange={(durationSec) => setAnimation({ durationSec })}
             onMoveKey={moveKey}
             onRemoveKey={dropKey}
+            onSetKeyEasing={setKeyEasing}
             onClear={() => {
               setPlaying(false);
               setPlayhead(0);
