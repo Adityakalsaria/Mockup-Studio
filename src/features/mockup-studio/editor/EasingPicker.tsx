@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   EASING_PRESETS,
   easingCurve,
@@ -244,6 +245,13 @@ function SpringEditor({
 }: {
   easing: { kind: "spring"; damping: number; frequency: number };
   onChange: (next: Easing) => void;
+  /**
+   * "bar" is the labelled control in the toolbar. "marker" is the small glyph
+   * that sits on a segment in the timeline, where there is room for the curve
+   * and nothing else -- the segment it is drawn on already says which span it
+   * belongs to, so a label would only repeat it.
+   */
+  variant?: "bar" | "marker";
 }) {
   // Same fixed axis as the bezier editor, so switching tabs does not silently
   // rescale the picture and make two curves look more alike than they are.
@@ -340,21 +348,64 @@ function Row({
 export function EasingPicker({
   value,
   onChange,
+  variant = "bar",
 }: {
   value: Easing;
   onChange: (next: Easing) => void;
+  /**
+   * "bar" is the labelled control in the toolbar. "marker" is the small glyph
+   * that sits on a segment in the timeline, where the segment it is drawn on
+   * already says which span it belongs to, so a label would only repeat it.
+   */
+  variant?: "bar" | "marker";
 }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"presets" | "curve" | "spring">("presets");
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState<{ left: number; top: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const presetId = easingPresetId(value);
   const label = EASING_PRESETS.find((p) => p.id === presetId)?.label ?? "Custom";
 
+  // Placed against the trigger each time it opens, and again on scroll or
+  // resize: the marker variant lives inside a lane that scrolls under it.
+  useEffect(() => {
+    if (!open) {
+      setMenuPos(null);
+      return;
+    }
+    const place = () => {
+      const trigger = rootRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const width = menuRef.current?.offsetWidth ?? 248;
+      const height = menuRef.current?.offsetHeight ?? 300;
+      const M = 8;
+      // Above the trigger, centred on it, then pulled back inside the viewport.
+      const top = rect.top - M - height < M ? rect.bottom + M : rect.top - M - height;
+      const left = Math.min(
+        Math.max(M, rect.left + rect.width / 2 - width / 2),
+        window.innerWidth - width - M,
+      );
+      setMenuPos({ left, top });
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, tab]);
+
   useEffect(() => {
     if (!open) return;
     const onDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      // The menu is portalled to the body, so it is not inside rootRef.
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
@@ -373,31 +424,60 @@ export function EasingPicker({
 
   return (
     <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className="ks-press ks-label flex items-center gap-[8px] rounded-[var(--ks-r)] px-[12px] py-[4px]"
-        style={{ background: "var(--ks-ctl)", color: "var(--ks-ctl-text)" }}
-      >
-        <CurveThumb easing={value} active={false} />
-        {label}
-        <Icon name="chevronUp" />
-      </button>
-
-      {open ? (
-        <div
-          role="menu"
-          // Opens upward: the timeline sits at the foot of the window, so
-          // there is nothing below it to open into.
-          className="ks-menu absolute bottom-[calc(100%+8px)] right-0 z-40 flex w-[248px] flex-col gap-[8px] rounded-[var(--ks-r-menu)] border p-[8px]"
+      {variant === "marker" ? (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={`Easing: ${label}`}
+          title={`${label} — click to change this segment`}
+          className="ks-press grid h-[18px] w-[18px] place-items-center rounded-[5px]"
           style={{
+            background: "var(--ks-surface-solid)",
+            boxShadow: open
+              ? "0 0 0 1.5px var(--ks-accent)"
+              : "0 0 0 1px var(--ks-accent-line)",
+          }}
+        >
+          <CurveThumb easing={value} active={false} />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className="ks-press ks-label flex items-center gap-[8px] rounded-[var(--ks-r)] px-[12px] py-[4px]"
+          style={{ background: "var(--ks-ctl)", color: "var(--ks-ctl-text)" }}
+        >
+          <CurveThumb easing={value} active={false} />
+          {label}
+          <Icon name="chevronUp" />
+        </button>
+      )}
+
+      {open && menuPos ? (
+        createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          data-ks-easing-menu
+          // Portalled and fixed. As a marker this opens from inside the
+          // timeline's scrolling lane area, and an absolutely positioned menu
+          // is clipped by the nearest scroll container -- it would have been
+          // cut off at the lane's edge. Opens upward because the timeline sits
+          // at the foot of the window.
+          className="ks ks-menu fixed z-[60] flex w-[248px] flex-col gap-[8px] rounded-[var(--ks-r-menu)] border p-[8px]"
+          style={{
+            left: menuPos.left,
+            top: menuPos.top,
             background: "var(--ks-surface-solid)",
             borderColor: "var(--ks-line-strong)",
             boxShadow: "0 10px 30px rgba(0,0,0,0.28)",
-            transformOrigin: "bottom right",
+            transformOrigin: "bottom center",
           }}
+          data-ks-theme={rootRef.current?.closest("[data-ks-theme]")?.getAttribute("data-ks-theme") ?? undefined}
         >
           <Tabs
             value={tab}
@@ -477,7 +557,9 @@ export function EasingPicker({
           {tab === "spring" ? (
             <SpringEditor easing={springValue} onChange={onChange} />
           ) : null}
-        </div>
+        </div>,
+        document.body,
+        )
       ) : null}
     </div>
   );
