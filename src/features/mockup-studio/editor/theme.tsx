@@ -180,6 +180,25 @@ export const EDITOR_THEME_CSS = `
   font-family: var(--ks-font);
   color: var(--ks-text);
   background: var(--ks-page);
+
+  /* Nothing here is prose.
+     Every drag in this editor starts on a label or a track, and the browser's
+     default is to treat a drag over text as a selection — so scrubbing a value
+     highlighted its own name, and dragging the phone highlighted half the
+     panel. The .ks-scrub class was already fighting this control by control,
+     which only ever covered the ones someone remembered to mark. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* The exceptions: places where text really is text and you may want to select,
+   copy or retype it — a hex value, a duration, the number you double-clicked
+   a slider to enter. */
+.ks input,
+.ks textarea,
+.ks [contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* Dark is Apple's dark system palette, taken from the kit's variables rather
