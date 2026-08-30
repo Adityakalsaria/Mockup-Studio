@@ -66,3 +66,7 @@ next-env.d.ts
 
 # local dev TLS cert (machine-specific, never commit a private key)
 certificates/
+
+# third-party agent skills (npx skills add) — tooling, not app code
+.agents/
+skills-lock.json

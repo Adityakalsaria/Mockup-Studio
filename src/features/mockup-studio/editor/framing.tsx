@@ -146,7 +146,7 @@ export function ExportMenu({
         disabled={recording}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
-        className="ks-label flex h-[var(--ks-row-h)] w-full items-center justify-center gap-[6px] rounded-[var(--ks-r)] disabled:opacity-60"
+        className="ks-press ks-label flex h-[var(--ks-row-h)] w-full items-center justify-center gap-[6px] rounded-[var(--ks-r)] disabled:opacity-60"
         style={{ background: "var(--ks-accent-wash)", color: "var(--ks-accent)" }}
       >
         {recording ? `Recording ${Math.round((recordProgress ?? 0) * 100)}%` : "Export"}

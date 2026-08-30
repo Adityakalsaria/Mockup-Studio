@@ -620,7 +620,7 @@ export function PillButton({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className="ks-label h-[var(--ks-row-h)] w-full rounded-[var(--ks-r)] transition-colors"
+      className="ks-press ks-label h-[var(--ks-row-h)] w-full rounded-[var(--ks-r)]"
       style={{
         background: active ? "var(--ks-accent-wash)" : "var(--ks-ctl)",
         color: active ? "var(--ks-accent)" : "var(--ks-ctl-text)",

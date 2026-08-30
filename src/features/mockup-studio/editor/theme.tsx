@@ -166,12 +166,87 @@ export const EDITOR_THEME_CSS = `
   touch-action: none;
 }
 
+/* ---------------------------------------------------------------- PRESS --
+   Feedback on pointer-DOWN, not on release.
+   Waiting for the click to acknowledge a press is the single thing that makes
+   an interface feel dead, and it is invisible in a screenshot — the control
+   looks identical either way, and only feels wrong under a finger. 100ms out
+   is below the threshold where the response reads as a separate event. */
+.ks-press {
+  transition: transform 100ms cubic-bezier(0.2, 0, 0, 1),
+              background-color 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+.ks-press:active {
+  transform: scale(0.97);
+}
+/* Cards are large enough that 0.97 reads as a lurch; the bigger the surface,
+   the smaller the scale needed to say the same thing. */
+.ks-press-lg:active {
+  transform: scale(0.985);
+}
+
+/* ------------------------------------------------------------- MATERIAL --
+   Panels are the heavy structural layer, so they blur harder than a chip
+   would and carry a real shadow. The bright top edge is light catching the
+   near edge of a physical pane — without it a translucent panel reads as a
+   flat tint rather than as a surface with thickness. */
+.ks-material {
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14),
+              inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+[data-ks-theme="dark"] .ks-material {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45),
+              inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+/* Where scrolling content meets floating chrome, fade it out rather than
+   ruling a line under it. A 1px divider says "two boxes"; the fade says the
+   content continues underneath, which is what is actually happening. */
+.ks-scroll-fade {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 14px);
+}
+
 .ks-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
 .ks-scroll::-webkit-scrollbar-thumb {
   background: var(--ks-line-strong);
   border-radius: 3px;
 }
 .ks-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* ------------------------------------------------------- ACCESSIBILITY --
+   Reduced motion is not "no feedback" — it is feedback without the
+   vestibular part. The press keeps its colour change and loses its scale;
+   nothing here slides or springs. */
+@media (prefers-reduced-motion: reduce) {
+  .ks-press,
+  .ks-press-lg {
+    transition: background-color 120ms linear;
+  }
+  .ks-press:active,
+  .ks-press-lg:active {
+    transform: none;
+  }
+}
+
+/* Translucency is a preference, not a given. Frost the panels rather than
+   removing the layer, so the hierarchy the material was carrying survives. */
+@media (prefers-reduced-transparency: reduce) {
+  .ks-material {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--ks-surface-solid);
+  }
+}
+
+@media (prefers-contrast: more) {
+  .ks-material {
+    background: var(--ks-surface-solid);
+    border-color: var(--ks-text-dim);
+  }
+}
 `;
 
 export function EditorTheme() {

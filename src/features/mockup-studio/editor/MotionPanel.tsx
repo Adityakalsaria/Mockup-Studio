@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { sampleAnimation, type Animation, type Easing } from "../animation";
 import { MOTION_PRESETS, PRESET_GROUPS, type MotionPreset } from "./motionPresets";
 
@@ -68,13 +68,42 @@ function poseToTransform(pose: Partial<typeof NEUTRAL>, fit = 1): string {
   ].join(" ");
 }
 
+/**
+ * Whether the viewer has asked for less motion.
+ *
+ * Read live rather than once, because the setting can change while the app is
+ * open, and a grid of cards that keeps animating after someone turns it on is
+ * the exact failure the preference exists to prevent.
+ */
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+
+function subscribeToReducedMotion(onChange: () => void) {
+  const query = window.matchMedia(REDUCED_MOTION);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+function usePrefersReducedMotion(): boolean {
+  // useSyncExternalStore rather than an effect: matchMedia IS an external
+  // store, and this is the API for reading one without a render pass that
+  // shows the wrong answer first. The server snapshot is false because the
+  // server cannot know, and false is what the markup is built for.
+  return useSyncExternalStore(
+    subscribeToReducedMotion,
+    () => window.matchMedia(REDUCED_MOTION).matches,
+    () => false,
+  );
+}
+
 function PresetCard({
   preset,
   easing,
+  reducedMotion,
   onApply,
 }: {
   preset: MotionPreset;
   easing: Easing;
+  reducedMotion: boolean;
   onApply: () => void;
 }) {
   const [playing, setPlaying] = useState(false);
@@ -93,8 +122,16 @@ function PresetCard({
     // FIRST frame instead was the first attempt, and it made the grid look
     // broken: half the cards sat tiny, or edge-on, or off the side of their
     // box, which reads as a rendering fault rather than as a starting point.
-    if (!playing) {
-      node.style.transform = poseToTransform(NEUTRAL, fit);
+    // Under reduced motion the card holds the preset's most extreme pose
+    // instead of playing it. That still answers "what does this one do" —
+    // which is the card's whole job — without moving anything.
+    if (!playing || reducedMotion) {
+      node.style.transform = poseToTransform(
+        reducedMotion
+          ? { ...NEUTRAL, ...sampleAnimation(animation, animation.durationSec * 0.35) }
+          : NEUTRAL,
+        fit,
+      );
       return;
     }
 
@@ -116,7 +153,7 @@ function PresetCard({
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing, preset, animation, fit]);
+  }, [playing, preset, animation, fit, reducedMotion]);
 
   return (
     <button
@@ -130,7 +167,7 @@ function PresetCard({
       onFocus={() => setPlaying(true)}
       onBlur={() => setPlaying(false)}
       title={preset.hint}
-      className="group flex flex-col gap-[5px] rounded-[var(--ks-r)] p-[6px] text-left transition-colors"
+      className="ks-press ks-press-lg group flex flex-col gap-[5px] rounded-[var(--ks-r)] p-[6px] text-left"
       style={{ background: "var(--ks-row)" }}
     >
       <div
@@ -166,11 +203,15 @@ export function MotionPanel({
   easing: Easing;
   onApplyPreset: (id: string) => void;
 }) {
+  const reducedMotion = usePrefersReducedMotion();
+
   return (
     <div className="flex flex-col gap-[14px] pb-[14px]">
       <p className="ks-micro" style={{ color: "var(--ks-text-faint)", lineHeight: 1.5 }}>
-        Hover to preview, click to apply. Every move is built relative to your
-        current framing.
+        {reducedMotion
+          ? "Click to apply. Cards show a still from each move."
+          : "Hover to preview, click to apply."}{" "}
+        Every move is built relative to your current framing.
       </p>
 
       {PRESET_GROUPS.map((group) => {
@@ -190,6 +231,7 @@ export function MotionPanel({
                   key={preset.id}
                   preset={preset}
                   easing={easing}
+                  reducedMotion={reducedMotion}
                   onApply={() => onApplyPreset(preset.id)}
                 />
               ))}

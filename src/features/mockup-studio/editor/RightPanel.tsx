@@ -139,11 +139,10 @@ export function RightPanel({
 
   return (
     <aside
-      className="flex h-full w-[var(--ks-panel-w)] shrink-0 flex-col overflow-hidden rounded-[var(--ks-r-panel)] border"
+      className="ks-material flex h-full w-[var(--ks-panel-w)] shrink-0 flex-col overflow-hidden rounded-[var(--ks-r-panel)] border"
       style={{
         background: "var(--ks-surface)",
         borderColor: "var(--ks-line-strong)",
-        backdropFilter: "blur(6px)",
       }}
     >
       {/* Body scrolls, footer does not: Export has to stay reachable without
@@ -158,7 +157,7 @@ export function RightPanel({
           type="button"
           onClick={onToggleTheme}
           aria-label={theme === "light" ? "Switch to dark" : "Switch to light"}
-          className="grid h-[22px] w-[22px] place-items-center opacity-60 hover:opacity-100"
+          className="ks-press grid h-[22px] w-[22px] place-items-center opacity-60 hover:opacity-100"
           style={{ color: "var(--ks-text-dim)" }}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
@@ -749,10 +748,7 @@ export function RightPanel({
       </div>
 
       {side === "right" ? (
-        <div
-          className="shrink-0 border-t px-[var(--ks-panel-pad)] py-[10px]"
-          style={{ borderColor: "var(--ks-hairline)" }}
-        >
+        <div className="shrink-0 px-[var(--ks-panel-pad)] pb-[10px] pt-[4px]">
           <ExportMenu
             onExportPng={onExportPng}
             onExportVideo={onExportVideo}
