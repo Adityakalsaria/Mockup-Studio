@@ -40,6 +40,11 @@ export default function EditorShell() {
 
   const [sourceSrc, setSourceSrc] = useState<string | null>(null);
   const [sourceName, setSourceName] = useState<string | null>(null);
+  /** Where the source layer starts on the timeline, in seconds. */
+  const [sourceStart, setSourceStart] = useState(0);
+  /** How long it occupies. null means "its own length" — a video's duration,
+      or the one second a still gets until someone drags it longer. */
+  const [sourceSpan, setSourceSpan] = useState<number | null>(null);
   // null when idle; 0..1 while recording, which is also what disables Export.
   const [recordProgress, setRecordProgress] = useState<number | null>(null);
 
@@ -132,6 +137,9 @@ export default function EditorShell() {
   const animatedRef = useRef(false);
   const clipVideoRef = useRef<HTMLVideoElement | null>(null);
   const clipLengthRef = useRef(0);
+  // The playback loop is bound once, so it reaches the current mapping through
+  // a ref rather than closing over a stale one.
+  const clipTimeRef = useRef<(time: number) => number>(() => 0);
   useEffect(() => {
     playingRef.current = playing;
   }, [playing]);
@@ -280,8 +288,7 @@ export default function EditorShell() {
       // it has to be brought back too. Without this a 3-second timeline over
       // a 12-second clip plays a different slice of footage on every pass.
       if (wrapped && clipVideoRef.current && clipLengthRef.current) {
-        clipVideoRef.current.currentTime =
-          playheadRef.current % clipLengthRef.current;
+        clipVideoRef.current.currentTime = clipTimeRef.current(playheadRef.current);
       }
       if (now - lastUiPush > 90) {
         lastUiPush = now;
@@ -328,7 +335,34 @@ export default function EditorShell() {
    * Zero would be indistinguishable from having no source at all, which is
    * the one thing the row is there to tell you.
    */
-  const sourceLength = isVideoScreen ? clipLength : sourceSrc ? 1 : 0;
+  const naturalLength = isVideoScreen ? clipLength : sourceSrc ? 1 : 0;
+  const sourceLength = sourceSpan ?? naturalLength;
+
+  /**
+   * The clip time for a moment on the timeline.
+   *
+   * The layer can sit anywhere, so the footage no longer starts when the
+   * timeline does. Before the layer begins the clip holds its first frame and
+   * after it ends its last, rather than the screen going blank — a mockup with
+   * nothing on it reads as broken, where a held frame reads as a still.
+   *
+   * Inside the span it wraps, so a layer dragged longer than its footage
+   * repeats instead of freezing.
+   */
+  const clipTimeFor = useCallback(
+    (time: number) => {
+      if (!clipLength) return 0;
+      const local = time - sourceStart;
+      if (local <= 0) return 0;
+      if (local >= sourceLength) {
+        // Land exactly on the last frame the span reached, not on the end of
+        // the file, which may be far past where the layer stopped.
+        return Math.min(sourceLength, clipLength) % clipLength || clipLength;
+      }
+      return local % clipLength;
+    },
+    [clipLength, sourceStart, sourceLength],
+  );
 
   const clipVideo = isVideoScreen && screenVideo ? screenVideo : null;
 
@@ -336,6 +370,10 @@ export default function EditorShell() {
     clipVideoRef.current = clipVideo;
     clipLengthRef.current = clipLength;
   }, [clipVideo, clipLength]);
+
+  useEffect(() => {
+    clipTimeRef.current = clipTimeFor;
+  }, [clipTimeFor]);
 
   // Transport: start and stop, and nothing else.
   //
@@ -351,7 +389,7 @@ export default function EditorShell() {
       clipVideo.pause();
       return;
     }
-    clipVideo.currentTime = playheadRef.current % clipLength;
+    clipVideo.currentTime = clipTimeRef.current(playheadRef.current);
     void clipVideo.play().catch(() => {});
     return () => clipVideo.pause();
   }, [playing, clipVideo, clipLength]);
@@ -362,7 +400,7 @@ export default function EditorShell() {
   useEffect(() => {
     if (!clipVideo || !clipLength || playing) return;
 
-    const target = playhead % clipLength;
+    const target = clipTimeFor(playhead);
 
     // Seeks are coalesced, and this is what makes scrubbing usable.
     //
@@ -392,7 +430,7 @@ export default function EditorShell() {
     return () => {
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [playing, playhead, clipVideo, clipLength]);
+  }, [playing, playhead, clipVideo, clipLength, clipTimeFor]);
 
   // A clip's own length is the only duration that means anything when one is
   // loaded, so adopt it — but only while nothing has been keyed yet, or this
@@ -528,7 +566,13 @@ export default function EditorShell() {
     if (!file) return;
     const reader = new FileReader();
     setSourceName(file.name);
-    reader.onload = () => setSourceSrc(String(reader.result));
+    reader.onload = () => {
+      setSourceSrc(String(reader.result));
+      // A new file starts at zero at its own length. Inheriting the previous
+      // layer's position would put footage somewhere nobody put it.
+      setSourceStart(0);
+      setSourceSpan(null);
+    };
     reader.readAsDataURL(file);
   };
 
@@ -616,6 +660,10 @@ export default function EditorShell() {
           fps: exportFps,
           video,
           videoTexture: isVideoScreen ? screenTexture : null,
+          // Without this the export ignores where the layer was put and plays
+          // the clip from zero, so the file stops matching the preview the
+          // moment anyone moves it.
+          clipTimeFor,
           onTime,
           onProgress: setRecordProgress,
         });
@@ -650,7 +698,7 @@ export default function EditorShell() {
       playheadRef.current = 0;
       setPlayhead(0);
     }
-  }, [
+  }, [clipTimeFor, 
     isVideoScreen,
     screenVideo,
     screenTexture,
@@ -925,6 +973,9 @@ export default function EditorShell() {
             exportScale={exportScale}
             onExportScaleChange={setExportScale}
             sourceLength={sourceLength}
+            sourceStart={sourceStart}
+            onSourceStartChange={setSourceStart}
+            onSourceLengthChange={setSourceSpan}
             clipName={sourceName ?? "Source"}
           />
         ) : null}

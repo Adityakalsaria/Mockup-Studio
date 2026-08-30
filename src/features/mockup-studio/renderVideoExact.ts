@@ -37,6 +37,9 @@ export interface ExactRenderOptions {
   video?: HTMLVideoElement | null;
   /** Marked dirty after each seek so the paused frame reaches the GPU. */
   videoTexture?: { needsUpdate: boolean } | null;
+  /** Maps a timeline moment to a moment in the clip, so a layer that has been
+      moved or resized exports where it was put rather than at zero. */
+  clipTimeFor?: (seconds: number) => number;
   /** Drives the animation; must apply synchronously. */
   onTime?: (seconds: number) => void;
   onProgress?: (fraction: number) => void;
@@ -87,6 +90,7 @@ export async function renderVideoExact({
   fps,
   video,
   videoTexture,
+  clipTimeFor,
   onTime,
   onProgress,
   signal,
@@ -192,7 +196,7 @@ export async function renderVideoExact({
       onTime?.(seconds);
 
       if (video && clipLength) {
-        await seekTo(video, seconds % clipLength);
+        await seekTo(video, clipTimeFor ? clipTimeFor(seconds) : seconds % clipLength);
         // A paused video only re-uploads when something says it changed.
         if (videoTexture) videoTexture.needsUpdate = true;
       }

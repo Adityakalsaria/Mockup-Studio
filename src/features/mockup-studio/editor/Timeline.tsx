@@ -43,6 +43,9 @@ export function Timeline({
   exportScale,
   onExportScaleChange,
   sourceLength,
+  sourceStart,
+  onSourceStartChange,
+  onSourceLengthChange,
   clipName,
 }: {
   animation: Animation;
@@ -66,6 +69,10 @@ export function Timeline({
       still, which is a length you can see and later drag rather than a zero
       that draws nothing. */
   sourceLength: number;
+  /** Where the source layer begins, in seconds. */
+  sourceStart: number;
+  onSourceStartChange: (start: number) => void;
+  onSourceLengthChange: (length: number) => void;
   clipName: string;
 }) {
   const laneRef = useRef<HTMLDivElement>(null);
@@ -90,6 +97,9 @@ export function Timeline({
       onSeek(seekTo.current);
     });
   };
+  const [layerDrag, setLayerDrag] = useState<{ mode: "move" | "resize"; grab: number } | null>(
+    null,
+  );
   const [dragging, setDragging] = useState<{ property: AnimatableKey; from: number } | null>(
     null,
   );
@@ -318,12 +328,25 @@ export function Timeline({
           className="relative min-h-full select-none"
           style={{ width: `${zoom * 100}%` }}
           onPointerDown={(event) => {
-            if (dragging) return;
+            if (dragging || layerDrag) return;
             event.currentTarget.setPointerCapture(event.pointerId);
             onScrubbingChange(true);
             queueSeek(timeFromClientX(event.clientX));
           }}
           onPointerMove={(event) => {
+            if (layerDrag) {
+              const at = timeFromClientX(event.clientX);
+              if (layerDrag.mode === "move") {
+                // Clamped so a layer cannot be dragged off the front of the
+                // timeline, where it would be unreachable.
+                onSourceStartChange(
+                  Math.max(0, Math.min(durationSec - 0.1, at - layerDrag.grab)),
+                );
+              } else {
+                onSourceLengthChange(Math.max(0.1, at - sourceStart));
+              }
+              return;
+            }
             if (dragging) {
               onMoveKey(dragging.property, dragging.from, timeFromClientX(event.clientX));
               setDragging({ property: dragging.property, from: timeFromClientX(event.clientX) });
@@ -333,10 +356,12 @@ export function Timeline({
           }}
           onPointerUp={() => {
             setDragging(null);
+            setLayerDrag(null);
             onScrubbingChange(false);
           }}
           onPointerCancel={() => {
             setDragging(null);
+            setLayerDrag(null);
             onScrubbingChange(false);
           }}
         >
@@ -377,10 +402,20 @@ export function Timeline({
           {sourceLength > 0 ? (
             <div className="relative mb-[4px] h-[26px]">
               <span
-                className="absolute inset-y-[3px] flex items-center overflow-hidden rounded-[var(--ks-r-menu-item)] px-[8px]"
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  // The grab offset is kept so the bar does not jump its own
+                  // left edge to the cursor the moment you touch it.
+                  setLayerDrag({
+                    mode: "move",
+                    grab: timeFromClientX(event.clientX) - sourceStart,
+                  });
+                }}
+                className="absolute inset-y-[3px] flex cursor-grab items-center overflow-hidden rounded-[var(--ks-r-menu-item)] px-[8px]"
                 style={{
-                  left: 0,
-                  width: pct(Math.min(sourceLength, durationSec)),
+                  left: pct(sourceStart),
+                  width: pct(Math.min(sourceLength, Math.max(0, durationSec - sourceStart))),
                   background: "var(--ks-row-strong)",
                   boxShadow: "inset 0 0 0 1px var(--ks-line-strong)",
                 }}
@@ -389,6 +424,25 @@ export function Timeline({
                   {clipName} · {formatTime(sourceLength)}
                 </span>
               </span>
+              {/* The right edge, for length. Its own handle rather than a hot
+                  zone on the bar: a bar you can both move and resize needs the
+                  two to be visibly different things, or every drag is a guess
+                  about which one you asked for. */}
+              <span
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  setLayerDrag({ mode: "resize", grab: 0 });
+                }}
+                className="absolute inset-y-[3px] w-[10px] cursor-ew-resize rounded-r-[var(--ks-r-menu-item)]"
+                style={{
+                  left: `calc(${pct(
+                    sourceStart + Math.min(sourceLength, Math.max(0, durationSec - sourceStart)),
+                  )} - 10px)`,
+                  background: "var(--ks-line-strong)",
+                  opacity: 0.5,
+                }}
+              />
             </div>
           ) : null}
 
