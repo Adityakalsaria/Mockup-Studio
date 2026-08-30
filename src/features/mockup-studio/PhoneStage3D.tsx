@@ -12,6 +12,8 @@ import { getFinish } from "./finishes";
 import { sampleAnimation, type Animation } from "./animation";
 import { recolorBodyTexture } from "./bodyTexture";
 import { StudioEnvironment } from "./StudioEnvironment";
+import { ShadowRig } from "./ShadowRig";
+import { DEFAULT_SHADOW, type ShadowSettings } from "./shadow";
 import { isBlurActive, type BlurSettings } from "./blurStyles";
 import type { Quat } from "./gyro/quaternion";
 
@@ -717,6 +719,11 @@ function GLBPhoneScene({
         material?: { name?: string } | Array<{ name?: string }>;
       };
       if (!m.isMesh) return;
+      // The phone casts; it does not receive. Self-shadowing a slab lit
+      // almost entirely by an environment map buys nothing and costs a
+      // shadow-acne pass on the one surface anyone looks at.
+      m.castShadow = true;
+      m.receiveShadow = false;
       const names: string[] = [];
       if (typeof m.name === "string") names.push(m.name);
       const mat = m.material;
@@ -1397,6 +1404,7 @@ export default function PhoneStage3D({
   playing,
   livePose,
   fov = 38,
+  shadow = DEFAULT_SHADOW,
   screenFit,
   canvasRef,
   captureRef,
@@ -1430,6 +1438,7 @@ export default function PhoneStage3D({
   livePose?: React.RefObject<Quat> | null;
   /** Camera field of view, in degrees. */
   fov?: number;
+  shadow?: ShadowSettings;
   /** Manual nudge on the screen crop — see ScreenFit. */
   screenFit?: ScreenFit;
   canvasRef?: React.MutableRefObject<HTMLCanvasElement | null>;
@@ -1453,6 +1462,9 @@ export default function PhoneStage3D({
       ) : null}
       <Canvas
         className="!h-full !w-full"
+        // VSM rather than PCF-soft: `shadow.radius` is ignored under
+        // PCFSoftShadowMap, so a softness slider would move and do nothing.
+        shadows="variance"
         // Initial only — r3f reads this once. CameraFov keeps it current.
         camera={{ position: [0, 0, 1.8], fov }}
         // `preserveDrawingBuffer` is gone with the html-to-image export that
@@ -1487,6 +1499,7 @@ export default function PhoneStage3D({
           />
         ) : null}
         <StudioEnvironment />
+        <ShadowRig settings={shadow} />
         <CameraFov fov={fov} />
         <PhoneScene
           rail={rail}

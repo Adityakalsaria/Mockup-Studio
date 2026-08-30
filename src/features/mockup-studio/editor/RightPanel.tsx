@@ -6,10 +6,12 @@ import { getDevice } from "../devices";
 import { FINISHES } from "../finishes";
 import {
   ColorRow,
+  ControlRow,
   PanelSection,
   ParamRow,
   PillButton,
   Tabs,
+  Toggle,
 } from "./primitives";
 import {
   BACKGROUND_KINDS,
@@ -18,13 +20,15 @@ import {
 } from "../backgrounds";
 import { DEFAULT_EDITOR_STATE, RANGES, type EditorState } from "./editorState";
 import { MotionPanel } from "./MotionPanel";
+import { FOCAL_MAX, FOCAL_MIN, focalFromFov, fovFromFocal } from "../lens";
+import { DEFAULT_SHADOW, SHADOW_RANGES } from "../shadow";
 import { AspectSelect, ExportMenu } from "./framing";
 import { useLiquidGlass } from "./useLiquidGlass";
 import type { Easing } from "../animation";
 import type { AnimatableKey } from "../animation";
 import { Icon } from "./icons";
 
-type SectionId = "source" | "phone" | "mockup" | "camera" | "blur" | "background";
+type SectionId = "source" | "phone" | "mockup" | "camera" | "blur" | "background" | "shadow";
 
 export function RightPanel({
   side,
@@ -129,9 +133,11 @@ export function RightPanel({
 
   const isOpen = (id: SectionId) => open.has(id);
   const device = getDevice(state.deviceId);
-  const { background } = state;
+  const { background, shadow } = state;
   const setBackground = (patch: Partial<typeof background>) =>
     onChange({ background: { ...background, ...patch } });
+  const setShadow = (patch: Partial<typeof shadow>) =>
+    onChange({ shadow: { ...shadow, ...patch } });
 
   return (
     <aside
@@ -503,7 +509,91 @@ export function RightPanel({
                 drag-rotate and wheel-zoom, so panning is these rows only. */}
             <ParamRow label="Pan X" value={state.panX} {...RANGES.panX} defaultValue={DEFAULT_EDITOR_STATE.panX} decimals={2} keyframed={keyedNow.panX} onKeyframe={() => onToggleKey("panX")} onChange={(panX) => onChange({ panX })} />
             <ParamRow label="Pan Y" value={state.panY} {...RANGES.panY} defaultValue={DEFAULT_EDITOR_STATE.panY} decimals={2} keyframed={keyedNow.panY} onKeyframe={() => onToggleKey("panY")} onChange={(panY) => onChange({ panY })} />
+            {/* The lens, in millimetres rather than in degrees.
+                The state is a vertical field of view because that is what the
+                camera takes, but nobody frames a shot in degrees -- 35 and 85
+                mean something, 38 and 16 do not. The conversion is for a
+                full-frame back, so the numbers on this slider are the numbers
+                on a real lens barrel: 12mm at the wide end, 98mm at the long
+                end, and the stage's own default lands on 35. */}
+            <ParamRow
+              label="Focal length"
+              value={focalFromFov(state.fov)}
+              min={FOCAL_MIN}
+              max={FOCAL_MAX}
+              step={1}
+              suffix="mm"
+              defaultValue={focalFromFov(DEFAULT_EDITOR_STATE.fov)}
+              // Not keyframable yet: the frame loop samples the animated keys
+              // and does not know about fov, so a key here would be recorded
+              // and never played back.
+              animatable={false}
+              onChange={(mm) => onChange({ fov: fovFromFocal(mm) })}
+            />
         </>
+      </PanelSection>
+
+      {/* ---------------------------------------------------------- SHADOW */}
+      <PanelSection
+        title="Shadow"
+        expanded={isOpen("shadow")}
+        onToggle={() => toggle("shadow")}
+      >
+        <ControlRow label="Cast shadow">
+          <Toggle
+            checked={shadow.enabled}
+            onChange={(enabled) => setShadow({ enabled })}
+            label="Cast shadow"
+          />
+        </ControlRow>
+        {shadow.enabled ? (
+          <>
+            {/* Angle is where the LIGHT is, so the shadow falls opposite it.
+                That is the way every other tool words it and the way anyone
+                who has moved a lamp expects it to behave. */}
+            <ParamRow
+              label="Direction"
+              value={shadow.angle}
+              {...SHADOW_RANGES.angle}
+              suffix="\u00b0"
+              defaultValue={DEFAULT_SHADOW.angle}
+              animatable={false}
+              onChange={(angle) => setShadow({ angle })}
+            />
+            <ParamRow
+              label="Distance"
+              value={shadow.throwDistance}
+              {...SHADOW_RANGES.throwDistance}
+              decimals={2}
+              defaultValue={DEFAULT_SHADOW.throwDistance}
+              animatable={false}
+              onChange={(throwDistance) => setShadow({ throwDistance })}
+            />
+            <ParamRow
+              label="Softness"
+              value={shadow.softness}
+              {...SHADOW_RANGES.softness}
+              decimals={1}
+              defaultValue={DEFAULT_SHADOW.softness}
+              animatable={false}
+              onChange={(softness) => setShadow({ softness })}
+            />
+            <ParamRow
+              label="Opacity"
+              value={shadow.opacity}
+              {...SHADOW_RANGES.opacity}
+              decimals={2}
+              defaultValue={DEFAULT_SHADOW.opacity}
+              animatable={false}
+              onChange={(opacity) => setShadow({ opacity })}
+            />
+            <ColorRow
+              label="Colour"
+              value={shadow.color}
+              onChange={(color) => setShadow({ color })}
+            />
+          </>
+        ) : null}
       </PanelSection>
 
       {/* ------------------------------------------------------ BACKGROUND */}

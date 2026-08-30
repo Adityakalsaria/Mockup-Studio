@@ -854,6 +854,7 @@ export default function EditorShell() {
               rotateZ={effective.zAxis}
               livePose={liveMotion && phone.connected ? phone.poseRef : null}
               fov={effective.fov}
+              shadow={state.shadow}
               screenFit={{
                 scale: effective.screenScale,
                 offsetX: effective.screenOffsetX,

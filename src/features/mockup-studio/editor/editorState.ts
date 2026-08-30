@@ -1,6 +1,7 @@
 import { DEFAULT_BLUR, type BlurSettings } from "../blurStyles";
 import { DEFAULT_FINISH_ID } from "../finishes";
 import { DEFAULT_BACKGROUND, type BackgroundSettings } from "../backgrounds";
+import { DEFAULT_SHADOW, type ShadowSettings } from "../shadow";
 import { DEFAULT_ANIMATION, type Animation } from "../animation";
 
 /**
@@ -44,6 +45,7 @@ export interface EditorState {
 
   /* CANVAS */
   background: BackgroundSettings;
+  shadow: ShadowSettings;
 
   /* TIMELINE */
   animation: Animation;
@@ -76,6 +78,7 @@ export const DEFAULT_EDITOR_STATE: EditorState = {
 
   blur: DEFAULT_BLUR,
   background: DEFAULT_BACKGROUND,
+  shadow: DEFAULT_SHADOW,
   animation: DEFAULT_ANIMATION,
 };
 
