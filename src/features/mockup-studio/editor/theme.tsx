@@ -55,7 +55,7 @@ export const EDITOR_THEME_CSS = `
 
   /* Control-row internals, taken literally from the frame. */
   --ks-ctl: rgba(0, 0, 0, 0.04);
-  --ks-ctl-fill: rgba(253, 99, 31, 0.16);
+  --ks-ctl-fill: rgba(255, 146, 48, 0.2);
   --ks-ctl-text: rgba(0, 0, 0, 0.6);
   --ks-badge: rgba(0, 0, 0, 0.08);
   /* The switch's off track, measured from Apple's kit (labels/tertiary).
@@ -73,20 +73,33 @@ export const EDITOR_THEME_CSS = `
   --ks-track: rgba(0, 0, 0, 0.04);
   --ks-clip: rgba(0, 0, 0, 0.06);
 
-  --ks-accent: #FD631F;
-  --ks-accent-strong: rgba(253, 99, 31, 0.85);
-  --ks-accent-line: rgba(253, 99, 31, 0.5);
-  --ks-accent-wash: rgba(253, 99, 31, 0.14);
-  --ks-accent-wash-soft: rgba(253, 99, 31, 0.1);
+  /* Accents/Orange from the kit. The brand was already orange; this is the
+     same hue tuned to sit beside Apple's other system colours, so the accent
+     and the greys around it come from one palette rather than two. */
+  --ks-accent: #FF9230;
+  --ks-accent-strong: rgba(255, 146, 48, 0.85);
+  --ks-accent-line: rgba(255, 146, 48, 0.5);
+  --ks-accent-wash: rgba(255, 146, 48, 0.16);
+  --ks-accent-wash-soft: rgba(255, 146, 48, 0.1);
   --ks-accent-text: #FFFFFF;
 
   /* Ours, not the mock's. */
   --ks-font: var(--font-sans, var(--font-saans), system-ui, sans-serif);
 
-  --ks-r-sm: 4px;
-  --ks-r: 8px;
-  --ks-r-pill: 12.8px;
+  /* Radii.
+     iOS 26/27 moved its controls to capsules — the segmented control, the
+     switch, the slider knob and the buttons are all fully rounded now, and a
+     rounded RECTANGLE sitting next to them is what makes a surface read as
+     pre-Liquid-Glass. So every control-sized surface is a capsule, and the
+     rectangles that remain are the ones that hold content rather than
+     respond to a press: panels, cards, and the wells inside them. */
+  --ks-r-sm: 999px;
+  --ks-r: 999px;
+  --ks-r-pill: 999px;
+  /* Containers keep a real radius — a capsule the size of a panel is a
+     lozenge, and nothing in the kit does that. */
   --ks-r-panel: 16px;
+  --ks-r-card: 12px;
 
   /* Easing. The built-in CSS curves are too weak to read as intentional —
      the plain ease-out barely differs from linear over 200ms. These are the
@@ -125,26 +138,30 @@ export const EDITOR_THEME_CSS = `
   background: var(--ks-page);
 }
 
+/* Dark is Apple's dark system palette, taken from the kit's variables rather
+   than hand-mixed. Their label ramp is one colour at four alphas — #EBEBF5 at
+   100/70/30/16 — which is why their dark UI stays coherent where a set of
+   separately chosen greys drifts apart. */
 .ks[data-ks-theme="dark"] {
-  --ks-page: #0B0B0C;
-  --ks-surface: rgba(24, 24, 27, 0.72);
-  --ks-surface-solid: #18181B;
-  --ks-canvas: #0D0D0E;
+  --ks-page: #000000;
+  --ks-surface: rgba(28, 28, 30, 0.72);
+  --ks-surface-solid: #1C1C1E;
+  --ks-canvas: #1C1C1E;
   --ks-row: rgba(255, 255, 255, 0.04);
   --ks-row-hover: rgba(255, 255, 255, 0.08);
   --ks-row-strong: rgba(255, 255, 255, 0.05);
-  --ks-line: rgba(255, 255, 255, 0.08);
-  --ks-line-strong: rgba(255, 255, 255, 0.14);
-  --ks-hairline: rgba(255, 255, 255, 0.1);
+  --ks-line: rgba(255, 255, 255, 0.17);
+  --ks-line-strong: #38383A;
+  --ks-hairline: rgba(255, 255, 255, 0.17);
 
-  --ks-text: #F1F1F3;
-  --ks-text-strong: #D4D4D8;
-  --ks-text-dim: #A1A1AA;
-  --ks-text-muted: #8A8A93;
-  --ks-text-faint: #5E5E66;
+  --ks-text: #FFFFFF;
+  --ks-text-strong: rgba(235, 235, 245, 0.7);
+  --ks-text-dim: rgba(235, 235, 245, 0.7);
+  --ks-text-muted: rgba(235, 235, 245, 0.3);
+  --ks-text-faint: rgba(235, 235, 245, 0.16);
 
   --ks-ctl: rgba(255, 255, 255, 0.05);
-  --ks-ctl-fill: rgba(253, 99, 31, 0.26);
+  --ks-ctl-fill: rgba(255, 146, 48, 0.3);
   --ks-ctl-text: rgba(255, 255, 255, 0.62);
   --ks-badge: rgba(255, 255, 255, 0.1);
   --ks-switch-off: rgba(120, 120, 128, 0.36);

@@ -167,7 +167,7 @@ function PresetCard({
       onFocus={() => setPlaying(true)}
       onBlur={() => setPlaying(false)}
       title={preset.hint}
-      className="ks-press ks-press-lg group flex flex-col gap-[5px] rounded-[var(--ks-r)] p-[6px] text-left"
+      className="ks-press ks-press-lg group flex flex-col gap-[5px] rounded-[var(--ks-r-card)] p-[6px] text-left"
       style={{ background: "var(--ks-row)" }}
     >
       <div
@@ -175,7 +175,7 @@ function PresetCard({
         // is 2px. Matching the parent's radius instead makes the gap between
         // the two curves widen around the corner, which is the thing that
         // reads as "not quite right" without anyone being able to name it.
-        className="relative grid h-[76px] w-full place-items-center overflow-hidden rounded-[calc(var(--ks-r)-6px)]"
+        className="relative grid h-[76px] w-full place-items-center overflow-hidden rounded-[calc(var(--ks-r-card)-6px)]"
         style={{ background: "var(--ks-ctl)", perspective: "420px" }}
       >
         <div

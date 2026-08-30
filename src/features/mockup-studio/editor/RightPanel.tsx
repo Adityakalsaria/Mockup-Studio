@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { BLUR_MODES, DEFAULT_BLUR, applyMode, type BlurMode } from "../blurStyles";
-import { CAMERA_PRESETS } from "../cameraPresets";
 import { isVideoSource } from "../useScreenTexture";
 import { DEVICES, getDevice } from "../devices";
 import { FINISHES } from "../finishes";
@@ -118,7 +117,6 @@ export function RightPanel({
   const [open, setOpen] = useState<Set<SectionId>>(
     () => new Set<SectionId>(["source", "mockup", "camera", "blur", "background"]),
   );
-  const [cameraTab, setCameraTab] = useState<"manual" | "presets">("manual");
   // Which half of the right panel is showing. Motion is a browsing task —
   // twenty three cards you scan — and the shot controls are an adjusting one;
   // stacking them in one scroll made both worse.
@@ -193,7 +191,7 @@ export function RightPanel({
             would say the phone is displaying something it is not. */}
         {isMirroring ? (
           <div
-            className="relative grid h-[132px] w-full place-items-center overflow-hidden rounded-[var(--ks-r)]"
+            className="relative grid h-[132px] w-full place-items-center overflow-hidden rounded-[var(--ks-r-card)]"
             style={{ background: "var(--ks-ctl)" }}
           >
             <div className="flex flex-col items-center gap-[6px]">
@@ -222,7 +220,7 @@ export function RightPanel({
           </div>
         ) : sourceSrc ? (
           <div
-            className="relative h-[132px] w-full overflow-hidden rounded-[var(--ks-r)]"
+            className="relative h-[132px] w-full overflow-hidden rounded-[var(--ks-r-card)]"
             style={{ background: "var(--ks-ctl)" }}
           >
             {/* A video source needs a <video> to preview: an <img> pointed at
@@ -262,7 +260,7 @@ export function RightPanel({
           <button
             type="button"
             onClick={onPickSource}
-            className="flex h-[132px] w-full flex-col items-center justify-center gap-[6px] rounded-[var(--ks-r)] border border-dashed transition-colors"
+            className="flex h-[132px] w-full flex-col items-center justify-center gap-[6px] rounded-[var(--ks-r-card)] border border-dashed transition-colors"
             style={{ borderColor: "var(--ks-line-strong)", background: "var(--ks-row)" }}
           >
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden style={{ color: "var(--ks-text-muted)" }}>
@@ -348,7 +346,7 @@ export function RightPanel({
               tap on the phone. */}
           {phoneQr && !phoneConnected ? (
             <div
-              className="mx-auto w-[132px] rounded-[var(--ks-r)] bg-white p-[8px]"
+              className="mx-auto w-[132px] rounded-[var(--ks-r-card)] bg-white p-[8px]"
               // The QR is generated server-side as an inline SVG, so there is
               // no image request and nothing to load.
               dangerouslySetInnerHTML={{ __html: phoneQr }}
@@ -485,17 +483,7 @@ export function RightPanel({
         onToggle={() => toggle("camera")}
         onReset={onResetCamera}
       >
-        <Tabs
-          value={cameraTab}
-          onChange={setCameraTab}
-          options={[
-            { id: "manual", label: "Manual" },
-            { id: "presets", label: "Presets" },
-          ]}
-        />
-
-        {cameraTab === "manual" ? (
-          <>
+        <>
             {/* Where the rotation comes from. It lives here, directly above the
                 axis rows, because those rows are exactly what it takes over —
                 putting it in the Phone section left you reading one part of the
@@ -536,28 +524,7 @@ export function RightPanel({
                 drag-rotate and wheel-zoom, so panning is these rows only. */}
             <ParamRow label="Pan X" value={state.panX} {...RANGES.panX} defaultValue={DEFAULT_EDITOR_STATE.panX} decimals={2} keyframed={keyedNow.panX} onKeyframe={() => onToggleKey("panX")} onChange={(panX) => onChange({ panX })} />
             <ParamRow label="Pan Y" value={state.panY} {...RANGES.panY} defaultValue={DEFAULT_EDITOR_STATE.panY} decimals={2} keyframed={keyedNow.panY} onKeyframe={() => onToggleKey("panY")} onChange={(panY) => onChange({ panY })} />
-          </>
-        ) : (
-          <div className="grid grid-cols-2 gap-[6px]">
-            {CAMERA_PRESETS.map((preset) => (
-              <PillButton
-                key={preset.id}
-                onClick={() =>
-                  onChange({
-                    xAxis: preset.rotateX,
-                    yAxis: preset.rotateY,
-                    zAxis: preset.rotateZ,
-                    zoom: preset.scale / 100,
-                    panX: preset.offsetX / 100,
-                    panY: preset.offsetY / 100,
-                  })
-                }
-              >
-                {preset.label}
-              </PillButton>
-            ))}
-          </div>
-        )}
+        </>
       </PanelSection>
 
       {/* ------------------------------------------------------------ BLUR */}
