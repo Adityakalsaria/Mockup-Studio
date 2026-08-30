@@ -92,14 +92,20 @@ function CurveThumb({ easing, active }: { easing: Easing; active: boolean }) {
   );
 }
 
-const PLOT = 168;
-const PLOT_PAD = 26;
+const PLOT = 200;
+/* Just enough room for a 6px handle to sit on the axis line without its ring
+   being clipped. It was 26, which spent a seventh of the plot on nothing. */
+const PLOT_PAD = 10;
 /* The editor's vertical axis. It runs past 0..1 on both sides because the
    useful curves do — a handle that could not go above the top of the box could
    not express an overshoot, and "ease out back" would be unreachable by hand
-   while sitting in the preset list right above it. */
-const Y_MIN = -0.5;
-const Y_MAX = 1.5;
+   while sitting in the preset list right above it.
+   ±0.35 rather than ±0.5: the standard back curves reach 1.098 and the springs
+   1.084, so this holds every preset with room to spare while giving the 0..1
+   region — the part you are actually reading — 59% of the height instead of
+   half. Handles are clamped to the axis, so nothing can be dragged outside it. */
+const Y_MIN = -0.35;
+const Y_MAX = 1.35;
 
 /**
  * The bezier editor: two handles you drag, on the square the curve is drawn in.
@@ -168,7 +174,7 @@ function BezierEditor({
     <svg
       ref={ref}
       viewBox={`0 0 ${PLOT} ${PLOT}`}
-      className="w-full touch-none select-none"
+      className="block w-full touch-none select-none"
       onPointerMove={onMove}
       onPointerUp={() => setDragging(null)}
       onPointerCancel={() => setDragging(null)}
@@ -224,7 +230,11 @@ function SpringEditor({
   const boxHeight = (1 / (Y_MAX - Y_MIN)) * plotSpan;
   return (
     <div className="flex flex-col gap-[8px]">
-      <svg viewBox={`0 0 ${PLOT} ${PLOT}`} className="w-full">
+      <div
+        className="rounded-[var(--ks-r-card)] p-[8px]"
+        style={{ background: "var(--ks-ctl)" }}
+      >
+      <svg viewBox={`0 0 ${PLOT} ${PLOT}`} className="block w-full">
         <rect
           x={PLOT_PAD}
           y={boxTop}
@@ -236,6 +246,7 @@ function SpringEditor({
         />
         <path d={d} fill="none" stroke="var(--ks-text)" strokeWidth={2} strokeLinecap="round" />
       </svg>
+      </div>
       {/* Damping and frequency rather than mass, stiffness and damping.
           Apple made the same swap for the same reason: the physics triplet is
           three numbers that interact, and nobody can predict what changing one
@@ -396,10 +407,17 @@ export function EasingPicker({
 
           {tab === "curve" ? (
             <div className="flex flex-col gap-[8px]">
-              <BezierEditor
-                points={cubic}
-                onChange={(p) => onChange({ kind: "cubic", p })}
-              />
+              {/* The plot sits in a well like every other control surface
+                  here, rather than floating on the menu's own background. */}
+              <div
+                className="rounded-[var(--ks-r-card)] p-[8px]"
+                style={{ background: "var(--ks-ctl)" }}
+              >
+                <BezierEditor
+                  points={cubic}
+                  onChange={(p) => onChange({ kind: "cubic", p })}
+                />
+              </div>
               {/* The four numbers, in the order CSS writes them, so a curve
                   found here can be pasted straight into a stylesheet. */}
               <input
