@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   ANIMATABLE,
   formatTime,
@@ -70,6 +70,12 @@ export function Timeline({
   clipName: string;
 }) {
   const laneRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pendingScroll = useRef<number | null>(null);
+  /* 1 is fit-to-width. Above that the lane grows past its container and the
+     wrapper scrolls, which is why nothing else here needs to know about zoom:
+     `pct` is a fraction of the LANE, and the lane is what changes size. */
+  const [zoom, setZoom] = useState(1);
 
   // One seek per animation frame, latest position wins. A pointermove can
   // fire several times between paints, and each one previously became its own
@@ -96,10 +102,41 @@ export function Timeline({
     const fraction = (clientX - rect.left) / rect.width;
     return Math.max(0, Math.min(durationSec, fraction * durationSec));
   };
+  /**
+   * Change zoom while keeping the playhead where it is on screen.
+   *
+   * Zooming about the left edge is the obvious implementation and the wrong
+   * one: the moment you zoom in, whatever you were looking at slides off to
+   * the right and you have to go and find it again.
+   */
+  const zoomAround = (next: number) => {
+    const clamped = Math.max(1, Math.min(12, next));
+    // Recorded here, applied after the lane has actually resized. Setting
+    // scrollLeft in this handler looks right and is not: the lane is still at
+    // its old width, so the browser clamps the value to the old maximum and
+    // the view lands short.
+    pendingScroll.current = clamped;
+    setZoom(clamped);
+  };
+
+  useLayoutEffect(() => {
+    const target = pendingScroll.current;
+    const scroller = scrollRef.current;
+    if (target === null || !scroller) return;
+    pendingScroll.current = null;
+    const laneWidth = scroller.clientWidth * target;
+    const playheadX = (playhead / Math.max(0.001, durationSec)) * laneWidth;
+    scroller.scrollLeft = playheadX - scroller.clientWidth / 2;
+  }, [zoom, playhead, durationSec]);
+
   const pct = (time: number) => `${(time / Math.max(0.001, durationSec)) * 100}%`;
 
   // A tick roughly every 60px, rounded to something a person would count in.
-  const step = durationSec <= 2 ? 0.25 : durationSec <= 6 ? 0.5 : 1;
+  // The span the ruler has to label is the duration divided by the zoom: at 4x
+  // only a quarter of the timeline is on screen, so quarter-second ticks are
+  // readable where whole seconds would leave the ruler nearly empty.
+  const visible = durationSec / zoom;
+  const step = visible <= 1 ? 0.1 : visible <= 2 ? 0.25 : visible <= 6 ? 0.5 : 1;
   const ticks: number[] = [];
   for (let t = 0; t <= durationSec + 1e-6; t += step) ticks.push(Number(t.toFixed(3)));
 
@@ -242,6 +279,37 @@ export function Timeline({
           s
         </label>
 
+        {/* Zoom, as Figma puts it: a slider at the toolbar's end, with the
+            keyboard's usual pair beside it. Zooming keeps the PLAYHEAD
+            centred rather than the left edge, because the playhead is where
+            you are working — anchoring to zero would push the thing you were
+            looking at off screen every time you zoomed in. */}
+        <label className="ks-micro flex items-center gap-[8px]" style={{ color: "var(--ks-text-faint)" }}>
+          Zoom
+          <input
+            type="range"
+            min={1}
+            max={12}
+            step={0.1}
+            value={zoom}
+            aria-label="Timeline zoom"
+            onChange={(event) => zoomAround(Number(event.currentTarget.value))}
+            className="h-[4px] w-[72px] cursor-ew-resize appearance-none rounded-full"
+            style={{ background: "var(--ks-ctl-fill)", accentColor: "var(--ks-accent)" }}
+          />
+        </label>
+
+        <button
+          type="button"
+          onClick={() => zoomAround(1)}
+          disabled={zoom === 1}
+          title="Fit the whole timeline"
+          className="ks-micro rounded-[var(--ks-r-sm)] px-[8px] py-[4px] disabled:opacity-40"
+          style={{ background: "var(--ks-ctl)", color: "var(--ks-ctl-text)" }}
+        >
+          Fit
+        </button>
+
         <button
           type="button"
           onClick={onClear}
@@ -276,9 +344,18 @@ export function Timeline({
             </div>
           ))}
         </div>
+        {/* The lane scrolls horizontally; the gutter does not, so the names
+            stay put while time moves under them. Lenis has to be told to keep
+            its hands off, as it does with the panels. */}
+        <div
+          ref={scrollRef}
+          data-lenis-prevent
+          className="ks-scroll min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
+        >
         <div
           ref={laneRef}
-          className="relative min-w-0 flex-1 select-none"
+          className="relative select-none"
+          style={{ width: `${zoom * 100}%` }}
           onPointerDown={(event) => {
             if (dragging) return;
             event.currentTarget.setPointerCapture(event.pointerId);
@@ -456,6 +533,7 @@ export function Timeline({
               style={{ background: "var(--ks-accent)" }}
             />
           </span>
+        </div>
         </div>
       </div>
     </div>
