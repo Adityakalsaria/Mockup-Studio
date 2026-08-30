@@ -25,6 +25,7 @@ import {
 } from "../backgrounds";
 import { DEFAULT_EDITOR_STATE, RANGES, type EditorState } from "./editorState";
 import { MotionPanel } from "./MotionPanel";
+import { AspectSelect, ExportMenu } from "./framing";
 import type { Easing } from "../animation";
 import type { AnimatableKey } from "../animation";
 
@@ -52,6 +53,12 @@ export function RightPanel({
   onSetZero,
   easing,
   onApplyPreset,
+  ratioId,
+  onRatioChange,
+  onExportPng,
+  onExportVideo,
+  canExportVideo,
+  recordProgress,
   theme,
   onToggleTheme,
   onResetCamera,
@@ -92,6 +99,13 @@ export function RightPanel({
   /** Passed to the motion previews so they play the easing you have chosen. */
   easing: Easing;
   onApplyPreset: (id: string) => void;
+  /** Both moved off the old top bar. */
+  ratioId: string;
+  onRatioChange: (id: string) => void;
+  onExportPng: () => void;
+  onExportVideo: () => void;
+  canExportVideo: boolean;
+  recordProgress: number | null;
   theme: "light" | "dark";
   onToggleTheme: () => void;
   onResetCamera: () => void;
@@ -125,13 +139,16 @@ export function RightPanel({
 
   return (
     <aside
-      className="ks-scroll flex h-full w-[var(--ks-panel-w)] shrink-0 flex-col overflow-y-auto rounded-[var(--ks-r-panel)] border px-[var(--ks-panel-pad)]"
+      className="flex h-full w-[var(--ks-panel-w)] shrink-0 flex-col overflow-hidden rounded-[var(--ks-r-panel)] border"
       style={{
         background: "var(--ks-surface)",
         borderColor: "var(--ks-line-strong)",
         backdropFilter: "blur(6px)",
       }}
     >
+      {/* Body scrolls, footer does not: Export has to stay reachable without
+          scrolling to the end of twenty three preset cards. */}
+      <div className="ks-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-[var(--ks-panel-pad)]">
       {/* Panel chrome: the theme toggle, on the right panel only — two of them
           would be two controls for one piece of state. The left panel keeps
           the empty bar so both columns start their sections at one height. */}
@@ -452,6 +469,9 @@ export function RightPanel({
       {/* The shot: how it moves, what the lens does, what sits behind it. */}
       {side === "right" && rightTab === "shot" && (
         <>
+          <div className="pb-[10px]">
+            <AspectSelect ratioId={ratioId} onRatioChange={onRatioChange} />
+          </div>
       {/* ---------------------------------------------------------- CAMERA */}
       <PanelSection
         title="Camera"
@@ -726,6 +746,21 @@ export function RightPanel({
       <div className="h-[16px] shrink-0" />
         </>
       )}
+      </div>
+
+      {side === "right" ? (
+        <div
+          className="shrink-0 border-t px-[var(--ks-panel-pad)] py-[10px]"
+          style={{ borderColor: "var(--ks-hairline)" }}
+        >
+          <ExportMenu
+            onExportPng={onExportPng}
+            onExportVideo={onExportVideo}
+            canExportVideo={canExportVideo}
+            recordProgress={recordProgress}
+          />
+        </div>
+      ) : null}
     </aside>
   );
 }

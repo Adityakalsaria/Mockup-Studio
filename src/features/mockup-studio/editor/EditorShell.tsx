@@ -20,7 +20,7 @@ import { fitToClip, getMotionPreset } from "./motionPresets";
 import { useFilmstrip } from "./useFilmstrip";
 import { useScreenTexture } from "../useScreenTexture";
 import { RightPanel } from "./RightPanel";
-import { TopBar, getRatio } from "./TopBar";
+import { getRatio } from "./framing";
 import { EditorTheme } from "./theme";
 import { useEditorTheme } from "./primitives";
 import {
@@ -676,6 +676,15 @@ export default function EditorShell() {
           onSetZero={phone.setZero}
           easing={animation.easing}
           onApplyPreset={applyMotionPreset}
+          ratioId={ratioId}
+          onRatioChange={setRatioId}
+          onExportPng={exportPng}
+          onExportVideo={exportVideo}
+          canExportVideo={
+            (isVideoScreen || animated) &&
+            (supportsExactRender() || Boolean(pickRecordingFormat()))
+          }
+          recordProgress={recordProgress}
           theme={theme}
           onToggleTheme={toggleTheme}
           onResetCamera={() =>
@@ -693,26 +702,7 @@ export default function EditorShell() {
           onToggleKey={toggleKey}
         />
 
-        <div className="flex min-w-0 flex-1 flex-col gap-[10px]">
-          {/* Above the canvas: the export menu is absolutely positioned and
-              the canvas frame comes later in the DOM, so without this it
-              would paint over the menu. */}
-          <div className="relative z-30 flex">
-            <TopBar
-              ratioId={ratioId}
-              onRatioChange={setRatioId}
-              timelineOpen={timelineOpen || animated}
-              onToggleTimeline={() => setTimelineOpen((open) => !open)}
-              onExportPng={exportPng}
-              onExportVideo={exportVideo}
-              canExportVideo={
-                (isVideoScreen || animated) &&
-                (supportsExactRender() || Boolean(pickRecordingFormat()))
-              }
-              recordProgress={recordProgress}
-            />
-          </div>
-
+        <div className="flex min-w-0 flex-1 flex-col">
           {/* The workspace is the whole column; the framed canvas inside it is
               only as big as the chosen ratio allows. `container-type: size`
               is what lets the frame size itself off the workspace in CSS —
@@ -820,6 +810,15 @@ export default function EditorShell() {
           onSetZero={phone.setZero}
           easing={animation.easing}
           onApplyPreset={applyMotionPreset}
+          ratioId={ratioId}
+          onRatioChange={setRatioId}
+          onExportPng={exportPng}
+          onExportVideo={exportVideo}
+          canExportVideo={
+            (isVideoScreen || animated) &&
+            (supportsExactRender() || Boolean(pickRecordingFormat()))
+          }
+          recordProgress={recordProgress}
           theme={theme}
           onToggleTheme={toggleTheme}
           onResetCamera={() =>
