@@ -353,7 +353,12 @@ export function Timeline({
         >
         <div
           ref={laneRef}
-          className="relative select-none"
+          // min-h-full so the lane fills the scroller rather than stopping at
+          // its last track. The playhead is `h-full` of this element, so with
+          // three properties keyed the line ended three rows down and left the
+          // rest of the timeline unmarked — and the scrub surface stopped
+          // there too, which is the part that actually mattered.
+          className="relative min-h-full select-none"
           style={{ width: `${zoom * 100}%` }}
           onPointerDown={(event) => {
             if (dragging) return;
