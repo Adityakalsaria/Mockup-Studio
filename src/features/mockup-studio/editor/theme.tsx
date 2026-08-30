@@ -49,7 +49,7 @@ export const EDITOR_THEME_CSS = `
 
   /* Control-row internals, taken literally from the frame. */
   --ks-ctl: rgba(0, 0, 0, 0.04);
-  --ks-ctl-fill: rgba(0, 0, 0, 0.1);
+  --ks-ctl-fill: rgba(253, 99, 31, 0.16);
   --ks-ctl-text: rgba(0, 0, 0, 0.6);
   --ks-badge: rgba(0, 0, 0, 0.08);
   /* The switch's off track, measured from Apple's kit (labels/tertiary).
@@ -131,7 +131,7 @@ export const EDITOR_THEME_CSS = `
   --ks-text-faint: #5E5E66;
 
   --ks-ctl: rgba(255, 255, 255, 0.05);
-  --ks-ctl-fill: rgba(255, 255, 255, 0.12);
+  --ks-ctl-fill: rgba(253, 99, 31, 0.26);
   --ks-ctl-text: rgba(255, 255, 255, 0.62);
   --ks-badge: rgba(255, 255, 255, 0.1);
   --ks-switch-off: rgba(120, 120, 128, 0.36);

@@ -211,7 +211,11 @@ function ExportItem({
       role="menuitem"
       onClick={onClick}
       disabled={disabled}
-      className="ks-press flex w-full flex-col items-start gap-[1px] rounded-[var(--ks-r-sm)] px-[8px] py-[6px] text-left hover:bg-[var(--ks-row)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
+      // Apple's menu rows are padded 10px top and bottom with a 2px gap
+      // between title and subtitle, and 6px in from the left. Ours were 6 and
+      // 1 -- tighter than a menu wants to be. A menu is a list you read, not a
+      // panel you operate, and it can afford the room.
+      className="ks-press flex w-full flex-col items-start gap-[2px] rounded-[var(--ks-r-sm)] pl-[6px] pr-[8px] py-[10px] text-left hover:bg-[var(--ks-row)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
     >
       <span className="ks-label" style={{ color: "var(--ks-text)" }}>
         {label}

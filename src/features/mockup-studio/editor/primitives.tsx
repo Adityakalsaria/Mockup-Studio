@@ -279,6 +279,16 @@ export function ParamRow({
         className="ks-scrub relative h-[var(--ks-row-h)] flex-1 overflow-hidden rounded-[var(--ks-r)] focus:outline-none focus-visible:ring-1"
         style={{ background: "var(--ks-ctl)" }}
       >
+        {/* The filled portion is accent-tinted rather than grey, which is the
+            one thing worth taking from Apple's slider here. Theirs fills with
+            accents/blue at full strength against a neutral track; a wash is
+            used instead because this panel stacks fifteen of these rows and
+            fifteen saturated bars would read as an alert rather than a value.
+
+            The rest of their slider does not transfer: it is a 6px track with
+            a 38x24 knob in a 52px row, with no room for the label or the
+            number. Ours carries all three in 36px, and swapping it would cost
+            the readout to gain a knob. */}
         <span
           aria-hidden
           className="absolute inset-y-0 left-0"
