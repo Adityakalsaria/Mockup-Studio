@@ -15,6 +15,7 @@ import { StudioEnvironment } from "./StudioEnvironment";
 import { ShadowRig } from "./ShadowRig";
 import { StageLoader } from "./StageLoader";
 import { DEFAULT_SHADOW, type ShadowSettings } from "./shadow";
+import { DEFAULT_LIGHTING, type LightingId } from "./lighting";
 import { isBlurActive, type BlurSettings } from "./blurStyles";
 import type { Quat } from "./gyro/quaternion";
 
@@ -1492,6 +1493,7 @@ export default function PhoneStage3D({
   livePose,
   fov = 38,
   shadow = DEFAULT_SHADOW,
+  lighting = DEFAULT_LIGHTING,
   screenFit,
   canvasRef,
   captureRef,
@@ -1526,6 +1528,7 @@ export default function PhoneStage3D({
   /** Camera field of view, in degrees. */
   fov?: number;
   shadow?: ShadowSettings;
+  lighting?: LightingId;
   /** Manual nudge on the screen crop — see ScreenFit. */
   screenFit?: ScreenFit;
   canvasRef?: React.MutableRefObject<HTMLCanvasElement | null>;
@@ -1586,7 +1589,7 @@ export default function PhoneStage3D({
             onScaleChange={onScaleWheel}
           />
         ) : null}
-        <StudioEnvironment />
+        <StudioEnvironment lighting={lighting} />
         <ShadowRig settings={shadow} />
         <CameraFov fov={fov} />
         <PhoneScene

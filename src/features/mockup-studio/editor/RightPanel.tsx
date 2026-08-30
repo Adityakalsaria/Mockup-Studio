@@ -22,6 +22,7 @@ import { DEFAULT_EDITOR_STATE, RANGES, type EditorState } from "./editorState";
 import { MotionPanel } from "./MotionPanel";
 import { FOCAL_MAX, FOCAL_MIN, focalFromFov, fovFromFocal } from "../lens";
 import { DEFAULT_SHADOW, SHADOW_RANGES } from "../shadow";
+import { LIGHTING_PRESETS, type LightingId } from "../lighting";
 import { AspectSelect, ExportMenu } from "./framing";
 import { useLiquidGlass } from "./useLiquidGlass";
 import type { Easing } from "../animation";
@@ -532,6 +533,36 @@ export function RightPanel({
             />
         </>
       </PanelSection>
+
+      {/* ------------------------------------------------------- LIGHTING */}
+      {/* A list in a menu, like Frame and Background type. Five named looks
+          are not something you compare side by side; you pick one. */}
+      <div className="pb-[12px]">
+        <label
+          className="relative flex h-[var(--ks-row-h)] w-full items-center justify-between rounded-[var(--ks-r)] px-[var(--ks-ctl-pad)]"
+          style={{ background: "var(--ks-ctl)" }}
+        >
+          <span className="ks-label" style={{ color: "var(--ks-text-dim)" }}>
+            Lighting
+          </span>
+          <span className="ks-label flex items-center gap-[8px]" style={{ color: "var(--ks-ctl-text)" }}>
+            {LIGHTING_PRESETS.find((l) => l.id === state.lighting)?.label}
+            <Icon name="chevronDown" />
+          </span>
+          <select
+            value={state.lighting}
+            onChange={(event) => onChange({ lighting: event.currentTarget.value as LightingId })}
+            aria-label="Lighting"
+            className="absolute inset-0 cursor-pointer opacity-0"
+          >
+            {LIGHTING_PRESETS.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {preset.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       {/* ---------------------------------------------------------- SHADOW */}
       <PanelSection

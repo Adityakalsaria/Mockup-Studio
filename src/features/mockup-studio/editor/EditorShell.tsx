@@ -1028,6 +1028,7 @@ export default function EditorShell() {
               livePose={liveMotion && phone.connected ? phone.poseRef : null}
               fov={effective.fov}
               shadow={state.shadow}
+              lighting={state.lighting}
               screenFit={{
                 scale: effective.screenScale,
                 offsetX: effective.screenOffsetX,

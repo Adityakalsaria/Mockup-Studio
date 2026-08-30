@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from "react";
 import { Environment, Lightformer } from "@react-three/drei";
 import { CanvasTexture, LinearFilter } from "three";
+import { DEFAULT_LIGHTING, getLighting, shiftTemperature, type LightingId } from "./lighting";
 
 /**
  * The studio lighting rig.
@@ -58,9 +59,15 @@ function makeSoftboxTexture(): CanvasTexture {
   return texture;
 }
 
-export function StudioEnvironment() {
+export function StudioEnvironment({ lighting = DEFAULT_LIGHTING }: { lighting?: LightingId }) {
   const softbox = useMemo(() => makeSoftboxTexture(), []);
   useEffect(() => () => softbox.dispose(), [softbox]);
+
+  // The preset multiplies the rig rather than replacing it, so the positions
+  // and scales below stay the ones that were dialled in and only the balance
+  // and the temperature move.
+  const rig = getLighting(lighting);
+  const tint = (hex: string) => shiftTemperature(hex, rig.warmth);
 
   return (
     // 512 rather than 256: the emitters are gradients now, and a 256 cube map
@@ -73,8 +80,8 @@ export function StudioEnvironment() {
       <Lightformer
         form="rect"
         map={softbox}
-        color="#fff4e6"
-        intensity={4.6}
+        color={tint("#fff4e6")}
+        intensity={4.6 * rig.key}
         position={[0.6, 2.6, 1.6]}
         scale={[7, 4, 1]}
         target={[0, 0, 0]}
@@ -88,8 +95,8 @@ export function StudioEnvironment() {
       <Lightformer
         form="rect"
         map={softbox}
-        color="#eef4ff"
-        intensity={6.4}
+        color={tint("#eef4ff")}
+        intensity={6.4 * rig.edge}
         position={[-2.6, 0.3, 1.1]}
         scale={[1.8, 6, 1]}
         target={[0, 0, 0]}
@@ -97,8 +104,8 @@ export function StudioEnvironment() {
       <Lightformer
         form="rect"
         map={softbox}
-        color="#e8eeff"
-        intensity={4.2}
+        color={tint("#e8eeff")}
+        intensity={4.2 * rig.edge}
         position={[2.6, 0.5, 1.1]}
         scale={[1.6, 6, 1]}
         target={[0, 0, 0]}
@@ -114,8 +121,8 @@ export function StudioEnvironment() {
       <Lightformer
         form="rect"
         map={softbox}
-        color="#e8effb"
-        intensity={1.5}
+        color={tint("#e8effb")}
+        intensity={1.5 * rig.fill}
         position={[-2.4, 0.8, 3.6]}
         scale={[6, 7, 1]}
         target={[0, 0, 0]}
@@ -123,8 +130,8 @@ export function StudioEnvironment() {
       <Lightformer
         form="rect"
         map={softbox}
-        color="#fff1e2"
-        intensity={1.1}
+        color={tint("#fff1e2")}
+        intensity={1.1 * rig.fill}
         position={[2.6, -0.6, 3.6]}
         scale={[6, 7, 1]}
         target={[0, 0, 0]}
@@ -134,8 +141,8 @@ export function StudioEnvironment() {
       <Lightformer
         form="circle"
         map={softbox}
-        color="#ffeede"
-        intensity={2.1}
+        color={tint("#ffeede")}
+        intensity={2.1 * rig.bounce}
         position={[0, -2.6, 1.4]}
         scale={[5, 3, 1]}
         target={[0, 0, 0]}
