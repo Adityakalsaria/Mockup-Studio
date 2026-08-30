@@ -42,17 +42,24 @@ const LOADER_CSS = `
 `;
 
 export function StageLoader() {
-  const { active, progress } = useProgress();
-  const [shown, setShown] = useState(false);
+  const { active } = useProgress();
+  const [waited, setWaited] = useState(false);
 
+  // Visibility is DERIVED from `active` rather than mirrored into state, so
+  // the effect never has to setState synchronously to hide it. The timer only
+  // ever turns the delay on; the cleanup turns it back off when a load ends,
+  // which is what re-arms the delay for the next one -- switching device
+  // should get the same grace period as the first load did.
   useEffect(() => {
-    if (!active) {
-      setShown(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setShown(true), SHOW_AFTER_MS);
-    return () => window.clearTimeout(timer);
+    if (!active) return;
+    const timer = window.setTimeout(() => setWaited(true), SHOW_AFTER_MS);
+    return () => {
+      window.clearTimeout(timer);
+      setWaited(false);
+    };
   }, [active]);
+
+  const shown = active && waited;
 
   return (
     <div
