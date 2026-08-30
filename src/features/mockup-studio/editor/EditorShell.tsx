@@ -22,6 +22,7 @@ import { RightPanel } from "./RightPanel";
 import { getRatio } from "./framing";
 import { EditorTheme } from "./theme";
 import { Tabs, useEditorTheme } from "./primitives";
+import { Icon } from "./icons";
 import {
   DEFAULT_EDITOR_STATE,
   MIRROR_SCREEN_FIT,
@@ -34,9 +35,127 @@ import {
  * canvas taking the whole column beneath it, and a fixed 290px panel down the
  * right. Every gap is the frame's 14px.
  */
+/**
+ * One of the two stage-level actions.
+ *
+ * Disabled rather than hidden when there is nothing to undo, so the cluster
+ * does not resize and reflow the moment history empties -- a control that
+ * appears and disappears is harder to aim at than one that greys out.
+ */
+function StageAction({
+  icon,
+  label,
+  hint,
+  disabled,
+  onClick,
+}: {
+  icon: "undo" | "resetAll";
+  label: string;
+  hint: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={hint}
+      className="ks-press grid h-[28px] w-[28px] place-items-center rounded-full"
+      style={{
+        color: "var(--ks-text-dim)",
+        opacity: disabled ? 0.35 : 1,
+        cursor: disabled ? "default" : "pointer",
+      }}
+    >
+      <Icon name={icon} />
+    </button>
+  );
+}
+
+/** Long enough to swallow a drag, short enough that two deliberate edits a
+    moment apart stay separate. */
+const HISTORY_COALESCE_MS = 450;
+const HISTORY_LIMIT = 60;
+
 export default function EditorShell() {
   const [theme, toggleTheme] = useEditorTheme();
   const [state, setState] = useState<EditorState>(DEFAULT_EDITOR_STATE);
+
+  /*
+   * Undo history.
+   *
+   * Recorded by WATCHING `state` rather than by wrapping the setter. There are
+   * ten setState call sites in here and only some go through `change()`, so
+   * anything that intercepts one path would silently miss the rest -- and a
+   * wrapper that mutated a ref inside the updater would double-count under
+   * StrictMode, which calls updaters twice.
+   *
+   * Consecutive edits inside one gesture collapse into a single entry. A slider
+   * drag fires a change per frame, so without that, undo would walk back
+   * through a drag one pixel at a time and feel broken. The window extends
+   * itself while the gesture continues, so the whole drag costs one entry and
+   * the state pushed is the one from before it started.
+   */
+  const [past, setPast] = useState<EditorState[]>([]);
+  const prevStateRef = useRef(state);
+  const fromUndoRef = useRef(false);
+  const lastEditAt = useRef(0);
+
+  useEffect(() => {
+    const prev = prevStateRef.current;
+    prevStateRef.current = state;
+    if (prev === state) return;
+    // An undo is not itself an edit; recording it would make undo a no-op that
+    // pushed what it had just popped.
+    if (fromUndoRef.current) {
+      fromUndoRef.current = false;
+      return;
+    }
+    const now = performance.now();
+    const sameGesture = now - lastEditAt.current < HISTORY_COALESCE_MS;
+    lastEditAt.current = now;
+    if (sameGesture) return;
+    setPast((entries) =>
+      entries.length >= HISTORY_LIMIT
+        ? [...entries.slice(1), prev]
+        : [...entries, prev],
+    );
+  }, [state]);
+
+  const undo = useCallback(() => {
+    if (!past.length) return;
+    fromUndoRef.current = true;
+    // Reopen the window, or the next edit would be folded into the gesture
+    // that was just undone.
+    lastEditAt.current = 0;
+    setState(past[past.length - 1]);
+    setPast((entries) => entries.slice(0, -1));
+  }, [past]);
+
+  /** Back to defaults, and itself undoable -- the watcher above records it
+      like any other change, so a mis-click costs one undo rather than the
+      afternoon. The loaded image or video is deliberately left alone: it is
+      the one thing here that cannot be recreated by moving a slider. */
+  const resetAll = useCallback(() => {
+    lastEditAt.current = 0;
+    setState(DEFAULT_EDITOR_STATE);
+  }, []);
+
+  // Cmd/Ctrl+Z, but never while a field has focus -- undoing the whole shot
+  // when someone meant to undo their typing is worse than no shortcut.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return;
+      const el = event.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      event.preventDefault();
+      undo();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo]);
 
   const [sourceSrc, setSourceSrc] = useState<string | null>(null);
   const [sourceName, setSourceName] = useState<string | null>(null);
@@ -871,6 +990,32 @@ export default function EditorShell() {
                     }),
               }}
             >
+            {/* Sits on the stage rather than in a panel: it acts on the
+                whole shot, and the panels are each only half of one. Top left,
+                away from the loading capsule in the centre. */}
+            <div
+              className="absolute left-[8px] top-[8px] z-20 flex items-center gap-[2px] rounded-full p-[2px]"
+              style={{
+                background: "var(--ks-surface)",
+                backdropFilter: "blur(24px) saturate(180%)",
+                WebkitBackdropFilter: "blur(24px) saturate(180%)",
+                boxShadow: "inset 0 0 0 1px var(--ks-line-strong)",
+              }}
+            >
+              <StageAction
+                icon="undo"
+                label="Undo"
+                hint={past.length ? "Undo the last change" : "Nothing to undo"}
+                disabled={!past.length}
+                onClick={undo}
+              />
+              <StageAction
+                icon="resetAll"
+                label="Reset everything"
+                hint="Reset every setting to its default"
+                onClick={resetAll}
+              />
+            </div>
             <PhoneStage3D
               rail={undefined}
               screenTexture={screenTexture}

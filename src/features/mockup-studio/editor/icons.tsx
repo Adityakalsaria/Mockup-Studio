@@ -9,6 +9,7 @@ import {
   faChevronDown,
   faChevronUp,
   faDiamond,
+  faArrowsRotate,
   faEyeDropper,
   faMobileScreenButton,
   faMoon,
@@ -51,6 +52,8 @@ export const ICON = {
   upload: faArrowUpFromBracket,
   device: faMobileScreenButton,
   eyedropper: faEyeDropper,
+  undo: faArrowRotateLeft,
+  resetAll: faArrowsRotate,
   play: faPlay,
   pause: faPause,
 } satisfies Record<string, IconDefinition>;
