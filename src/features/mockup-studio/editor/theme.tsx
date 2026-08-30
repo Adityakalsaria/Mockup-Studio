@@ -303,6 +303,21 @@ export const EDITOR_THEME_CSS = `
   cursor: ew-resize;
   user-select: none;
   -webkit-user-select: none;
+  /* pan-y, not none.
+     These are HORIZONTAL controls inside a vertically scrolling panel, and the
+     panel is mostly made of them. Under "none" the browser handed every touch
+     to the slider, so a swipe that happened to start on a track -- which is
+     most of the panel -- scrubbed a value instead of scrolling, and the panel
+     could not be scrolled past the first control at all. "pan-y" gives
+     vertical to the scroller and keeps horizontal for the drag; the browser
+     sends a pointercancel once it commits to a scroll, which already ends the
+     drag cleanly. */
+  touch-action: pan-y;
+}
+
+/* The exception: a control you drag in BOTH axes has nothing to give back to
+   the scroller, so it keeps the whole gesture. */
+.ks-scrub-2d {
   touch-action: none;
 }
 

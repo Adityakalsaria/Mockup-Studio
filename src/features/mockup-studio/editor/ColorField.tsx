@@ -297,7 +297,7 @@ function ColorPopover({
       <div
         ref={squareRef}
         onPointerDown={onSquare}
-        className="ks-scrub relative w-full cursor-crosshair overflow-hidden rounded-[8px]"
+        className="ks-scrub ks-scrub-2d relative w-full cursor-crosshair overflow-hidden rounded-[8px]"
         style={{
           height: SQUARE_H,
           background: `

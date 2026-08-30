@@ -361,6 +361,8 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+const DRAG_SLOP = 4;
+
 function PointerDragRotation({
   onRotateChange,
   onScaleChange,
@@ -387,14 +389,25 @@ function PointerDragRotation({
   const draggingRef = useRef(false);
   const pointerIdRef = useRef(-1);
   const lastRef = useRef({ x: 0, y: 0 });
+  const startRef = useRef({ x: 0, y: 0 });
+  const movedRef = useRef(false);
 
   useEffect(() => {
     const target = gl.domElement;
 
     const onDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
+      // One pointer at a time. A second finger landing mid-drag used to
+      // overwrite the tracked pointer id, so when the FIRST finger lifted its
+      // id no longer matched and the drag was never ended -- the model stayed
+      // captured and kept turning with anything that moved afterwards. On a
+      // phone a stray second touch is not an edge case; it is how people hold
+      // the thing.
+      if (draggingRef.current) return;
       draggingRef.current = true;
+      movedRef.current = false;
       pointerIdRef.current = e.pointerId;
+      startRef.current = { x: e.clientX, y: e.clientY };
       lastRef.current = { x: e.clientX, y: e.clientY };
       target.setPointerCapture(e.pointerId);
       target.style.cursor = "grabbing";
@@ -403,6 +416,19 @@ function PointerDragRotation({
       if (!draggingRef.current || e.pointerId !== pointerIdRef.current) return;
       const dx = e.clientX - lastRef.current.x;
       const dy = e.clientY - lastRef.current.y;
+      // A finger is not a mouse: it lands with a few pixels of roll and it
+      // never lifts from exactly where it touched down. Without a threshold
+      // every tap on the stage nudged the model a degree or two and left it
+      // sitting slightly off, which reads as the phone drifting on its own.
+      // A mouse never trips this -- a click has no travel.
+      if (!movedRef.current) {
+        if (Math.hypot(e.clientX - startRef.current.x, e.clientY - startRef.current.y) < DRAG_SLOP) return;
+        movedRef.current = true;
+        // Start from where the drag actually became a drag, so the model does
+        // not jump by the slop the moment it crosses the threshold.
+        lastRef.current = { x: e.clientX, y: e.clientY };
+        return;
+      }
       lastRef.current = { x: e.clientX, y: e.clientY };
       rotateRef.current({ dx, dy });
     };
