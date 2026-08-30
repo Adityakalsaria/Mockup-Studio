@@ -639,7 +639,15 @@ export default function EditorShell() {
       />
 
       <div className="flex h-full w-full flex-col gap-[var(--ks-gap)] p-[var(--ks-gap)]">
-        <div className="flex min-h-0 w-full flex-1 gap-[var(--ks-gap)]">
+        {/* The panels FLOAT over the canvas rather than sitting beside it.
+            Side by side, a translucent panel has nothing behind it but the
+            page colour — blurring and refracting a flat grey produces a flat
+            grey, so the material was invisible by construction. Floating them
+            puts the stage behind the glass, which is also how Apple builds
+            chrome: a layer with content running under it, not an opaque strip
+            that consumes a column. */}
+        <div className="relative flex min-h-0 w-full flex-1">
+        <div className="absolute left-0 top-0 z-20 h-full">
         <RightPanel side="left"
           state={effective}
           onChange={change}
@@ -701,8 +709,9 @@ export default function EditorShell() {
           keyedNow={keyedNow}
           onToggleKey={toggleKey}
         />
+        </div>
 
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col px-[calc(var(--ks-panel-w)+var(--ks-gap))]">
           {/* The workspace is the whole column; the framed canvas inside it is
               only as big as the chosen ratio allows. `container-type: size`
               is what lets the frame size itself off the workspace in CSS —
@@ -774,6 +783,7 @@ export default function EditorShell() {
             component: which sections it draws is the only difference, and
             splitting the file would have duplicated every control to express
             that. */}
+        <div className="absolute right-0 top-0 z-20 h-full">
         <RightPanel side="right"
           state={effective}
           onChange={change}
@@ -835,6 +845,7 @@ export default function EditorShell() {
           keyedNow={keyedNow}
           onToggleKey={toggleKey}
         />
+        </div>
       </div>
 
       {/* Outside the row, so it spans the full width rather than being
