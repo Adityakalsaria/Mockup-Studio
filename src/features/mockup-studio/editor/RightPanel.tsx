@@ -9,12 +9,10 @@ import {
   PanelSection,
   ParamRow,
   PillButton,
-  SwatchGrid,
   Tabs,
 } from "./primitives";
 import {
   BACKGROUND_KINDS,
-  BACKGROUND_PRESETS,
   DEFAULT_BACKGROUND,
   type BackgroundKind,
 } from "../backgrounds";
@@ -154,12 +152,19 @@ export function RightPanel({
           document — this panel never received one. It went unnoticed while
           the only tab was short enough not to need scrolling.
 
-          `scrollbar-gutter: stable` because the bar appears only when content
-          overflows, so the usable width changed between a short tab and a long
-          one and every control in the panel shifted sideways with it. */}
+          `scrollbar-gutter: stable both-edges` because the bar appears only
+          when content overflows, so the usable width changed between a short
+          tab and a long one and every control shifted sideways with it.
+          `stable` alone fixed the shifting but reserved the space on the right
+          only, leaving the content 17px from one edge and 23px from the other
+          -- a dead strip you read as the panel being narrower than it is. It
+          shows up worst on Motion, where a two column grid puts a card edge
+          right against it. `both-edges` mirrors the reservation, so the
+          content is centred and identical on every tab and on every platform,
+          whether or not the scrollbar overlays. */}
       <div
         data-lenis-prevent
-        className="ks-scroll flex flex-col px-[var(--ks-panel-pad)] laptop:min-h-0 laptop:flex-1 laptop:overflow-y-auto laptop:overflow-x-hidden laptop:[scrollbar-gutter:stable]">
+        className="ks-scroll flex flex-col px-[var(--ks-panel-pad)] laptop:min-h-0 laptop:flex-1 laptop:overflow-y-auto laptop:overflow-x-hidden laptop:[scrollbar-gutter:stable_both-edges]">
       {/* Panel chrome: the theme toggle, on the right panel only — two of them
           would be two controls for one piece of state. The left panel keeps
           the empty bar so both columns start their sections at one height. */}
@@ -546,12 +551,6 @@ export function RightPanel({
             <ColorRow
               label="Colour"
               value={background.color}
-              onChange={(color) => setBackground({ color })}
-            />
-            <SwatchGrid
-              label="Background"
-              value={background.color}
-              options={BACKGROUND_PRESETS}
               onChange={(color) => setBackground({ color })}
             />
           </>

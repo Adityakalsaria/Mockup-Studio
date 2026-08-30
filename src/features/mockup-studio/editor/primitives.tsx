@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { Icon } from "./icons";
+import { ColorField } from "./ColorField";
 
 /* ------------------------------------------------------------------ *
  * Section
@@ -144,6 +145,14 @@ function KeyframeButton({
 const KNOB = 20;
 /** Same 2px, so the gap around the knob is even on all four sides. */
 const KNOB_INSET = 2;
+/**
+ * The part of the track the knob's centre cannot reach: its own width, its
+ * insets, and the 3px the fill is inset by at each end. The fill interpolates
+ * from one knob width up to the full track less this, so the knob's centre
+ * travels exactly `trackWidth - KNOB_TRAVEL_INSET` -- which is therefore what
+ * a drag is measured against, keeping knob and pointer together.
+ */
+const KNOB_TRAVEL_INSET = KNOB + KNOB_INSET * 2 + 6;
 
 export function ParamRow({
   label,
@@ -178,7 +187,7 @@ export function ParamRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-  const dragRef = useRef<{ x: number; start: number; moved: boolean } | null>(null);
+  const dragRef = useRef<{ x: number; start: number; moved: boolean; travel: number } | null>(null);
 
   const clamp = useCallback((n: number) => Math.max(min, Math.min(max, n)), [min, max]);
 
@@ -197,7 +206,14 @@ export function ParamRow({
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (editing) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    dragRef.current = { x: event.clientX, start: value, moved: false };
+    dragRef.current = {
+      x: event.clientX,
+      start: value,
+      moved: false,
+      // Measured on grab rather than read from a constant: the panel is a
+      // fraction of the window and the track is whatever is left over.
+      travel: Math.max(1, event.currentTarget.getBoundingClientRect().width - KNOB_TRAVEL_INSET),
+    };
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -206,9 +222,23 @@ export function ParamRow({
     const dx = event.clientX - drag.x;
     if (!drag.moved && Math.abs(dx) < 2) return;
     drag.moved = true;
-    // A pixel is a step; shift slows it to a tenth so a 0..1 parameter can
-    // still be placed exactly.
-    onChange(clamp(quantise(drag.start + dx * step * (event.shiftKey ? 0.1 : 1))));
+    /**
+     * The drag is mapped across the knob's travel, so the knob sits under the
+     * pointer the whole way down every slider.
+     *
+     * It used to be one pixel per step, which made the gearing an accident of
+     * whatever range a parameter happened to have. Spacing is 4..40 in steps
+     * of 1, so its entire range fitted in 36px of a 230px track and the knob
+     * ran at over six times the speed of the cursor -- the slider it was
+     * attached to was, in effect, six times shorter than it looked. X axis has
+     * the opposite problem at 360 steps: two thirds cursor speed, and it feels
+     * stuck. Neither is a setting anyone chose.
+     *
+     * Shift still divides by ten, which is now genuinely fine adjustment
+     * rather than the only usable speed.
+     */
+    const perPixel = span / drag.travel;
+    onChange(clamp(quantise(drag.start + dx * perPixel * (event.shiftKey ? 0.1 : 1))));
   };
 
   const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -276,14 +306,20 @@ export function ParamRow({
 
             The knob lives INSIDE the fill, pinned to its right edge, so it can
             never drift off the end or overhang the track. That is also why the
-            fill carries a minimum width: at zero there would otherwise be no
-            capsule for the cap to sit in. */}
+            fill has a floor of one knob width: at zero there would otherwise
+            be no capsule for the cap to sit in.
+
+            The floor is built into the interpolation rather than applied as a
+            `min-width` afterwards. Clamping the width flattens the bottom of
+            the range -- the fill stayed at its minimum until the value was
+            past about 13% and the knob sat still while you dragged, which read
+            as the control being broken at the low end. Interpolating from the
+            floor instead spreads the same travel evenly across the range. */}
         <span
           aria-hidden
           className="absolute inset-y-[3px] left-[3px] rounded-full"
           style={{
-            width: `calc(${fillPct}% - 6px)`,
-            minWidth: KNOB + KNOB_INSET * 2,
+            width: `calc(${KNOB + KNOB_INSET * 2}px + ${fillPct / 100} * (100% - ${KNOB_TRAVEL_INSET}px))`,
             background: "var(--ks-ctl-fill)",
           }}
         >
@@ -485,22 +521,9 @@ export function ColorRow({
             className="w-[62px] bg-transparent text-right text-[12px] uppercase focus:outline-none"
             style={{ color: "var(--ks-ctl-text)", fontVariantNumeric: "tabular-nums" }}
           />
-          <span className="relative grid h-[24px] w-[24px] shrink-0 place-items-center">
-            <span
-              aria-hidden
-              // Round, like the preset swatches under it. A square chip and a
-              // row of circles for the same thing said they were two things.
-              className="h-full w-full rounded-full"
-              style={{ background: value, boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.25)" }}
-            />
-            <input
-              type="color"
-              value={value}
-              onChange={(event) => onChange(event.currentTarget.value)}
-              aria-label={label}
-              className="absolute inset-0 cursor-pointer opacity-0"
-            />
-          </span>
+          {/* Round, like the preset swatches under it. A square chip and a
+              row of circles for the same thing said they were two things. */}
+          <ColorField value={value} label={label} onChange={onChange} />
         </span>
       </div>
     </div>
