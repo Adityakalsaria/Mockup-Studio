@@ -13,6 +13,7 @@ import { sampleAnimation, type Animation } from "./animation";
 import { recolorBodyTexture } from "./bodyTexture";
 import { StudioEnvironment } from "./StudioEnvironment";
 import { ShadowRig } from "./ShadowRig";
+import { StageLoader } from "./StageLoader";
 import { DEFAULT_SHADOW, type ShadowSettings } from "./shadow";
 import { isBlurActive, type BlurSettings } from "./blurStyles";
 import type { Quat } from "./gyro/quaternion";
@@ -1486,6 +1487,7 @@ export default function PhoneStage3D({
           titleBar={{ title: "Mobile GLB", drag: true, filter: false }}
         />
       ) : null}
+      <StageLoader />
       <Canvas
         className="!h-full !w-full"
         // VSM rather than PCF-soft: `shadow.radius` is ignored under
