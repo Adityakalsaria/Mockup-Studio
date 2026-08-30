@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePhoneLink } from "../gyro/usePhoneLink";
 import PhoneStage3D, { type StageCapture, type StageRecorder } from "../PhoneStage3D";
-import { DEFAULT_BLUR } from "../blurStyles";
 import { backgroundCss, paintBackground } from "../backgrounds";
 import { pickRecordingFormat, recordStageVideo } from "../recordVideo";
 import { renderVideoExact, supportsExactRender } from "../renderVideoExact";
@@ -705,7 +704,6 @@ export default function EditorShell() {
               panY: DEFAULT_EDITOR_STATE.panY,
             })
           }
-          onResetBlur={() => change({ blur: DEFAULT_BLUR })}
           keyedNow={keyedNow}
           onToggleKey={toggleKey}
         />
@@ -841,7 +839,6 @@ export default function EditorShell() {
               panY: DEFAULT_EDITOR_STATE.panY,
             })
           }
-          onResetBlur={() => change({ blur: DEFAULT_BLUR })}
           keyedNow={keyedNow}
           onToggleKey={toggleKey}
         />

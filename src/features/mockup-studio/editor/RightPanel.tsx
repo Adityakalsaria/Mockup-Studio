@@ -1,20 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { BLUR_MODES, DEFAULT_BLUR, applyMode, type BlurMode } from "../blurStyles";
 import { isVideoSource } from "../useScreenTexture";
-import { DEVICES, getDevice } from "../devices";
+import { getDevice } from "../devices";
 import { FINISHES } from "../finishes";
 import {
   ColorRow,
-  ControlRow,
-  InlineSelect,
   PanelSection,
   ParamRow,
   PillButton,
   SwatchGrid,
   Tabs,
-  Toggle,
 } from "./primitives";
 import {
   BACKGROUND_KINDS,
@@ -63,7 +59,6 @@ export function RightPanel({
   theme,
   onToggleTheme,
   onResetCamera,
-  onResetBlur,
   keyedNow,
   onToggleKey,
 }: {
@@ -110,7 +105,6 @@ export function RightPanel({
   theme: "light" | "dark";
   onToggleTheme: () => void;
   onResetCamera: () => void;
-  onResetBlur: () => void;
   /** Properties with a keyframe sitting exactly on the playhead. */
   keyedNow: Partial<Record<AnimatableKey, boolean>>;
   onToggleKey: (property: AnimatableKey) => void;
@@ -136,7 +130,7 @@ export function RightPanel({
 
   const isOpen = (id: SectionId) => open.has(id);
   const device = getDevice(state.deviceId);
-  const { blur, background } = state;
+  const { background } = state;
   const setBackground = (patch: Partial<typeof background>) =>
     onChange({ background: { ...background, ...patch } });
 
@@ -152,8 +146,19 @@ export function RightPanel({
     >
       {glassSvg}
       {/* Body scrolls, footer does not: Export has to stay reachable without
-          scrolling to the end of twenty three preset cards. */}
-      <div className="ks-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-[var(--ks-panel-pad)]">
+          scrolling to the end of twenty three preset cards.
+
+          `data-lenis-prevent` because the app mounts Lenis for smooth
+          scrolling at the root, and Lenis takes the wheel for the whole
+          document — this panel never received one. It went unnoticed while
+          the only tab was short enough not to need scrolling.
+
+          `scrollbar-gutter: stable` because the bar appears only when content
+          overflows, so the usable width changed between a short tab and a long
+          one and every control in the panel shifted sideways with it. */}
+      <div
+        data-lenis-prevent
+        className="ks-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-[var(--ks-panel-pad)] [scrollbar-gutter:stable]">
       {/* Panel chrome: the theme toggle, on the right panel only — two of them
           would be two controls for one piece of state. The left panel keeps
           the empty bar so both columns start their sections at one height. */}
@@ -391,12 +396,6 @@ export function RightPanel({
               {device.screenNative.height.toLocaleString()}
             </span>
           </span>
-          <InlineSelect
-            label="Device"
-            value={state.deviceId}
-            options={DEVICES.map((d) => ({ id: d.id, label: d.label }))}
-            onChange={(id) => onChange({ deviceId: id })}
-          />
         </div>
 
         {/* Finish as swatches, not a dropdown: colour is the one property you
@@ -514,108 +513,6 @@ export function RightPanel({
         </>
       </PanelSection>
 
-      {/* ------------------------------------------------------------ BLUR */}
-      <PanelSection
-        title="Blur"
-        expanded={isOpen("blur")}
-        onToggle={() => toggle("blur")}
-        onReset={onResetBlur}
-      >
-        <ControlRow label="Mode">
-          <InlineSelect
-            label="Blur mode"
-            value={blur.mode}
-            options={BLUR_MODES}
-            onChange={(mode: BlurMode) => onChange({ blur: applyMode(blur, mode) })}
-          />
-        </ControlRow>
-
-        {blur.mode !== "off" ? (
-          <>
-            <ParamRow
-              label="Strength"
-              value={blur.strength}
-              defaultValue={DEFAULT_BLUR.strength}
-              min={0}
-              max={100}
-              step={1}
-              onChange={(strength) => onChange({ blur: { ...blur, strength } })}
-            />
-            {/* Row order follows the mode, as the frame does: a tilt shift is
-                read as strength-then-shape, a radial as strength-then-size. */}
-            {blur.mode === "radial" ? (
-              <ParamRow
-                label="Focus size"
-                value={blur.focusSize}
-                defaultValue={DEFAULT_BLUR.focusSize}
-                min={0}
-                max={1}
-                step={0.01}
-                decimals={2}
-                onChange={(focusSize) => onChange({ blur: { ...blur, focusSize } })}
-              />
-            ) : null}
-            <ParamRow
-              label="Falloff"
-              value={blur.falloff}
-              defaultValue={DEFAULT_BLUR.falloff}
-              min={0}
-              max={1}
-              step={0.01}
-              decimals={2}
-              onChange={(falloff) => onChange({ blur: { ...blur, falloff } })}
-            />
-            <ControlRow label="Bokeh">
-              <Toggle
-                label="Bokeh"
-                checked={blur.bokeh}
-                onChange={(bokeh) => onChange({ blur: { ...blur, bokeh } })}
-              />
-            </ControlRow>
-
-            {blur.mode === "tilt-shift" ? (
-              <>
-                <ParamRow
-                  label="Angle"
-                  value={blur.angle}
-                  defaultValue={DEFAULT_BLUR.angle}
-                  min={0}
-                  max={360}
-                  step={1}
-                  onChange={(angle) => onChange({ blur: { ...blur, angle } })}
-                />
-                <ParamRow
-                  label="Focus size"
-                  value={blur.focusSize}
-                  defaultValue={DEFAULT_BLUR.focusSize}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  decimals={2}
-                  onChange={(focusSize) => onChange({ blur: { ...blur, focusSize } })}
-                />
-                <ParamRow
-                  label="Scan"
-                  value={blur.scan}
-                  defaultValue={DEFAULT_BLUR.scan}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  decimals={2}
-                  onChange={(scan) => onChange({ blur: { ...blur, scan } })}
-                />
-              </>
-            ) : (
-              <FocusPad
-                x={blur.focusX}
-                y={blur.focusY}
-                onChange={(focusX, focusY) => onChange({ blur: { ...blur, focusX, focusY } })}
-              />
-            )}
-          </>
-        ) : null}
-      </PanelSection>
-
       {/* ------------------------------------------------------ BACKGROUND */}
       <PanelSection
         title="Background"
@@ -726,76 +623,3 @@ export function RightPanel({
  * Where the radial blur focuses, picked directly. Two sliders would describe
  * a position; a pad is one, and this is a spatial decision.
  */
-function FocusPad({
-  x,
-  y,
-  onChange,
-}: {
-  x: number;
-  y: number;
-  onChange: (x: number, y: number) => void;
-}) {
-  const [padEl, setPadEl] = useState<HTMLDivElement | null>(null);
-  const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
-
-  const pick = (clientX: number, clientY: number) => {
-    const rect = padEl?.getBoundingClientRect();
-    if (!rect || !rect.width || !rect.height) return;
-    onChange(clamp01((clientX - rect.left) / rect.width), clamp01((clientY - rect.top) / rect.height));
-  };
-
-  return (
-    <div className="flex flex-col gap-[8px] pt-[4px]">
-      <span className="ks-label" style={{ color: "var(--ks-text-muted)" }}>
-        Focus position
-      </span>
-      {/* The pad itself is a pointer affordance. A 2D position is not a
-          slider, and pretending otherwise gives screen readers one value
-          for two axes — so the real controls are the paired inputs below,
-          which are the standard accessible form of this widget. */}
-      <div
-        ref={setPadEl}
-        aria-hidden
-        onPointerDown={(event) => {
-          event.currentTarget.setPointerCapture(event.pointerId);
-          pick(event.clientX, event.clientY);
-        }}
-        onPointerMove={(event) => {
-          if (event.buttons === 1) pick(event.clientX, event.clientY);
-        }}
-        className="relative h-[86px] w-full cursor-crosshair rounded-[var(--ks-r)]"
-        style={{ background: "var(--ks-ctl)" }}
-      >
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px" style={{ background: "var(--ks-line)" }} />
-        <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px" style={{ background: "var(--ks-line)" }} />
-        <span
-          className="pointer-events-none absolute h-[12px] w-[12px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2"
-          style={{ left: `${x * 100}%`, top: `${y * 100}%`, borderColor: "var(--ks-accent)" }}
-        />
-      </div>
-
-      <label className="sr-only">
-        Focus position across
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={x}
-          onChange={(event) => onChange(Number(event.currentTarget.value), y)}
-        />
-      </label>
-      <label className="sr-only">
-        Focus position down
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={y}
-          onChange={(event) => onChange(x, Number(event.currentTarget.value))}
-        />
-      </label>
-    </div>
-  );
-}
