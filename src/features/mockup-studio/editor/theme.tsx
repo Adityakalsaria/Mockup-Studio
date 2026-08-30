@@ -160,10 +160,11 @@ export const EDITOR_THEME_CSS = `
      rectangle's do not, so the same number reads tighter. */
   --ks-ctl-pad: var(--ks-space-3);
   --ks-row-gap: var(--ks-space-2);
-  /* Between the columns WITHIN a row. Was 2px, which is a hairline: fine
-     between rectangles, wrong between capsules, where two pills that close
-     read as one shape with a nick in it. */
-  --ks-col-gap: var(--ks-space-2);
+  /* Between the columns WITHIN a row.
+     Zero now that the keyframe button has no pill of its own: there are no
+     longer two shapes needing to be told apart, and every pixel of gap was
+     coming out of the track. The button's own width is the separation. */
+  --ks-col-gap: 0px;
   --ks-kf-w: 30px;
   --ks-reset-w: 22px;
   /* 16, as the kit insets its sidebar content. */

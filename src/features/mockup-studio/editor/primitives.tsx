@@ -111,11 +111,14 @@ function KeyframeButton({
       aria-label={
         active ? `Remove keyframe for ${label}` : `Add keyframe for ${label}`
       }
-      className="grid h-[var(--ks-row-h)] w-[var(--ks-kf-w)] shrink-0 place-items-center rounded-[var(--ks-r)] border transition-colors"
+      // No pill behind it. The diamond already reads as a control, and a
+      // filled capsule around it made a second object competing with the track
+      // beside it — two pills per row, one of which is 30px of chrome around a
+      // 14px glyph. Colour carries the state instead.
+      className="ks-press grid h-[var(--ks-row-h)] w-[var(--ks-kf-w)] shrink-0 place-items-center rounded-[var(--ks-r)]"
       style={{
-        background: active ? "var(--ks-accent-wash)" : "var(--ks-ctl)",
-        borderColor: active ? "var(--ks-accent-line)" : "transparent",
-        color: active ? "var(--ks-accent)" : "var(--ks-badge-text)",
+        background: "transparent",
+        color: active ? "var(--ks-accent)" : "var(--ks-text-faint)",
       }}
     >
       <Icon name="keyframe" />
