@@ -645,7 +645,6 @@ export default function EditorShell() {
               would paint over the menu. */}
           <div className="relative z-30 flex">
             <TopBar
-              theme={theme}
               ratioId={ratioId}
               onRatioChange={setRatioId}
               timelineOpen={timelineOpen || animated}

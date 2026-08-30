@@ -458,9 +458,6 @@ function SceneTree({
       contentClassName="h-full"
     >
       <div className="flex h-full flex-col px-[var(--space-16)] py-[var(--space-20)]">
-        <div className="flex items-center px-[8px] pb-[var(--space-32)]">
-          <KoshLogo tone="light" width={120} height={28} priority />
-        </div>
         <nav
           aria-label="Flows"
           data-lenis-prevent
@@ -3535,7 +3532,6 @@ export default function MockupStudioClient() {
           className="max-w-[560px] rounded-[24px] border border-white/8"
         >
           <div className="space-y-[var(--space-16)] px-[var(--space-24)] py-[var(--space-24)] text-center">
-            <KoshLogo tone="light" width={132} height={28} priority className="mx-auto" />
             <p className="text-[15px] leading-[22px] text-white/58">
               MockupStudio layout is desktop-first for now.
             </p>

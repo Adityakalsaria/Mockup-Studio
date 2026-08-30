@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import KoshLogo from "@/components/KoshLogo";
 
 /**
  * The aspect menu. Free ratios first, then the store-ready pixel sizes.
@@ -45,7 +44,6 @@ export function getRatio(id: string): number | null {
 }
 
 export function TopBar({
-  theme,
   ratioId,
   onRatioChange,
   timelineOpen,
@@ -55,7 +53,6 @@ export function TopBar({
   canExportVideo,
   recordProgress,
 }: {
-  theme: "light" | "dark";
   ratioId: string;
   onRatioChange: (id: string) => void;
   timelineOpen: boolean;
@@ -101,15 +98,6 @@ export function TopBar({
         backdropFilter: "blur(6px)",
       }}
     >
-      {/* Ours, where the reference puts its own mark. */}
-      <KoshLogo
-        variant="icon-only"
-        tone={theme === "dark" ? "light" : "dark"}
-        width={22}
-        height={22}
-        className="mr-[8px] shrink-0"
-      />
-
       {/* Centred independently of the flanks so it stays put as they change. */}
       <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 items-center">
         <label className="pointer-events-auto relative flex items-center">

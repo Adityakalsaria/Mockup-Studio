@@ -7,7 +7,7 @@ import {
   type AnimatableKey,
   type Animation,
 } from "../animation";
-import { MOTION_PRESETS } from "./motionPresets";
+import { MOTION_PRESETS, PRESET_GROUPS } from "./motionPresets";
 import type { Filmstrip } from "./useFilmstrip";
 import { EASINGS, type Easing } from "../animation";
 
@@ -167,10 +167,17 @@ export function Timeline({
             className="absolute inset-0 cursor-pointer opacity-0"
           >
             <option value="">Choose a motion…</option>
-            {MOTION_PRESETS.map((preset) => (
-              <option key={preset.id} value={preset.id}>
-                {preset.label} — {preset.hint}
-              </option>
+            {/* Grouped because the three kinds behave differently: an
+                entrance lands on your framing, a move travels through it, a
+                loop returns to where it began. Flat, the list read as a pile. */}
+            {PRESET_GROUPS.map((group) => (
+              <optgroup key={group.kind} label={group.label}>
+                {MOTION_PRESETS.filter((preset) => preset.kind === group.kind).map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.label} — {preset.hint}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </label>
