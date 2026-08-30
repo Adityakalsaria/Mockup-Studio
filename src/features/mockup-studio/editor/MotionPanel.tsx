@@ -223,7 +223,7 @@ export function MotionPanel({
         if (!presets.length) return null;
         return (
           <div key={group.kind} className="flex flex-col gap-[7px]">
-            <span className="ks-micro uppercase" style={{ color: "var(--ks-text-faint)" }}>
+            <span className="ks-section-label" style={{ color: "var(--ks-text-muted)" }}>
               {/* The picker's labels carry an explanation after an em dash,
                   which is useful in a dropdown and too long for a column
                   this narrow. */}

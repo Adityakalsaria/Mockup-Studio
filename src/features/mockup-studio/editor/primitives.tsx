@@ -108,10 +108,9 @@ function HintBadge({ text }: { text: string }) {
       style={{
         background: "var(--ks-badge)",
         color: "var(--ks-badge-text)",
-        fontSize: 9,
-        lineHeight: "13.5px",
-        letterSpacing: "0.09px",
-        textTransform: "uppercase",
+        fontSize: 11,
+        lineHeight: "15px",
+        letterSpacing: "-0.04px",
         fontWeight: 500,
       }}
     >
@@ -488,7 +487,9 @@ export function ColorRow({
             }}
             spellCheck={false}
             aria-label={`${label} hex`}
-            className="w-[62px] bg-transparent text-right text-[10px] uppercase focus:outline-none"
+            // The one place uppercase survives: a hex value is a code, not a
+            // word, and lowercasing it makes it harder to read back.
+            className="w-[62px] bg-transparent text-right text-[12px] uppercase focus:outline-none"
             style={{ color: "var(--ks-ctl-text)", fontVariantNumeric: "tabular-nums" }}
           />
           <span className="relative grid h-[18px] w-[18px] shrink-0 place-items-center">
@@ -565,29 +566,20 @@ export function Toggle({
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      // Measured from Apple's iOS 27 kit, scaled to our row height.
-      //
-      // Their switch is 64x28 with a 38x24 knob, inset 2. Note the knob is a
-      // CAPSULE, not a circle -- 38 wide in a 64 track. That is the shape of
-      // the current switch, and it is why an earlier pass here looked wrong:
-      // it was built from the older iOS switch, a round knob in a 51x31 track,
-      // which has not been the shape for some time.
-      //
-      // At our 20px height those proportions give a 46x20 track with a 27x17
-      // knob inset 1.5 -- aspect 2.29, matching theirs, where ours was 1.8.
-      className="relative h-[20px] w-[46px] shrink-0 rounded-full"
+      // Apple's switch, at Apple's size: 64x28 track, 38x24 knob, inset 2,
+      // travel 22. Not scaled down this time — a 44px row has the height for
+      // it, and every earlier attempt to fit it into 20px is what made it read
+      // as a different control that happened to be a similar shape.
+      className="relative h-[28px] w-[64px] shrink-0 rounded-full"
       style={{
-        // Their off state is labels/tertiary at 0.3 alpha, far darker than the
-        // badge fill we were using. A white knob needs that much contrast
-        // behind it or the control reads as empty when it is off.
         background: checked ? "var(--ks-accent)" : "var(--ks-switch-off)",
         transition: "background-color 160ms var(--ks-ease-out)",
       }}
     >
       <span
-        className="absolute left-[1.5px] top-[1.5px] h-[17px] w-[27px] rounded-full"
+        className="absolute left-[2px] top-[2px] h-[24px] w-[38px] rounded-full"
         style={{
-          transform: checked ? "translateX(16px)" : "translateX(0)",
+          transform: checked ? "translateX(22px)" : "translateX(0)",
           background: "#FFFFFF",
           transition: "transform 180ms var(--ks-ease-out)",
         }}
@@ -609,7 +601,11 @@ export function Tabs<T extends string>({
   const index = Math.max(0, options.findIndex((option) => option.id === value));
   // Apple's large segmented control is 50 tall with 2px padding and a 4px gap
   // between segments. Ours is 36, so the gap scales to 3.
-  const GAP = 3;
+  // The kit's panel-sized segmented control is 32 tall with 28px segments,
+  // 2px padding and a 4px gap. That is the variant Apple uses inside the iPad
+  // colour picker panel — the same context as ours — so it is used verbatim
+  // rather than scaled.
+  const GAP = 4;
 
   return (
     <div
@@ -618,7 +614,7 @@ export function Tabs<T extends string>({
       // here used the 8px control radius and reasoned carefully about keeping
       // the inner corner concentric with it -- correct thinking applied to the
       // wrong shape, because Apple simply uses capsules for this control.
-      className="relative flex w-full rounded-full p-[2px]"
+      className="relative flex h-[32px] w-full rounded-full p-[2px]"
       style={{ background: "var(--ks-seg-track)", gap: `${GAP}px` }}
     >
       {/* One indicator that travels, instead of a background appearing on one
@@ -649,7 +645,7 @@ export function Tabs<T extends string>({
             type="button"
             onClick={() => onChange(option.id)}
             aria-pressed={active}
-            className="ks-label relative z-[1] h-[30px] flex-1 rounded-full"
+            className="ks-label relative z-[1] h-[28px] flex-1 rounded-full"
             style={{
               color: active ? "var(--ks-tab-active-text)" : "var(--ks-tab-text)",
               // The kit shifts the label from Medium to Semibold on selection.

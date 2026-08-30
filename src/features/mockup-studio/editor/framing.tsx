@@ -217,10 +217,27 @@ function ExportItem({
       // panel you operate, and it can afford the room.
       className="ks-press flex w-full flex-col items-start gap-[2px] rounded-[var(--ks-r-sm)] pl-[6px] pr-[8px] py-[10px] text-left hover:bg-[var(--ks-row)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
     >
-      <span className="ks-label" style={{ color: "var(--ks-text)" }}>
+      {/* The kit sets menu titles at 17/20 with -0.43px tracking and
+          subtitles at 13/18 — larger than a panel control, because a menu is
+          read rather than operated. */}
+      <span
+        style={{
+          fontSize: 17,
+          lineHeight: "20px",
+          letterSpacing: "-0.43px",
+          color: "var(--ks-text)",
+        }}
+      >
         {label}
       </span>
-      <span className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>
+      <span
+        style={{
+          fontSize: 13,
+          lineHeight: "18px",
+          letterSpacing: "-0.08px",
+          color: "var(--ks-text-muted)",
+        }}
+      >
         {hint}
       </span>
     </button>

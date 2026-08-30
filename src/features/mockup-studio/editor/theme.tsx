@@ -9,11 +9,17 @@
  * gradients and a 16px body scale, none of which apply to a 290px column of
  * 10px numeric controls.
  *
- * Type is Saans, the project's own face, rather than the mono the mock was
- * drawn in. What survives the swap is the ROLE the mock gave its type —
- * small, uppercase, widely tracked — because that is what makes a dense
- * column of controls scan as instrument panel rather than as prose. Only the
- * face changed.
+ * Type follows Apple's kit: 13px on 18px leading, sentence case, tracking
+ * -0.08px, with weight rather than case carrying hierarchy.
+ *
+ * It was previously 10px uppercase on wide positive tracking — the vocabulary
+ * of an instrument panel, chosen deliberately to make a dense column of
+ * controls scan as a mixing desk rather than as prose. That reads as a
+ * different KIND of software than the one being aimed at here: Apple labels
+ * its controls in the same face and size you would read a sentence in, and no
+ * amount of correct control geometry reads as Apple underneath shouty
+ * micro-type. Uppercase now survives in exactly one place, the hex field,
+ * where the content is a code rather than a word.
  *
  * Numeric readouts keep `font-variant-numeric: tabular-nums`. A proportional
  * face would otherwise reflow the value column on every digit while a value
@@ -97,14 +103,21 @@ export const EDITOR_THEME_CSS = `
   --ks-lift-soft: 0 2px 6px rgba(0, 0, 0, 0.1), 0 1px 1px rgba(0, 0, 0, 0.08);
 
   --ks-gap: 14px;
-  --ks-topbar-h: 50px;
-  --ks-panel-w: 290px;
+  /* Apple's sidebar is 320. Ours was 290, which is where every "scale it
+     down to fit" compromise came from — at 320 the real control sizes fit
+     without shrinking any of them. */
+  --ks-panel-w: 320px;
   --ks-timeline-h: 194px;
-  --ks-row-h: 36px;
-  --ks-row-gap: 6px;
-  --ks-val-w: 52px;
+  /* iOS list rows are 44. Ours were 36, which is why a 64x28 switch could not
+     sit in one. */
+  --ks-row-h: 44px;
+  --ks-row-gap: 8px;
+  /* Wider than before: 13px tabular figures need the room 11px did not, and a
+     clipped number is worse than a narrower label. */
+  --ks-val-w: 62px;
   --ks-kf-w: 30px;
   --ks-reset-w: 22px;
+  /* 16, as the kit insets its sidebar content. */
   --ks-panel-pad: 16px;
 
   font-family: var(--ks-font);
@@ -148,39 +161,51 @@ export const EDITOR_THEME_CSS = `
   --ks-clip: rgba(255, 255, 255, 0.08);
 }
 
-/* Section headers and control labels. 10px mono, uppercase, wide tracking —
+/* Control labels. 13px, sentence case —
    one class because it is on nearly every element in the panel. */
+/* Apple's body text, measured from the kit: 13px on 18px leading, Medium
+   (510), tracking -0.08px. Sentence case.
+
+   This is the single biggest change, and the one that was holding everything
+   else back: 10px UPPERCASE with +0.6px tracking is the vocabulary of a
+   technical readout — a mixing desk — and no amount of correct control
+   geometry reads as Apple underneath it. Their controls are labelled in the
+   same typeface and size you would read a sentence in. Negative tracking
+   because at 13px and above, letters set at zero read too loose. */
 .ks-label {
-  font-size: 10px;
-  line-height: 15px;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  font-weight: 500;
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: -0.08px;
+  font-weight: 510;
 }
 
 /* Section titles track noticeably wider than control labels in the file. */
+/* Section titles differ by WEIGHT, not by case and tracking. Semibold (590)
+   is what the kit uses to mark a selected segment, and the same move reads as
+   a heading here. */
 .ks-section-label {
-  font-size: 10px;
-  line-height: 15px;
-  letter-spacing: 1.6px;
-  text-transform: uppercase;
-  font-weight: 400;
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: -0.08px;
+  font-weight: 590;
 }
 
 .ks-value {
-  font-size: 11px;
-  line-height: 16.5px;
-  letter-spacing: 0.88px;
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: -0.08px;
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
+  font-weight: 510;
 }
 
+/* Apple's subtitle: 13px on 18px in the menu rows, dropped to 11 here where
+   it is genuinely secondary. Still sentence case — uppercase micro-type is
+   the thing that made this read as a control surface rather than an app. */
 .ks-micro {
-  font-size: 9px;
-  line-height: 12px;
-  letter-spacing: 0.54px;
-  text-transform: uppercase;
-  font-weight: 500;
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: -0.04px;
+  font-weight: 400;
 }
 
 /* Scrub fields must not select text mid-drag, or the panel highlights the
