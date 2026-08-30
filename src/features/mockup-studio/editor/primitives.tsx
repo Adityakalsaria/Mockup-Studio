@@ -461,7 +461,9 @@ export function ColorRow({
           <span className="relative grid h-[24px] w-[24px] shrink-0 place-items-center">
             <span
               aria-hidden
-              className="h-full w-full rounded-[4px]"
+              // Round, like the preset swatches under it. A square chip and a
+              // row of circles for the same thing said they were two things.
+              className="h-full w-full rounded-full"
               style={{ background: value, boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.25)" }}
             />
             <input

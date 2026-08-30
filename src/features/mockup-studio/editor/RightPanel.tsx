@@ -381,23 +381,11 @@ export function RightPanel({
           className="flex h-[44px] w-full items-center gap-[12px] rounded-[var(--ks-r)] px-[12px]"
           style={{ background: "var(--ks-ctl)" }}
         >
-          <span
-            className="grid h-[26px] w-[18px] shrink-0 place-items-center rounded-[3px]"
-            style={{ background: "var(--ks-badge)" }}
-            aria-hidden
-          >
-            {/* Not an icon but a drawing of a device, so it keeps its
-                portrait aspect rather than being squared onto the scale. */}
-            <Icon name="device" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="ks-label block truncate" style={{ color: "var(--ks-text)" }}>
-              {device.label}
-            </span>
-            <span className="ks-micro block" style={{ color: "var(--ks-text-faint)" }}>
-              {device.screenNative.width.toLocaleString()} ×{" "}
-              {device.screenNative.height.toLocaleString()}
-            </span>
+          {/* The name alone. The icon was a picture of a phone on a row about
+              a phone, and the pixel size is a fact about a device nobody can
+              change — it belonged in the picker this row used to open. */}
+          <span className="ks-label min-w-0 flex-1 truncate" style={{ color: "var(--ks-text)" }}>
+            {device.label}
           </span>
         </div>
 
@@ -523,11 +511,39 @@ export function RightPanel({
         onToggle={() => toggle("background")}
         onReset={() => onChange({ background: DEFAULT_BACKGROUND })}
       >
-        <Tabs
-          value={background.kind}
-          onChange={(kind: BackgroundKind) => setBackground({ kind })}
-          options={BACKGROUND_KINDS}
-        />
+        {/* A row, not a five-segment strip.
+            Five segments across 288px gave each one 55px, so every label was
+            set in type too small to sit beside the rest of the panel and the
+            strip read as a band of noise above the controls that matter. A
+            segmented control is for two or three choices you compare; five
+            mutually exclusive modes are a list, and a list belongs in a menu.
+            It also matches Frame directly above it, which does the same job. */}
+        <label
+          className="relative flex h-[var(--ks-row-h)] w-full items-center justify-between rounded-[var(--ks-r)] px-[var(--ks-ctl-pad)]"
+          style={{ background: "var(--ks-ctl)" }}
+        >
+          <span className="ks-label" style={{ color: "var(--ks-text-dim)" }}>
+            Type
+          </span>
+          <span className="ks-label flex items-center gap-[8px]" style={{ color: "var(--ks-ctl-text)" }}>
+            {BACKGROUND_KINDS.find((k) => k.id === background.kind)?.label}
+            <Icon name="chevronDown" />
+          </span>
+          <select
+            value={background.kind}
+            onChange={(event) =>
+              setBackground({ kind: event.currentTarget.value as BackgroundKind })
+            }
+            aria-label="Background type"
+            className="absolute inset-0 cursor-pointer opacity-0"
+          >
+            {BACKGROUND_KINDS.map((kind) => (
+              <option key={kind.id} value={kind.id}>
+                {kind.label}
+              </option>
+            ))}
+          </select>
+        </label>
 
         {background.kind === "solid" ? (
           <>
