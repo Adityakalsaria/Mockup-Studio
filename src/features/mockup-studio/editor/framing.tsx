@@ -69,7 +69,7 @@ export function AspectSelect({
       </span>
       <span className="ks-label flex items-center gap-[6px]" style={{ color: "var(--ks-ctl-text)" }}>
         {active?.label ?? "Fill"}
-        <svg width="9" height="9" viewBox="0 0 12 12" fill="none" aria-hidden>
+        <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden>
           <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </span>
@@ -150,7 +150,7 @@ export function ExportMenu({
         style={{ background: "var(--ks-accent-wash)", color: "var(--ks-accent)" }}
       >
         {recording ? `Recording ${Math.round((recordProgress ?? 0) * 100)}%` : "Export"}
-        <svg width="9" height="9" viewBox="0 0 12 12" fill="none" aria-hidden>
+        <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden>
           <path d="M3 7.5 6 4.5 9 7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>

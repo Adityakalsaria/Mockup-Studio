@@ -152,7 +152,7 @@ export function RightPanel({
       {glassSvg}
       {/* Body scrolls, footer does not: Export has to stay reachable without
           scrolling to the end of twenty three preset cards. */}
-      <div className="ks-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-[var(--ks-panel-pad)]">
+      <div className="ks-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-[var(--ks-panel-pad)]">
       {/* Panel chrome: the theme toggle, on the right panel only — two of them
           would be two controls for one piece of state. The left panel keeps
           the empty bar so both columns start their sections at one height. */}
@@ -162,10 +162,10 @@ export function RightPanel({
           type="button"
           onClick={onToggleTheme}
           aria-label={theme === "light" ? "Switch to dark" : "Switch to light"}
-          className="ks-press grid h-[22px] w-[22px] place-items-center opacity-60 hover:opacity-100"
+          className="ks-press grid h-[24px] w-[24px] place-items-center opacity-60 hover:opacity-100"
           style={{ color: "var(--ks-text-dim)" }}
         >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+          <svg width="16" height="16" viewBox="0 0 14 14" fill="none" aria-hidden>
             <path
               d="M11.5 8.4A5 5 0 0 1 5.6 2.5a5 5 0 1 0 5.9 5.9Z"
               stroke="currentColor"
@@ -210,10 +210,10 @@ export function RightPanel({
               type="button"
               onClick={onStopMirror}
               aria-label="Stop mirroring"
-              className="absolute right-[8px] top-[8px] grid h-[20px] w-[20px] place-items-center rounded-full"
+              className="absolute right-[8px] top-[8px] grid h-[24px] w-[24px] place-items-center rounded-full"
               style={{ background: "rgba(0,0,0,0.4)", color: "#fff" }}
             >
-              <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden>
+              <svg width="16" height="16" viewBox="0 0 10 10" aria-hidden>
                 <path d="M1 1 9 9M9 1 1 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
               </svg>
             </button>
@@ -248,10 +248,10 @@ export function RightPanel({
               type="button"
               onClick={onClearSource}
               aria-label="Remove source"
-              className="absolute right-[8px] top-[8px] grid h-[20px] w-[20px] place-items-center rounded-full"
+              className="absolute right-[8px] top-[8px] grid h-[24px] w-[24px] place-items-center rounded-full"
               style={{ background: "rgba(0,0,0,0.4)", color: "#fff" }}
             >
-              <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden>
+              <svg width="16" height="16" viewBox="0 0 10 10" aria-hidden>
                 <path d="M1 1 9 9M9 1 1 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
               </svg>
             </button>
@@ -263,7 +263,7 @@ export function RightPanel({
             className="flex h-[132px] w-full flex-col items-center justify-center gap-[6px] rounded-[var(--ks-r-card)] border border-dashed transition-colors"
             style={{ borderColor: "var(--ks-line-strong)", background: "var(--ks-row)" }}
           >
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden style={{ color: "var(--ks-text-muted)" }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden style={{ color: "var(--ks-text-muted)" }}>
               <path d="M8 11V2.5M5 5.5 8 2.5l3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M2.5 10.5v2a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
             </svg>
@@ -391,7 +391,9 @@ export function RightPanel({
             style={{ background: "var(--ks-badge)" }}
             aria-hidden
           >
-            <svg width="8" height="13" viewBox="0 0 8 13" fill="none">
+            {/* Not an icon but a drawing of a device, so it keeps its
+                portrait aspect rather than being squared onto the scale. */}
+            <svg width="16" height="16" viewBox="0 0 8 13" fill="none">
               <rect x="0.5" y="0.5" width="7" height="12" rx="1.5" stroke="var(--ks-text-faint)" />
             </svg>
           </span>

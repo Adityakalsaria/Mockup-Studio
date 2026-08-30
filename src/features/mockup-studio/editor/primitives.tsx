@@ -37,7 +37,7 @@ export function PanelSection({
           type="button"
           onClick={onToggle}
           aria-expanded={expanded}
-          className="ks-section-label flex flex-1 items-center text-left"
+          className="ks-section-label flex min-w-0 flex-1 items-center text-left"
           style={{ color: "var(--ks-text-muted)" }}
         >
           {title}
@@ -54,10 +54,10 @@ export function PanelSection({
             type="button"
             onClick={onReset}
             aria-label={`Reset ${title}`}
-            className="grid h-[16px] w-[16px] place-items-center opacity-55 hover:opacity-100"
+            className="grid h-[24px] w-[24px] place-items-center opacity-55 hover:opacity-100"
             style={{ color: "var(--ks-text-dim)" }}
           >
-            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden>
               <path d="M2.5 4.5h4a3 3 0 1 1-3 3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M4.4 2.4 2.4 4.5l2 2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -69,7 +69,7 @@ export function PanelSection({
             type="button"
             onClick={onToggle}
             aria-label={expanded ? `Collapse ${title}` : `Expand ${title}`}
-            className="grid h-[16px] w-[16px] place-items-center opacity-55 hover:opacity-100"
+            className="grid h-[24px] w-[24px] place-items-center opacity-55 hover:opacity-100"
             style={{ color: "var(--ks-text-dim)" }}
           >
             <svg
@@ -149,7 +149,7 @@ function KeyframeButton({
         color: active ? "var(--ks-accent)" : "var(--ks-badge-text)",
       }}
     >
-      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
+      <svg width="16" height="16" viewBox="0 0 10 10" aria-hidden>
         <path
           d="M5 0.7 9.3 5 5 9.3 0.7 5Z"
           fill={active ? "currentColor" : "none"}
@@ -275,7 +275,7 @@ export function ParamRow({
           event.preventDefault();
           onChange(clamp(quantise(value + dir * step * (event.shiftKey ? 10 : 1))));
         }}
-        className="ks-scrub relative h-[var(--ks-row-h)] flex-1 overflow-hidden rounded-[var(--ks-r)] focus:outline-none focus-visible:ring-1"
+        className="ks-scrub relative h-[var(--ks-row-h)] min-w-0 flex-1 overflow-hidden rounded-[var(--ks-r)] focus:outline-none focus-visible:ring-1"
         style={{ background: "var(--ks-ctl)" }}
       >
         {/* The filled portion is accent-tinted rather than grey, which is the
@@ -394,7 +394,7 @@ function ResetButton({
         pointerEvents: dirty ? "auto" : "none",
       }}
     >
-      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+      <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden>
         <path d="M2.5 4.5h4a3 3 0 1 1-3 3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M4.4 2.4 2.4 4.5l2 2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
@@ -423,7 +423,7 @@ export function ControlRow({
   return (
     <div className="flex w-full items-stretch gap-[var(--ks-col-gap)]">
       <div
-        className="flex h-[var(--ks-row-h)] flex-1 items-center justify-between rounded-[var(--ks-r)] pl-[var(--ks-ctl-pad)] pr-[10px]"
+        className="flex h-[var(--ks-row-h)] min-w-0 flex-1 items-center justify-between rounded-[var(--ks-r)] pl-[var(--ks-ctl-pad)] pr-[10px]"
         style={{ background: "var(--ks-ctl)" }}
       >
         <span className="ks-label" style={{ color: "var(--ks-ctl-text)" }}>
@@ -470,7 +470,7 @@ export function ColorRow({
   return (
     <div className="flex w-full items-stretch gap-[var(--ks-col-gap)]">
       <div
-        className="flex h-[var(--ks-row-h)] flex-1 items-center justify-between rounded-[var(--ks-r)] pl-[var(--ks-ctl-pad)] pr-[10px]"
+        className="flex h-[var(--ks-row-h)] min-w-0 flex-1 items-center justify-between rounded-[var(--ks-r)] pl-[var(--ks-ctl-pad)] pr-[10px]"
         style={{ background: "var(--ks-ctl)" }}
       >
         <span className="ks-label" style={{ color: "var(--ks-ctl-text)" }}>
@@ -492,7 +492,7 @@ export function ColorRow({
             className="w-[62px] bg-transparent text-right text-[12px] uppercase focus:outline-none"
             style={{ color: "var(--ks-ctl-text)", fontVariantNumeric: "tabular-nums" }}
           />
-          <span className="relative grid h-[18px] w-[18px] shrink-0 place-items-center">
+          <span className="relative grid h-[24px] w-[24px] shrink-0 place-items-center">
             <span
               aria-hidden
               className="h-full w-full rounded-[4px]"
@@ -536,7 +536,7 @@ export function SwatchGrid({
             aria-label={`${label} ${color}`}
             aria-pressed={selected}
             onClick={() => onChange(color)}
-            className="h-[18px] w-[18px] rounded-[4px] transition-transform hover:scale-110"
+            className="h-[20px] w-[20px] rounded-full transition-transform hover:scale-110"
             style={{
               background: color,
               boxShadow: selected
@@ -645,7 +645,7 @@ export function Tabs<T extends string>({
             type="button"
             onClick={() => onChange(option.id)}
             aria-pressed={active}
-            className="ks-label relative z-[1] h-[28px] flex-1 rounded-full"
+            className="ks-label relative z-[1] h-[28px] min-w-0 flex-1 truncate rounded-full"
             style={{
               color: active ? "var(--ks-tab-active-text)" : "var(--ks-tab-text)",
               // The kit shifts the label from Medium to Semibold on selection.

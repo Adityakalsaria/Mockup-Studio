@@ -123,12 +123,12 @@ export function Timeline({
           style={{ background: "var(--ks-accent)", color: "var(--ks-accent-text)" }}
         >
           {playing ? (
-            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 10 10" aria-hidden>
               <rect x="1.5" y="1" width="2.5" height="8" fill="currentColor" />
               <rect x="6" y="1" width="2.5" height="8" fill="currentColor" />
             </svg>
           ) : (
-            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 10 10" aria-hidden>
               <path d="M2 1l7 4-7 4z" fill="currentColor" />
             </svg>
           )}
@@ -152,7 +152,7 @@ export function Timeline({
             style={{ borderColor: "var(--ks-hairline)", color: "var(--ks-text-dim)" }}
           >
             Motion
-            <svg width="8" height="8" viewBox="0 0 12 12" fill="none" aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden>
               <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>
