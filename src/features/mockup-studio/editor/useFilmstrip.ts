@@ -33,7 +33,12 @@ export function useFilmstrip(src: string | null, count: number): Filmstrip {
   >(null);
 
   useEffect(() => {
-    if (!src || count <= 0) return;
+    // count 0 means "the duration only". The timeline no longer draws
+    // thumbnails, and decoding ten frames of a twelve-second clip on every
+    // source change to read a number off its metadata is a lot of seeking for
+    // nothing — but the duration itself is still needed, and still has to
+    // arrive as a re-render rather than as a mutation on a video element.
+    if (!src) return;
 
     let cancelled = false;
     const video = document.createElement("video");
@@ -66,6 +71,10 @@ export function useFilmstrip(src: string | null, count: number): Filmstrip {
       if (cancelled) return;
 
       const clip = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 1;
+      if (count <= 0) {
+        setResult({ src, frames: [], duration: clip });
+        return;
+      }
       // Short and wide: a filmstrip cell only has to say "this bit", and the
       // lane it sits in is 34px tall.
       const height = 48;

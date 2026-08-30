@@ -7,7 +7,6 @@ import {
   type AnimatableKey,
   type Animation,
 } from "../animation";
-import type { Filmstrip } from "./useFilmstrip";
 import { type Easing } from "../animation";
 import { Icon } from "./icons";
 import { EasingPicker } from "./EasingPicker";
@@ -43,7 +42,7 @@ export function Timeline({
   onExportFpsChange,
   exportScale,
   onExportScaleChange,
-  clip,
+  sourceLength,
   clipName,
 }: {
   animation: Animation;
@@ -63,8 +62,10 @@ export function Timeline({
   /** Export resolution as a multiple of the on-screen canvas. */
   exportScale: number;
   onExportScaleChange: (scale: number) => void;
-  /** Drawn as a clip bar so keys can be placed against what is on screen. */
-  clip: Filmstrip;
+  /** Seconds the source occupies: a video's own duration, or one second for a
+      still, which is a length you can see and later drag rather than a zero
+      that draws nothing. */
+  sourceLength: number;
   clipName: string;
 }) {
   const laneRef = useRef<HTMLDivElement>(null);
@@ -139,10 +140,6 @@ export function Timeline({
   for (let t = 0; t <= durationSec + 1e-6; t += step) ticks.push(Number(t.toFixed(3)));
 
   const tracks = ANIMATABLE.filter(({ key }) => (animation.tracks[key]?.length ?? 0) > 0);
-  // How many times the clip repeats before the timeline runs out. A clip
-  // longer than the timeline gets one bar, cropped by the lane's overflow.
-  const clipRepeats =
-    clip.duration > 0 ? Math.max(1, Math.ceil(durationSec / clip.duration)) : 0;
 
   return (
     <div
@@ -292,7 +289,7 @@ export function Timeline({
             className="sticky top-0 z-20 h-[16px]"
             style={{ background: "var(--ks-surface)" }}
           />
-          {clipRepeats ? <div className="mb-[4px] h-[36px]" /> : null}
+          {sourceLength > 0 ? <div className="mb-[4px] h-[26px]" /> : null}
           {tracks.map(({ key, label }) => (
             <div
               key={key}
@@ -368,49 +365,30 @@ export function Timeline({
             ))}
           </div>
 
-          {/* The clip, as a bar the width of its actual duration.
-              Thumbnails run inside the bar rather than edge to edge across
-              the lane, because the length of the bar is the thing being
-              communicated: a 12-second clip on a 3-second timeline should
-              look like it overruns, and a 2-second clip that repeats should
-              visibly repeat. Stretched thumbnails said neither. */}
-          {clipRepeats ? (
-            <div className="relative mb-[4px] h-[36px] w-full overflow-hidden">
-              {Array.from({ length: clipRepeats }, (_, repeat) => (
-                <div
-                  key={repeat}
-                  className="absolute top-0 flex h-full overflow-hidden rounded-[var(--ks-r-sm)]"
-                  style={{
-                    left: pct(repeat * clip.duration),
-                    width: pct(clip.duration),
-                    background: "var(--ks-ctl)",
-                    // Repeats after the first are the same footage coming
-                    // round again, so they read as echoes of the original.
-                    opacity: repeat === 0 ? 1 : 0.55,
-                    boxShadow: "inset 0 0 0 1px var(--ks-line-strong)",
-                  }}
-                >
-                  {clip.frames.map((frame, index) => (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      key={index}
-                      src={frame}
-                      alt=""
-                      aria-hidden
-                      draggable={false}
-                      className="h-full min-w-0 flex-1 object-cover opacity-70"
-                    />
-                  ))}
-                  {repeat === 0 ? (
-                    <span
-                      className="ks-micro pointer-events-none absolute left-[6px] top-1/2 -translate-y-1/2 rounded-[3px] px-[4px] py-[4px]"
-                      style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
-                    >
-                      {clipName} · {formatTime(clip.duration)}
-                    </span>
-                  ) : null}
-                </div>
-              ))}
+          {/* The source, as a bar the length of the thing it is.
+              It used to be a filmstrip — ten decoded thumbnails stretched
+              across the lane. They looked like information and were not: at
+              this height a frame is forty pixels of mush, and reading them
+              meant looking at a strip of colour smears rather than at the one
+              fact the row carries, which is how long the clip runs and where
+              it sits against the keys.
+              Now it is drawn like a track bar, because it IS one — a span of
+              time with a name on it. */}
+          {sourceLength > 0 ? (
+            <div className="relative mb-[4px] h-[26px]">
+              <span
+                className="absolute inset-y-[3px] flex items-center overflow-hidden rounded-[var(--ks-r-menu-item)] px-[8px]"
+                style={{
+                  left: 0,
+                  width: pct(Math.min(sourceLength, durationSec)),
+                  background: "var(--ks-row-strong)",
+                  boxShadow: "inset 0 0 0 1px var(--ks-line-strong)",
+                }}
+              >
+                <span className="ks-micro truncate" style={{ color: "var(--ks-text-dim)" }}>
+                  {clipName} · {formatTime(sourceLength)}
+                </span>
+              </span>
             </div>
           ) : null}
 

@@ -105,7 +105,8 @@ export default function EditorShell() {
   // element instead looked simpler and silently never updated — `duration`
   // goes from NaN to a number when metadata lands, and that is a mutation on
   // an object React has no reason to re-render for.
-  const clip = useFilmstrip(isVideoScreen ? sourceSrc : null, 10);
+  // 0 frames: the timeline draws a plain bar now, so only the length is read.
+  const clip = useFilmstrip(isVideoScreen ? sourceSrc : null, 0);
 
   // Read at click time, not capture time: keeping the backdrop in a ref stops
   // `exportPng` taking a new identity on every colour nudge.
@@ -911,7 +912,9 @@ export default function EditorShell() {
             onExportFpsChange={setExportFps}
             exportScale={exportScale}
             onExportScaleChange={setExportScale}
-            clip={clip}
+            // A video reports its own length; a still gets one second, so it
+            // has a bar you can see and, later, drag longer.
+            sourceLength={isVideoScreen ? clipLength : sourceSrc ? 1 : 0}
             clipName={sourceName ?? "Clip"}
           />
         ) : null}
