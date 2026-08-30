@@ -28,6 +28,7 @@ import { AspectSelect, ExportMenu } from "./framing";
 import { useLiquidGlass } from "./useLiquidGlass";
 import type { Easing } from "../animation";
 import type { AnimatableKey } from "../animation";
+import { Icon } from "./icons";
 
 type SectionId = "source" | "phone" | "mockup" | "camera" | "blur" | "background";
 
@@ -165,14 +166,7 @@ export function RightPanel({
           className="ks-press grid h-[24px] w-[24px] place-items-center opacity-60 hover:opacity-100"
           style={{ color: "var(--ks-text-dim)" }}
         >
-          <svg width="16" height="16" viewBox="0 0 14 14" fill="none" aria-hidden>
-            <path
-              d="M11.5 8.4A5 5 0 0 1 5.6 2.5a5 5 0 1 0 5.9 5.9Z"
-              stroke="currentColor"
-              strokeWidth="1.2"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <Icon name={theme === "light" ? "dark" : "light"} />
         </button>
         ) : null}
       </div>
@@ -213,9 +207,7 @@ export function RightPanel({
               className="absolute right-[8px] top-[8px] grid h-[24px] w-[24px] place-items-center rounded-full"
               style={{ background: "rgba(0,0,0,0.4)", color: "#fff" }}
             >
-              <svg width="16" height="16" viewBox="0 0 10 10" aria-hidden>
-                <path d="M1 1 9 9M9 1 1 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-              </svg>
+              <Icon name="dismiss" size={12} />
             </button>
           </div>
         ) : sourceSrc ? (
@@ -251,9 +243,7 @@ export function RightPanel({
               className="absolute right-[8px] top-[8px] grid h-[24px] w-[24px] place-items-center rounded-full"
               style={{ background: "rgba(0,0,0,0.4)", color: "#fff" }}
             >
-              <svg width="16" height="16" viewBox="0 0 10 10" aria-hidden>
-                <path d="M1 1 9 9M9 1 1 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-              </svg>
+              <Icon name="dismiss" size={12} />
             </button>
           </div>
         ) : (
@@ -263,10 +253,7 @@ export function RightPanel({
             className="flex h-[132px] w-full flex-col items-center justify-center gap-[6px] rounded-[var(--ks-r-card)] border border-dashed transition-colors"
             style={{ borderColor: "var(--ks-line-strong)", background: "var(--ks-row)" }}
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden style={{ color: "var(--ks-text-muted)" }}>
-              <path d="M8 11V2.5M5 5.5 8 2.5l3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M2.5 10.5v2a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
+            <Icon name="upload" />
             <span className="ks-label" style={{ color: "var(--ks-text-dim)" }}>
               Click to upload
             </span>
@@ -393,9 +380,7 @@ export function RightPanel({
           >
             {/* Not an icon but a drawing of a device, so it keeps its
                 portrait aspect rather than being squared onto the scale. */}
-            <svg width="16" height="16" viewBox="0 0 8 13" fill="none">
-              <rect x="0.5" y="0.5" width="7" height="12" rx="1.5" stroke="var(--ks-text-faint)" />
-            </svg>
+            <Icon name="device" size={14} />
           </span>
           <span className="min-w-0 flex-1">
             <span className="ks-label block truncate" style={{ color: "var(--ks-text)" }}>

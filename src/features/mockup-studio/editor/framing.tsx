@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Icon } from "./icons";
 
 /**
  * The aspect menu. Free ratios first, then the store-ready pixel sizes.
@@ -69,9 +70,7 @@ export function AspectSelect({
       </span>
       <span className="ks-label flex items-center gap-[6px]" style={{ color: "var(--ks-ctl-text)" }}>
         {active?.label ?? "Fill"}
-        <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden>
-          <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <Icon name="chevronDown" size={12} />
       </span>
       <select
         value={ratioId}
@@ -150,9 +149,7 @@ export function ExportMenu({
         style={{ background: "var(--ks-accent-wash)", color: "var(--ks-accent)" }}
       >
         {recording ? `Recording ${Math.round((recordProgress ?? 0) * 100)}%` : "Export"}
-        <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden>
-          <path d="M3 7.5 6 4.5 9 7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <Icon name="chevronUp" size={12} />
       </button>
 
       {menuOpen && !recording ? (

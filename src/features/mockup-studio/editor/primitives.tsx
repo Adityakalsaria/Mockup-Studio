@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { Icon } from "./icons";
 
 /* ------------------------------------------------------------------ *
  * Section
@@ -57,10 +58,7 @@ export function PanelSection({
             className="grid h-[24px] w-[24px] place-items-center opacity-55 hover:opacity-100"
             style={{ color: "var(--ks-text-dim)" }}
           >
-            <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden>
-              <path d="M2.5 4.5h4a3 3 0 1 1-3 3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M4.4 2.4 2.4 4.5l2 2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <Icon name="reset" />
           </button>
         ) : null}
 
@@ -72,19 +70,7 @@ export function PanelSection({
             className="grid h-[24px] w-[24px] place-items-center opacity-55 hover:opacity-100"
             style={{ color: "var(--ks-text-dim)" }}
           >
-            <svg
-              width="11"
-              height="11"
-              viewBox="0 0 12 12"
-              fill="none"
-              aria-hidden
-              style={{
-                transform: expanded ? "rotate(180deg)" : "none",
-                transition: "transform 140ms ease",
-              }}
-            >
-              <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <Icon name={expanded ? "collapse" : "expand"} />
           </button>
         )}
       </div>
@@ -149,15 +135,7 @@ function KeyframeButton({
         color: active ? "var(--ks-accent)" : "var(--ks-badge-text)",
       }}
     >
-      <svg width="16" height="16" viewBox="0 0 10 10" aria-hidden>
-        <path
-          d="M5 0.7 9.3 5 5 9.3 0.7 5Z"
-          fill={active ? "currentColor" : "none"}
-          stroke="currentColor"
-          strokeWidth="1"
-          strokeLinejoin="round"
-        />
-      </svg>
+      <Icon name="keyframe" />
     </button>
   );
 }
@@ -394,10 +372,7 @@ function ResetButton({
         pointerEvents: dirty ? "auto" : "none",
       }}
     >
-      <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden>
-        <path d="M2.5 4.5h4a3 3 0 1 1-3 3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M4.4 2.4 2.4 4.5l2 2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      <Icon name="reset" />
     </button>
   );
 }
@@ -721,17 +696,7 @@ export function InlineSelect<T extends string>({
           </option>
         ))}
       </select>
-      <svg
-        width="9"
-        height="9"
-        viewBox="0 0 12 12"
-        fill="none"
-        aria-hidden
-        className="pointer-events-none absolute right-0"
-        style={{ color: "var(--ks-text-muted)" }}
-      >
-        <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      <Icon name="chevronDown" size={12} />
     </span>
   );
 }

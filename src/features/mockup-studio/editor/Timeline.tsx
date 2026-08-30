@@ -10,6 +10,7 @@ import {
 import { MOTION_PRESETS, PRESET_GROUPS } from "./motionPresets";
 import type { Filmstrip } from "./useFilmstrip";
 import { EASINGS, type Easing } from "../animation";
+import { Icon } from "./icons";
 
 /**
  * The keyframe timeline.
@@ -123,14 +124,9 @@ export function Timeline({
           style={{ background: "var(--ks-accent)", color: "var(--ks-accent-text)" }}
         >
           {playing ? (
-            <svg width="16" height="16" viewBox="0 0 10 10" aria-hidden>
-              <rect x="1.5" y="1" width="2.5" height="8" fill="currentColor" />
-              <rect x="6" y="1" width="2.5" height="8" fill="currentColor" />
-            </svg>
+            <Icon name="pause" />
           ) : (
-            <svg width="16" height="16" viewBox="0 0 10 10" aria-hidden>
-              <path d="M2 1l7 4-7 4z" fill="currentColor" />
-            </svg>
+            <Icon name="play" />
           )}
         </button>
 
@@ -152,9 +148,7 @@ export function Timeline({
             style={{ borderColor: "var(--ks-hairline)", color: "var(--ks-text-dim)" }}
           >
             Motion
-            <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden>
-              <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <Icon name="chevronDown" size={12} />
           </span>
           <select
             value=""
