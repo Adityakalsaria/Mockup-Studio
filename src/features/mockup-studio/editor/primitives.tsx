@@ -137,9 +137,9 @@ function KeyframeButton({
  * feedback, and double-click types an exact value for the cases scrubbing
  * cannot hit on purpose.
  */
-/** Just under the row height, so the knob nearly fills the track the way
-    Apple's slider handle does rather than floating in the middle of it. */
-const KNOB = 26;
+/** Sized to sit inside the fill capsule, which is itself inset 3px in a 36px
+    row — so 30 tall, less 3px of clearance top and bottom. */
+const KNOB = 22;
 
 export function ParamRow({
   label,
@@ -223,7 +223,36 @@ export function ParamRow({
   const shown = formatValue(value, decimals);
 
   return (
-    <div className="flex w-full items-stretch gap-[var(--ks-col-gap)]">
+    <div className="flex w-full flex-col gap-[var(--ks-space-1)]">
+      {/* The name sits above the track, with the row's two buttons beside it.
+          It used to be inside the control, which was fine while the control
+          was a bar and stopped being fine the moment it grew a knob: at a low
+          value the knob parks on top of the word. Above, the track is free to
+          be nothing but a track, and it gets the full width. */}
+      <div className="flex items-center gap-[var(--ks-space-2)] px-[var(--ks-space-1)]">
+        <span className="ks-label min-w-0 flex-1 truncate" style={{ color: "var(--ks-text-dim)" }}>
+          {label}
+        </span>
+
+        {animatable ? (
+          <KeyframeButton active={Boolean(keyframed)} onClick={onKeyframe} label={label} />
+        ) : null}
+
+        {defaultValue !== undefined ? (
+          <ResetButton
+            label={label}
+            // Compared with a tolerance, not `!==`. These values arrive from
+            // drag arithmetic and from interpolated keyframes, so a row
+            // sitting visually at its default is routinely a float hair away
+            // from it, and an exact test would leave the button lit with
+            // nothing to do.
+            dirty={Math.abs(value - defaultValue) > 1e-6}
+            shown={formatValue(defaultValue, decimals)}
+            onClick={() => onChange(defaultValue)}
+          />
+        ) : null}
+      </div>
+
       <div
         role="slider"
         tabIndex={0}
@@ -231,121 +260,77 @@ export function ParamRow({
         aria-valuenow={value}
         aria-valuemin={min}
         aria-valuemax={max}
+        // The number is not drawn any more, so the row has to say it somewhere
+        // for anyone who needs it exactly. Double-click still opens the field.
+        title={`${label}: ${shown}${suffix ?? ""} — drag to change, double-click to type`}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
+        onDoubleClick={() => {
+          setDraft(shown);
+          setEditing(true);
+        }}
         onKeyDown={(event) => {
           const dir = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
           if (!dir) return;
           event.preventDefault();
           onChange(clamp(quantise(value + dir * step * (event.shiftKey ? 10 : 1))));
         }}
-        className="ks-scrub relative h-[var(--ks-row-h)] min-w-0 flex-1 overflow-hidden rounded-[var(--ks-r)] focus:outline-none focus-visible:ring-1"
+        className="ks-scrub relative h-[var(--ks-track-h)] w-full overflow-hidden rounded-full focus:outline-none focus-visible:ring-1"
         style={{ background: "var(--ks-ctl)" }}
       >
-        {/* The filled portion is accent-tinted rather than grey, which is the
-            one thing worth taking from Apple's slider here. Theirs fills with
-            accents/blue at full strength against a neutral track; a wash is
-            used instead because this panel stacks fifteen of these rows and
-            fifteen saturated bars would read as an alert rather than a value.
+        {/* The fill is a CAPSULE and the knob is its end cap.
+            Not a square bar with a knob floating on the boundary: in the
+            control this is taken from, the knob is where the fill stops — the
+            two are one object, and the rounded end you can see is the knob
+            itself. Drawing them apart is what made the first attempt read as a
+            progress bar with a dot sitting on it.
 
-            The rest of their slider does not transfer: it is a 6px track with
-            a 38x24 knob in a 52px row, with no room for the label or the
-            number. Ours carries all three in 36px, and swapping it would cost
-            the readout to gain a knob. */}
+            The knob lives INSIDE the fill, pinned to its right edge, so it can
+            never drift off the end or overhang the track. That is also why the
+            fill carries a minimum width: at zero there would otherwise be no
+            capsule for the cap to sit in. */}
         <span
           aria-hidden
-          className="absolute inset-y-0 left-0"
-          style={{ width: `${fillPct}%`, background: "var(--ks-ctl-fill)" }}
-        />
-        {/* The knob, at the end of the fill.
-            A filled bar says how far along the value is; a knob says the bar
-            is a thing you can take hold of. Without it the row reads as a
-            progress indicator that happens to respond to dragging.
-
-            It travels inside a track inset by half its own width, so its
-            centre runs from half-in to half-out and it never hangs over
-            either end — which is what happens if you position it at the fill
-            percentage directly. */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0"
-          style={{ left: KNOB / 2 + 3, right: KNOB / 2 + 3 }}
+          className="absolute inset-y-[3px] left-[3px] rounded-full"
+          style={{
+            width: `calc(${fillPct}% - 6px)`,
+            minWidth: KNOB + 6,
+            background: "var(--ks-ctl-fill)",
+          }}
         >
           <span
-            className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+            className="absolute right-[3px] top-1/2 -translate-y-1/2 rounded-full"
             style={{
-              left: `${fillPct}%`,
               width: KNOB,
               height: KNOB,
               background: "var(--ks-surface-solid)",
-              // The ring reads as the edge of a physical cap; the drop is what
-              // puts it ON the track rather than in it.
-              boxShadow:
-                "0 1px 3px rgba(0,0,0,0.18), 0 0 0 0.5px rgba(0,0,0,0.06)",
+              // The ring is the edge of a cap; the drop is what puts it on the
+              // fill rather than in it.
+              boxShadow: "0 1px 3px rgba(0,0,0,0.18), 0 0 0 0.5px rgba(0,0,0,0.06)",
             }}
           />
         </span>
-        {/* Label and value in one control, rather than a slider and a
-            separate readout beside it.
-            The pill held a number the row is already about, and it cost 62px
-            of a 282px panel — a quarter of the width, on every row, to repeat
-            what the fill behind it was showing. Inside, the number sits at the
-            end of the thing it belongs to and the track gets the space back. */}
-        <span className="relative flex h-full items-center gap-[8px] pl-[var(--ks-ctl-pad)] pr-[var(--ks-ctl-pad)]">
-          <span className="ks-label min-w-0 flex-1 truncate" style={{ color: "var(--ks-ctl-text)" }}>
-            {label}
-          </span>
-          {editing ? (
-            <input
-              autoFocus
-              value={draft}
-              onChange={(event) => setDraft(event.currentTarget.value)}
-              onBlur={commitDraft}
-              onPointerDown={(event) => event.stopPropagation()}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") commitDraft();
-                if (event.key === "Escape") setEditing(false);
-              }}
-              className="ks-value w-[56px] shrink-0 bg-transparent text-right focus:outline-none"
-              style={{ color: "var(--ks-text)" }}
-            />
-          ) : (
-            <span
-              // The scrub owns the pointer, so the double-click that opens the
-              // field has to be caught here and kept from starting a drag.
-              onDoubleClick={(event) => {
-                event.stopPropagation();
-                setDraft(shown);
-                setEditing(true);
-              }}
-              className="ks-value shrink-0 tabular-nums"
-              style={{ color: "var(--ks-text)" }}
-            >
-              {shown}
-              {suffix ?? ""}
-            </span>
-          )}
-        </span>
+
+        {/* Only while typing. The rest of the time the track carries no text,
+            which is the whole point of moving the name out of it. */}
+        {editing ? (
+          <input
+            autoFocus
+            value={draft}
+            onChange={(event) => setDraft(event.currentTarget.value)}
+            onBlur={commitDraft}
+            onPointerDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") commitDraft();
+              if (event.key === "Escape") setEditing(false);
+            }}
+            className="ks-value absolute inset-0 w-full bg-transparent px-[var(--ks-ctl-pad)] text-right focus:outline-none"
+            style={{ color: "var(--ks-text)", background: "var(--ks-ctl)" }}
+          />
+        ) : null}
       </div>
-
-      {animatable ? (
-        <KeyframeButton active={Boolean(keyframed)} onClick={onKeyframe} label={label} />
-      ) : null}
-
-      {defaultValue !== undefined ? (
-        <ResetButton
-          label={label}
-          // Compared with a tolerance, not `!==`. These values arrive from
-          // drag arithmetic and from interpolated keyframes, so a row sitting
-          // visually at its default is routinely a float hair away from it,
-          // and an exact test would leave the button lit with nothing to do.
-          dirty={Math.abs(value - defaultValue) > 1e-6}
-          shown={formatValue(defaultValue, decimals)}
-          onClick={() => onChange(defaultValue)}
-        />
-      ) : null}
     </div>
   );
 }
