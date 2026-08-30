@@ -137,9 +137,13 @@ function KeyframeButton({
  * feedback, and double-click types an exact value for the cases scrubbing
  * cannot hit on purpose.
  */
-/** Sized to sit inside the fill capsule, which is itself inset 3px in a 36px
-    row — so 30 tall, less 3px of clearance top and bottom. */
-const KNOB = 22;
+/** The knob sits INSIDE the fill with clearance, not flush against its edges.
+    Track 30, fill inset 3 so 24 tall, knob 20 — 2px of capsule visible above
+    and below it. Flush, the knob was exactly the fill's height and its shadow
+    spilled past, which read as the cap being too big for the bar it caps. */
+const KNOB = 20;
+/** Same 2px, so the gap around the knob is even on all four sides. */
+const KNOB_INSET = 2;
 
 export function ParamRow({
   label,
@@ -279,19 +283,21 @@ export function ParamRow({
           className="absolute inset-y-[3px] left-[3px] rounded-full"
           style={{
             width: `calc(${fillPct}% - 6px)`,
-            minWidth: KNOB + 6,
+            minWidth: KNOB + KNOB_INSET * 2,
             background: "var(--ks-ctl-fill)",
           }}
         >
           <span
-            className="absolute right-[3px] top-1/2 -translate-y-1/2 rounded-full"
+            className="absolute top-1/2 -translate-y-1/2 rounded-full"
             style={{
+              right: KNOB_INSET,
               width: KNOB,
               height: KNOB,
               background: "var(--ks-surface-solid)",
-              // The ring is the edge of a cap; the drop is what puts it on the
-              // fill rather than in it.
-              boxShadow: "0 1px 3px rgba(0,0,0,0.18), 0 0 0 0.5px rgba(0,0,0,0.06)",
+              // Tighter than before. A drop big enough to spread past the
+              // capsule made the knob look oversized for it; this one only has
+              // to lift the cap off the fill by a hair.
+              boxShadow: "0 1px 2px rgba(0,0,0,0.12)",
             }}
           />
         </span>
