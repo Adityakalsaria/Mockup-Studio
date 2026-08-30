@@ -794,16 +794,6 @@ export default function EditorShell() {
           recordProgress={recordProgress}
           theme={theme}
           onToggleTheme={toggleTheme}
-          onResetCamera={() =>
-            change({
-              xAxis: DEFAULT_EDITOR_STATE.xAxis,
-              yAxis: DEFAULT_EDITOR_STATE.yAxis,
-              zAxis: DEFAULT_EDITOR_STATE.zAxis,
-              zoom: DEFAULT_EDITOR_STATE.zoom,
-              panX: DEFAULT_EDITOR_STATE.panX,
-              panY: DEFAULT_EDITOR_STATE.panY,
-            })
-          }
           keyedNow={keyedNow}
           onToggleKey={toggleKey}
         />
@@ -931,16 +921,6 @@ export default function EditorShell() {
           recordProgress={recordProgress}
           theme={theme}
           onToggleTheme={toggleTheme}
-          onResetCamera={() =>
-            change({
-              xAxis: DEFAULT_EDITOR_STATE.xAxis,
-              yAxis: DEFAULT_EDITOR_STATE.yAxis,
-              zAxis: DEFAULT_EDITOR_STATE.zAxis,
-              zoom: DEFAULT_EDITOR_STATE.zoom,
-              panX: DEFAULT_EDITOR_STATE.panX,
-              panY: DEFAULT_EDITOR_STATE.panY,
-            })
-          }
           keyedNow={keyedNow}
           onToggleKey={toggleKey}
         />

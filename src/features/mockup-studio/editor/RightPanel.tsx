@@ -59,7 +59,6 @@ export function RightPanel({
   recordProgress,
   theme,
   onToggleTheme,
-  onResetCamera,
   keyedNow,
   onToggleKey,
 }: {
@@ -107,7 +106,6 @@ export function RightPanel({
   recordProgress: number | null;
   theme: "light" | "dark";
   onToggleTheme: () => void;
-  onResetCamera: () => void;
   /** Properties with a keyframe sitting exactly on the playhead. */
   keyedNow: Partial<Record<AnimatableKey, boolean>>;
   onToggleKey: (property: AnimatableKey) => void;
@@ -458,7 +456,6 @@ export function RightPanel({
         title="Camera"
         expanded={isOpen("camera")}
         onToggle={() => toggle("camera")}
-        onReset={onResetCamera}
       >
         <>
             {/* Where the rotation comes from. It lives here, directly above the
@@ -509,7 +506,6 @@ export function RightPanel({
         title="Background"
         expanded={isOpen("background")}
         onToggle={() => toggle("background")}
-        onReset={() => onChange({ background: DEFAULT_BACKGROUND })}
       >
         {/* A row, not a five-segment strip.
             Five segments across 288px gave each one 55px, so every label was

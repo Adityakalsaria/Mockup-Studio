@@ -26,6 +26,18 @@ const LABEL_WIDTH = 132;
 /* Figma's track rows. Tall enough to hold a bar with a label inside it. */
 const LANE_H = 26;
 
+/** Between toolbar groups. A gap alone says "these are apart"; a rule says
+    "and they are about different things". */
+function Divider() {
+  return (
+    <span
+      aria-hidden
+      className="h-[18px] w-px shrink-0"
+      style={{ background: "var(--ks-line)" }}
+    />
+  );
+}
+
 export function Timeline({
   animation,
   playhead,
@@ -166,8 +178,13 @@ export function Timeline({
         borderColor: "var(--ks-line-strong)",
       }}
     >
-      {/* Transport */}
-      <div className="flex shrink-0 items-center gap-[12px]">
+      {/* The toolbar, in groups.
+          It was nine controls in one flat row at a single gap, so nothing
+          said which of them belonged together and the whole strip read as
+          small print. Now: transport, then motion, then output, then view —
+          tight inside a group, wide between them, with a hairline where the
+          subject changes. */}
+      <div className="flex shrink-0 items-center gap-[var(--ks-space-4)]">
         <button
           type="button"
           onClick={onTogglePlay}
@@ -183,22 +200,24 @@ export function Timeline({
         </button>
 
         <span
-          className="ks-label tabular-nums"
-          style={{ color: "var(--ks-text-dim)", fontVariantNumeric: "tabular-nums" }}
+          className="ks-value tabular-nums"
+          style={{ color: "var(--ks-text)", fontVariantNumeric: "tabular-nums" }}
         >
           {formatTime(playhead)} / {formatTime(durationSec)}
         </span>
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-[var(--ks-space-2)]">
           <EasingPicker value={animation.easing} onChange={onEasingChange} />
         </div>
 
-        <label className="ks-micro flex items-center gap-[4px]" style={{ color: "var(--ks-text-faint)" }}>
+        <Divider />
+
+        <label className="ks-micro flex items-center gap-[var(--ks-space-2)]" style={{ color: "var(--ks-text-muted)" }}>
           Res
           <select
             value={exportScale}
             onChange={(event) => onExportScaleChange(Number(event.currentTarget.value))}
-            className="ks-label rounded-[var(--ks-r-sm)] px-[4px] py-[4px] focus:outline-none"
+            className="ks-label rounded-[var(--ks-r)] px-[var(--ks-space-3)] py-[var(--ks-space-1)] focus:outline-none"
             style={{ background: "var(--ks-ctl)", color: "var(--ks-ctl-text)" }}
           >
             <option value={1}>1x</option>
@@ -208,12 +227,12 @@ export function Timeline({
           </select>
         </label>
 
-        <label className="ks-micro flex items-center gap-[4px]" style={{ color: "var(--ks-text-faint)" }}>
+        <label className="ks-micro flex items-center gap-[var(--ks-space-2)]" style={{ color: "var(--ks-text-muted)" }}>
           FPS
           <select
             value={exportFps}
             onChange={(event) => onExportFpsChange(Number(event.currentTarget.value))}
-            className="ks-label rounded-[var(--ks-r-sm)] px-[4px] py-[4px] focus:outline-none"
+            className="ks-label rounded-[var(--ks-r)] px-[var(--ks-space-3)] py-[var(--ks-space-1)] focus:outline-none"
             style={{ background: "var(--ks-ctl)", color: "var(--ks-ctl-text)" }}
           >
             <option value={30}>30</option>
@@ -221,7 +240,9 @@ export function Timeline({
           </select>
         </label>
 
-        <label className="ks-micro flex items-center gap-[8px]" style={{ color: "var(--ks-text-faint)" }}>
+        <Divider />
+
+        <label className="ks-micro flex items-center gap-[var(--ks-space-2)]" style={{ color: "var(--ks-text-muted)" }}>
           Duration
           <input
             type="number"
@@ -233,7 +254,7 @@ export function Timeline({
               const next = Number(event.currentTarget.value);
               if (Number.isFinite(next)) onDurationChange(Math.min(30, Math.max(0.5, next)));
             }}
-            className="ks-label w-[46px] rounded-[var(--ks-r-sm)] px-[4px] py-[4px] text-right focus:outline-none"
+            className="ks-label w-[52px] rounded-[var(--ks-r)] px-[var(--ks-space-3)] py-[var(--ks-space-1)] text-right focus:outline-none"
             style={{ background: "var(--ks-ctl)", color: "var(--ks-ctl-text)" }}
           />
           s
@@ -244,7 +265,9 @@ export function Timeline({
             centred rather than the left edge, because the playhead is where
             you are working — anchoring to zero would push the thing you were
             looking at off screen every time you zoomed in. */}
-        <label className="ks-micro flex items-center gap-[8px]" style={{ color: "var(--ks-text-faint)" }}>
+        <Divider />
+
+        <label className="ks-micro flex items-center gap-[var(--ks-space-2)]" style={{ color: "var(--ks-text-muted)" }}>
           Zoom
           <input
             type="range"
@@ -264,7 +287,7 @@ export function Timeline({
           onClick={() => zoomAround(1)}
           disabled={zoom === 1}
           title="Fit the whole timeline"
-          className="ks-micro rounded-[var(--ks-r-sm)] px-[8px] py-[4px] disabled:opacity-40"
+          className="ks-press ks-label rounded-[var(--ks-r)] px-[var(--ks-space-3)] py-[var(--ks-space-1)] disabled:opacity-40"
           style={{ background: "var(--ks-ctl)", color: "var(--ks-ctl-text)" }}
         >
           Fit
@@ -274,7 +297,7 @@ export function Timeline({
           type="button"
           onClick={onClear}
           disabled={!tracks.length}
-          className="ks-micro rounded-[var(--ks-r-sm)] px-[8px] py-[4px] disabled:opacity-40"
+          className="ks-press ks-label rounded-[var(--ks-r)] px-[var(--ks-space-3)] py-[var(--ks-space-1)] disabled:opacity-40"
           style={{ background: "var(--ks-badge)", color: "var(--ks-text-dim)" }}
         >
           Clear
