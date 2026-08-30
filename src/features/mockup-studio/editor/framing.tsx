@@ -70,7 +70,7 @@ export function AspectSelect({
       </span>
       <span className="ks-label flex items-center gap-[8px]" style={{ color: "var(--ks-ctl-text)" }}>
         {active?.label ?? "Fill"}
-        <Icon name="chevronDown" size={12} />
+        <Icon name="chevronDown" />
       </span>
       <select
         value={ratioId}
@@ -149,7 +149,7 @@ export function ExportMenu({
         style={{ background: "var(--ks-accent-wash)", color: "var(--ks-accent)" }}
       >
         {recording ? `Recording ${Math.round((recordProgress ?? 0) * 100)}%` : "Export"}
-        <Icon name="chevronUp" size={12} />
+        <Icon name="chevronUp" />
       </button>
 
       {menuOpen && !recording ? (

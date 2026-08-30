@@ -56,13 +56,14 @@ export const ICON = {
 export type IconName = keyof typeof ICON;
 
 /**
- * 16 is the only size. Font Awesome's glyphs are drawn on a 512 grid with
+ * 14 is the only size. Font Awesome's glyphs are drawn on a 512 grid with
  * their own optical padding, so a box is not needed around them the way it
- * was around the hand-drawn ones.
+ * was around the hand-drawn ones — and one size means an icon never has to be
+ * argued about at the call site.
  */
 export function Icon({
   name,
-  size = 16,
+  size = 14,
   className,
 }: {
   name: IconName;

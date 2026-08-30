@@ -87,23 +87,6 @@ export function PanelSection({
  * ------------------------------------------------------------------ */
 
 /** The small key-cap beside a label: DRAG, SCROLL, SPACE DRAG. */
-function HintBadge({ text }: { text: string }) {
-  return (
-    <span
-      className="ml-[8px] shrink-0 rounded-[4px] px-[4px] py-[4px]"
-      style={{
-        background: "var(--ks-badge)",
-        color: "var(--ks-badge-text)",
-        fontSize: 11,
-        lineHeight: "15px",
-        letterSpacing: "-0.04px",
-        fontWeight: 500,
-      }}
-    >
-      {text}
-    </span>
-  );
-}
 
 /**
  * The diamond that ends every animatable row. Filled and orange means the
@@ -153,7 +136,6 @@ function KeyframeButton({
  */
 export function ParamRow({
   label,
-  hint,
   value,
   min,
   max,
@@ -167,7 +149,6 @@ export function ParamRow({
   defaultValue,
 }: {
   label: string;
-  hint?: string;
   value: number;
   min: number;
   max: number;
@@ -275,7 +256,6 @@ export function ParamRow({
           <span className="ks-label truncate" style={{ color: "var(--ks-ctl-text)" }}>
             {label}
           </span>
-          {hint ? <HintBadge text={hint} /> : null}
         </span>
       </div>
 
@@ -696,7 +676,7 @@ export function InlineSelect<T extends string>({
           </option>
         ))}
       </select>
-      <Icon name="chevronDown" size={12} />
+      <Icon name="chevronDown" />
     </span>
   );
 }

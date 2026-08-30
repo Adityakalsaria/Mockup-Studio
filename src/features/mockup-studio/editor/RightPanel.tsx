@@ -207,7 +207,7 @@ export function RightPanel({
               className="absolute right-[8px] top-[8px] grid h-[24px] w-[24px] place-items-center rounded-full"
               style={{ background: "rgba(0,0,0,0.4)", color: "#fff" }}
             >
-              <Icon name="dismiss" size={12} />
+              <Icon name="dismiss" />
             </button>
           </div>
         ) : sourceSrc ? (
@@ -243,7 +243,7 @@ export function RightPanel({
               className="absolute right-[8px] top-[8px] grid h-[24px] w-[24px] place-items-center rounded-full"
               style={{ background: "rgba(0,0,0,0.4)", color: "#fff" }}
             >
-              <Icon name="dismiss" size={12} />
+              <Icon name="dismiss" />
             </button>
           </div>
         ) : (
@@ -380,7 +380,7 @@ export function RightPanel({
           >
             {/* Not an icon but a drawing of a device, so it keeps its
                 portrait aspect rather than being squared onto the scale. */}
-            <Icon name="device" size={14} />
+            <Icon name="device" />
           </span>
           <span className="min-w-0 flex-1">
             <span className="ks-label block truncate" style={{ color: "var(--ks-text)" }}>
@@ -501,12 +501,12 @@ export function RightPanel({
               </div>
             ) : (
               <>
-            <ParamRow label="X axis" hint="Drag" value={state.xAxis} {...RANGES.xAxis} defaultValue={DEFAULT_EDITOR_STATE.xAxis} keyframed={keyedNow.xAxis} onKeyframe={() => onToggleKey("xAxis")} onChange={(xAxis) => onChange({ xAxis })} />
-            <ParamRow label="Y axis" hint="Drag" value={state.yAxis} {...RANGES.yAxis} defaultValue={DEFAULT_EDITOR_STATE.yAxis} keyframed={keyedNow.yAxis} onKeyframe={() => onToggleKey("yAxis")} onChange={(yAxis) => onChange({ yAxis })} />
+            <ParamRow label="X axis" value={state.xAxis} {...RANGES.xAxis} defaultValue={DEFAULT_EDITOR_STATE.xAxis} keyframed={keyedNow.xAxis} onKeyframe={() => onToggleKey("xAxis")} onChange={(xAxis) => onChange({ xAxis })} />
+            <ParamRow label="Y axis" value={state.yAxis} {...RANGES.yAxis} defaultValue={DEFAULT_EDITOR_STATE.yAxis} keyframed={keyedNow.yAxis} onKeyframe={() => onToggleKey("yAxis")} onChange={(yAxis) => onChange({ yAxis })} />
             <ParamRow label="Z axis" value={state.zAxis} {...RANGES.zAxis} defaultValue={DEFAULT_EDITOR_STATE.zAxis} keyframed={keyedNow.zAxis} onKeyframe={() => onToggleKey("zAxis")} onChange={(zAxis) => onChange({ zAxis })} />
               </>
             )}
-            <ParamRow label="Zoom" hint="Scroll" value={state.zoom} {...RANGES.zoom} defaultValue={DEFAULT_EDITOR_STATE.zoom} decimals={2} keyframed={keyedNow.zoom} onKeyframe={() => onToggleKey("zoom")} onChange={(zoom) => onChange({ zoom })} />
+            <ParamRow label="Zoom" value={state.zoom} {...RANGES.zoom} defaultValue={DEFAULT_EDITOR_STATE.zoom} decimals={2} keyframed={keyedNow.zoom} onKeyframe={() => onToggleKey("zoom")} onChange={(zoom) => onChange({ zoom })} />
             {/* No "Space drag" hint on the pans: the canvas only handles
                 drag-rotate and wheel-zoom, so panning is these rows only. */}
             <ParamRow label="Pan X" value={state.panX} {...RANGES.panX} defaultValue={DEFAULT_EDITOR_STATE.panX} decimals={2} keyframed={keyedNow.panX} onKeyframe={() => onToggleKey("panX")} onChange={(panX) => onChange({ panX })} />

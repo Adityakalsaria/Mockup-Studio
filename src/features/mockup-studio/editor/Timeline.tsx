@@ -148,7 +148,7 @@ export function Timeline({
             style={{ borderColor: "var(--ks-hairline)", color: "var(--ks-text-dim)" }}
           >
             Motion
-            <Icon name="chevronDown" size={12} />
+            <Icon name="chevronDown" />
           </span>
           <select
             value=""
