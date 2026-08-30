@@ -329,7 +329,7 @@ export function ParamRow({
               right: KNOB_INSET,
               width: KNOB,
               height: KNOB,
-              background: "var(--ks-surface-solid)",
+              background: "var(--ks-knob)",
               // Tighter than before. A drop big enough to spread past the
               // capsule made the knob look oversized for it; this one only has
               // to lift the cap off the fill by a hair.
@@ -598,7 +598,7 @@ export function Toggle({
         className="absolute left-[2px] top-[2px] h-[24px] w-[38px] rounded-full"
         style={{
           transform: checked ? "translateX(22px)" : "translateX(0)",
-          background: "#FFFFFF",
+          background: "var(--ks-knob)",
           transition: "transform 180ms var(--ks-ease-out)",
         }}
       />

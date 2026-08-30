@@ -55,7 +55,16 @@ export const EDITOR_THEME_CSS = `
 
   /* Control-row internals, taken literally from the frame. */
   --ks-ctl: rgba(0, 0, 0, 0.04);
-  --ks-ctl-fill: rgba(0, 122, 255, 0.16);
+  /* The accent at full strength, not a wash of it. A 16% tint composited to
+     #D6EAFF and a 28% one to #17395D in dark -- a dull navy that read as a
+     disabled control rather than a filled one. An iOS slider fill IS the
+     accent colour; the track behind it carries the contrast. */
+  /* Knobs are white in BOTH themes, like every iOS slider and switch. Tying
+     them to the panel surface made the dark one #1C1C1E, and a near-black cap
+     on a full-strength blue fill reads as a hole punched in the track rather
+     than as the thing you grab. */
+  --ks-knob: #FFFFFF;
+  --ks-ctl-fill: var(--ks-accent);
   --ks-ctl-text: rgba(0, 0, 0, 0.6);
   --ks-badge: rgba(0, 0, 0, 0.08);
   /* The switch's off track, measured from Apple's kit (labels/tertiary).
@@ -233,7 +242,8 @@ export const EDITOR_THEME_CSS = `
   --ks-accent-wash-soft: rgba(0, 145, 255, 0.12);
 
   --ks-ctl: rgba(255, 255, 255, 0.05);
-  --ks-ctl-fill: rgba(10, 132, 255, 0.28);
+  --ks-knob: #FFFFFF;
+  --ks-ctl-fill: var(--ks-accent);
   --ks-ctl-text: rgba(255, 255, 255, 0.62);
   --ks-badge: rgba(255, 255, 255, 0.1);
   --ks-switch-off: rgba(120, 120, 128, 0.36);

@@ -1384,16 +1384,20 @@ function PhoneScene({
   return (
     <group ref={groupRef}>
       {USE_GLB ? (
-        <Suspense
-          fallback={
-            <ProceduralPhoneScene
-              rail={rail}
-              screenTexture={screenTexture}
-              device={device}
-              screenFit={screenFit}
-            />
-          }
-        >
+        /*
+         * Nothing while the model loads, not a stand-in phone.
+         *
+         * This used to fall back to the procedural body, which drew a
+         * featureless black slab in the model's place -- so the stage showed a
+         * phone that was not the phone, and then swapped it for the real one
+         * once the GLB arrived. It read as a box appearing out of nowhere,
+         * because that is what it was.
+         *
+         * The loading capsule over the stage covers the "is it working"
+         * question now, which is the job the stand-in was doing badly. An
+         * empty stage plus an honest label beats a decoy.
+         */
+        <Suspense fallback={null}>
           <GLBPhoneScene
             screenTexture={screenTexture}
             device={device}
