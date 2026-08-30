@@ -32,7 +32,7 @@ export interface Animation {
 
 export const DEFAULT_ANIMATION: Animation = {
   durationSec: 3,
-  easing: "smooth",
+  easing: { kind: "smooth" },
   tracks: {},
 };
 
@@ -65,30 +65,58 @@ export function removeKey(keys: Keyframe[] | undefined, time: number): Keyframe[
   return (keys ?? []).filter((k) => Math.abs(k.time - time) > KEY_EPSILON);
 }
 
+/**
+ * An easing, as parameters rather than a name.
+ *
+ * It used to be a string union, which is fine while every curve is one the
+ * code already knows. It stops being fine the moment someone wants to drag a
+ * control point: a custom bezier is four numbers, and a spring is two, and
+ * neither fits in an identifier. So the value carries its own parameters and
+ * the named curves become presets that produce one.
+ */
 export type Easing =
-  | "smooth"
-  | "linear"
-  | "easeIn"
-  | "easeOut"
-  | "easeInOut"
-  | "easeInBack"
-  | "easeOutBack"
-  | "easeInOutBack"
-  | "gentle"
-  | "quick";
+  /** Monotone spline through the keys — not a curve applied to a segment, but
+      a different interpolation entirely, which is why it has no parameters. */
+  | { kind: "smooth" }
+  | { kind: "cubic"; p: [number, number, number, number] }
+  | { kind: "spring"; damping: number; frequency: number };
 
-export const EASINGS: Array<{ id: Easing; label: string }> = [
-  { id: "smooth", label: "Smooth" },
-  { id: "linear", label: "Linear" },
-  { id: "easeIn", label: "Ease in" },
-  { id: "easeOut", label: "Ease out" },
-  { id: "easeInOut", label: "Ease in and out" },
-  { id: "easeInBack", label: "Ease in back" },
-  { id: "easeOutBack", label: "Ease out back" },
-  { id: "easeInOutBack", label: "Ease in and out back" },
-  { id: "gentle", label: "Gentle" },
-  { id: "quick", label: "Quick" },
+export const EASING_PRESETS: Array<{ id: string; label: string; easing: Easing }> = [
+  { id: "smooth", label: "Smooth", easing: { kind: "smooth" } },
+  { id: "linear", label: "Linear", easing: { kind: "cubic", p: [0, 0, 1, 1] } },
+  { id: "easeIn", label: "Ease in", easing: { kind: "cubic", p: [0.42, 0, 1, 1] } },
+  { id: "easeOut", label: "Ease out", easing: { kind: "cubic", p: [0, 0, 0.58, 1] } },
+  { id: "easeInOut", label: "Ease in and out", easing: { kind: "cubic", p: [0.42, 0, 0.58, 1] } },
+  // The "back" curves put a control point outside 0..1, which is what makes
+  // them pull away before they go or overshoot before they land.
+  { id: "easeInBack", label: "Ease in back", easing: { kind: "cubic", p: [0.36, 0, 0.66, -0.56] } },
+  { id: "easeOutBack", label: "Ease out back", easing: { kind: "cubic", p: [0.34, 1.56, 0.64, 1] } },
+  { id: "easeInOutBack", label: "Ease in and out back", easing: { kind: "cubic", p: [0.68, -0.6, 0.32, 1.6] } },
+  { id: "gentle", label: "Gentle", easing: { kind: "spring", damping: 0.8, frequency: 1.1 } },
+  { id: "quick", label: "Quick", easing: { kind: "spring", damping: 0.62, frequency: 1.7 } },
 ];
+
+export const DEFAULT_EASING: Easing = { kind: "smooth" };
+
+/** Which preset an easing IS, if any — so the picker can show a name rather
+    than four numbers whenever the value happens to match one. */
+export function easingPresetId(easing: Easing): string | null {
+  const match = EASING_PRESETS.find((preset) => {
+    const a = preset.easing;
+    if (a.kind !== easing.kind) return false;
+    if (a.kind === "cubic" && easing.kind === "cubic") {
+      return a.p.every((v, i) => Math.abs(v - easing.p[i]) < 1e-6);
+    }
+    if (a.kind === "spring" && easing.kind === "spring") {
+      return (
+        Math.abs(a.damping - easing.damping) < 1e-6 &&
+        Math.abs(a.frequency - easing.frequency) < 1e-6
+      );
+    }
+    return true;
+  });
+  return match?.id ?? null;
+}
 
 /**
  * A CSS-style cubic bezier, as a function of t.
@@ -136,21 +164,17 @@ function cubicBezier(x1: number, y1: number, x2: number, y2: number) {
 /**
  * An under-damped spring, in closed form.
  *
- * Figma's Gentle and Quick are springs rather than beziers, and the difference
- * is visible: a spring overshoots and settles rather than easing to a stop,
- * and no bezier reproduces the settle. Normalised by its own value at t=1 so
- * the segment still lands exactly on its keyframe — a spring left unnormalised
- * ends near 1 but not on it, which shows up as a small jump at every interior
- * key.
+ * Normalised by its own value at t=1 so a segment still lands exactly on its
+ * keyframe — a spring left unnormalised ends near 1 but not on it, which shows
+ * up as a small jump at every interior key.
  */
 function spring(dampingRatio: number, frequency: number) {
+  const zeta = Math.min(0.999, Math.max(0.05, dampingRatio));
   const raw = (t: number) => {
     const w = frequency * Math.PI * 2;
-    const wd = w * Math.sqrt(1 - dampingRatio * dampingRatio);
+    const wd = w * Math.sqrt(1 - zeta * zeta);
     return (
-      1 -
-      Math.exp(-dampingRatio * w * t) *
-        (Math.cos(wd * t) + ((dampingRatio * w) / wd) * Math.sin(wd * t))
+      1 - Math.exp(-zeta * w * t) * (Math.cos(wd * t) + ((zeta * w) / wd) * Math.sin(wd * t))
     );
   };
   const end = raw(1);
@@ -161,25 +185,11 @@ function spring(dampingRatio: number, frequency: number) {
   };
 }
 
-const CURVES: Record<Exclude<Easing, "smooth">, (t: number) => number> = {
-  linear: (t) => t,
-  // The standard CSS quartet.
-  easeIn: cubicBezier(0.42, 0, 1, 1),
-  easeOut: cubicBezier(0, 0, 0.58, 1),
-  easeInOut: cubicBezier(0.42, 0, 0.58, 1),
-  // "Back" curves pull away before they go, or overshoot before they land.
-  // Their control points sit outside 0..1, which is what produces the
-  // anticipation — and the reason the solver needs its bisection fallback.
-  easeInBack: cubicBezier(0.36, 0, 0.66, -0.56),
-  easeOutBack: cubicBezier(0.34, 1.56, 0.64, 1),
-  easeInOutBack: cubicBezier(0.68, -0.6, 0.32, 1.6),
-  gentle: spring(0.8, 1.1),
-  quick: spring(0.62, 1.7),
-};
-
 /** The curve itself, so a picker can draw what it is offering. */
 export function easingCurve(easing: Easing): (t: number) => number {
-  return easing === "smooth" ? (t) => t : CURVES[easing];
+  if (easing.kind === "smooth") return (t) => t;
+  if (easing.kind === "spring") return spring(easing.damping, easing.frequency);
+  return cubicBezier(easing.p[0], easing.p[1], easing.p[2], easing.p[3]);
 }
 
 /**
@@ -251,7 +261,7 @@ function hermite(a: Keyframe, b: Keyframe, ma: number, mb: number, time: number)
 export function sampleTrack(
   keys: Keyframe[] | undefined,
   time: number,
-  easing: Easing = "smooth",
+  easing: Easing = DEFAULT_EASING,
 ): number | undefined {
   if (!keys?.length) return undefined;
   if (keys.length === 1) return keys[0].value;
@@ -268,12 +278,12 @@ export function sampleTrack(
   const span = b.time - a.time;
   if (span <= 0) return b.value;
 
-  if (easing === "smooth") {
+  if (easing.kind === "smooth") {
     const m = monotoneTangents(keys);
     return hermite(a, b, m[i], m[i + 1], time);
   }
   const t = (time - a.time) / span;
-  return a.value + (b.value - a.value) * CURVES[easing](t);
+  return a.value + (b.value - a.value) * easingCurve(easing)(t);
 }
 
 /** Every animated property's value at a moment. Unanimated ones are absent. */
