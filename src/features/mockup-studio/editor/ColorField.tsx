@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { EditorThemeContext } from "./theme";
 import { Icon } from "./icons";
 import { hexToHsv, hsvToHex, isLight, parseHex, type Hsv } from "./color";
 
@@ -116,6 +117,8 @@ function ColorPopover({
 
   const [mounted, setMounted] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  // Same reason as the easing menu: portalled outside the themed root.
+  const popTheme = useContext(EditorThemeContext);
   const [recents, setRecents] = useState<string[]>([]);
 
   /**
@@ -286,7 +289,7 @@ function ColorPopover({
         // Hidden until placed, so it never flashes at the top-left corner.
         visibility: pos ? "visible" : "hidden",
       }}
-      data-ks-theme={anchor.current?.closest("[data-ks-theme]")?.getAttribute("data-ks-theme") ?? undefined}
+      data-ks-theme={popTheme}
     >
       <span id={titleId} className="sr-only">
         Colour picker

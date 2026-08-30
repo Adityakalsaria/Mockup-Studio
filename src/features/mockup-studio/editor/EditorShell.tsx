@@ -21,7 +21,7 @@ import { useFilmstrip } from "./useFilmstrip";
 import { useScreenTexture } from "../useScreenTexture";
 import { RightPanel } from "./RightPanel";
 import { getRatio } from "./framing";
-import { EditorTheme } from "./theme";
+import { EditorTheme, EditorThemeContext } from "./theme";
 import { Tabs, useEditorTheme } from "./primitives";
 import { Icon } from "./icons";
 import {
@@ -133,6 +133,15 @@ export default function EditorShell() {
     );
   }, [state]);
 
+  /** Park the playhead at a time, stopping playback so it stays there. */
+  const seekTo = useCallback((time: number) => {
+    setPlaying(false);
+    setPlayhead(time);
+    // The transport reads its clock from the ref, so a seek has to move that
+    // too or pressing play would resume from wherever it had got to.
+    playheadRef.current = time;
+  }, []);
+
   const undo = useCallback(() => {
     if (!past.length) return;
     fromUndoRef.current = true;
@@ -183,6 +192,20 @@ export default function EditorShell() {
         setPlaying((p) => !p);
         return;
       }
+      // B and E jump the playhead to the beginning and the end. Bare keys, so
+      // they are ignored the moment a modifier is held -- cmd+E and friends
+      // belong to the browser, and taking them would be a surprise.
+      if (!event.metaKey && !event.ctrlKey && !event.altKey) {
+        const jump = event.key.toLowerCase();
+        if (jump === "b" || jump === "e") {
+          const el = event.target as HTMLElement | null;
+          const tag = el?.tagName;
+          if (el && (tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable)) return;
+          event.preventDefault();
+          seekTo(jump === "b" ? 0 : durationRef.current);
+          return;
+        }
+      }
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return;
       const el = event.target as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
@@ -194,7 +217,7 @@ export default function EditorShell() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo]);
+  }, [undo, redo, seekTo]);
 
   const [sourceSrc, setSourceSrc] = useState<string | null>(null);
   const [sourceName, setSourceName] = useState<string | null>(null);
@@ -294,6 +317,8 @@ export default function EditorShell() {
   // Callbacks below must stay identity-stable (PointerDragRotation binds them
   // once), so anything they need to read live goes through a ref.
   const playheadRef = useRef(0);
+  /** Read by the B/E shortcut, so its listener never has to re-subscribe. */
+  const durationRef = useRef(DEFAULT_EDITOR_STATE.animation.durationSec);
   const playingRef = useRef(false);
   const animatedRef = useRef(false);
   const clipVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -499,6 +524,10 @@ export default function EditorShell() {
   useEffect(() => {
     animatedRef.current = animated;
   }, [animated]);
+
+  useEffect(() => {
+    durationRef.current = state.animation.durationSec;
+  }, [state.animation.durationSec]);
 
   // ── The timeline owns the clip ──────────────────────────────────────────
   //
@@ -921,6 +950,7 @@ export default function EditorShell() {
       data-ks-theme={theme}
       data-ks-step={mobileStep}
     >
+      <EditorThemeContext.Provider value={theme}>
       <EditorTheme />
 
       <input
@@ -1194,10 +1224,7 @@ export default function EditorShell() {
             animation={animation}
             playhead={playhead}
             playing={playing}
-            onSeek={(time) => {
-              setPlaying(false);
-              setPlayhead(time);
-            }}
+            onSeek={seekTo}
             onTogglePlay={() => setPlaying((p) => !p)}
             onScrubbingChange={setScrubbing}
             onDurationChange={(durationSec) => setAnimation({ durationSec })}
@@ -1222,6 +1249,7 @@ export default function EditorShell() {
           />
         ) : null}
       </div>
+      </EditorThemeContext.Provider>
     </div>
   );
 }

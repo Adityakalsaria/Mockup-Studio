@@ -1,5 +1,7 @@
 "use client";
 
+import { createContext } from "react";
+
 /**
  * Editor chrome tokens, taken from the KOSH Figma layout
  * (KOSH-Marketing-design, node 1480:22177 "1920w light").
@@ -531,6 +533,19 @@ export const EDITOR_THEME_CSS = `
   }
 }
 `;
+
+/**
+ * The active theme, for anything that renders OUTSIDE the themed root.
+ *
+ * Menus and pickers portal to <body> to escape the scroll containers and
+ * backdrop-filters that would otherwise clip them, which also takes them out
+ * of the subtree the theme variables are defined on. They have to be told.
+ *
+ * A context rather than a ref read: a ref is not readable during render, and
+ * copying it into state on open meant a setState in an effect body and a
+ * second render every time a menu opened.
+ */
+export const EditorThemeContext = createContext<"light" | "dark">("light");
 
 export function EditorTheme() {
   return <style>{EDITOR_THEME_CSS}</style>;

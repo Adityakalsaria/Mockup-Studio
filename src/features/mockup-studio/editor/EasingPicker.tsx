@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { EditorThemeContext } from "./theme";
 import {
   EASING_PRESETS,
   easingCurve,
@@ -363,6 +364,9 @@ export function EasingPicker({
   const [tab, setTab] = useState<"presets" | "curve" | "spring">("presets");
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuPos, setMenuPos] = useState<{ left: number; top: number } | null>(null);
+  // The portalled menu hangs off <body>, outside the themed root, so it has to
+  // carry the theme with it.
+  const menuTheme = useContext(EditorThemeContext);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const presetId = easingPresetId(value);
@@ -370,11 +374,13 @@ export function EasingPicker({
 
   // Placed against the trigger each time it opens, and again on scroll or
   // resize: the marker variant lives inside a lane that scrolls under it.
-  useEffect(() => {
-    if (!open) {
-      setMenuPos(null);
-      return;
-    }
+  //
+  // A layout effect, so the position is set before the browser paints. The
+  // last position is deliberately not cleared on close -- clearing it would be
+  // a setState in an effect body and a wasted render -- and measuring before
+  // paint is what stops the menu showing for a frame where it was last time.
+  useLayoutEffect(() => {
+    if (!open) return;
     const place = () => {
       const trigger = rootRef.current;
       if (!trigger) return;
@@ -477,7 +483,7 @@ export function EasingPicker({
             boxShadow: "0 10px 30px rgba(0,0,0,0.28)",
             transformOrigin: "bottom center",
           }}
-          data-ks-theme={rootRef.current?.closest("[data-ks-theme]")?.getAttribute("data-ks-theme") ?? undefined}
+          data-ks-theme={menuTheme}
         >
           <Tabs
             value={tab}
