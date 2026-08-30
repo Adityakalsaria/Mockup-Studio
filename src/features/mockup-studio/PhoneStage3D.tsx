@@ -362,6 +362,19 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+/** How much of the studio rig the camera glass is allowed to mirror back. */
+const CAMERA_ENV_MAP_INTENSITY = 0.05;
+/**
+ * High, but deliberately short of 1. At 0.55 the softbox still resolves into
+ * the lens elements and you are back where you started; at 1 the glass reads
+ * as paint. This scatters the highlight into a faint sheen.
+ */
+const CAMERA_ROUGHNESS = 0.95;
+
+/** Multiplies the details atlas down so it reads at every angle, not only the
+    ones where the softbox happened to be out of the reflection. */
+const CAMERA_TINT = 0x232325;
+
 const DRAG_SLOP = 4;
 
 function PointerDragRotation({
@@ -924,6 +937,49 @@ function GLBPhoneScene({
       } else if (mat2) {
         (m as Mesh).material = tintMaterial(mat2) as unknown as Mesh["material"];
       }
+    });
+    /*
+     * Calm the front camera down.
+     *
+     * The lens and sensor sit on the model's small-details atlas
+     * (PaletteMaterial001/002) and are metallic with a low roughness, so what
+     * you saw in the island was the studio softbox mirrored back at you: a
+     * bright cross of specular with the lens elements picked out around it.
+     * On a real product shot the camera is a dark circle you have to look for.
+     *
+     * The fix is the REFLECTION, not the colour. A metal shows almost none of
+     * its albedo -- tinting these materials bright red changes nothing on
+     * screen, which is what made the first few attempts look like they had not
+     * applied at all. Dropping envMapIntensity is what actually darkens it.
+     *
+     * Roughness is raised most of the way but stops short of fully matte, so
+     * the glass keeps a faint sheen instead of reading as a dot of paint.
+     *
+     * This runs AFTER the finish and tint passes above, which clone their
+     * materials -- anything set before them is discarded with the originals.
+     */
+    cloned.traverse((child) => {
+      const materials = (child as Mesh).material as unknown;
+      if (!materials) return;
+      const list = (Array.isArray(materials) ? materials : [materials]) as Array<{
+        name?: string;
+        roughness?: number;
+        envMapIntensity?: number;
+        color?: { setHex?: (hex: number) => void };
+        needsUpdate?: boolean;
+      }>;
+      list.forEach((material) => {
+        if (!material?.name || !/^PaletteMaterial/.test(material.name)) return;
+        material.envMapIntensity = CAMERA_ENV_MAP_INTENSITY;
+        material.roughness = CAMERA_ROUGHNESS;
+        // Dimming the reflection alone only fixed the angles where the
+        // softbox was in it. Turn the phone and these parts went light grey
+        // again, because that is their ALBEDO showing through once the
+        // specular is gone. `color` multiplies the base colour texture, so
+        // this darkens the whole atlas without flattening its detail.
+        material.color?.setHex?.(CAMERA_TINT);
+        material.needsUpdate = true;
+      });
     });
     const box = new Box3().setFromObject(cloned);
     const size = new Vector3();
