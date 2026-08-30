@@ -65,16 +65,121 @@ export function removeKey(keys: Keyframe[] | undefined, time: number): Keyframe[
   return (keys ?? []).filter((k) => Math.abs(k.time - time) > KEY_EPSILON);
 }
 
-export type Easing = "smooth" | "ease" | "linear";
+export type Easing =
+  | "smooth"
+  | "linear"
+  | "easeIn"
+  | "easeOut"
+  | "easeInOut"
+  | "easeInBack"
+  | "easeOutBack"
+  | "easeInOutBack"
+  | "gentle"
+  | "quick";
 
 export const EASINGS: Array<{ id: Easing; label: string }> = [
   { id: "smooth", label: "Smooth" },
-  { id: "ease", label: "Ease" },
   { id: "linear", label: "Linear" },
+  { id: "easeIn", label: "Ease in" },
+  { id: "easeOut", label: "Ease out" },
+  { id: "easeInOut", label: "Ease in and out" },
+  { id: "easeInBack", label: "Ease in back" },
+  { id: "easeOutBack", label: "Ease out back" },
+  { id: "easeInOutBack", label: "Ease in and out back" },
+  { id: "gentle", label: "Gentle" },
+  { id: "quick", label: "Quick" },
 ];
 
-function easeInOut(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+/**
+ * A CSS-style cubic bezier, as a function of t.
+ *
+ * The control points describe the curve parametrically, so getting y for a
+ * given x means solving for the parameter first. Newton-Raphson converges in
+ * a handful of steps here because the curve is monotonic in x; the bisection
+ * fallback exists for the "back" curves, whose control points sit outside
+ * 0..1 and can defeat the derivative.
+ */
+function cubicBezier(x1: number, y1: number, x2: number, y2: number) {
+  const curve = (a: number, b: number, t: number) => {
+    const u = 1 - t;
+    return 3 * u * u * t * a + 3 * u * t * t * b + t * t * t;
+  };
+  const slope = (a: number, b: number, t: number) => {
+    const u = 1 - t;
+    return 3 * u * u * a + 6 * u * t * (b - a) + 3 * t * t * (1 - b);
+  };
+  return (x: number) => {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    let t = x;
+    for (let i = 0; i < 8; i++) {
+      const dx = curve(x1, x2, t) - x;
+      if (Math.abs(dx) < 1e-6) return curve(y1, y2, t);
+      const d = slope(x1, x2, t);
+      if (Math.abs(d) < 1e-6) break;
+      t -= dx / d;
+    }
+    let lo = 0;
+    let hi = 1;
+    t = x;
+    for (let i = 0; i < 24; i++) {
+      const cx = curve(x1, x2, t);
+      if (Math.abs(cx - x) < 1e-6) break;
+      if (cx < x) lo = t;
+      else hi = t;
+      t = (lo + hi) / 2;
+    }
+    return curve(y1, y2, t);
+  };
+}
+
+/**
+ * An under-damped spring, in closed form.
+ *
+ * Figma's Gentle and Quick are springs rather than beziers, and the difference
+ * is visible: a spring overshoots and settles rather than easing to a stop,
+ * and no bezier reproduces the settle. Normalised by its own value at t=1 so
+ * the segment still lands exactly on its keyframe — a spring left unnormalised
+ * ends near 1 but not on it, which shows up as a small jump at every interior
+ * key.
+ */
+function spring(dampingRatio: number, frequency: number) {
+  const raw = (t: number) => {
+    const w = frequency * Math.PI * 2;
+    const wd = w * Math.sqrt(1 - dampingRatio * dampingRatio);
+    return (
+      1 -
+      Math.exp(-dampingRatio * w * t) *
+        (Math.cos(wd * t) + ((dampingRatio * w) / wd) * Math.sin(wd * t))
+    );
+  };
+  const end = raw(1);
+  return (t: number) => {
+    if (t <= 0) return 0;
+    if (t >= 1) return 1;
+    return raw(t) / end;
+  };
+}
+
+const CURVES: Record<Exclude<Easing, "smooth">, (t: number) => number> = {
+  linear: (t) => t,
+  // The standard CSS quartet.
+  easeIn: cubicBezier(0.42, 0, 1, 1),
+  easeOut: cubicBezier(0, 0, 0.58, 1),
+  easeInOut: cubicBezier(0.42, 0, 0.58, 1),
+  // "Back" curves pull away before they go, or overshoot before they land.
+  // Their control points sit outside 0..1, which is what produces the
+  // anticipation — and the reason the solver needs its bisection fallback.
+  easeInBack: cubicBezier(0.36, 0, 0.66, -0.56),
+  easeOutBack: cubicBezier(0.34, 1.56, 0.64, 1),
+  easeInOutBack: cubicBezier(0.68, -0.6, 0.32, 1.6),
+  gentle: spring(0.8, 1.1),
+  quick: spring(0.62, 1.7),
+};
+
+/** The curve itself, so a picker can draw what it is offering. */
+export function easingCurve(easing: Easing): (t: number) => number {
+  return easing === "smooth" ? (t) => t : CURVES[easing];
 }
 
 /**
@@ -168,7 +273,7 @@ export function sampleTrack(
     return hermite(a, b, m[i], m[i + 1], time);
   }
   const t = (time - a.time) / span;
-  return a.value + (b.value - a.value) * (easing === "ease" ? easeInOut(t) : t);
+  return a.value + (b.value - a.value) * CURVES[easing](t);
 }
 
 /** Every animated property's value at a moment. Unanimated ones are absent. */

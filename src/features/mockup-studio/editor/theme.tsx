@@ -298,10 +298,17 @@ export const EDITOR_THEME_CSS = `
   position: relative;
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+  /* Small, because of what is behind it.
+     This was 0 12px 32px at 14% — the weight a panel floating over BUSY
+     content needs to separate from it. Most of what sits behind these panels
+     is flat page colour, and a heavy shadow on a flat ground has nothing to
+     separate from: it reads as a smudge around the edge rather than as
+     height. The specular rim is already doing the work of saying "this is a
+     surface"; the shadow only has to say it is not painted onto the page. */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 [data-ks-theme="dark"] .ks-material {
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24);
 }
 
 /* The specular edge.

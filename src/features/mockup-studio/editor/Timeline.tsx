@@ -9,8 +9,9 @@ import {
 } from "../animation";
 import { MOTION_PRESETS, PRESET_GROUPS } from "./motionPresets";
 import type { Filmstrip } from "./useFilmstrip";
-import { EASINGS, type Easing } from "../animation";
+import { type Easing } from "../animation";
 import { Icon } from "./icons";
+import { EasingPicker } from "./EasingPicker";
 
 /**
  * The keyframe timeline.
@@ -217,21 +218,7 @@ export function Timeline({
           </select>
         </label>
 
-        <label className="ks-micro flex items-center gap-[4px]" style={{ color: "var(--ks-text-faint)" }}>
-          Easing
-          <select
-            value={animation.easing}
-            onChange={(event) => onEasingChange(event.currentTarget.value as Easing)}
-            className="ks-label rounded-[var(--ks-r-sm)] px-[4px] py-[4px] focus:outline-none"
-            style={{ background: "var(--ks-ctl)", color: "var(--ks-ctl-text)" }}
-          >
-            {EASINGS.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <EasingPicker value={animation.easing} onChange={onEasingChange} />
 
         <label className="ks-micro flex items-center gap-[4px]" style={{ color: "var(--ks-text-faint)" }}>
           Res
