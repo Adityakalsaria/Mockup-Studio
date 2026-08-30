@@ -21,7 +21,11 @@ import { Icon } from "./icons";
  * moving around in time.
  */
 
-const LABEL_WIDTH = 78;
+/* Wide enough for a property name to sit on one line at 13px, which is what
+   lets the gutter read as a column rather than as a cramped margin. */
+const LABEL_WIDTH = 132;
+/* Figma's track rows. Tall enough to hold a bar with a label inside it. */
+const LANE_H = 26;
 
 export function Timeline({
   animation,
@@ -252,7 +256,26 @@ export function Timeline({
       {/* Ruler + lanes. One scrub surface: pointer anywhere in here seeks, so
           the playhead follows the cursor rather than only the thin line. */}
       <div className="flex items-stretch">
-        <div style={{ width: LABEL_WIDTH }} className="shrink-0" />
+        {/* The name gutter is its own column with a divider, rather than
+            labels hung off the left edge of the lane. That divider is what
+            makes a timeline read as two synchronised halves — names here,
+            time there — instead of as a chart with captions. */}
+        <div
+          style={{ width: LABEL_WIDTH, borderColor: "var(--ks-line)" }}
+          className="shrink-0 border-r"
+        >
+          <div className="h-[16px]" />
+          {clipRepeats ? <div className="mb-[4px] h-[36px]" /> : null}
+          {tracks.map(({ key, label }) => (
+            <div
+              key={key}
+              className="ks-label flex items-center truncate pr-[12px]"
+              style={{ height: LANE_H, color: "var(--ks-text-dim)" }}
+            >
+              {label}
+            </div>
+          ))}
+        </div>
         <div
           ref={laneRef}
           className="relative min-w-0 flex-1 select-none"
@@ -344,20 +367,47 @@ export function Timeline({
             </div>
           ) : null}
 
-          {/* Lanes */}
+          {/* Lanes.
+              A track is drawn as a BAR spanning its first key to its last,
+              the way Figma draws one, rather than as loose diamonds on a
+              hairline. The bar is the useful object: it says at a glance how
+              long a property is animated for and where it sits against the
+              others, which a row of dots on a rule does not. The diamonds
+              still sit on top of it, because they are what you grab. */}
           {tracks.length ? (
-            tracks.map(({ key, label }) => (
-              <div key={key} className="relative h-[18px]">
+            tracks.map(({ key, label }) => {
+              const keys = animation.tracks[key] ?? [];
+              const first = keys.length ? keys[0].time : 0;
+              const last = keys.length ? keys[keys.length - 1].time : 0;
+              const spans = keys.length > 1 && last > first;
+              return (
+              <div
+                key={key}
+                className="relative"
+                style={{ height: LANE_H }}
+              >
                 <span
-                  className="absolute inset-y-1/2 left-0 h-px w-full"
-                  style={{ background: "var(--ks-line)" }}
+                  className="absolute inset-x-0 inset-y-[3px] rounded-[var(--ks-r-menu-item)]"
+                  style={{ background: "var(--ks-row)" }}
                 />
-                <span
-                  className="ks-micro absolute right-full top-1/2 w-[74px] -translate-y-1/2 truncate pr-[8px] text-right"
-                  style={{ color: "var(--ks-text-muted)" }}
-                >
-                  {label}
-                </span>
+                {spans ? (
+                  <span
+                    className="absolute inset-y-[3px] flex items-center overflow-hidden rounded-[var(--ks-r-menu-item)] px-[8px]"
+                    style={{
+                      left: pct(first),
+                      width: pct(last - first),
+                      background: "var(--ks-accent-wash)",
+                      boxShadow: "inset 0 0 0 1px var(--ks-accent-line)",
+                    }}
+                  >
+                    <span
+                      className="ks-micro truncate"
+                      style={{ color: "var(--ks-accent)" }}
+                    >
+                      {label}
+                    </span>
+                  </span>
+                ) : null}
                 {(animation.tracks[key] ?? []).map((k) => (
                   <button
                     key={k.time}
@@ -382,7 +432,8 @@ export function Timeline({
                   />
                 ))}
               </div>
-            ))
+              );
+            })
           ) : (
             <div className="ks-micro py-[8px]" style={{ color: "var(--ks-text-faint)" }}>
               Press the ◆ beside any camera value to key it at the playhead.
@@ -395,16 +446,15 @@ export function Timeline({
             className="pointer-events-none absolute top-0 z-10 h-full w-px"
             style={{ left: pct(playhead), background: "var(--ks-accent)" }}
           >
+            {/* A tab on the ruler, not a floating time pill.
+                The pill restated a number the toolbar already shows, and it
+                sat over the first lane, covering the keys nearest the
+                playhead — the ones you are most likely to be reaching for.
+                The tab marks the position and stays out of the track area. */}
             <span
-              className="ks-micro absolute -top-[1px] left-0 -translate-x-1/2 rounded-[3px] px-[4px] py-[4px] tabular-nums"
-              style={{
-                background: "var(--ks-accent)",
-                color: "var(--ks-accent-text)",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {formatTime(playhead)}
-            </span>
+              className="absolute -top-[2px] left-0 h-[12px] w-[11px] -translate-x-1/2 rounded-[3px] rounded-b-[5px]"
+              style={{ background: "var(--ks-accent)" }}
+            />
           </span>
         </div>
       </div>
