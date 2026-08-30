@@ -158,11 +158,15 @@ export function ExportMenu({
       {menuOpen && !recording ? (
         <div
           role="menu"
-          className="absolute bottom-[calc(var(--ks-row-h)+6px)] right-0 z-20 flex w-full flex-col gap-[2px] rounded-[var(--ks-r)] border p-[4px]"
+          className="ks-menu absolute bottom-[calc(var(--ks-row-h)+6px)] right-0 z-20 flex w-full flex-col gap-[2px] rounded-[var(--ks-r)] border p-[4px]"
           style={{
             background: "var(--ks-surface-solid)",
             borderColor: "var(--ks-line-strong)",
             boxShadow: "0 10px 30px rgba(0,0,0,0.28)",
+            // Grows from the button below it, not from its own middle. The
+            // menu is anchored to that control, and scaling from the centre
+            // severs the only visual cue saying which control opened it.
+            transformOrigin: "bottom center",
           }}
         >
           <ExportItem
@@ -207,7 +211,7 @@ function ExportItem({
       role="menuitem"
       onClick={onClick}
       disabled={disabled}
-      className="flex w-full flex-col items-start gap-[1px] rounded-[var(--ks-r-sm)] px-[8px] py-[6px] text-left transition-colors hover:bg-[var(--ks-row)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
+      className="ks-press flex w-full flex-col items-start gap-[1px] rounded-[var(--ks-r-sm)] px-[8px] py-[6px] text-left hover:bg-[var(--ks-row)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
     >
       <span className="ks-label" style={{ color: "var(--ks-text)" }}>
         {label}

@@ -75,6 +75,13 @@ export const EDITOR_THEME_CSS = `
   --ks-r-pill: 12.8px;
   --ks-r-panel: 16px;
 
+  /* Easing. The built-in CSS curves are too weak to read as intentional —
+     the plain ease-out barely differs from linear over 200ms. These are the
+     stronger variants: motion that leaves immediately and lands softly, which
+     is what makes a control feel like it answered rather than caught up. */
+  --ks-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ks-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
   --ks-gap: 14px;
   --ks-topbar-h: 50px;
   --ks-panel-w: 290px;
@@ -173,8 +180,8 @@ export const EDITOR_THEME_CSS = `
    looks identical either way, and only feels wrong under a finger. 100ms out
    is below the threshold where the response reads as a separate event. */
 .ks-press {
-  transition: transform 100ms cubic-bezier(0.2, 0, 0, 1),
-              background-color 120ms cubic-bezier(0.2, 0, 0, 1);
+  transition: transform 100ms var(--ks-ease-out),
+              background-color 120ms var(--ks-ease-out);
 }
 .ks-press:active {
   transform: scale(0.97);
@@ -216,6 +223,18 @@ export const EDITOR_THEME_CSS = `
 }
 .ks-scroll::-webkit-scrollbar-track { background: transparent; }
 
+/* Menus scale in from the control that opened them, not from the middle of
+   themselves, so the link between button and panel is visible rather than
+   implied. 0.96 rather than 0 because nothing in the world appears from
+   nothing — even a deflated balloon has a shape. */
+@keyframes ks-menu-in {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.ks-menu {
+  animation: ks-menu-in 160ms var(--ks-ease-out);
+}
+
 /* ------------------------------------------------------- ACCESSIBILITY --
    Reduced motion is not "no feedback" — it is feedback without the
    vestibular part. The press keeps its colour change and loses its scale;
@@ -228,6 +247,12 @@ export const EDITOR_THEME_CSS = `
   .ks-press:active,
   .ks-press-lg:active {
     transform: none;
+  }
+  .ks-menu {
+    animation: none;
+  }
+  .ks-tab-indicator {
+    transition: none;
   }
 }
 

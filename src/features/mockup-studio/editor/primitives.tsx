@@ -555,14 +555,22 @@ export function Toggle({
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className="relative h-[20px] w-[36px] shrink-0 rounded-full transition-colors"
-      style={{ background: checked ? "var(--ks-text)" : "var(--ks-badge)" }}
+      className="relative h-[20px] w-[36px] shrink-0 rounded-full"
+      style={{
+        background: checked ? "var(--ks-text)" : "var(--ks-badge)",
+        transition: "background-color 160ms var(--ks-ease-out)",
+      }}
     >
       <span
-        className="absolute top-[3px] h-[14px] w-[14px] rounded-full transition-all"
+        className="absolute left-[3px] top-[3px] h-[14px] w-[14px] rounded-full"
         style={{
-          left: checked ? 19 : 3,
+          // translate, not `left`. `left` is a layout property: changing it
+          // relayouts every frame, and `transition-all` was animating the
+          // colour through it too. Transform and opacity are the only two
+          // things the compositor can move on its own.
+          transform: checked ? "translateX(16px)" : "translateX(0)",
           background: checked ? "var(--ks-surface-solid)" : "var(--ks-text-faint)",
+          transition: "transform 180ms var(--ks-ease-out), background-color 160ms var(--ks-ease-out)",
         }}
       />
     </button>
@@ -579,11 +587,27 @@ export function Tabs<T extends string>({
   value: T;
   onChange: (next: T) => void;
 }) {
+  const index = Math.max(0, options.findIndex((option) => option.id === value));
+
   return (
     <div
-      className="flex w-full rounded-[var(--ks-r)] p-[3px]"
+      className="relative flex w-full rounded-[var(--ks-r)] p-[3px]"
       style={{ background: "var(--ks-ctl)" }}
     >
+      {/* One indicator that travels, instead of a background appearing on one
+          segment and vanishing from the other. Two segments swapping colour
+          is a cut; a single thing moving is a continuous state, and the eye
+          reads the second as the same object it was already looking at. */}
+      <span
+        aria-hidden
+        className="ks-tab-indicator absolute inset-y-[3px] left-[3px] rounded-[var(--ks-r)]"
+        style={{
+          width: `calc((100% - 6px) / ${options.length})`,
+          transform: `translateX(calc(${index} * 100%))`,
+          background: "var(--ks-tab-active)",
+          transition: "transform 260ms var(--ks-ease-out)",
+        }}
+      />
       {options.map((option) => {
         const active = option.id === value;
         return (
@@ -592,10 +616,10 @@ export function Tabs<T extends string>({
             type="button"
             onClick={() => onChange(option.id)}
             aria-pressed={active}
-            className="ks-label h-[30px] flex-1 rounded-[var(--ks-r)] transition-colors"
+            className="ks-label relative z-[1] h-[30px] flex-1 rounded-[var(--ks-r)]"
             style={{
-              background: active ? "var(--ks-tab-active)" : "transparent",
               color: active ? "var(--ks-tab-active-text)" : "var(--ks-tab-text)",
+              transition: "color 200ms var(--ks-ease-out)",
             }}
           >
             {option.label}
