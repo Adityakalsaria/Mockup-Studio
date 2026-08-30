@@ -116,7 +116,22 @@ export const DEVICES: Device[] = [
     screenNative: { width: 640, height: 1391 },
     // The model has a real Dynamic Island in its geometry, so nothing needs
     // to be drawn on top of the screen.
-    notch: null,
+    notch: {
+      // The same island as the Pro, in this model's own point space -- its
+      // native box is 640x1391 rather than 402x874, so every figure is that
+      // ratio of the Pro's.
+      widthPx: 213,
+      heightPx: 59,
+      topPx: 33,
+      offsetXPx: 0,
+      offsetYPx: -14,
+      borderRadiusPx: 57,
+      // Slightly PROUD of the model's own island rather than flush with it.
+      // The overlay is there to hide the hardware underneath, and a hair of
+      // overhang costs nothing against a black island while a hair short
+      // leaves the camera showing at one edge.
+      scale: 1.04,
+    },
     // TODO: unconfirmed. Supplied as `phone-17-pro-max (1).zip`; provenance
     // and licence still to be established before this ships anywhere public.
     credit: "UNKNOWN — provenance not yet confirmed",

@@ -1112,8 +1112,23 @@ function GLBPhoneScene({
           fit={screenFit}
         />
       )}
-      {/* Suppressed for a live mirror: the captured screen already has one. */}
-      {!isBound && device.notch && !screenFit?.sourceHasNotch ? (
+      {/*
+       * Drawn over the model's own island, including on the devices whose
+       * screen is bound to a model material.
+       *
+       * It used to be skipped for those (`!isBound`), on the reasoning that a
+       * model carrying its own screen carries its own island too. It does --
+       * but what it carries is the physical hardware: a lens with visible
+       * elements and a sensor, lit by the studio rig and picking up a specular
+       * highlight off it. On a real product shot the island reads as a solid
+       * black shape and the camera is barely a shadow inside it. That guard
+       * also made the Pro's notch config dead code, since both devices bind
+       * their screen.
+       *
+       * Still suppressed for a live mirror: the captured screen already has
+       * one, and two would sit on top of each other.
+       */}
+      {device.notch && !screenFit?.sourceHasNotch ? (
         <NotchPlane
           notch={device.notch}
           native={device.screenNative}
