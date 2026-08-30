@@ -298,6 +298,10 @@ export function ParamRow({
         </span>
       </div>
 
+      {animatable ? (
+        <KeyframeButton active={Boolean(keyframed)} onClick={onKeyframe} label={label} />
+      ) : null}
+
       {defaultValue !== undefined ? (
         <ResetButton
           label={label}
@@ -310,10 +314,6 @@ export function ParamRow({
           onClick={() => onChange(defaultValue)}
         />
       ) : null}
-
-      {animatable ? (
-        <KeyframeButton active={Boolean(keyframed)} onClick={onKeyframe} label={label} />
-      ) : null}
     </div>
   );
 }
@@ -323,13 +323,16 @@ function formatValue(value: number, decimals: number): string {
 }
 
 /**
- * Per-row reset.
+ * Per-row reset, at the end of the row.
  *
- * The space is held whether or not the row has drifted, and only the glyph
- * comes and goes. A hover-only button would be invisible until you already
- * suspected it was there, and one that took up space only when dirty would
- * shuffle every other control sideways the moment a value changed — down a
- * column of eleven rows that reads as the panel twitching.
+ * It is always there and always visible, dimming rather than disappearing
+ * when the row is at its default. Hiding it had two costs: a control you
+ * cannot see until you have already changed something cannot be found before
+ * you need it, and its appearance was a second thing moving in the row at the
+ * exact moment you were watching a value change.
+ *
+ * It sits after the keyframe because that is the order the two are reached
+ * for — key a pose, then undo it if it was wrong.
  */
 function ResetButton({
   label,
@@ -349,14 +352,15 @@ function ResetButton({
       disabled={!dirty}
       title={dirty ? `Reset ${label} to ${shown}` : `${label} is at its default`}
       aria-label={`Reset ${label} to ${shown}`}
-      aria-hidden={!dirty}
-      tabIndex={dirty ? 0 : -1}
-      className="grid h-[var(--ks-row-h)] w-[var(--ks-reset-w)] shrink-0 place-items-center rounded-[var(--ks-r)] transition-opacity"
+      // Present whether or not there is anything to undo, dimmed rather than
+      // hidden. A control that appears only once you have already changed
+      // something cannot be found before you need it, and its arrival is a
+      // second thing moving in the row at the exact moment you are watching a
+      // value change. `disabled` already stops the click; nothing else has to.
+      className="ks-press grid h-[var(--ks-row-h)] w-[var(--ks-reset-w)] shrink-0 place-items-center rounded-[var(--ks-r)]"
       style={{
-        background: "var(--ks-ctl)",
-        color: "var(--ks-badge-text)",
-        opacity: dirty ? 1 : 0,
-        pointerEvents: dirty ? "auto" : "none",
+        background: "transparent",
+        color: dirty ? "var(--ks-text-muted)" : "var(--ks-text-faint)",
       }}
     >
       <Icon name="reset" />
