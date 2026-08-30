@@ -197,7 +197,7 @@ export function Timeline({
       // it. A tool's chrome should not change size because of what you are
       // working on: the lanes scroll inside it now, and the transport stays
       // where you left it.
-      className="ks-material relative z-30 flex h-[var(--ks-timeline-h)] shrink-0 flex-col gap-[8px] rounded-[var(--ks-r-panel)] border px-[12px] py-[8px]"
+      className="ks-material relative z-30 flex h-[180px] shrink-0 flex-col gap-[8px] rounded-[var(--ks-r-panel)] border px-[12px] py-[8px] laptop:h-[var(--ks-timeline-h)]"
       style={{
         background: "var(--ks-surface)",
         borderColor: "var(--ks-line-strong)",
@@ -209,7 +209,7 @@ export function Timeline({
           small print. Now: transport, then motion, then output, then view —
           tight inside a group, wide between them, with a hairline where the
           subject changes. */}
-      <div className="flex shrink-0 items-center gap-[var(--ks-space-4)]">
+      <div className="flex shrink-0 flex-wrap items-center gap-y-[var(--ks-space-2)] gap-x-[var(--ks-space-4)]">
         <button
           type="button"
           onClick={onTogglePlay}

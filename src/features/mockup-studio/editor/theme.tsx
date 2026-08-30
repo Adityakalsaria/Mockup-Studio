@@ -29,7 +29,7 @@
  * Measurements are the Figma frame's, not approximations:
  *   frame 1920x1200, container inset 14px
  *   canvas    inset 50px top / 290px right / 194px bottom
- *   timeline  194px tall, 10px below the canvas
+ *   timeline  194px tall, 10px  canvas
  *   both panels rounded 16px, 1px rgba(0,0,0,0.15) border
  */
 export const EDITOR_THEME_CSS = `
@@ -311,7 +311,7 @@ export const EDITOR_THEME_CSS = `
    Waiting for the click to acknowledge a press is the single thing that makes
    an interface feel dead, and it is invisible in a screenshot — the control
    looks identical either way, and only feels wrong under a finger. 100ms out
-   is below the threshold where the response reads as a separate event. */
+   is  threshold where the response reads as a separate event. */
 .ks-press {
   transition: transform 100ms var(--ks-ease-out),
               background-color 120ms var(--ks-ease-out);
@@ -449,6 +449,44 @@ export const EDITOR_THEME_CSS = `
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     background: var(--ks-surface-solid);
+  }
+}
+
+/* ---------------------------------------------------------------- mobile --
+
+   Below the desktop breakpoint the editor stacks: stage, both panels, then
+   the timeline, with the page itself scrolling. Two things have to change
+   beyond the layout.
+
+   First, the display cutout. The page declares viewport-fit=cover so the
+   stage can run edge to edge, which means it also has to pad itself back out
+   of the notch and the home indicator by hand.
+
+   Second, target size. The panel is built to macOS metrics -- a 36px row and
+   a 28px switch are comfortable with a mouse and too small for a fingertip.
+   Apple and WCAG both put the floor at 44px. Rather than restyle every
+   control, the two variables the controls are built from are raised, and the
+   sizes follow. */
+@media (width < 62.5rem) {
+  .ks {
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+      env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  .ks {
+    --ks-row-h: 44px;
+    --ks-track-h: 36px;
+  }
+
+  /* A finger has no hover state and no pixel precision, so the hit area is
+     grown without growing the control: the knob still reads as 20px. */
+  .ks-scrub::before {
+    content: "";
+    position: absolute;
+    inset: -8px 0;
+  }
+  .ks-scrub {
+    position: relative;
   }
 }
 

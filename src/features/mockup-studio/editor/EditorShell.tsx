@@ -709,8 +709,26 @@ export default function EditorShell() {
     exportScale,
   ]);
 
+  /*
+   * Two layouts, splitting at the project's `laptop` breakpoint (1000px).
+   *
+   * Above it: a fixed viewport with both panels floating over the stage. That
+   * arrangement needs 992px before anything is cramped -- two 320px panels,
+   * their gutters, and enough canvas left to hold a phone -- so 1000 is the
+   * first breakpoint that fits it.
+   *
+   * Below it: the page scrolls, and the stage, both panels and the timeline
+   * stack in that order. There is no arrangement of 640px of panel at 390.
+   *
+   * Note the breakpoint names: this project sets `--breakpoint-lg: initial`
+   * and defines tablet/laptop/desktop instead, so a stray `lg:` compiles to
+   * nothing at all rather than failing loudly.
+   */
   return (
-    <div className="ks h-screen w-screen overflow-hidden" data-ks-theme={theme}>
+    <div
+      className="ks min-h-screen w-screen laptop:h-screen laptop:overflow-hidden"
+      data-ks-theme={theme}
+    >
       <EditorTheme />
 
       <input
@@ -744,8 +762,8 @@ export default function EditorShell() {
             puts the stage behind the glass, which is also how Apple builds
             chrome: a layer with content running under it, not an opaque strip
             that consumes a column. */}
-        <div className="relative flex min-h-0 w-full flex-1">
-        <div className="absolute left-0 top-0 z-20 h-full">
+        <div className="flex w-full flex-col gap-[var(--ks-gap)] laptop:relative laptop:min-h-0 laptop:flex-1 laptop:flex-row laptop:gap-0">
+        <div className="order-2 w-full laptop:absolute laptop:left-0 laptop:top-0 laptop:z-20 laptop:h-full laptop:w-auto">
         <RightPanel side="left"
           state={effective}
           onChange={change}
@@ -799,7 +817,7 @@ export default function EditorShell() {
         />
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col px-[calc(var(--ks-panel-w)+var(--ks-gap))]">
+        <div className="order-1 flex h-[46vh] min-w-0 flex-col laptop:h-auto laptop:flex-1 laptop:px-[calc(var(--ks-panel-w)+var(--ks-gap))]">
           {/* The workspace is the whole column; the framed canvas inside it is
               only as big as the chosen ratio allows. `container-type: size`
               is what lets the frame size itself off the workspace in CSS —
@@ -872,7 +890,7 @@ export default function EditorShell() {
             component: which sections it draws is the only difference, and
             splitting the file would have duplicated every control to express
             that. */}
-        <div className="absolute right-0 top-0 z-20 h-full">
+        <div className="order-3 w-full laptop:absolute laptop:right-0 laptop:top-0 laptop:z-20 laptop:h-full laptop:w-auto">
         <RightPanel side="right"
           state={effective}
           onChange={change}
