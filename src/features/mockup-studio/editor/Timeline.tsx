@@ -523,9 +523,12 @@ export function Timeline({
           )}
 
           {/* Playhead, drawn over everything and ignoring pointers so it never
-              gets in the way of grabbing a keyframe underneath it. */}
+              gets in the way of grabbing a keyframe underneath it.
+              Above the sticky ruler's z-20, not below it: at z-10 the ruler
+              and anything else that had earned a stacking context painted
+              over the line, so it disappeared behind the track bars. */}
           <span
-            className="pointer-events-none absolute top-0 z-10 h-full w-px"
+            className="pointer-events-none absolute top-0 z-30 h-full w-px"
             style={{ left: pct(playhead), background: "var(--ks-accent)" }}
           >
             {/* A tab on the ruler, not a floating time pill.

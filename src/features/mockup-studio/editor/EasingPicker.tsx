@@ -25,20 +25,34 @@ import { Tabs } from "./primitives";
 const THUMB = 22;
 const PAD = 3;
 
-function curvePath(easing: Easing, box: number, pad: number) {
+/**
+ * `range` fixes the vertical axis; omitting it scales to whatever the curve
+ * covers.
+ *
+ * The thumbnails autoscale, because at 22px the point is to recognise the
+ * SHAPE and an overshoot squeezed into a 0..1 box is invisible. The editor
+ * must not: its handles are placed on a fixed axis, and a curve drawn on a
+ * different one does not pass through them. That mismatch is what made the
+ * curve leave the box while the handles sat somewhere else entirely.
+ */
+function curvePath(
+  easing: Easing,
+  box: number,
+  pad: number,
+  range?: { lo: number; hi: number },
+) {
   const f = easingCurve(easing);
   const span = box - pad * 2;
-  // The back curves and the springs leave 0..1, so the drawing is scaled to
-  // the range the function actually covers. Clipping to the box instead would
-  // flatten the overshoot — the one feature that distinguishes them.
-  let lo = 0;
-  let hi = 1;
-  for (let i = 0; i <= 64; i++) {
-    const v = f(i / 64);
-    lo = Math.min(lo, v);
-    hi = Math.max(hi, v);
+  let lo = range?.lo ?? 0;
+  let hi = range?.hi ?? 1;
+  if (!range) {
+    for (let i = 0; i <= 64; i++) {
+      const v = f(i / 64);
+      lo = Math.min(lo, v);
+      hi = Math.max(hi, v);
+    }
   }
-  const range = hi - lo || 1;
+  const extent = hi - lo || 1;
   const points: string[] = [];
   for (let i = 0; i <= 64; i++) {
     const t = i / 64;
@@ -46,7 +60,7 @@ function curvePath(easing: Easing, box: number, pad: number) {
       `${i === 0 ? "M" : "L"}${(pad + t * span).toFixed(2)} ${(
         box -
         pad -
-        ((f(t) - lo) / range) * span
+        ((f(t) - lo) / extent) * span
       ).toFixed(2)}`,
     );
   }
@@ -80,6 +94,12 @@ function CurveThumb({ easing, active }: { easing: Easing; active: boolean }) {
 
 const PLOT = 168;
 const PLOT_PAD = 26;
+/* The editor's vertical axis. It runs past 0..1 on both sides because the
+   useful curves do — a handle that could not go above the top of the box could
+   not express an overshoot, and "ease out back" would be unreachable by hand
+   while sitting in the preset list right above it. */
+const Y_MIN = -0.5;
+const Y_MAX = 1.5;
 
 /**
  * The bezier editor: two handles you drag, on the square the curve is drawn in.
@@ -99,9 +119,6 @@ function BezierEditor({
   const ref = useRef<SVGSVGElement>(null);
   const [dragging, setDragging] = useState<0 | 1 | null>(null);
 
-  // y runs from -0.5 to 1.5 so overshoot has somewhere to go.
-  const Y_MIN = -0.5;
-  const Y_MAX = 1.5;
   const span = PLOT - PLOT_PAD * 2;
   const toX = (x: number) => PLOT_PAD + x * span;
   const toY = (y: number) => PLOT_PAD + (1 - (y - Y_MIN) / (Y_MAX - Y_MIN)) * span;
@@ -116,7 +133,12 @@ function BezierEditor({
       // x is clamped: a bezier whose control points run backwards in x is not
       // a timing function, it is a loop.
       x: Math.max(0, Math.min(1, (px - PLOT_PAD) / span)),
-      y: Y_MAX - ((py - PLOT_PAD) / span) * (Y_MAX - Y_MIN),
+      // Clamped to the axis it is drawn on: a handle dragged past the top of
+      // the plot leaves the view, and there is no way to get it back.
+      y: Math.max(
+        Y_MIN,
+        Math.min(Y_MAX, Y_MAX - ((py - PLOT_PAD) / span) * (Y_MAX - Y_MIN)),
+      ),
     };
   };
 
@@ -138,7 +160,7 @@ function BezierEditor({
   };
 
   const d = useMemo(
-    () => curvePath({ kind: "cubic", p: points }, PLOT, PLOT_PAD),
+    () => curvePath({ kind: "cubic", p: points }, PLOT, PLOT_PAD, { lo: Y_MIN, hi: Y_MAX }),
     [points],
   );
 
@@ -189,15 +211,25 @@ function SpringEditor({
   easing: { kind: "spring"; damping: number; frequency: number };
   onChange: (next: Easing) => void;
 }) {
-  const d = useMemo(() => curvePath(easing, PLOT, PLOT_PAD), [easing]);
+  // Same fixed axis as the bezier editor, so switching tabs does not silently
+  // rescale the picture and make two curves look more alike than they are.
+  const d = useMemo(
+    () => curvePath(easing, PLOT, PLOT_PAD, { lo: Y_MIN, hi: Y_MAX }),
+    [easing],
+  );
+  // Where 0..1 lands on that axis, so the dashed box marks the same thing it
+  // does in the bezier editor.
+  const plotSpan = PLOT - PLOT_PAD * 2;
+  const boxTop = PLOT_PAD + ((Y_MAX - 1) / (Y_MAX - Y_MIN)) * plotSpan;
+  const boxHeight = (1 / (Y_MAX - Y_MIN)) * plotSpan;
   return (
     <div className="flex flex-col gap-[8px]">
       <svg viewBox={`0 0 ${PLOT} ${PLOT}`} className="w-full">
         <rect
           x={PLOT_PAD}
-          y={PLOT_PAD}
+          y={boxTop}
           width={PLOT - PLOT_PAD * 2}
-          height={PLOT - PLOT_PAD * 2}
+          height={boxHeight}
           fill="none"
           stroke="var(--ks-line)"
           strokeDasharray="2 3"
