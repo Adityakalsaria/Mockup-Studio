@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePhoneLink } from "../gyro/usePhoneLink";
 import PhoneStage3D, { type StageCapture, type StageRecorder } from "../PhoneStage3D";
-import { backgroundCss, paintBackground } from "../backgrounds";
+import { backgroundCss, paintBackground, preloadBackgroundImage } from "../backgrounds";
 import { pickRecordingFormat, recordStageVideo } from "../recordVideo";
 import { renderVideoExact, supportsExactRender } from "../renderVideoExact";
 import {
@@ -54,6 +54,7 @@ export default function EditorShell() {
   const ratio = getRatio(ratioId);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const backgroundInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const captureRef = useRef<StageCapture | null>(null);
   const recorderRef = useRef<StageRecorder | null>(null);
@@ -427,6 +428,22 @@ export default function EditorShell() {
   }, []);
 
   const pickSource = () => fileInputRef.current?.click();
+  const pickBackgroundImage = () => backgroundInputRef.current?.click();
+
+  const onBackgroundFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    // A data URL rather than an object URL: the background has to survive into
+    // an export taken on a canvas, and it outlives the File either way.
+    reader.onload = () => {
+      const imageSrc = String(reader.result);
+      change({ background: { ...backgroundRef.current, kind: "image", imageSrc } });
+      void preloadBackgroundImage({ ...backgroundRef.current, kind: "image", imageSrc });
+    };
+    reader.readAsDataURL(file);
+    event.currentTarget.value = "";
+  };
 
   const stopMirror = useCallback(() => {
     setLiveStream((current) => {
@@ -510,6 +527,10 @@ export default function EditorShell() {
   // shows. Painting the same backdrop underneath is what makes the file match
   // the screen. "None" paints nothing, and the PNG keeps its alpha.
   const exportPng = useCallback(async () => {
+    // The painter is synchronous, so the image has to be in the cache before
+    // it runs or the export comes out with the base colour where the
+    // background should be.
+    await preloadBackgroundImage(backgroundRef.current);
     const scale = exportScaleRef.current;
     const url = captureRef.current?.(scale);
     if (!url) return;
@@ -547,6 +568,8 @@ export default function EditorShell() {
   const exportVideo = useCallback(async () => {
     const recorder = recorderRef.current;
     if (!recorder || recordProgress !== null) return;
+    // Same reason as the still, and more so: this paints once per frame.
+    await preloadBackgroundImage(backgroundRef.current);
     const video = isVideoScreen ? screenVideo : null;
     // `duration` is NaN until metadata lands, and Infinity for a stream.
     const clipLength = video && Number.isFinite(video.duration) ? video.duration : 0;
@@ -636,6 +659,13 @@ export default function EditorShell() {
         onChange={onFile}
         className="hidden"
       />
+      <input
+        ref={backgroundInputRef}
+        type="file"
+        accept="image/*"
+        onChange={onBackgroundFile}
+        className="hidden"
+      />
 
       {/* The rasterise source for React-rendered screens. Offscreen, but not
           display:none — a hidden node has no box and captures blank. */}
@@ -660,6 +690,7 @@ export default function EditorShell() {
           onChange={change}
           sourceSrc={sourceSrc}
           onPickSource={pickSource}
+          onPickBackgroundImage={pickBackgroundImage}
           onClearSource={() => {
             setSourceSrc(null);
             setSourceName(null);
@@ -795,6 +826,7 @@ export default function EditorShell() {
           onChange={change}
           sourceSrc={sourceSrc}
           onPickSource={pickSource}
+          onPickBackgroundImage={pickBackgroundImage}
           onClearSource={() => {
             setSourceSrc(null);
             setSourceName(null);

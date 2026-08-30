@@ -35,6 +35,7 @@ export function RightPanel({
   sourceSrc,
   onPickSource,
   onClearSource,
+  onPickBackgroundImage,
   isMirroring,
   canMirror,
   onStartMirror,
@@ -73,6 +74,8 @@ export function RightPanel({
   sourceSrc: string | null;
   onPickSource: () => void;
   onClearSource: () => void;
+  /** Opens the file picker for a background image. */
+  onPickBackgroundImage: () => void;
   /** A live window capture is currently driving the screen. */
   isMirroring: boolean;
   /** False where the browser has no `getDisplayMedia` — every mobile browser,
@@ -590,6 +593,65 @@ export function RightPanel({
               onChange={(dotSize) => setBackground({ dotSize })}
             />
           </>
+        ) : null}
+
+        {background.kind === "image" ? (
+          <div className="flex flex-col gap-[8px]">
+            {background.imageSrc ? (
+              <div
+                className="relative h-[96px] w-full overflow-hidden rounded-[var(--ks-r-card)]"
+                style={{ background: "var(--ks-ctl)" }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={background.imageSrc}
+                  alt="Background"
+                  className="h-full w-full"
+                  style={{ objectFit: background.imageFit }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setBackground({ imageSrc: null })}
+                  aria-label="Remove background image"
+                  className="ks-press absolute right-[8px] top-[8px] grid h-[24px] w-[24px] place-items-center rounded-full"
+                  style={{ background: "rgba(0,0,0,0.4)", color: "#fff" }}
+                >
+                  <Icon name="dismiss" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onPickBackgroundImage}
+                className="ks-press flex h-[96px] w-full flex-col items-center justify-center gap-[8px] rounded-[var(--ks-r-card)] border border-dashed"
+                style={{ borderColor: "var(--ks-line-strong)", background: "var(--ks-row)" }}
+              >
+                <Icon name="upload" />
+                <span className="ks-label" style={{ color: "var(--ks-text-dim)" }}>
+                  Choose an image
+                </span>
+              </button>
+            )}
+
+            <Tabs
+              value={background.imageFit}
+              onChange={(imageFit) => setBackground({ imageFit })}
+              options={[
+                { id: "cover" as const, label: "Fill" },
+                { id: "contain" as const, label: "Fit" },
+              ]}
+            />
+
+            {/* Only meaningful under "Fit", where the image does not reach the
+                edges and something has to be behind it. */}
+            {background.imageFit === "contain" ? (
+              <ColorRow
+                label="Behind"
+                value={background.color}
+                onChange={(color) => setBackground({ color })}
+              />
+            ) : null}
+          </div>
         ) : null}
 
         {background.kind === "transparent" ? (

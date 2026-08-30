@@ -9,7 +9,7 @@
  * apart — the pair of functions below are written to be read side by side.
  */
 
-export type BackgroundKind = "solid" | "gradient" | "dots" | "transparent";
+export type BackgroundKind = "solid" | "gradient" | "dots" | "image" | "transparent";
 
 export interface BackgroundSettings {
   kind: BackgroundKind;
@@ -24,6 +24,11 @@ export interface BackgroundSettings {
   dotColor: string;
   /** Dot grid pitch in CSS pixels. */
   dotSize: number;
+  /** Image only. A data URL, so the background survives without a server and
+      travels with an export that is taken client-side. */
+  imageSrc: string | null;
+  /** Image only. "cover" fills the frame and crops; "contain" fits it whole. */
+  imageFit: "cover" | "contain";
 }
 
 export const DEFAULT_BACKGROUND: BackgroundSettings = {
@@ -34,12 +39,15 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
   gradientAngle: 180,
   dotColor: "#3a3a3e",
   dotSize: 10,
+  imageSrc: null,
+  imageFit: "cover",
 };
 
 export const BACKGROUND_KINDS: Array<{ id: BackgroundKind; label: string }> = [
   { id: "solid", label: "Solid" },
   { id: "gradient", label: "Gradient" },
   { id: "dots", label: "Dots" },
+  { id: "image", label: "Image" },
   { id: "transparent", label: "None" },
 ];
 
@@ -92,6 +100,19 @@ export function backgroundCss(bg: BackgroundSettings): React.CSSProperties {
         backgroundImage: `radial-gradient(circle, ${bg.dotColor} 1px, transparent 1.2px)`,
         backgroundSize: `${bg.dotSize}px ${bg.dotSize}px`,
       };
+    case "image":
+      // Falls back to the solid colour with no image chosen, rather than to
+      // nothing — an empty frame reads as broken, a coloured one reads as
+      // waiting.
+      return bg.imageSrc
+        ? {
+            backgroundColor: bg.color,
+            backgroundImage: `url(${bg.imageSrc})`,
+            backgroundSize: bg.imageFit,
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+          }
+        : { background: bg.color };
     case "transparent":
       return {
         backgroundColor: "transparent",
@@ -115,6 +136,49 @@ export function backgroundCss(bg: BackgroundSettings): React.CSSProperties {
  * for absent pixels, and baking it into a PNG would hand back the one thing
  * the user picked "None" to avoid.
  */
+/**
+ * Decoded background images, by source.
+ *
+ * `paintBackground` is called per frame inside the video encoders and has to
+ * stay synchronous, so it cannot decode anything itself. The image is decoded
+ * once when it is chosen and again before an export starts, and the painter
+ * only ever reads what is already here. A miss paints the base colour rather
+ * than nothing, so a frame is never simply absent.
+ */
+const imageCache = new Map<string, HTMLImageElement>();
+
+export async function preloadBackgroundImage(bg: BackgroundSettings): Promise<void> {
+  if (bg.kind !== "image" || !bg.imageSrc || imageCache.has(bg.imageSrc)) return;
+  const src = bg.imageSrc;
+  await new Promise<void>((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      imageCache.set(src, image);
+      resolve();
+    };
+    // A background that will not decode should not stall an export.
+    image.onerror = () => resolve();
+    image.src = src;
+  });
+}
+
+/** Draw an image the way CSS `cover` and `contain` do. */
+function drawFitted(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  width: number,
+  height: number,
+  fit: "cover" | "contain",
+): void {
+  const scale =
+    fit === "cover"
+      ? Math.max(width / image.width, height / image.height)
+      : Math.min(width / image.width, height / image.height);
+  const w = image.width * scale;
+  const h = image.height * scale;
+  ctx.drawImage(image, (width - w) / 2, (height - h) / 2, w, h);
+}
+
 export function paintBackground(
   ctx: CanvasRenderingContext2D,
   bg: BackgroundSettings,
@@ -127,6 +191,17 @@ export function paintBackground(
   if (bg.kind === "solid") {
     ctx.fillStyle = bg.color;
     ctx.fillRect(0, 0, width, height);
+    return;
+  }
+
+  if (bg.kind === "image") {
+    // The colour goes down first either way: with "contain" it fills the bars
+    // beside the image, and with a cache miss it is what you get instead of a
+    // hole.
+    ctx.fillStyle = bg.color;
+    ctx.fillRect(0, 0, width, height);
+    const image = bg.imageSrc ? imageCache.get(bg.imageSrc) : undefined;
+    if (image) drawFitted(ctx, image, width, height, bg.imageFit);
     return;
   }
 
