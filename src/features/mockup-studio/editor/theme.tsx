@@ -147,7 +147,13 @@ export const EDITOR_THEME_CSS = `
      down to fit" compromise came from — at 320 the real control sizes fit
      without shrinking any of them. */
   --ks-panel-w: 320px;
-  --ks-timeline-h: 194px;
+  /* Sized to the work rather than picked.
+     There are six animatable properties, so six lanes is the number that
+     matters: 16 of padding, a 36 toolbar, its 8 gap, a 16 ruler, a 30 source
+     bar and 6 x 26 of lanes comes to 262. At 194 it showed three and a half,
+     so keying a fourth property meant scrolling to see what you had just
+     done. */
+  --ks-timeline-h: 262px;
   /* 36, from the macOS kit's pulldown button — 100x36 with its label inset
      18px. macOS is the right reference for this: iOS rows are 44 because a
      fingertip needs 44, and nothing here is touched by a finger. 44 was
