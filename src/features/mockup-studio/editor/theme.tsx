@@ -205,14 +205,54 @@ export const EDITOR_THEME_CSS = `
    near edge of a physical pane — without it a translucent panel reads as a
    flat tint rather than as a surface with thickness. */
 .ks-material {
+  position: relative;
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14),
-              inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
 }
 [data-ks-theme="dark"] .ks-material {
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45),
-              inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+/* The specular edge.
+   A single inset highlight along the top is the cheap version and it reads as
+   a drawn line. Real glass catches light unevenly around its rim: bright where
+   the bevel faces the light, dark where it turns away. This is a gradient
+   painted into a 1px ring by masking out everything but the border, which is
+   the only way to get a border whose colour varies along its length. */
+.ks-material::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 255, 255, 0.25) 22%,
+    rgba(255, 255, 255, 0) 46%,
+    rgba(255, 255, 255, 0.12) 74%,
+    rgba(255, 255, 255, 0.55) 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 2;
+}
+[data-ks-theme="dark"] .ks-material::after {
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.06) 22%,
+    rgba(255, 255, 255, 0) 46%,
+    rgba(255, 255, 255, 0.04) 74%,
+    rgba(255, 255, 255, 0.14) 100%
+  );
+}
+@media (prefers-reduced-transparency: reduce) {
+  .ks-material::after { display: none; }
 }
 
 /* Where scrolling content meets floating chrome, fade it out rather than

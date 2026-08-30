@@ -26,6 +26,7 @@ import {
 import { DEFAULT_EDITOR_STATE, RANGES, type EditorState } from "./editorState";
 import { MotionPanel } from "./MotionPanel";
 import { AspectSelect, ExportMenu } from "./framing";
+import { useLiquidGlass } from "./useLiquidGlass";
 import type { Easing } from "../animation";
 import type { AnimatableKey } from "../animation";
 
@@ -122,6 +123,9 @@ export function RightPanel({
   // twenty three cards you scan — and the shot controls are an adjusting one;
   // stacking them in one scroll made both worse.
   const [rightTab, setRightTab] = useState<"shot" | "motion">("shot");
+  // Refraction on the panel itself. Falls back to plain frosted glass wherever
+  // the browser will not displace a backdrop — see the hook.
+  const { ref: glassRef, svg: glassSvg, style: glassStyle } = useLiquidGlass(16);
 
   const toggle = (id: SectionId) =>
     setOpen((prev) => {
@@ -139,12 +143,15 @@ export function RightPanel({
 
   return (
     <aside
+      ref={glassRef}
       className="ks-material flex h-full w-[var(--ks-panel-w)] shrink-0 flex-col overflow-hidden rounded-[var(--ks-r-panel)] border"
       style={{
         background: "var(--ks-surface)",
         borderColor: "var(--ks-line-strong)",
+        ...glassStyle,
       }}
     >
+      {glassSvg}
       {/* Body scrolls, footer does not: Export has to stay reachable without
           scrolling to the end of twenty three preset cards. */}
       <div className="ks-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-[var(--ks-panel-pad)]">
