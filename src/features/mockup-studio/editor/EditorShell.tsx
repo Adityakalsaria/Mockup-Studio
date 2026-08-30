@@ -458,7 +458,15 @@ export default function EditorShell() {
           frameRate: { ideal: 30, max: 30 },
           width: { max: 1440 },
           height: { max: 1440 },
-        },
+          // Leave the pointer out of the capture. Without this the Mac cursor
+          // is composited into the frame and ends up rendered onto the 3D
+          // phone's screen — a mouse arrow sitting in an iOS app, which is the
+          // one thing that gives away that the mockup is a mockup.
+          //
+          // Not in TypeScript's DisplayMediaStreamOptions, though it is in the
+          // Screen Capture spec and Chromium honours it.
+          cursor: "never",
+        } as MediaTrackConstraints,
         audio: false,
       });
       // Ending the share from the browser's own "Stop sharing" bar fires here.
