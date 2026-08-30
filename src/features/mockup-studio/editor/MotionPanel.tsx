@@ -171,7 +171,11 @@ function PresetCard({
       style={{ background: "var(--ks-row)" }}
     >
       <div
-        className="relative grid h-[76px] w-full place-items-center overflow-hidden rounded-[calc(var(--ks-r)-2px)]"
+        // Concentric with the card: 8px radius, 6px of padding, so the well
+        // is 2px. Matching the parent's radius instead makes the gap between
+        // the two curves widen around the corner, which is the thing that
+        // reads as "not quite right" without anyone being able to name it.
+        className="relative grid h-[76px] w-full place-items-center overflow-hidden rounded-[calc(var(--ks-r)-6px)]"
         style={{ background: "var(--ks-ctl)", perspective: "420px" }}
       >
         <div

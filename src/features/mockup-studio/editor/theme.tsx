@@ -82,6 +82,13 @@ export const EDITOR_THEME_CSS = `
   --ks-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ks-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 
+  /* Elevation, as iOS uses it on controls: a wide soft shadow for the drop,
+     plus a tight dark one right under the edge. The second is what stops a
+     raised element looking like it is floating a centimetre off the surface
+     instead of resting a millimetre above it. */
+  --ks-lift: 0 3px 8px rgba(0, 0, 0, 0.12), 0 1px 1px rgba(0, 0, 0, 0.16);
+  --ks-lift-soft: 0 2px 6px rgba(0, 0, 0, 0.1), 0 1px 1px rgba(0, 0, 0, 0.08);
+
   --ks-gap: 14px;
   --ks-topbar-h: 50px;
   --ks-panel-w: 290px;

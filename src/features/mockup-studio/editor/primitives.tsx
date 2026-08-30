@@ -555,21 +555,28 @@ export function Toggle({
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
+      // iOS proportions. Its switch is 51x31 with a 27 knob — the knob is
+      // 87% of the track height, nearly filling it. Ours was 14 in 20, or
+      // 70%, which reads as a small dot rattling around inside a slot rather
+      // than as a control with one moving part.
       className="relative h-[20px] w-[36px] shrink-0 rounded-full"
       style={{
-        background: checked ? "var(--ks-text)" : "var(--ks-badge)",
+        background: checked ? "var(--ks-accent)" : "var(--ks-badge)",
         transition: "background-color 160ms var(--ks-ease-out)",
       }}
     >
       <span
-        className="absolute left-[3px] top-[3px] h-[14px] w-[14px] rounded-full"
+        className="absolute left-[2px] top-[2px] h-[16px] w-[16px] rounded-full"
         style={{
+          // The knob carries a shadow because it sits ON the track, not in
+          // it. Without one it reads as a hole punched through the pill.
+          boxShadow: "var(--ks-lift)",
           // translate, not `left`. `left` is a layout property: changing it
           // relayouts every frame, and `transition-all` was animating the
           // colour through it too. Transform and opacity are the only two
           // things the compositor can move on its own.
           transform: checked ? "translateX(16px)" : "translateX(0)",
-          background: checked ? "var(--ks-surface-solid)" : "var(--ks-text-faint)",
+          background: "var(--ks-surface-solid)",
           transition: "transform 180ms var(--ks-ease-out), background-color 160ms var(--ks-ease-out)",
         }}
       />
@@ -600,11 +607,18 @@ export function Tabs<T extends string>({
           reads the second as the same object it was already looking at. */}
       <span
         aria-hidden
-        className="ks-tab-indicator absolute inset-y-[3px] left-[3px] rounded-[var(--ks-r)]"
+        className="ks-tab-indicator absolute inset-y-[3px] left-[3px]"
         style={{
           width: `calc((100% - 6px) / ${options.length})`,
           transform: `translateX(calc(${index} * 100%))`,
           background: "var(--ks-tab-active)",
+          // Concentric with its track: the strip is 8px with 3px of padding,
+          // so anything sitting inside it has to be 5px or the two curves run
+          // at different rates and the inset reads as a misprint.
+          borderRadius: "calc(var(--ks-r) - 3px)",
+          // Raised, the way iOS raises the selected segment. The recess is
+          // the track; the selection sits on top of it.
+          boxShadow: "var(--ks-lift-soft)",
           transition: "transform 260ms var(--ks-ease-out)",
         }}
       />
