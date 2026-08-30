@@ -55,7 +55,7 @@ export const EDITOR_THEME_CSS = `
 
   /* Control-row internals, taken literally from the frame. */
   --ks-ctl: rgba(0, 0, 0, 0.04);
-  --ks-ctl-fill: rgba(255, 146, 48, 0.2);
+  --ks-ctl-fill: rgba(0, 122, 255, 0.16);
   --ks-ctl-text: rgba(0, 0, 0, 0.6);
   --ks-badge: rgba(0, 0, 0, 0.08);
   /* The switch's off track, measured from Apple's kit (labels/tertiary).
@@ -73,14 +73,17 @@ export const EDITOR_THEME_CSS = `
   --ks-track: rgba(0, 0, 0, 0.04);
   --ks-clip: rgba(0, 0, 0, 0.06);
 
-  /* Accents/Orange from the kit. The brand was already orange; this is the
-     same hue tuned to sit beside Apple's other system colours, so the accent
-     and the greys around it come from one palette rather than two. */
-  --ks-accent: #FF9230;
-  --ks-accent-strong: rgba(255, 146, 48, 0.85);
-  --ks-accent-line: rgba(255, 146, 48, 0.5);
-  --ks-accent-wash: rgba(255, 146, 48, 0.16);
-  --ks-accent-wash-soft: rgba(255, 146, 48, 0.1);
+  /* systemBlue. Apple's own accent, and the one every control in the kit is
+     drawn with — a switch, a slider fill and a selected segment are all blue
+     there, so an editor built from those components reads as coherent in blue
+     in a way it does not in a colour borrowed from elsewhere.
+     #007AFF is the light-mode value; the kit's variables gave #0091FF for
+     dark, which is the pair Apple ships. */
+  --ks-accent: #007AFF;
+  --ks-accent-strong: rgba(0, 122, 255, 0.85);
+  --ks-accent-line: rgba(0, 122, 255, 0.5);
+  --ks-accent-wash: rgba(0, 122, 255, 0.14);
+  --ks-accent-wash-soft: rgba(0, 122, 255, 0.09);
   --ks-accent-text: #FFFFFF;
 
   /* Ours, not the mock's. */
@@ -196,8 +199,17 @@ export const EDITOR_THEME_CSS = `
   --ks-text-muted: rgba(235, 235, 245, 0.3);
   --ks-text-faint: rgba(235, 235, 245, 0.16);
 
+  /* Accents/Blue as the kit's dark palette defines it. Apple lightens the
+     accent in dark mode rather than reusing the light one, because #007AFF on
+     black is noticeably heavier than it is on white. */
+  --ks-accent: #0091FF;
+  --ks-accent-strong: rgba(0, 145, 255, 0.85);
+  --ks-accent-line: rgba(0, 145, 255, 0.5);
+  --ks-accent-wash: rgba(0, 145, 255, 0.2);
+  --ks-accent-wash-soft: rgba(0, 145, 255, 0.12);
+
   --ks-ctl: rgba(255, 255, 255, 0.05);
-  --ks-ctl-fill: rgba(255, 146, 48, 0.3);
+  --ks-ctl-fill: rgba(10, 132, 255, 0.28);
   --ks-ctl-text: rgba(255, 255, 255, 0.62);
   --ks-badge: rgba(255, 255, 255, 0.1);
   --ks-switch-off: rgba(120, 120, 128, 0.36);
