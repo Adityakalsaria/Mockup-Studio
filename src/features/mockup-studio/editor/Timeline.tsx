@@ -25,6 +25,9 @@ import { EasingPicker } from "./EasingPicker";
 const LABEL_WIDTH = 132;
 /* Figma's track rows. Tall enough to hold a bar with a label inside it. */
 const LANE_H = 26;
+/** Breathing room at each end of the time axis, so the playhead at 0 and at the
+    duration is fully inside the lane rather than half over its edge. */
+const LEAD = 10;
 
 /** Between toolbar groups. A gap alone says "these are apart"; a rule says
     "and they are about different things". */
@@ -120,7 +123,9 @@ export function Timeline({
   const timeFromClientX = (clientX: number) => {
     const rect = laneRef.current?.getBoundingClientRect();
     if (!rect || rect.width <= 0) return 0;
-    const fraction = (clientX - rect.left) / rect.width;
+    // The axis is inset, so the usable width is the element minus both leads.
+    const axis = Math.max(1, rect.width - LEAD * 2);
+    const fraction = (clientX - rect.left - LEAD) / axis;
     return Math.max(0, Math.min(durationSec, fraction * durationSec));
   };
   /**
@@ -150,7 +155,27 @@ export function Timeline({
     scroller.scrollLeft = playheadX - scroller.clientWidth / 2;
   }, [zoom, playhead, durationSec]);
 
-  const pct = (time: number) => `${(time / Math.max(0.001, durationSec)) * 100}%`;
+  /**
+   * A moment, as a position in the lane.
+   *
+   * The axis is inset by LEAD on both sides rather than running edge to edge.
+   * At zero the playhead sat exactly on the lane's left boundary, so its tab
+   * and the 0s label were half outside the element and clipped — the first
+   * frame of every animation was the one you could not see. The same at the
+   * far end for the last.
+   *
+   * `span` is the width of a DURATION rather than the position of a moment,
+   * so it scales by the axis length without the lead offset. Using `at` for a
+   * width would push every bar right by 10px.
+   */
+  const at = (time: number) =>
+    `calc(${LEAD}px + (100% - ${LEAD * 2}px) * ${
+      Math.max(0, Math.min(1, time / Math.max(0.001, durationSec)))
+    })`;
+  const span = (seconds: number) =>
+    `calc((100% - ${LEAD * 2}px) * ${
+      Math.max(0, Math.min(1, seconds / Math.max(0.001, durationSec)))
+    })`;
 
   // A tick roughly every 60px, rounded to something a person would count in.
   // The span the ruler has to label is the duration divided by the zoom: at 4x
@@ -205,10 +230,6 @@ export function Timeline({
         >
           {formatTime(playhead)} / {formatTime(durationSec)}
         </span>
-
-        <div className="ml-auto flex items-center gap-[var(--ks-space-2)]">
-          <EasingPicker value={animation.easing} onChange={onEasingChange} />
-        </div>
 
         <Divider />
 
@@ -265,6 +286,11 @@ export function Timeline({
             centred rather than the left edge, because the playhead is where
             you are working — anchoring to zero would push the thing you were
             looking at off screen every time you zoomed in. */}
+
+        <div className="ml-auto flex items-center gap-[var(--ks-space-2)]">
+          <EasingPicker value={animation.easing} onChange={onEasingChange} />
+        </div>
+
         <Divider />
 
         <label className="ks-micro flex items-center gap-[var(--ks-space-2)]" style={{ color: "var(--ks-text-muted)" }}>
@@ -400,7 +426,7 @@ export function Timeline({
               <span
                 key={t}
                 className="absolute top-0 flex h-full flex-col items-start"
-                style={{ left: pct(t) }}
+                style={{ left: at(t) }}
               >
                 <span className="h-[5px] w-px" style={{ background: "var(--ks-line-strong)" }} />
                 <span
@@ -437,8 +463,8 @@ export function Timeline({
                 }}
                 className="absolute inset-y-[3px] flex cursor-grab items-center overflow-hidden rounded-[var(--ks-r-menu-item)] px-[8px]"
                 style={{
-                  left: pct(sourceStart),
-                  width: pct(Math.min(sourceLength, Math.max(0, durationSec - sourceStart))),
+                  left: at(sourceStart),
+                  width: span(Math.min(sourceLength, Math.max(0, durationSec - sourceStart))),
                   background: "var(--ks-row-strong)",
                   boxShadow: "inset 0 0 0 1px var(--ks-line-strong)",
                 }}
@@ -459,7 +485,7 @@ export function Timeline({
                 }}
                 className="absolute inset-y-[3px] w-[10px] cursor-ew-resize rounded-r-[var(--ks-r-menu-item)]"
                 style={{
-                  left: `calc(${pct(
+                  left: `calc(${at(
                     sourceStart + Math.min(sourceLength, Math.max(0, durationSec - sourceStart)),
                   )} - 10px)`,
                   background: "var(--ks-line-strong)",
@@ -496,8 +522,8 @@ export function Timeline({
                   <span
                     className="absolute inset-y-[3px] flex items-center overflow-hidden rounded-[var(--ks-r-menu-item)] px-[8px]"
                     style={{
-                      left: pct(first),
-                      width: pct(last - first),
+                      left: at(first),
+                      width: span(last - first),
                       background: "var(--ks-accent-wash)",
                       boxShadow: "inset 0 0 0 1px var(--ks-accent-line)",
                     }}
@@ -527,7 +553,7 @@ export function Timeline({
                     }}
                     className="absolute top-1/2 h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[1.5px]"
                     style={{
-                      left: pct(k.time),
+                      left: at(k.time),
                       background: "var(--ks-accent)",
                       boxShadow: "0 0 0 1.5px var(--ks-surface)",
                     }}
@@ -549,7 +575,7 @@ export function Timeline({
               over the line, so it disappeared behind the track bars. */}
           <span
             className="pointer-events-none absolute top-0 z-30 h-full w-px"
-            style={{ left: pct(playhead), background: "var(--ks-accent)" }}
+            style={{ left: at(playhead), background: "var(--ks-accent)" }}
           >
             {/* A tab on the ruler, not a floating time pill.
                 The pill restated a number the toolbar already shows, and it
