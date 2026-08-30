@@ -906,7 +906,6 @@ export default function EditorShell() {
               setPlayhead(0);
               setAnimation({ tracks: {} });
             }}
-            onApplyPreset={applyMotionPreset}
             onEasingChange={(easing) => setAnimation({ easing })}
             exportFps={exportFps}
             onExportFpsChange={setExportFps}

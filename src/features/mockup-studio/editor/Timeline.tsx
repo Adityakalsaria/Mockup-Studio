@@ -7,7 +7,6 @@ import {
   type AnimatableKey,
   type Animation,
 } from "../animation";
-import { MOTION_PRESETS, PRESET_GROUPS } from "./motionPresets";
 import type { Filmstrip } from "./useFilmstrip";
 import { type Easing } from "../animation";
 import { Icon } from "./icons";
@@ -38,7 +37,6 @@ export function Timeline({
   onMoveKey,
   onRemoveKey,
   onClear,
-  onApplyPreset,
   onScrubbingChange,
   onEasingChange,
   exportFps,
@@ -57,7 +55,6 @@ export function Timeline({
   onMoveKey: (property: AnimatableKey, from: number, to: number) => void;
   onRemoveKey: (property: AnimatableKey, time: number) => void;
   onClear: () => void;
-  onApplyPreset: (id: string) => void;
   /** True for the duration of a playhead drag, so the stage can stop easing. */
   onScrubbingChange: (active: boolean) => void;
   onEasingChange: (easing: Easing) => void;
@@ -185,46 +182,9 @@ export function Timeline({
           {formatTime(playhead)} / {formatTime(durationSec)}
         </span>
 
-        {/* An action list, not a setting: the select never holds a value, it
-            fires and resets. A preset REPLACES the tracks, which is the right
-            default for a starting point and the reason each option says what
-            it will do rather than just naming itself. */}
-        <label className="relative ml-auto flex items-center">
-          <span className="sr-only">Motion preset</span>
-          <span
-            className="ks-label flex h-[24px] items-center gap-[4px] rounded-[var(--ks-r-pill)] border px-[8px]"
-            style={{ borderColor: "var(--ks-hairline)", color: "var(--ks-text-dim)" }}
-          >
-            Motion
-            <Icon name="chevronDown" />
-          </span>
-          <select
-            value=""
-            aria-label="Motion preset"
-            onChange={(event) => {
-              const id = event.currentTarget.value;
-              event.currentTarget.value = "";
-              if (id) onApplyPreset(id);
-            }}
-            className="absolute inset-0 cursor-pointer opacity-0"
-          >
-            <option value="">Choose a motion…</option>
-            {/* Grouped because the three kinds behave differently: an
-                entrance lands on your framing, a move travels through it, a
-                loop returns to where it began. Flat, the list read as a pile. */}
-            {PRESET_GROUPS.map((group) => (
-              <optgroup key={group.kind} label={group.label}>
-                {MOTION_PRESETS.filter((preset) => preset.kind === group.kind).map((preset) => (
-                  <option key={preset.id} value={preset.id}>
-                    {preset.label} — {preset.hint}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </label>
-
-        <EasingPicker value={animation.easing} onChange={onEasingChange} />
+        <div className="ml-auto">
+          <EasingPicker value={animation.easing} onChange={onEasingChange} />
+        </div>
 
         <label className="ks-micro flex items-center gap-[4px]" style={{ color: "var(--ks-text-faint)" }}>
           Res

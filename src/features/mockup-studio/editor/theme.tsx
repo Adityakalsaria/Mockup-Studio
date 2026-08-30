@@ -116,12 +116,6 @@ export const EDITOR_THEME_CSS = `
   --ks-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ks-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 
-  /* Elevation, as iOS uses it on controls: a wide soft shadow for the drop,
-     plus a tight dark one right under the edge. The second is what stops a
-     raised element looking like it is floating a centimetre off the surface
-     instead of resting a millimetre above it. */
-  --ks-lift: 0 3px 8px rgba(0, 0, 0, 0.12), 0 1px 1px rgba(0, 0, 0, 0.16);
-  --ks-lift-soft: 0 2px 6px rgba(0, 0, 0, 0.1), 0 1px 1px rgba(0, 0, 0, 0.08);
 
   /* Spacing scale.
      Twelve different values were in use — 1,2,3,4,5,6,7,8,9,10,12,14 — none
@@ -144,7 +138,11 @@ export const EDITOR_THEME_CSS = `
   --ks-space-3: 12px;
   --ks-space-4: 16px;
 
-  --ks-gap: var(--ks-space-4);
+  /* Between the three layout regions — the two panels, the canvas and the
+     timeline — and around the outside of all of them. 8 rather than 16: at
+     this scale the gutter was reading as a margin, and the space it took came
+     straight out of the canvas, which is the one region that wants it. */
+  --ks-gap: var(--ks-space-2);
   /* Apple's sidebar is 320. Ours was 290, which is where every "scale it
      down to fit" compromise came from — at 320 the real control sizes fit
      without shrinking any of them. */
@@ -308,17 +306,12 @@ export const EDITOR_THEME_CSS = `
   position: relative;
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  /* Small, because of what is behind it.
-     This was 0 12px 32px at 14% — the weight a panel floating over BUSY
-     content needs to separate from it. Most of what sits behind these panels
-     is flat page colour, and a heavy shadow on a flat ground has nothing to
-     separate from: it reads as a smudge around the edge rather than as
-     height. The specular rim is already doing the work of saying "this is a
-     surface"; the shadow only has to say it is not painted onto the page. */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-[data-ks-theme="dark"] .ks-material {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24);
+  /* No shadow.
+     A drop shadow separates a surface from what is behind it, and there is
+     nothing behind these — the regions sit side by side on flat page colour,
+     with an 8px gutter already doing the separating. The shadow was falling
+     on nothing and reading as a smudge around each edge. The border and the
+     specular rim say "surface" on their own. */
 }
 
 /* The specular edge.
