@@ -6,7 +6,6 @@ import DesignTokenRuntimeProvider from "@/providers/DesignTokenRuntimeProvider";
 import CookieConsentProvider from "@/providers/CookieConsentProvider";
 import { OpenAccountModalProvider } from "@/components/modals/OpenAccountModal";
 import ConditionalAnalytics from "@/components/ConditionalAnalytics";
-import CookieBanner from "@/components/ui/CookieBanner";
 import "./globals.css";
 import ScrollToTopOnLoad from "@/components/ScrollToTopOnLoad";
 
@@ -52,7 +51,6 @@ export default function RootLayout({
           </OpenAccountModalProvider>
           <ScrollToTopOnLoad />
           <ConditionalAnalytics />
-          <CookieBanner />
         </CookieConsentProvider>
       </body>
     </html>
