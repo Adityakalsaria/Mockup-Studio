@@ -67,6 +67,27 @@ function curvePath(
   return points.join(" ");
 }
 
+/**
+ * The same curve, closed down to the y=0 line so it can be filled.
+ *
+ * A one-pixel stroke on an empty field reads as a diagram; the area under it
+ * reads as a quantity, which is what an easing curve is — how much of the
+ * move has happened by now. It also gives the plot something to be, instead
+ * of a line floating in a box.
+ */
+function curveArea(
+  easing: Easing,
+  box: number,
+  pad: number,
+  range: { lo: number; hi: number },
+) {
+  const span = box - pad * 2;
+  const baseline = box - pad - ((0 - range.lo) / (range.hi - range.lo)) * span;
+  return `${curvePath(easing, box, pad, range)} L${(pad + span).toFixed(2)} ${baseline.toFixed(
+    2,
+  )} L${pad.toFixed(2)} ${baseline.toFixed(2)} Z`;
+}
+
 function CurveThumb({ easing, active }: { easing: Easing; active: boolean }) {
   const d = useMemo(() => curvePath(easing, THUMB, PAD), [easing]);
   return (
@@ -179,14 +200,21 @@ function BezierEditor({
       onPointerUp={() => setDragging(null)}
       onPointerCancel={() => setDragging(null)}
     >
+      {/* The 0..1 region, filled so it reads as the plot rather than as four
+          dashed lines around nothing. */}
       <rect
         x={PLOT_PAD}
         y={toY(1)}
         width={span}
         height={toY(0) - toY(1)}
-        fill="none"
+        fill="var(--ks-row)"
         stroke="var(--ks-line)"
         strokeDasharray="2 3"
+      />
+      <path
+        d={curveArea({ kind: "cubic", p: points }, PLOT, PLOT_PAD, { lo: Y_MIN, hi: Y_MAX })}
+        fill="var(--ks-accent-wash)"
+        stroke="none"
       />
       {/* The handle arms. Figma draws these because a bezier's control points
           only make sense in relation to the endpoint they pull from. */}
@@ -240,9 +268,14 @@ function SpringEditor({
           y={boxTop}
           width={PLOT - PLOT_PAD * 2}
           height={boxHeight}
-          fill="none"
+          fill="var(--ks-row)"
           stroke="var(--ks-line)"
           strokeDasharray="2 3"
+        />
+        <path
+          d={curveArea(easing, PLOT, PLOT_PAD, { lo: Y_MIN, hi: Y_MAX })}
+          fill="var(--ks-accent-wash)"
+          stroke="none"
         />
         <path d={d} fill="none" stroke="var(--ks-text)" strokeWidth={2} strokeLinecap="round" />
       </svg>
