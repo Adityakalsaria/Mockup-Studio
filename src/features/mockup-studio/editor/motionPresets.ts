@@ -329,6 +329,119 @@ export const MOTION_PRESETS: MotionPreset[] = [
     }),
   },
 
+  {
+    id: "crash-zoom",
+    label: "Crash zoom",
+    kind: "entrance",
+    hint: "Slams in from wide to your framing",
+    build: (p) => ({
+      durationSec: 0.9,
+      tracks: {
+        // Two thirds of the distance inside the first third of the time. The
+        // violence is the point; the small overshoot is the only thing
+        // stopping it hitting the end like a wall.
+        zoom: track("zoom", [
+          [0, p.zoom * 0.5],
+          [0.3, p.zoom * 0.87],
+          [0.6, p.zoom * 1.05],
+          [0.9, p.zoom],
+        ]),
+        // A few degrees of roll thrown off by the impact and recovered. This
+        // is the axis that makes a fast move feel like it had force behind
+        // it rather than being played back quickly.
+        zAxis: track("zAxis", [
+          [0, p.zAxis - 4],
+          [0.6, p.zAxis + 1.5],
+          [0.9, p.zAxis],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "dutch-settle",
+    label: "Dutch settle",
+    kind: "entrance",
+    hint: "Arrives tilted off-axis and rights itself",
+    build: (p) => ({
+      durationSec: 2,
+      tracks: {
+        // A dutch angle is unease; levelling out of one is release. Roll
+        // carries the whole idea, so it is the only property that overshoots.
+        zAxis: track("zAxis", [
+          [0, p.zAxis - 19],
+          [1.3, p.zAxis + 4],
+          [2, p.zAxis],
+        ]),
+        yAxis: track("yAxis", [
+          [0, p.yAxis - 21],
+          [2, p.yAxis],
+        ]),
+        zoom: track("zoom", [
+          [0, p.zoom * 0.87],
+          [1.6, p.zoom * 1.01],
+          [2, p.zoom],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "crane-down",
+    label: "Crane down",
+    kind: "entrance",
+    hint: "Descends from above, levelling as it lands",
+    build: (p) => ({
+      durationSec: 2.6,
+      tracks: {
+        panY: track("panY", [
+          [0, p.panY + 0.5],
+          [1.8, p.panY - 0.022],
+          [2.6, p.panY],
+        ]),
+        // Looking down at the start and level by the end is what separates a
+        // crane from a slide: the ANGLE changes with the height, so the move
+        // reads as a camera descending rather than a phone sliding up.
+        xAxis: track("xAxis", [
+          [0, p.xAxis + 24],
+          [1.9, p.xAxis - 3],
+          [2.6, p.xAxis],
+        ]),
+        zoom: track("zoom", [
+          [0, p.zoom * 0.82],
+          [2.6, p.zoom],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "tumble-in",
+    label: "Tumble in",
+    kind: "entrance",
+    hint: "Turns on all three axes and lands square",
+    build: (p) => ({
+      durationSec: 2.3,
+      tracks: {
+        // The only preset that drives all three rotations. They settle at
+        // 2.3, 2.0 and 1.75 — staggering the axes is what keeps a tumble from
+        // reading as one rigid body snapping to a stop.
+        yAxis: track("yAxis", [
+          [0, p.yAxis - 128],
+          [1.15, p.yAxis - 24],
+          [1.8, p.yAxis + 7],
+          [2.3, p.yAxis],
+        ]),
+        xAxis: track("xAxis", [
+          [0, p.xAxis + 36],
+          [1.35, p.xAxis - 5],
+          [2, p.xAxis],
+        ]),
+        zAxis: track("zAxis", [
+          [0, p.zAxis - 28],
+          [1.2, p.zAxis + 5],
+          [1.75, p.zAxis],
+        ]),
+      },
+    }),
+  },
   // -------------------------------------------------------------- MOVES ----
   {
     id: "pan-across",
@@ -414,6 +527,86 @@ export const MOTION_PRESETS: MotionPreset[] = [
     }),
   },
 
+  {
+    id: "vertigo",
+    label: "Vertigo push",
+    kind: "move",
+    hint: "Closes in while the framing slides under you",
+    build: (p) => ({
+      durationSec: 3,
+      tracks: {
+        // Not a true dolly zoom — that needs the field of view to fight the
+        // camera distance, and the stage has one fixed 38 degree lens. What
+        // it borrows is the unease: the phone grows while the frame drifts
+        // the other way, so the size and the position disagree about what is
+        // happening.
+        zoom: track("zoom", [
+          [0, p.zoom * 0.78],
+          [3, p.zoom * 1.22],
+        ]),
+        panY: track("panY", [
+          [0, p.panY + 0.07],
+          [3, p.panY - 0.07],
+        ]),
+        xAxis: track("xAxis", [
+          [0, p.xAxis - 11],
+          [3, p.xAxis + 11],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "whip-pan",
+    label: "Whip pan",
+    kind: "move",
+    hint: "Slow, then rips across the frame, then slow again",
+    build: (p) => ({
+      durationSec: 1.2,
+      tracks: {
+        // Slow, fast, slow: the outer keys are close together in value and
+        // far apart in time, the middle pair the reverse. On film the fast
+        // middle would smear into motion blur; there is none here, so the
+        // speed contrast has to do that work by itself.
+        panX: track("panX", [
+          [0, p.panX - 0.55],
+          [0.4, p.panX - 0.42],
+          [0.8, p.panX + 0.42],
+          [1.2, p.panX + 0.55],
+        ]),
+        yAxis: track("yAxis", [
+          [0, p.yAxis + 26],
+          [0.4, p.yAxis + 19],
+          [0.8, p.yAxis - 19],
+          [1.2, p.yAxis - 26],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "crane-up",
+    label: "Crane up",
+    kind: "move",
+    hint: "Rises away, tipping down as it goes",
+    build: (p) => ({
+      durationSec: 3.2,
+      tracks: {
+        panY: track("panY", [
+          [0, p.panY - 0.08],
+          [3.2, p.panY + 0.42],
+        ]),
+        xAxis: track("xAxis", [
+          [0, p.xAxis - 5],
+          [3.2, p.xAxis + 20],
+        ]),
+        // Opens out as it climbs, which is what makes it read as leaving
+        // rather than as the phone falling out of frame.
+        zoom: track("zoom", [
+          [0, p.zoom],
+          [3.2, p.zoom * 0.78],
+        ]),
+      },
+    }),
+  },
   // -------------------------------------------------------------- LOOPS ----
   {
     id: "turntable",
@@ -506,6 +699,65 @@ export const MOTION_PRESETS: MotionPreset[] = [
           [2.2, p.xAxis - 1.4],
           [4.9, p.xAxis + 1.9],
           [8, p.xAxis],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "pendulum",
+    label: "Pendulum",
+    kind: "loop",
+    hint: "Rocks like something hanging — loops seamlessly",
+    build: (p) => ({
+      durationSec: 4.4,
+      tracks: {
+        // Roll is the swing. The monotone fit flattens its tangent at each
+        // turnaround, which here is exactly right: a pendulum really is
+        // motionless for an instant at the top of its arc.
+        zAxis: track("zAxis", [
+          [0, p.zAxis - 8],
+          [2.2, p.zAxis + 8],
+          [4.4, p.zAxis - 8],
+        ]),
+        // Drifts with the swing, a quarter period behind, so the phone
+        // travels through the bottom of the arc rather than rolling on the
+        // spot.
+        panX: track("panX", [
+          [0, p.panX],
+          [1.1, p.panX + 0.03],
+          [3.3, p.panX - 0.03],
+          [4.4, p.panX],
+        ]),
+        panY: track("panY", [
+          [0, p.panY],
+          [2.2, p.panY - 0.014],
+          [4.4, p.panY],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "breathe",
+    label: "Breathe",
+    kind: "loop",
+    hint: "Almost imperceptible pulse for a held shot",
+    build: (p) => ({
+      durationSec: 6,
+      tracks: {
+        // Deliberately at the edge of visibility. A held product shot that is
+        // perfectly still reads as a frozen frame, and a viewer starts to
+        // wonder whether the video has stalled; three percent of scale over
+        // six seconds is enough to say it has not, and little enough that
+        // nobody catches it doing so.
+        zoom: track("zoom", [
+          [0, p.zoom],
+          [3, p.zoom * 1.03],
+          [6, p.zoom],
+        ]),
+        panY: track("panY", [
+          [0, p.panY],
+          [3, p.panY - 0.012],
+          [6, p.panY],
         ]),
       },
     }),
