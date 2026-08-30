@@ -61,7 +61,7 @@ export function AspectSelect({
     RATIOS.find((r) => r.id === ratioId) ?? STORE_RATIOS.find((r) => r.id === ratioId);
 
   return (
-    <label className="relative flex h-[var(--ks-row-h)] w-full items-center justify-between rounded-[var(--ks-r)] px-[10px]"
+    <label className="relative flex h-[var(--ks-row-h)] w-full items-center justify-between rounded-[var(--ks-r)] px-[var(--ks-ctl-pad)]"
       style={{ background: "var(--ks-ctl)" }}
     >
       <span className="ks-label" style={{ color: "var(--ks-text-dim)" }}>

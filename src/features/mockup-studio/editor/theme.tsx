@@ -121,10 +121,20 @@ export const EDITOR_THEME_CSS = `
      without shrinking any of them. */
   --ks-panel-w: 320px;
   --ks-timeline-h: 194px;
-  /* iOS list rows are 44. Ours were 36, which is why a 64x28 switch could not
-     sit in one. */
-  --ks-row-h: 44px;
+  /* 36, from the macOS kit's pulldown button — 100x36 with its label inset
+     18px. macOS is the right reference for this: iOS rows are 44 because a
+     fingertip needs 44, and nothing here is touched by a finger. 44 was
+     costing four visible rows per panel for a target size nobody uses. */
+  --ks-row-h: 36px;
+  /* The macOS control inset. Ours was 10, which read as cramped once the
+     shapes became capsules — a capsule's corners eat horizontal space that a
+     rectangle's do not, so the same number reads tighter. */
+  --ks-ctl-pad: 14px;
   --ks-row-gap: 8px;
+  /* Between the columns WITHIN a row. Was 2px, which is a hairline: fine
+     between rectangles, wrong between capsules, where two pills that close
+     read as one shape with a nick in it. */
+  --ks-col-gap: 6px;
   /* Wider than before: 13px tabular figures need the room 11px did not, and a
      clipped number is worse than a narrower label. */
   --ks-val-w: 62px;

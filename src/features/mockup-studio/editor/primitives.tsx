@@ -257,7 +257,7 @@ export function ParamRow({
   const shown = formatValue(value, decimals);
 
   return (
-    <div className="flex w-full items-stretch gap-[2px]">
+    <div className="flex w-full items-stretch gap-[var(--ks-col-gap)]">
       <div
         role="slider"
         tabIndex={0}
@@ -293,7 +293,7 @@ export function ParamRow({
           className="absolute inset-y-0 left-0"
           style={{ width: `${fillPct}%`, background: "var(--ks-ctl-fill)" }}
         />
-        <span className="relative flex h-full items-center pl-[10px] pr-[6px]">
+        <span className="relative flex h-full items-center pl-[var(--ks-ctl-pad)] pr-[8px]">
           <span className="ks-label truncate" style={{ color: "var(--ks-ctl-text)" }}>
             {label}
           </span>
@@ -306,7 +306,7 @@ export function ParamRow({
           setDraft(shown);
           setEditing(true);
         }}
-        className="flex h-[var(--ks-row-h)] w-[var(--ks-val-w)] shrink-0 items-center justify-end rounded-[var(--ks-r)] px-[6px]"
+        className="flex h-[var(--ks-row-h)] w-[var(--ks-val-w)] shrink-0 items-center justify-end rounded-[var(--ks-r)] px-[12px]"
         style={{ background: "var(--ks-ctl)" }}
       >
         {editing ? (
@@ -421,9 +421,9 @@ export function ControlRow({
   onKeyframe?: () => void;
 }) {
   return (
-    <div className="flex w-full items-stretch gap-[2px]">
+    <div className="flex w-full items-stretch gap-[var(--ks-col-gap)]">
       <div
-        className="flex h-[var(--ks-row-h)] flex-1 items-center justify-between rounded-[var(--ks-r)] pl-[10px] pr-[8px]"
+        className="flex h-[var(--ks-row-h)] flex-1 items-center justify-between rounded-[var(--ks-r)] pl-[var(--ks-ctl-pad)] pr-[10px]"
         style={{ background: "var(--ks-ctl)" }}
       >
         <span className="ks-label" style={{ color: "var(--ks-ctl-text)" }}>
@@ -468,9 +468,9 @@ export function ColorRow({
   };
 
   return (
-    <div className="flex w-full items-stretch gap-[2px]">
+    <div className="flex w-full items-stretch gap-[var(--ks-col-gap)]">
       <div
-        className="flex h-[var(--ks-row-h)] flex-1 items-center justify-between rounded-[var(--ks-r)] pl-[10px] pr-[6px]"
+        className="flex h-[var(--ks-row-h)] flex-1 items-center justify-between rounded-[var(--ks-r)] pl-[var(--ks-ctl-pad)] pr-[10px]"
         style={{ background: "var(--ks-ctl)" }}
       >
         <span className="ks-label" style={{ color: "var(--ks-ctl-text)" }}>
