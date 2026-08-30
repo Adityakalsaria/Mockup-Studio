@@ -52,8 +52,15 @@ export const EDITOR_THEME_CSS = `
   --ks-ctl-fill: rgba(0, 0, 0, 0.1);
   --ks-ctl-text: rgba(0, 0, 0, 0.6);
   --ks-badge: rgba(0, 0, 0, 0.08);
+  /* The switch's off track, measured from Apple's kit (labels/tertiary).
+     Much darker than our badge fill — a white knob needs it to read. */
+  --ks-switch-off: rgba(60, 60, 67, 0.3);
   --ks-badge-text: rgba(0, 0, 0, 0.35);
   --ks-tab-active: rgba(255, 255, 255, 0.72);
+  /* Segmented control, measured from Apple's kit: fills/tertiary for the
+     track, a solid white selection. */
+  --ks-seg-track: rgba(118, 118, 128, 0.12);
+  --ks-seg-selected: #FFFFFF;
   --ks-tab-active-text: rgba(0, 0, 0, 0.9);
   --ks-tab-text: rgba(0, 0, 0, 0.35);
 
@@ -127,8 +134,13 @@ export const EDITOR_THEME_CSS = `
   --ks-ctl-fill: rgba(255, 255, 255, 0.12);
   --ks-ctl-text: rgba(255, 255, 255, 0.62);
   --ks-badge: rgba(255, 255, 255, 0.1);
+  --ks-switch-off: rgba(120, 120, 128, 0.36);
   --ks-badge-text: rgba(255, 255, 255, 0.38);
   --ks-tab-active: rgba(255, 255, 255, 0.1);
+  /* Dark: iOS raises the track's alpha and the selection becomes a lighter
+     grey rather than white, which would glare against a dark panel. */
+  --ks-seg-track: rgba(118, 118, 128, 0.24);
+  --ks-seg-selected: #636366;
   --ks-tab-active-text: rgba(255, 255, 255, 0.92);
   --ks-tab-text: rgba(255, 255, 255, 0.38);
 

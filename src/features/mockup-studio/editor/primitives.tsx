@@ -555,29 +555,31 @@ export function Toggle({
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      // iOS proportions. Its switch is 51x31 with a 27 knob — the knob is
-      // 87% of the track height, nearly filling it. Ours was 14 in 20, or
-      // 70%, which reads as a small dot rattling around inside a slot rather
-      // than as a control with one moving part.
-      className="relative h-[20px] w-[36px] shrink-0 rounded-full"
+      // Measured from Apple's iOS 27 kit, scaled to our row height.
+      //
+      // Their switch is 64x28 with a 38x24 knob, inset 2. Note the knob is a
+      // CAPSULE, not a circle -- 38 wide in a 64 track. That is the shape of
+      // the current switch, and it is why an earlier pass here looked wrong:
+      // it was built from the older iOS switch, a round knob in a 51x31 track,
+      // which has not been the shape for some time.
+      //
+      // At our 20px height those proportions give a 46x20 track with a 27x17
+      // knob inset 1.5 -- aspect 2.29, matching theirs, where ours was 1.8.
+      className="relative h-[20px] w-[46px] shrink-0 rounded-full"
       style={{
-        background: checked ? "var(--ks-accent)" : "var(--ks-badge)",
+        // Their off state is labels/tertiary at 0.3 alpha, far darker than the
+        // badge fill we were using. A white knob needs that much contrast
+        // behind it or the control reads as empty when it is off.
+        background: checked ? "var(--ks-accent)" : "var(--ks-switch-off)",
         transition: "background-color 160ms var(--ks-ease-out)",
       }}
     >
       <span
-        className="absolute left-[2px] top-[2px] h-[16px] w-[16px] rounded-full"
+        className="absolute left-[1.5px] top-[1.5px] h-[17px] w-[27px] rounded-full"
         style={{
-          // The knob carries a shadow because it sits ON the track, not in
-          // it. Without one it reads as a hole punched through the pill.
-          boxShadow: "var(--ks-lift)",
-          // translate, not `left`. `left` is a layout property: changing it
-          // relayouts every frame, and `transition-all` was animating the
-          // colour through it too. Transform and opacity are the only two
-          // things the compositor can move on its own.
           transform: checked ? "translateX(16px)" : "translateX(0)",
-          background: "var(--ks-surface-solid)",
-          transition: "transform 180ms var(--ks-ease-out), background-color 160ms var(--ks-ease-out)",
+          background: "#FFFFFF",
+          transition: "transform 180ms var(--ks-ease-out)",
         }}
       />
     </button>
@@ -595,11 +597,19 @@ export function Tabs<T extends string>({
   onChange: (next: T) => void;
 }) {
   const index = Math.max(0, options.findIndex((option) => option.id === value));
+  // Apple's large segmented control is 50 tall with 2px padding and a 4px gap
+  // between segments. Ours is 36, so the gap scales to 3.
+  const GAP = 3;
 
   return (
     <div
-      className="relative flex w-full rounded-[var(--ks-r)] p-[3px]"
-      style={{ background: "var(--ks-ctl)" }}
+      // Measured from the kit: the track is a full pill (radius 100), not a
+      // rounded rectangle, and its fill is fills/tertiary. An earlier pass
+      // here used the 8px control radius and reasoned carefully about keeping
+      // the inner corner concentric with it -- correct thinking applied to the
+      // wrong shape, because Apple simply uses capsules for this control.
+      className="relative flex w-full rounded-full p-[2px]"
+      style={{ background: "var(--ks-seg-track)", gap: `${GAP}px` }}
     >
       {/* One indicator that travels, instead of a background appearing on one
           segment and vanishing from the other. Two segments swapping colour
@@ -607,18 +617,17 @@ export function Tabs<T extends string>({
           reads the second as the same object it was already looking at. */}
       <span
         aria-hidden
-        className="ks-tab-indicator absolute inset-y-[3px] left-[3px]"
+        className="ks-tab-indicator absolute inset-y-[2px] left-[2px] rounded-full"
         style={{
-          width: `calc((100% - 6px) / ${options.length})`,
-          transform: `translateX(calc(${index} * 100%))`,
-          background: "var(--ks-tab-active)",
-          // Concentric with its track: the strip is 8px with 3px of padding,
-          // so anything sitting inside it has to be 5px or the two curves run
-          // at different rates and the inset reads as a misprint.
-          borderRadius: "calc(var(--ks-r) - 3px)",
-          // Raised, the way iOS raises the selected segment. The recess is
-          // the track; the selection sits on top of it.
-          boxShadow: "var(--ks-lift-soft)",
+          // Each segment is an equal share of what is left after the padding
+          // and the gaps between them.
+          width: `calc((100% - 4px - ${(options.length - 1) * GAP}px) / ${options.length})`,
+          transform: `translateX(calc(${index} * (100% + ${GAP}px)))`,
+          background: "var(--ks-seg-selected)",
+          // Their shadow, measured: wide and very faint. Much softer than a
+          // general-purpose control lift -- the selection is meant to sit
+          // barely above the track, not hover over it.
+          boxShadow: "0 2px 10px rgba(0, 0, 0, 0.06)",
           transition: "transform 260ms var(--ks-ease-out)",
         }}
       />
@@ -630,9 +639,14 @@ export function Tabs<T extends string>({
             type="button"
             onClick={() => onChange(option.id)}
             aria-pressed={active}
-            className="ks-label relative z-[1] h-[30px] flex-1 rounded-[var(--ks-r)]"
+            className="ks-label relative z-[1] h-[30px] flex-1 rounded-full"
             style={{
               color: active ? "var(--ks-tab-active-text)" : "var(--ks-tab-text)",
+              // The kit shifts the label from Medium to Semibold on selection.
+              // Weight is doing work colour alone cannot: it says "this one"
+              // even where the two colours are close, and it survives being
+              // looked at out of the corner of your eye.
+              fontWeight: active ? 650 : 500,
               transition: "color 200ms var(--ks-ease-out)",
             }}
           >
