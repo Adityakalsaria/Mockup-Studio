@@ -81,15 +81,17 @@ export const DEFAULT_EDITOR_STATE: EditorState = {
  * A mirror window is not a clean screenshot: the mirroring app puts its own
  * border and title bar around the device, and only on some edges — so the
  * automatic centre-crop lands the content slightly low and slightly small.
- * These are the numbers that put it back, measured against iPhone Mirroring.
+ * These are the numbers that put it back, dialled in by eye against iPhone
+ * Mirroring rather than derived — the mirror app's chrome is whatever Apple
+ * decided it is, and there is nothing to calculate from.
  *
  * Applied on start and cleared on stop, so an uploaded screenshot -- which
  * needs none of this -- is never cropped by it.
  */
 export const MIRROR_SCREEN_FIT = {
-  screenScale: 1.05,
+  screenScale: 1.04,
   screenOffsetX: 0,
-  screenOffsetY: 0.02,
+  screenOffsetY: 0.015,
 } as const;
 
 export const RANGES = {
