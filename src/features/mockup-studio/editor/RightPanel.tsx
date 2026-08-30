@@ -29,6 +29,7 @@ import type { AnimatableKey } from "../animation";
 type SectionId = "source" | "phone" | "mockup" | "camera" | "blur" | "background";
 
 export function RightPanel({
+  side,
   state,
   onChange,
   sourceSrc,
@@ -54,6 +55,12 @@ export function RightPanel({
   keyedNow,
   onToggleKey,
 }: {
+  /**
+   * Which flank this instance is. One component renders both panels rather
+   * than two files duplicating every control: the sections differ, the
+   * controls inside them do not.
+   */
+  side: "left" | "right";
   state: EditorState;
   onChange: (patch: Partial<EditorState>) => void;
   sourceSrc: string | null;
@@ -114,8 +121,11 @@ export function RightPanel({
         backdropFilter: "blur(6px)",
       }}
     >
-      {/* Panel chrome: the theme toggle, on its own. */}
+      {/* Panel chrome: the theme toggle, on the right panel only — two of them
+          would be two controls for one piece of state. The left panel keeps
+          the empty bar so both columns start their sections at one height. */}
       <div className="flex h-[46px] shrink-0 items-center justify-end">
+        {side === "right" ? (
         <button
           type="button"
           onClick={onToggleTheme}
@@ -132,8 +142,12 @@ export function RightPanel({
             />
           </svg>
         </button>
+        ) : null}
       </div>
 
+      {/* The device: what it is, what is on its screen, what is driving it. */}
+      {side === "left" && (
+        <>
       {/* ---------------------------------------------------------- SOURCE */}
       <PanelSection
         title="Source"
@@ -404,6 +418,12 @@ export function RightPanel({
         </div>
       </PanelSection>
 
+        </>
+      )}
+
+      {/* The shot: how it moves, what the lens does, what sits behind it. */}
+      {side === "right" && (
+        <>
       {/* ---------------------------------------------------------- CAMERA */}
       <PanelSection
         title="Camera"
@@ -676,6 +696,8 @@ export function RightPanel({
       </PanelSection>
 
       <div className="h-[16px] shrink-0" />
+        </>
+      )}
     </aside>
   );
 }

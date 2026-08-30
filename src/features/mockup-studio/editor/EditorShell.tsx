@@ -638,7 +638,59 @@ export default function EditorShell() {
         className="pointer-events-none fixed left-[-10000px] top-0"
       />
 
-      <div className="flex h-full w-full gap-[var(--ks-gap)] p-[var(--ks-gap)]">
+      <div className="flex h-full w-full flex-col gap-[var(--ks-gap)] p-[var(--ks-gap)]">
+        <div className="flex min-h-0 w-full flex-1 gap-[var(--ks-gap)]">
+        <RightPanel side="left"
+          state={effective}
+          onChange={change}
+          sourceSrc={sourceSrc}
+          onPickSource={pickSource}
+          onClearSource={() => {
+            setSourceSrc(null);
+            setSourceName(null);
+          }}
+          isMirroring={Boolean(liveStream)}
+          canMirror={canMirror}
+          onStartMirror={startMirror}
+          onStopMirror={stopMirror}
+          onPair={() => setPairing(true)}
+          phoneConnected={phone.connected}
+          phoneQr={phone.qr}
+          phoneSecure={phone.secure}
+          phoneReason={phone.reason}
+          phoneZeroed={phone.zeroed}
+          liveMotion={liveMotion}
+          onToggleLiveMotion={(next) => {
+            setLiveMotion(next);
+            if (next) {
+              // Choosing Gyro is itself the intent to pair, so it arms the
+              // link — otherwise the mode would sit there waiting for a phone
+              // whose stream nobody had opened.
+              setPairing(true);
+              // Zeroing on the way in means the phone starts facing the camera
+              // rather than facing magnetic north, which is what makes it feel
+              // like it snapped to a sensible pose instead of a random one.
+              phone.setZero();
+            }
+          }}
+          onSetZero={phone.setZero}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onResetCamera={() =>
+            change({
+              xAxis: DEFAULT_EDITOR_STATE.xAxis,
+              yAxis: DEFAULT_EDITOR_STATE.yAxis,
+              zAxis: DEFAULT_EDITOR_STATE.zAxis,
+              zoom: DEFAULT_EDITOR_STATE.zoom,
+              panX: DEFAULT_EDITOR_STATE.panX,
+              panY: DEFAULT_EDITOR_STATE.panY,
+            })
+          }
+          onResetBlur={() => change({ blur: DEFAULT_BLUR })}
+          keyedNow={keyedNow}
+          onToggleKey={toggleKey}
+        />
+
         <div className="flex min-w-0 flex-1 flex-col gap-[10px]">
           {/* Above the canvas: the export menu is absolutely positioned and
               the canvas frame comes later in the DOM, so without this it
@@ -724,38 +776,13 @@ export default function EditorShell() {
             </div>
           </div>
 
-          {timelineOpen || animated ? (
-            <Timeline
-              animation={animation}
-              playhead={playhead}
-              playing={playing}
-              onSeek={(time) => {
-                setPlaying(false);
-                setPlayhead(time);
-              }}
-              onTogglePlay={() => setPlaying((p) => !p)}
-              onScrubbingChange={setScrubbing}
-              onDurationChange={(durationSec) => setAnimation({ durationSec })}
-              onMoveKey={moveKey}
-              onRemoveKey={dropKey}
-              onClear={() => {
-                setPlaying(false);
-                setPlayhead(0);
-                setAnimation({ tracks: {} });
-              }}
-              onApplyPreset={applyMotionPreset}
-              onEasingChange={(easing) => setAnimation({ easing })}
-              exportFps={exportFps}
-              onExportFpsChange={setExportFps}
-              exportScale={exportScale}
-              onExportScaleChange={setExportScale}
-              clip={clip}
-              clipName={sourceName ?? "Clip"}
-            />
-          ) : null}
         </div>
 
-        <RightPanel
+        {/* Device on the left, shot on the right. Both are the same
+            component: which sections it draws is the only difference, and
+            splitting the file would have duplicated every control to express
+            that. */}
+        <RightPanel side="right"
           state={effective}
           onChange={change}
           sourceSrc={sourceSrc}
@@ -805,6 +832,39 @@ export default function EditorShell() {
           keyedNow={keyedNow}
           onToggleKey={toggleKey}
         />
+      </div>
+
+      {/* Outside the row, so it spans the full width rather than being
+          boxed in between the two panels. */}
+        {timelineOpen || animated ? (
+          <Timeline
+            animation={animation}
+            playhead={playhead}
+            playing={playing}
+            onSeek={(time) => {
+              setPlaying(false);
+              setPlayhead(time);
+            }}
+            onTogglePlay={() => setPlaying((p) => !p)}
+            onScrubbingChange={setScrubbing}
+            onDurationChange={(durationSec) => setAnimation({ durationSec })}
+            onMoveKey={moveKey}
+            onRemoveKey={dropKey}
+            onClear={() => {
+              setPlaying(false);
+              setPlayhead(0);
+              setAnimation({ tracks: {} });
+            }}
+            onApplyPreset={applyMotionPreset}
+            onEasingChange={(easing) => setAnimation({ easing })}
+            exportFps={exportFps}
+            onExportFpsChange={setExportFps}
+            exportScale={exportScale}
+            onExportScaleChange={setExportScale}
+            clip={clip}
+            clipName={sourceName ?? "Clip"}
+          />
+        ) : null}
       </div>
     </div>
   );
