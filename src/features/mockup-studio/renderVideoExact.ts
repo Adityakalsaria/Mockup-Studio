@@ -111,17 +111,31 @@ export async function renderVideoExact({
   // large frame. Falls back to baseline where High is unsupported.
   const candidates = ["avc1.640034", "avc1.640028", "avc1.42E01E"];
   let codec = "";
-  for (const candidate of candidates) {
-    const support = await VideoEncoder.isConfigSupported({
-      codec: candidate,
-      width,
-      height,
-      framerate: fps,
-    });
-    if (support.supported) {
-      codec = candidate;
-      break;
+  let acceleration: HardwareAcceleration = "prefer-hardware";
+  // Hardware first, and asked for by name.
+  //
+  // Left at the default of "no-preference" the browser is free to pick its
+  // software encoder, and on a long export it usually does — libx264 on the
+  // CPU while a media engine that does this in silicon sits idle. Asking for
+  // hardware is only a preference either way, so the whole search runs again
+  // without it rather than failing: a machine with no hardware H.264, or a
+  // resolution its encoder will not take, still exports.
+  for (const preference of ["prefer-hardware", "no-preference"] as const) {
+    for (const candidate of candidates) {
+      const support = await VideoEncoder.isConfigSupported({
+        codec: candidate,
+        width,
+        height,
+        framerate: fps,
+        hardwareAcceleration: preference,
+      });
+      if (support.supported) {
+        codec = candidate;
+        acceleration = preference;
+        break;
+      }
     }
+    if (codec) break;
   }
   if (!codec) {
     recorder.end();
@@ -149,6 +163,7 @@ export async function renderVideoExact({
     width,
     height,
     framerate: fps,
+    hardwareAcceleration: acceleration,
     // Generous. A phone against a flat backdrop is mostly smooth gradient,
     // and gradients are where a mean bitrate shows as banding.
     bitrate: Math.round(width * height * fps * 0.12),
