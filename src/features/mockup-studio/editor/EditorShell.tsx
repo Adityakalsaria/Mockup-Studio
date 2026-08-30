@@ -105,7 +105,9 @@ export default function EditorShell() {
   // element instead looked simpler and silently never updated — `duration`
   // goes from NaN to a number when metadata lands, and that is a mutation on
   // an object React has no reason to re-render for.
-  // 0 frames: the timeline draws a plain bar now, so only the length is read.
+  // 0 frames: the timeline draws a plain bar now, so only the duration is
+  // wanted. Ten seeks and ten canvas reads per source change, to end up
+  // reading one number off the metadata, was work nothing consumed.
   const clip = useFilmstrip(isVideoScreen ? sourceSrc : null, 0);
 
   // Read at click time, not capture time: keeping the backdrop in a ref stops
@@ -317,6 +319,16 @@ export default function EditorShell() {
   // is the clock for both: scrub and the clip lands on that frame, play and
   // it runs alongside, pause and it stops where you stopped.
   const clipLength = clip.duration;
+
+  /**
+   * How long the source occupies the timeline.
+   *
+   * A video is as long as it is. A still has no length of its own, so it gets
+   * one second — enough to exist as a bar you can see and, later, drag longer.
+   * Zero would be indistinguishable from having no source at all, which is
+   * the one thing the row is there to tell you.
+   */
+  const sourceLength = isVideoScreen ? clipLength : sourceSrc ? 1 : 0;
 
   const clipVideo = isVideoScreen && screenVideo ? screenVideo : null;
 
@@ -912,10 +924,8 @@ export default function EditorShell() {
             onExportFpsChange={setExportFps}
             exportScale={exportScale}
             onExportScaleChange={setExportScale}
-            // A video reports its own length; a still gets one second, so it
-            // has a bar you can see and, later, drag longer.
-            sourceLength={isVideoScreen ? clipLength : sourceSrc ? 1 : 0}
-            clipName={sourceName ?? "Clip"}
+            sourceLength={sourceLength}
+            clipName={sourceName ?? "Source"}
           />
         ) : null}
       </div>
