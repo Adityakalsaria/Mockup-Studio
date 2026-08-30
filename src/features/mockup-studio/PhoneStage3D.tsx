@@ -139,6 +139,21 @@ const BODY_OPACITY = 1;
 // the difference between a screen that reads as glass and one that reads as a
 // grey panel, and the rig is bright enough that even a little goes a long way.
 const GLASS_ENV_MAP_INTENSITY = 0.32;
+/**
+ * How blurred that reflection is.
+ *
+ * Intensity alone controls how BRIGHT the studio shows up in the glass, not
+ * how sharply. At the model's own roughness the emitters came back as legible
+ * rectangles with hard edges -- you could read the shape of the rig off the
+ * screen, which no phone photographed in a real studio does.
+ *
+ * Roughness is what dissolves them: three's PMREM environment is prefiltered
+ * per roughness level, so raising this samples a blurrier mip and the panels
+ * become a soft gradient. Kept below the point where the sheen disappears
+ * altogether, because a screen with no reflection at all stops reading as
+ * glass and starts reading as a hole.
+ */
+const GLASS_ROUGHNESS = 0.42;
 
 
 // Darken pass for speaker grilles, port cutouts, mics, antennas.
@@ -901,6 +916,9 @@ function GLBPhoneScene({
           const glass = candidate.clone() as typeof candidate;
           if ("envMapIntensity" in glass) {
             glass.envMapIntensity = GLASS_ENV_MAP_INTENSITY;
+          }
+          if ("roughness" in glass) {
+            glass.roughness = GLASS_ROUGHNESS;
           }
           return glass;
         }

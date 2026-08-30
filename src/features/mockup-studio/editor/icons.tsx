@@ -5,6 +5,7 @@ import "@fortawesome/fontawesome-svg-core/styles.css";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faArrowRotateLeft,
+  faArrowRotateRight,
   faArrowUpFromBracket,
   faChevronDown,
   faChevronUp,
@@ -53,6 +54,7 @@ export const ICON = {
   device: faMobileScreenButton,
   eyedropper: faEyeDropper,
   undo: faArrowRotateLeft,
+  redo: faArrowRotateRight,
   resetAll: faArrowsRotate,
   play: faPlay,
   pause: faPause,

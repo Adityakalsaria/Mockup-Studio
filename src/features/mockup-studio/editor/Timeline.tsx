@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ANIMATABLE,
   formatTime,
@@ -119,6 +119,38 @@ export function Timeline({
     null,
   );
 
+  /** The keyframe the delete key acts on. */
+  const [pickedKey, setSelectedKey] = useState<{ property: AnimatableKey; time: number } | null>(
+    null,
+  );
+
+  // Derived, not mirrored. A selected keyframe stops existing the moment it is
+  // deleted or dragged to a new time, and clearing that from an effect would
+  // mean a setState in the effect body and a second render every time. Reading
+  // it through the track instead means a stale pick simply resolves to null.
+  const selectedKey = useMemo(() => {
+    if (!pickedKey) return null;
+    const exists = (animation.tracks[pickedKey.property] ?? []).some(
+      (k) => k.time === pickedKey.time,
+    );
+    return exists ? pickedKey : null;
+  }, [pickedKey, animation.tracks]);
+
+  useEffect(() => {
+    if (!selectedKey) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      const el = event.target as HTMLElement | null;
+      // Backspace is destructive in a field and means something else there.
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      event.preventDefault();
+      onRemoveKey(selectedKey.property, selectedKey.time);
+      setSelectedKey(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedKey, onRemoveKey]);
+
   const { durationSec } = animation;
   const timeFromClientX = (clientX: number) => {
     const rect = laneRef.current?.getBoundingClientRect();
@@ -209,7 +241,12 @@ export function Timeline({
           small print. Now: transport, then motion, then output, then view —
           tight inside a group, wide between them, with a hairline where the
           subject changes. */}
-      <div className="flex shrink-0 flex-wrap items-center gap-y-[var(--ks-space-2)] gap-x-[var(--ks-space-4)]">
+      {/* Centred as one group.
+          It used to run from the left edge with the easing and zoom controls
+          pushed to the right by `ml-auto`, which read as two unrelated
+          toolbars with a gulf between them rather than one set of transport
+          controls. */}
+      <div className="flex shrink-0 flex-wrap items-center justify-center gap-y-[var(--ks-space-2)] gap-x-[var(--ks-space-4)]">
         <button
           type="button"
           onClick={onTogglePlay}
@@ -287,7 +324,7 @@ export function Timeline({
             you are working — anchoring to zero would push the thing you were
             looking at off screen every time you zoomed in. */}
 
-        <div className="ml-auto flex items-center gap-[var(--ks-space-2)]">
+        <div className="flex items-center gap-[var(--ks-space-2)]">
           <EasingPicker value={animation.easing} onChange={onEasingChange} />
         </div>
 
@@ -540,10 +577,11 @@ export function Timeline({
                   <button
                     key={k.time}
                     type="button"
-                    title={`${label} @ ${formatTime(k.time)} — drag to move, double-click to delete`}
+                    title={`${label} @ ${formatTime(k.time)} — drag to move, delete key or double-click to remove`}
                     aria-label={`${label} keyframe at ${formatTime(k.time)}`}
                     onPointerDown={(event) => {
                       event.stopPropagation();
+                      setSelectedKey({ property: key, time: k.time });
                       setDragging({ property: key, from: k.time });
                       onSeek(k.time);
                     }}
@@ -555,7 +593,13 @@ export function Timeline({
                     style={{
                       left: at(k.time),
                       background: "var(--ks-accent)",
-                      boxShadow: "0 0 0 1.5px var(--ks-surface)",
+                      // Selected reads as a ring rather than a colour change:
+                      // the diamond is 9px, and at that size a second accent
+                      // is a smudge where an outline is still a shape.
+                      boxShadow:
+                        selectedKey?.property === key && selectedKey.time === k.time
+                          ? "0 0 0 1.5px var(--ks-surface), 0 0 0 3.5px var(--ks-accent)"
+                          : "0 0 0 1.5px var(--ks-surface)",
                     }}
                   />
                 ))}

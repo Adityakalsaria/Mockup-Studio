@@ -49,7 +49,7 @@ function StageAction({
   disabled,
   onClick,
 }: {
-  icon: "undo" | "resetAll";
+  icon: "undo" | "redo" | "resetAll";
   label: string;
   hint: string;
   disabled?: boolean;
@@ -99,13 +99,17 @@ export default function EditorShell() {
    * the state pushed is the one from before it started.
    */
   const [past, setPast] = useState<EditorState[]>([]);
+  const [future, setFuture] = useState<EditorState[]>([]);
   const prevStateRef = useRef(state);
+  /** The live state, for pushing onto the opposite stack when stepping. */
+  const stateRef = useRef(state);
   const fromUndoRef = useRef(false);
   const lastEditAt = useRef(0);
 
   useEffect(() => {
     const prev = prevStateRef.current;
     prevStateRef.current = state;
+    stateRef.current = state;
     if (prev === state) return;
     // An undo is not itself an edit; recording it would make undo a no-op that
     // pushed what it had just popped.
@@ -113,6 +117,10 @@ export default function EditorShell() {
       fromUndoRef.current = false;
       return;
     }
+    // A fresh edit forks history: whatever you had redone your way back from
+    // is no longer reachable, and keeping it would let redo jump to a state
+    // that never followed from this one.
+    setFuture((entries) => (entries.length ? [] : entries));
     const now = performance.now();
     const sameGesture = now - lastEditAt.current < HISTORY_COALESCE_MS;
     lastEditAt.current = now;
@@ -130,9 +138,19 @@ export default function EditorShell() {
     // Reopen the window, or the next edit would be folded into the gesture
     // that was just undone.
     lastEditAt.current = 0;
+    setFuture((entries) => [stateRef.current, ...entries]);
     setState(past[past.length - 1]);
     setPast((entries) => entries.slice(0, -1));
   }, [past]);
+
+  const redo = useCallback(() => {
+    if (!future.length) return;
+    fromUndoRef.current = true;
+    lastEditAt.current = 0;
+    setPast((entries) => [...entries, stateRef.current]);
+    setState(future[0]);
+    setFuture((entries) => entries.slice(1));
+  }, [future]);
 
   /** Back to defaults, and itself undoable -- the watcher above records it
       like any other change, so a mis-click costs one undo rather than the
@@ -147,15 +165,35 @@ export default function EditorShell() {
   // when someone meant to undo their typing is worse than no shortcut.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      // Space is play/pause. Not while a field has focus, and not while a
+      // button or select does either -- space is how those are activated from
+      // the keyboard, and stealing it would break the panel for anyone not
+      // using a mouse.
+      if (event.key === " " || event.code === "Space") {
+        const el = event.target as HTMLElement | null;
+        const tag = el?.tagName;
+        if (
+          el &&
+          (tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON" || tag === "SELECT" || el.isContentEditable)
+        ) {
+          return;
+        }
+        event.preventDefault();
+        setPlaying((p) => !p);
+        return;
+      }
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return;
       const el = event.target as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
       event.preventDefault();
-      undo();
+      // Shift+Cmd+Z is redo everywhere on this platform; Cmd+Y is the Windows
+      // spelling and is not worth a second branch in a Mac-first tool.
+      if (event.shiftKey) redo();
+      else undo();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo]);
+  }, [undo, redo]);
 
   const [sourceSrc, setSourceSrc] = useState<string | null>(null);
   const [sourceName, setSourceName] = useState<string | null>(null);
@@ -1008,6 +1046,13 @@ export default function EditorShell() {
                 hint={past.length ? "Undo the last change" : "Nothing to undo"}
                 disabled={!past.length}
                 onClick={undo}
+              />
+              <StageAction
+                icon="redo"
+                label="Redo"
+                hint={future.length ? "Redo the last undone change" : "Nothing to redo"}
+                disabled={!future.length}
+                onClick={redo}
               />
               <StageAction
                 icon="resetAll"
