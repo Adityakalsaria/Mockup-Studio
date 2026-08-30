@@ -144,7 +144,14 @@ export async function renderVideoExact({
 
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),
-    video: { codec: "avc", width, height },
+    // The rate is STATED, not left to be inferred from the timestamps.
+    //
+    // Without it the muxer picks a timescale from the chunks it is given, and
+    // the track header ends up declaring something other than what was asked
+    // for — which is what a player, or Premiere, reads and reports when it
+    // says a 60fps export is 30. The frames themselves were always correct;
+    // the file was describing itself wrongly.
+    video: { codec: "avc", width, height, frameRate: fps },
     // The whole file is assembled in memory anyway, so put the index at the
     // front: a progressive MP4 starts playing before it has fully downloaded,
     // and these get dropped straight into decks and browsers.
