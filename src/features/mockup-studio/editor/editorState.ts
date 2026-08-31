@@ -123,6 +123,20 @@ export const RANGES = {
   // 14 is very wide and 90 is nearly fisheye. Below 14 a phone at this
   // distance stops being recognisable as one.
   fov: { min: 14, max: 90, step: 1 },
-  panX: { min: -1, max: 1, step: 0.01 },
-  panY: { min: -1, max: 1, step: 0.01 },
+  /*
+   * Pan is a fixed distance in world units while the FRAME grows with the
+   * lens, so the same pan covers less and less of the shot as the lens widens.
+   * At +/-1 the phone could only travel 0.2 units, and reaching the edge of
+   * frame needs 1.1 at 98mm, 3.1 at the default 35mm and 9.0 at 12mm -- so on
+   * every lens but the longest, the slider ran out before the composition did.
+   *
+   * 6 clears the frame outright on everything from a portrait lens to a little
+   * past 24mm, which covers the range anyone actually frames a product shot
+   * in, and still moves two thirds of the way out at the extreme wide end.
+   * Going to 9 would cover even that, at the cost of making every ordinary
+   * adjustment coarser: the drag maps the range across the track, so a range
+   * three times wider is three times less precise per pixel everywhere.
+   */
+  panX: { min: -6, max: 6, step: 0.01 },
+  panY: { min: -6, max: 6, step: 0.01 },
 } as const;
