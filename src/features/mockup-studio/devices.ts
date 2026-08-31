@@ -148,43 +148,6 @@ export const DEVICES: Device[] = [
     // and licence still to be established before this ships anywhere public.
     credit: "UNKNOWN — provenance not yet confirmed",
   },
-  {
-    id: "iphone-air",
-    label: "iPhone Air",
-    modelPath: `${MODELS}/iphone-air.glb`,
-    // This export names its materials, so none of the guesswork the previous
-    // one needed applies: "Display" is the screen, and binding to it takes the
-    // face from the geometry rather than inferring it.
-    hideHints: [],
-    screenMaterial: "Display",
-    // Its screen UVs run bottom to top, so the picture arrives upside down.
-    screenFlipY: true,
-    // KNOWN: the picture is STRETCHED on this model. Binding puts it on the
-    // right face and the right way up, but this mesh's UVs are not a clean
-    // rectangle so the screenshot smears across them. Floating a plane instead
-    // was tried -- the plane renders BEHIND the model's own glass layers, so
-    // the screen just goes dark. Fixing it properly means either hiding the
-    // glass as well as the display and floating in front of both, or
-    // re-unwrapping the mesh outside this project.
-    // Its accessor bounds read as upright, but those are MESH space: this is a
-    // Blender export and the scene carries a node rotation on top, so it
-    // arrived lying on its side. The pose search measures the result rather
-    // than trusting the file, and the named screen tells it which of the two
-    // upright poses faces the camera.
-    autoStand: true,
-    // The search gets it upright but not which way round -- both faces score
-    // the same on height and depth. Turned here rather than inferred.
-    modelYawDeg: 180,
-    screenCornerRadiusPct: 0.135,
-    screenInsetPct: 1,
-    // The Display mesh measures 0.07 x 0.15, a 2.14 ratio; this is that.
-    screenNative: { width: 402, height: 860 },
-    // The model carries its own Dynamic Island.
-    notch: null,
-    // TODO: unconfirmed. Supplied as `iPhone Air Simple.glb`; provenance and
-    // licence still to be established before this ships anywhere public.
-    credit: "UNKNOWN — provenance not yet confirmed",
-  },
 ];
 
 export const DEFAULT_DEVICE_ID = DEVICES[0].id;
