@@ -82,63 +82,57 @@ const MODELS = "/figma-assets/mockup-studio/models";
 
 export const DEVICES: Device[] = [
   {
-    id: "iphone-17-pro",
-    label: "iPhone 17 Pro",
-    modelPath: `${MODELS}/iphone-17-pro-black.glb`,
-    // "oled" is what this model calls its screen material. The others are kept
-    // so a model using the more common naming still gets caught.
-    hideHints: ["screen", "display", "wallpaper", "oled"],
+    id: "iphone-16",
+    label: "iPhone 16",
+    modelPath: `${MODELS}/iphone-16.glb`,
+    // The model's meshes are named Object_0..Object_40 and its materials are
+    // content hashes, so nothing self-identifies as a screen. The screen mesh
+    // is Object_3 — but hints match by substring, and "Object_3" would also
+    // catch Object_30..Object_39. Its material is unique to that one mesh, so
+    // match on that instead.
+    hideHints: ["4130c6244c49c5d5712e"],
     screenCornerRadiusPct: 0.135,
     screenInsetPct: 0.988,
-    screenNative: { width: 402, height: 874 },
-    notch: {
-      widthPx: 134,
-      heightPx: 37,
-      topPx: 21,
-      offsetXPx: 0,
-      offsetYPx: -9,
-      borderRadiusPx: 36,
-      scale: 0.92,
-    },
-    // TODO: unconfirmed. Supplied as `black Iphone.glb`; provenance and licence
-    // still to be established before this ships anywhere public.
+    screenNative: { width: 393, height: 852 },
+    // TODO: unverified. Set once it is clear whether the model carries its own
+    // Dynamic Island geometry or the screen plane has to draw one.
+    notch: null,
+    // TODO: unconfirmed. Supplied as `iphone_16_-_free.glb` with no licence
+    // file. Provenance and licence to be established before this ships.
     credit: "UNKNOWN — provenance not yet confirmed",
   },
   {
-    id: "iphone-17-pro-max",
-    label: "iPhone 17 Pro Max",
-    modelPath: `${MODELS}/iphone-17-pro-max.glb`,
-    // Unused for this device — it binds by material instead.
-    hideHints: [],
-    screenMaterial: "OLED",
-    // Ships as Cosmic Orange, with the Apple logo baked into a palette atlas
-    // at that hue — without this the logo keeps a warm cast in every finish.
-    authoredBodyColor: "#e8712e",
-    screenFlipX: true,
+    id: "iphone-air",
+    label: "iPhone Air",
+    modelPath: `${MODELS}/iphone-air.glb`,
+    // Only 8 meshes here, so the name is unambiguous. Object_2 is the front
+    // glass: the flattest panel at the right aspect.
+    hideHints: ["Object_2"],
     screenCornerRadiusPct: 0.135,
-    screenInsetPct: 1,
-    // The authored wallpaper is 640x1391; the screen is rendered at that
-    // aspect so a capture maps onto the mesh without letterboxing.
-    screenNative: { width: 640, height: 1391 },
-    // The model has a real Dynamic Island in its geometry, so nothing needs
-    // to be drawn on top of the screen.
+    screenInsetPct: 0.988,
+    // Derived from the mesh's own aspect (2.127) rather than a published
+    // spec, so the texture maps onto it without stretching.
+    screenNative: { width: 402, height: 855 },
     notch: null,
-    // TODO: unconfirmed. Supplied as `phone-17-pro-max (1).zip`; provenance
-    // and licence still to be established before this ships anywhere public.
+    // TODO: unconfirmed. Supplied as `iphone_air.glb` with no licence file.
     credit: "UNKNOWN — provenance not yet confirmed",
   },
   {
-    id: "macbook-pro-16",
-    label: 'MacBook Pro 16"',
-    kind: "laptop",
-    // Generated geometry, so there is no mesh to find and nothing to hide.
-    hideHints: [],
-    screenCornerRadiusPct: 0,
-    screenInsetPct: 1,
-    // 1728x1117 points, which is the 3456x2234 panel at 2x.
-    screenNative: { width: 1728, height: 1117 },
+    id: "macbook-pro-14",
+    label: 'MacBook Pro 14"',
+    modelPath: `${MODELS}/macbook-pro-14.glb`,
+    // Matched by mesh name, not material: this model reuses one material
+    // across seven meshes, so a material hint would hide most of the lid.
+    hideHints: ["cpUmMDYlGqLEAMt"],
+    screenCornerRadiusPct: 0.02,
+    screenInsetPct: 0.99,
+    // 1512x982 points — the 3024x1964 panel at 2x.
+    screenNative: { width: 1512, height: 982 },
     notch: null,
-    credit: "Generated geometry — no third-party asset, nothing to license",
+    // TODO: unconfirmed. Supplied as `macbook_pro_14_inch_M5.glb` with no
+    // licence file. The GLB embeds its own textures, so the separate
+    // `textures/` folder it shipped with is not needed.
+    credit: "UNKNOWN — provenance not yet confirmed",
   },
 ];
 

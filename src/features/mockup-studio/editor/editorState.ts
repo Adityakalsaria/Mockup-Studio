@@ -55,7 +55,7 @@ export interface EditorState {
 }
 
 export const DEFAULT_EDITOR_STATE: EditorState = {
-  deviceId: "iphone-17-pro-max",
+  deviceId: "iphone-16",
   finishId: DEFAULT_FINISH_ID,
 
   // Opens front-on, centred, and sized to leave a margin on every side.
