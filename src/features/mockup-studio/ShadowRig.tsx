@@ -49,6 +49,10 @@ const BACKDROP_SIZE = 12;
  */
 const LIGHT_Z = 1;
 const THROW_GAIN = 1.6;
+/** Half-width of the shadow camera with the light head on; scaled by the
+    light's obliquity below. Sized to the phone, not to the backdrop: a camera
+    wide enough for a 12 unit plane would spend its whole map on empty space. */
+const SHADOW_EXTENT = 1.15;
 
 export function ShadowRig({ settings }: { settings: ShadowSettings }) {
   const lightRef = useRef<DirectionalLight>(null);
@@ -56,6 +60,21 @@ export function ShadowRig({ settings }: { settings: ShadowSettings }) {
 
   const theta = (settings.angle * Math.PI) / 180;
   const lean = settings.throwDistance * THROW_GAIN;
+  /*
+   * The shadow camera has to grow as the light leans.
+   *
+   * It was fixed at +/-1.1, which held while the light was near head on. Push
+   * Distance up and the light reaches 72 degrees off axis, where a phone's
+   * shadow stretches by 1/cos of that -- 3.35x -- and ran straight off the
+   * edge of the map. The result was not a soft shadow fading out but a hard
+   * straight cut across it, which is the frustum boundary itself. It showed up
+   * on a wide lens because that is when enough of the scene is in frame to see
+   * where the shadow stops.
+   *
+   * hypot(lean, LIGHT_Z) / LIGHT_Z is exactly that 1/cos, so this is the
+   * smallest camera that always contains the shadow it is asked to draw.
+   */
+  const shadowHalf = SHADOW_EXTENT * (Math.hypot(lean, LIGHT_Z) / LIGHT_Z);
   const x = Math.sin(theta) * lean;
   const y = Math.cos(theta) * lean;
 
@@ -92,10 +111,10 @@ export function ShadowRig({ settings }: { settings: ShadowSettings }) {
         // camera wide enough for a 12 unit plane would spend its whole map on
         // empty space and give the phone a few dozen pixels of it, which is
         // what makes a shadow look like a staircase.
-        shadow-camera-left={-1.1}
-        shadow-camera-right={1.1}
-        shadow-camera-top={1.1}
-        shadow-camera-bottom={-1.1}
+        shadow-camera-left={-shadowHalf}
+        shadow-camera-right={shadowHalf}
+        shadow-camera-top={shadowHalf}
+        shadow-camera-bottom={-shadowHalf}
         shadow-camera-near={0.1}
         shadow-camera-far={8}
         // The phone is a slab with a flat back, so the classic bias tradeoff
