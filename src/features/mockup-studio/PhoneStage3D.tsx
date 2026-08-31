@@ -769,6 +769,57 @@ function GLBPhoneScene({
   const gltf = useGLTF(device.modelPath as string);
   const { scene, width, height, depth, screen, screenMaterials } = useMemo(() => {
     const cloned = gltf.scene.clone(true) as Group;
+    /*
+     * Stand the model up by MEASURING, not by naming an angle.
+     *
+     * Exports disagree about which way is up, and the obvious fix -- a pitch
+     * in degrees per device -- does not survive contact with them: a glTF
+     * scene carries its own node transforms, so a rotation applied to a
+     * wrapper composes with whatever the author already baked in. Asking the
+     * iPhone Air for -90 about X rotated it about a different axis entirely,
+     * and no amount of staring at the number explains which.
+     *
+     * So poses are tried and the RESULT is measured. Two nested groups keep
+     * the two rotations from fighting: the inner one searches for upright, the
+     * outer one carries the device's own yaw, which is a fact about which face
+     * the model calls front and not something to search for.
+     */
+    const stood = new Group();
+    stood.add(cloned);
+    const posed = new Group();
+    posed.add(stood);
+    posed.rotation.set(0, ((device.modelYawDeg ?? 0) * Math.PI) / 180, 0);
+
+    const quarter = Math.PI / 2;
+    const candidates: Array<[number, number, number]> = device.autoStand
+      ? ([0, -quarter, quarter] as number[]).flatMap((rx) =>
+          ([0, -quarter, quarter, Math.PI] as number[]).map(
+            (ry) => [rx, ry, 0] as [number, number, number],
+          ),
+        )
+      : [[0, 0, 0]];
+
+    let bestScore = -Infinity;
+    let bestPose: [number, number, number] = [0, 0, 0];
+    for (const pose of candidates) {
+      stood.rotation.set(pose[0], pose[1], pose[2]);
+      posed.updateMatrixWorld(true);
+      const candidateBox = new Box3().setFromObject(posed);
+      const s3 = new Vector3();
+      candidateBox.getSize(s3);
+      // Upright and facing the camera: tall in Y, shallow in Z. Subtracting
+      // depth is what separates a phone standing up from one standing on its
+      // edge -- both are tall, only one is thin front to back.
+      const score = s3.y - s3.z;
+      if (score > bestScore) {
+        bestScore = score;
+        bestPose = pose;
+      }
+    }
+    stood.rotation.set(bestPose[0], bestPose[1], bestPose[2]);
+    posed.updateMatrixWorld(true);
+
+
     const screenLocalBox = new Box3().makeEmpty();
     // Materials the screen texture gets bound onto, for models that carry a
     // real screen. Built per instance so two devices on screen at once do not
@@ -1017,59 +1068,10 @@ function GLBPhoneScene({
      * screen. A device lying on its side measured as short and wide, got
      * scaled as though it were, and then stood up far too large.
      */
-    /*
-     * Stand the model up by MEASURING, not by naming an angle.
-     *
-     * Exports disagree about which way is up, and the obvious fix -- a pitch
-     * in degrees per device -- does not survive contact with them: a glTF
-     * scene carries its own node transforms, so a rotation applied to a
-     * wrapper composes with whatever the author already baked in. Asking the
-     * iPhone Air for -90 about X rotated it about a different axis entirely,
-     * and no amount of staring at the number explains which.
-     *
-     * So poses are tried and the RESULT is measured. Two nested groups keep
-     * the two rotations from fighting: the inner one searches for upright, the
-     * outer one carries the device's own yaw, which is a fact about which face
-     * the model calls front and not something to search for.
-     */
-    const stood = new Group();
-    stood.add(cloned);
-    const posed = new Group();
-    posed.add(stood);
-    posed.rotation.set(0, ((device.modelYawDeg ?? 0) * Math.PI) / 180, 0);
-
-    const quarter = Math.PI / 2;
-    const candidates: Array<[number, number, number]> = device.autoStand
-      ? ([0, -quarter, quarter] as number[]).flatMap((rx) =>
-          ([0, -quarter, quarter, Math.PI] as number[]).map(
-            (ry) => [rx, ry, 0] as [number, number, number],
-          ),
-        )
-      : [[0, 0, 0]];
-
-    let bestBox: Box3 | null = null;
-    let bestScore = -Infinity;
-    let bestPose: [number, number, number] = [0, 0, 0];
-    for (const pose of candidates) {
-      stood.rotation.set(pose[0], pose[1], pose[2]);
-      posed.updateMatrixWorld(true);
-      const candidateBox = new Box3().setFromObject(posed);
-      const s3 = new Vector3();
-      candidateBox.getSize(s3);
-      // Upright and facing the camera: tall in Y, shallow in Z. Subtracting
-      // depth is what separates a phone standing up from one standing on its
-      // edge -- both are tall, only one is thin front to back.
-      const score = s3.y - s3.z;
-      if (score > bestScore) {
-        bestScore = score;
-        bestBox = candidateBox;
-        bestPose = pose;
-      }
-    }
-    stood.rotation.set(bestPose[0], bestPose[1], bestPose[2]);
-    posed.updateMatrixWorld(true);
-
-    const box = bestBox ?? new Box3().setFromObject(posed);
+    // Re-measured rather than reused: the traverse above may have hidden the
+    // model's own screen mesh, and a body box that still counted it would be
+    // fractionally too deep.
+    const box = new Box3().setFromObject(posed);
     const size = new Vector3();
     box.getSize(size);
     const center = new Vector3();

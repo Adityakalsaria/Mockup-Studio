@@ -112,12 +112,20 @@ export const DEVICES: Device[] = [
     id: "iphone-16",
     label: "iPhone 16",
     modelPath: `${MODELS}/iphone-16.glb`,
+    // Screen on +Z, where the stage assumes -Z. Turned so the default
+    // framing opens on the display rather than the camera bump.
+    modelYawDeg: 180,
     // The model's meshes are named Object_0..Object_40 and its materials are
     // content hashes, so nothing self-identifies as a screen. The screen mesh
     // is Object_3 — but hints match by substring, and "Object_3" would also
     // catch Object_30..Object_39. Its material is unique to that one mesh, so
     // match on that instead.
-    hideHints: ["4130c6244c49c5d5712e"],
+    // Bound to the model's own screen material rather than hiding the mesh and
+    // floating a plane in front. The plane is axis-aligned and the model's
+    // screen is not, so it landed mirrored and upside down; binding reuses the
+    // geometry and the UVs the author already got right.
+    hideHints: [],
+    screenMaterial: "4130c6244c49c5d5712e",
     screenCornerRadiusPct: 0.135,
     screenInsetPct: 0.988,
     screenNative: { width: 393, height: 852 },
@@ -155,7 +163,24 @@ export const DEVICES: Device[] = [
     modelYawDeg: 180,
     // Matched by mesh name, not material: this model reuses one material
     // across seven meshes, so a material hint would hide most of the lid.
-    hideHints: ["cpUmMDYlGqLEAMt"],
+    // Same as the iPhone 16, and more so: a laptop lid is TILTED, so a flat
+    // plane placed at the screen's centre floated off the front of it rather
+    // than lying on it.
+    // TODO: the screen still renders blank. The lid is several coincident
+    // layers and the display is not yet among the ones tried:
+    //   gGmExFByNnyrwMm  the lid shell, 0.91 thick  -> picture behind the glass
+    //   vJOGifqMXcmlCkF  z 0.88, frontmost          -> UVs cover only the rim
+    //   XvtJEVWVvyDeJRR  z 0.81, thinnest           -> blank, still occluded
+    // Something opaque is in front of all three. The next step is to hide
+    // meshes one at a time until the bound layer shows, rather than guessing
+    // from geometry -- the body, keyboard and framing are all correct, so this
+    // is the only thing outstanding on this device.
+    hideHints: ["vJOGifqMXcmlCkF"],
+    // The lid has three coincident layers: the shell (0.91 thick), the panel
+    // and the glass. Binding the shell put the picture BEHIND the glass, which
+    // showed as a grey screen with a sliver of colour at each edge. This is the
+    // frontmost of the three.
+    screenMaterial: "XvtJEVWVvyDeJRR",
     screenCornerRadiusPct: 0.02,
     screenInsetPct: 0.99,
     // 1512x982 points — the 3024x1964 panel at 2x.
@@ -164,6 +189,29 @@ export const DEVICES: Device[] = [
     // TODO: unconfirmed. Supplied as `macbook_pro_14_inch_M5.glb` with no
     // licence file. The GLB embeds its own textures, so the separate
     // `textures/` folder it shipped with is not needed.
+    credit: "UNKNOWN — provenance not yet confirmed",
+  },
+  {
+    id: "iphone-17-pro-max",
+    label: "iPhone 17 Pro Max",
+    modelPath: `${MODELS}/iphone-17-pro-max.glb`,
+    // Unused for this device — it binds by material instead.
+    hideHints: [],
+    screenMaterial: "OLED",
+    // Ships as Cosmic Orange, with the Apple logo baked into a palette atlas
+    // at that hue — without this the logo keeps a warm cast in every finish.
+    authoredBodyColor: "#e8712e",
+    screenFlipX: true,
+    screenCornerRadiusPct: 0.135,
+    screenInsetPct: 1,
+    // The authored wallpaper is 640x1391; the screen is rendered at that
+    // aspect so a capture maps onto the mesh without letterboxing.
+    screenNative: { width: 640, height: 1391 },
+    // The model has a real Dynamic Island in its geometry, so nothing needs
+    // to be drawn on top of the screen.
+    notch: null,
+    // TODO: unconfirmed. Supplied as `phone-17-pro-max (1).zip`; provenance
+    // and licence still to be established before this ships anywhere public.
     credit: "UNKNOWN — provenance not yet confirmed",
   },
 ];
