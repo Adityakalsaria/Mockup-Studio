@@ -316,6 +316,39 @@ export function sampleAnimation(
 }
 
 /** Seconds as `0:00.0`, which is as much precision as scrubbing needs. */
+/**
+ * Seconds as HH:MM:SS.
+ *
+ * Separate from `formatTime`, which is the transport readout and shows tenths
+ * because a playhead is read at a glance while it moves. A duration is typed,
+ * and a field you type into wants a fixed shape with no fractional part to
+ * argue about.
+ */
+export function formatClock(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  const hh = Math.floor(total / 3600);
+  const mm = Math.floor((total % 3600) / 60);
+  const ss = total % 60;
+  return [hh, mm, ss].map((n) => String(n).padStart(2, "0")).join(":");
+}
+
+/**
+ * HH:MM:SS back to seconds, forgivingly.
+ *
+ * Accepts "90", "1:30" and "00:01:30" alike, because someone typing a duration
+ * should not have to pad it out to be understood. Returns null for anything
+ * that is not a time, so a half-typed entry cannot blank the clip.
+ */
+export function parseClock(text: string): number | null {
+  const parts = text.trim().split(":");
+  if (parts.length > 3 || parts.some((p) => p !== "" && !/^\d+$/.test(p))) return null;
+  const nums = parts.map((p) => (p === "" ? 0 : Number(p)));
+  if (nums.some((n) => !Number.isFinite(n))) return null;
+  // Right-aligned: the last part is always seconds, whatever was typed.
+  const [ss = 0, mm = 0, hh = 0] = nums.reverse();
+  return hh * 3600 + mm * 60 + ss;
+}
+
 export function formatTime(seconds: number): string {
   const clamped = Math.max(0, seconds);
   const mins = Math.floor(clamped / 60);

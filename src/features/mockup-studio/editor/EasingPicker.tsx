@@ -438,7 +438,10 @@ export function EasingPicker({
           aria-expanded={open}
           aria-label={`Easing: ${label}`}
           title={`${label} — click to change this segment`}
-          className="ks-press grid h-[18px] w-[18px] place-items-center rounded-[5px]"
+          // Sized to the thumb, not smaller than it. At 18 the 22px curve
+          // drew straight over the button's rounded edge, which read as the
+          // curve escaping its box.
+          className="ks-press grid h-[22px] w-[22px] place-items-center overflow-hidden rounded-[6px]"
           style={{
             background: "var(--ks-surface-solid)",
             boxShadow: open

@@ -6,6 +6,8 @@ import {
   formatTime,
   type AnimatableKey,
   type Animation,
+  formatClock,
+  parseClock,
 } from "../animation";
 import { type Easing } from "../animation";
 import { Icon } from "./icons";
@@ -22,6 +24,12 @@ import { EasingPicker } from "./EasingPicker";
 
 /* Wide enough for a property name to sit on one line at 13px, which is what
    lets the gutter read as a column rather than as a cramped margin. */
+/** Half a second is the shortest clip worth keying; an hour is well past what
+    anyone will export frame by frame, and it is what makes the HH field mean
+    something. */
+const DURATION_MIN = 0.5;
+const DURATION_MAX = 3600;
+
 const LABEL_WIDTH = 132;
 /* Figma's track rows. Tall enough to hold a bar with a label inside it. */
 const LANE_H = 26;
@@ -124,6 +132,8 @@ export function Timeline({
   );
 
   /** The keyframe the delete key acts on. */
+  /** Held while typing, so a half-entered time is not parsed on every keystroke. */
+  const [durationDraft, setDurationDraft] = useState<string | null>(null);
   const [pickedKey, setSelectedKey] = useState<{ property: AnimatableKey; time: number } | null>(
     null,
   );
@@ -318,22 +328,44 @@ export function Timeline({
 
         <Divider />
 
+        {/* Duration as HH:MM:SS.
+            It was `type="number"`, which is where the little stepper arrows
+            came from: they are drawn by the browser inside the field, so they
+            sat on top of the value in a pill this narrow. A text field with a
+            forgiving parser does the same job without them -- "90", "1:30" and
+            "00:01:30" all mean ninety seconds. */}
         <label className="ks-micro flex items-center gap-[var(--ks-space-2)]" style={{ color: "var(--ks-text-muted)" }}>
           Duration
           <input
-            type="number"
-            min={0.5}
-            max={30}
-            step={0.5}
-            value={durationSec}
-            onChange={(event) => {
-              const next = Number(event.currentTarget.value);
-              if (Number.isFinite(next)) onDurationChange(Math.min(30, Math.max(0.5, next)));
+            type="text"
+            inputMode="numeric"
+            spellCheck={false}
+            aria-label="Duration"
+            value={durationDraft ?? formatClock(durationSec)}
+            onChange={(event) => setDurationDraft(event.currentTarget.value)}
+            onBlur={(event) => {
+              const parsed = parseClock(event.currentTarget.value);
+              // Unparseable or out of range leaves the clip alone rather than
+              // snapping it somewhere the typing did not ask for.
+              if (parsed !== null) {
+                onDurationChange(Math.min(DURATION_MAX, Math.max(DURATION_MIN, parsed)));
+              }
+              setDurationDraft(null);
             }}
-            className="ks-label w-[52px] rounded-[var(--ks-r)] px-[var(--ks-space-3)] py-[var(--ks-space-1)] text-right focus:outline-none"
-            style={{ background: "var(--ks-ctl)", color: "var(--ks-ctl-text)" }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+              if (event.key === "Escape") {
+                setDurationDraft(null);
+                event.currentTarget.blur();
+              }
+            }}
+            className="ks-label w-[74px] rounded-[var(--ks-r)] px-[var(--ks-space-3)] py-[var(--ks-space-1)] text-center focus:outline-none"
+            style={{
+              background: "var(--ks-ctl)",
+              color: "var(--ks-ctl-text)",
+              fontVariantNumeric: "tabular-nums",
+            }}
           />
-          s
         </label>
 
         {/* Zoom, as Figma puts it: a slider at the toolbar's end, with the
