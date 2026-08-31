@@ -3,7 +3,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { RoundedBox, useGLTF } from "@react-three/drei";
-import { TextureLoader, SRGBColorSpace, Box3, Vector3, Shape, ShapeGeometry } from "three";
+import { Box3, Group, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
 import type { Texture } from "three";
 import { Leva } from "leva";
 
@@ -13,7 +13,6 @@ import { sampleAnimation, type Animation } from "./animation";
 import { recolorBodyTexture } from "./bodyTexture";
 import { StudioEnvironment } from "./StudioEnvironment";
 import { ShadowRig } from "./ShadowRig";
-import { LaptopScene } from "./LaptopScene";
 import { StageLoader } from "./StageLoader";
 import { DEFAULT_SHADOW, type ShadowSettings } from "./shadow";
 import { DEFAULT_LIGHTING, type LightingId } from "./lighting";
@@ -26,7 +25,7 @@ const DepthOfFieldLayer = lazy(() => import("./DepthOfFieldLayer"));
 
 import type React from "react";
 import { MeshBasicMaterial, Quaternion } from "three";
-import type { Group, Mesh, MeshStandardMaterial, PerspectiveCamera } from "three";
+import type { Mesh, MeshStandardMaterial, PerspectiveCamera } from "three";
 
 /**
  * Manual nudge on top of the automatic screen fit.
@@ -114,6 +113,9 @@ const SCREEN_NATIVE_HEIGHT = 874;
 
 // Tunables — scene is in "world units"; viewport is ~1.1 units tall at default camera.
 const PHONE_HEIGHT = 1.0;
+/** How wide a device may be before width, not height, decides the fit. 0.8 is
+    the 4:5 frame's width against its height. */
+const PHONE_WIDTH_BUDGET = 0.8;
 const PHONE_DEPTH = 0.06;
 const PHONE_CORNER_RADIUS = 0.055;
 const PHONE_BODY_COLOR = "#1A1A1A";
@@ -1006,14 +1008,90 @@ function GLBPhoneScene({
         material.needsUpdate = true;
       });
     });
-    const box = new Box3().setFromObject(cloned);
+    /*
+     * Pose the model before measuring it.
+     *
+     * Orientation used to be a wrapper group around the loaded scene, which
+     * meant the bounding box was taken from the model's authored pose and the
+     * fit was computed for an object in a different position to the one on
+     * screen. A device lying on its side measured as short and wide, got
+     * scaled as though it were, and then stood up far too large.
+     */
+    /*
+     * Stand the model up by MEASURING, not by naming an angle.
+     *
+     * Exports disagree about which way is up, and the obvious fix -- a pitch
+     * in degrees per device -- does not survive contact with them: a glTF
+     * scene carries its own node transforms, so a rotation applied to a
+     * wrapper composes with whatever the author already baked in. Asking the
+     * iPhone Air for -90 about X rotated it about a different axis entirely,
+     * and no amount of staring at the number explains which.
+     *
+     * So poses are tried and the RESULT is measured. Two nested groups keep
+     * the two rotations from fighting: the inner one searches for upright, the
+     * outer one carries the device's own yaw, which is a fact about which face
+     * the model calls front and not something to search for.
+     */
+    const stood = new Group();
+    stood.add(cloned);
+    const posed = new Group();
+    posed.add(stood);
+    posed.rotation.set(0, ((device.modelYawDeg ?? 0) * Math.PI) / 180, 0);
+
+    const quarter = Math.PI / 2;
+    const candidates: Array<[number, number, number]> = device.autoStand
+      ? ([0, -quarter, quarter] as number[]).flatMap((rx) =>
+          ([0, -quarter, quarter, Math.PI] as number[]).map(
+            (ry) => [rx, ry, 0] as [number, number, number],
+          ),
+        )
+      : [[0, 0, 0]];
+
+    let bestBox: Box3 | null = null;
+    let bestScore = -Infinity;
+    let bestPose: [number, number, number] = [0, 0, 0];
+    for (const pose of candidates) {
+      stood.rotation.set(pose[0], pose[1], pose[2]);
+      posed.updateMatrixWorld(true);
+      const candidateBox = new Box3().setFromObject(posed);
+      const s3 = new Vector3();
+      candidateBox.getSize(s3);
+      // Upright and facing the camera: tall in Y, shallow in Z. Subtracting
+      // depth is what separates a phone standing up from one standing on its
+      // edge -- both are tall, only one is thin front to back.
+      const score = s3.y - s3.z;
+      if (score > bestScore) {
+        bestScore = score;
+        bestBox = candidateBox;
+        bestPose = pose;
+      }
+    }
+    stood.rotation.set(bestPose[0], bestPose[1], bestPose[2]);
+    posed.updateMatrixWorld(true);
+
+    const box = bestBox ?? new Box3().setFromObject(posed);
     const size = new Vector3();
     box.getSize(size);
     const center = new Vector3();
     box.getCenter(center);
-    const scaleFactor = size.y > 0 ? PHONE_HEIGHT / size.y : 1;
-    cloned.scale.setScalar(scaleFactor);
-    cloned.position.set(
+    /*
+     * Fit on whichever side runs out first, not on height alone.
+     *
+     * Normalising to PHONE_HEIGHT assumed every device is taller than it is
+     * wide, which held while the registry was all phones. A 14" MacBook is
+     * about 1.5x wider than it is tall, so scaling it to one unit TALL made it
+     * one and a half units wide and it filled the frame edge to edge -- the
+     * stage opened somewhere inside the lid.
+     *
+     * The frame is portrait, so the width budget is the smaller one. Phones
+     * are unaffected: height still binds for anything portrait, and the
+     * existing framing is unchanged.
+     */
+    const heightFit = size.y > 0 ? PHONE_HEIGHT / size.y : 1;
+    const widthFit = size.x > 0 ? PHONE_WIDTH_BUDGET / size.x : 1;
+    const scaleFactor = Math.min(heightFit, widthFit);
+    posed.scale.setScalar(scaleFactor);
+    posed.position.set(
       -center.x * scaleFactor,
       -center.y * scaleFactor,
       -center.z * scaleFactor,
@@ -1041,7 +1119,7 @@ function GLBPhoneScene({
     }
 
     return {
-      scene: cloned,
+      scene: posed,
       width: size.x * scaleFactor,
       height: size.y * scaleFactor,
       depth: size.z * scaleFactor,
@@ -1464,10 +1542,7 @@ function PhoneScene({
 
   return (
     <group ref={groupRef}>
-      {device.kind === "laptop" ? (
-        // Generated geometry: nothing to load, nothing to suspend on.
-        <LaptopScene texture={screenTexture} finishId={finishId} />
-      ) : USE_GLB ? (
+      {USE_GLB ? (
         /*
          * Nothing while the model loads, not a stand-in phone.
          *

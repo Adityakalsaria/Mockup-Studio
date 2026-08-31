@@ -74,6 +74,33 @@ export interface Device {
    * rings, flash, mesh — is left alone. Omit and maps are never retinted.
    */
   authoredBodyColor?: string;
+  /**
+   * Extra yaw applied to the model itself, in degrees.
+   *
+   * The stage opens at yAxis 180 because the phone GLBs put their screen on
+   * -Z. A model built facing the other way shows its back at that default --
+   * the MacBook opened on its closed lid. Correcting it here rather than by
+   * changing the default keeps ONE camera convention across the registry, so
+   * a keyframe or a motion preset means the same thing whichever device is
+   * loaded.
+   */
+  modelYawDeg?: number;
+  /**
+   * Extra pitch applied to the model itself, in degrees about X.
+   *
+   * Not every export stands its device up. The iPhone Air is modelled lying
+   * flat -- its long axis is Z, not Y -- so at rest the stage showed its edge.
+   * Both this and the yaw are applied BEFORE the model is measured, so the
+   * fit and the recentring see the pose that will actually be rendered.
+   */
+  /**
+   * Try a handful of quarter turns and keep whichever stands the model up.
+   *
+   * For exports that are modelled lying down. Measured rather than specified,
+   * because a glTF scene carries its own node transforms and a named angle
+   * composes with them in ways that are not predictable from the file.
+   */
+  autoStand?: boolean;
   /** Licence + author. Required for anything that ships. */
   credit: string;
 }
@@ -105,6 +132,8 @@ export const DEVICES: Device[] = [
     id: "iphone-air",
     label: "iPhone Air",
     modelPath: `${MODELS}/iphone-air.glb`,
+    // Modelled lying down; the upright pose is found by measuring.
+    autoStand: true,
     // Only 8 meshes here, so the name is unambiguous. Object_2 is the front
     // glass: the flattest panel at the right aspect.
     hideHints: ["Object_2"],
@@ -121,6 +150,9 @@ export const DEVICES: Device[] = [
     id: "macbook-pro-14",
     label: 'MacBook Pro 14"',
     modelPath: `${MODELS}/macbook-pro-14.glb`,
+    // Faces +Z where the phones face -Z, so it needs turning to meet the
+    // stage's 180 default front-on.
+    modelYawDeg: 180,
     // Matched by mesh name, not material: this model reuses one material
     // across seven meshes, so a material hint would hide most of the lid.
     hideHints: ["cpUmMDYlGqLEAMt"],
