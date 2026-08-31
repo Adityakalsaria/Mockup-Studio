@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { isVideoSource } from "../useScreenTexture";
-import { getDevice } from "../devices";
+import { DEVICES, getDevice } from "../devices";
 import { FINISHES } from "../finishes";
 import {
   AccentPicker,
@@ -396,17 +396,33 @@ export function RightPanel({
         expanded={isOpen("mockup")}
         onToggle={() => toggle("mockup")}
       >
-        <div
-          className="flex h-[44px] w-full items-center gap-[12px] rounded-[var(--ks-r)] px-[12px]"
+        {/* A picker again, now that there is more than one thing to pick.
+            The row carried the device NAME and nothing else, from when the
+            registry had one entry worth showing -- so a laptop could be
+            registered and still be unreachable. Same shape as Frame and
+            Lighting, for the same reason: a handful of named options is a
+            list, and a list belongs in a menu. */}
+        <label
+          className="relative flex h-[44px] w-full items-center justify-between rounded-[var(--ks-r)] px-[12px]"
           style={{ background: "var(--ks-ctl)" }}
         >
-          {/* The name alone. The icon was a picture of a phone on a row about
-              a phone, and the pixel size is a fact about a device nobody can
-              change — it belonged in the picker this row used to open. */}
           <span className="ks-label min-w-0 flex-1 truncate" style={{ color: "var(--ks-text)" }}>
             {device.label}
           </span>
-        </div>
+          <Icon name="chevronDown" />
+          <select
+            value={device.id}
+            onChange={(event) => onChange({ deviceId: event.currentTarget.value })}
+            aria-label="Device"
+            className="absolute inset-0 cursor-pointer opacity-0"
+          >
+            {DEVICES.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.label}
+              </option>
+            ))}
+          </select>
+        </label>
 
         {/* Finish as swatches, not a dropdown: colour is the one property you
             pick by looking at it, and a list of names makes you open a menu

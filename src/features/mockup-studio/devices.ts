@@ -28,8 +28,14 @@ export interface DeviceNotch {
 export interface Device {
   id: string;
   label: string;
-  /** Served from /public. */
-  modelPath: string;
+  /**
+   * How the body is drawn. "glb" loads `modelPath`; "laptop" is generated
+   * geometry and needs no file. Absent means glb, so every existing entry is
+   * unchanged.
+   */
+  kind?: "glb" | "laptop";
+  /** Served from /public. Required for `kind: "glb"`. */
+  modelPath?: string;
   /**
    * Hide any mesh whose name OR material name contains one of these. Models
    * bake a placeholder wallpaper into a mesh that would otherwise cover the
@@ -120,6 +126,19 @@ export const DEVICES: Device[] = [
     // TODO: unconfirmed. Supplied as `phone-17-pro-max (1).zip`; provenance
     // and licence still to be established before this ships anywhere public.
     credit: "UNKNOWN — provenance not yet confirmed",
+  },
+  {
+    id: "macbook-pro-16",
+    label: 'MacBook Pro 16"',
+    kind: "laptop",
+    // Generated geometry, so there is no mesh to find and nothing to hide.
+    hideHints: [],
+    screenCornerRadiusPct: 0,
+    screenInsetPct: 1,
+    // 1728x1117 points, which is the 3456x2234 panel at 2x.
+    screenNative: { width: 1728, height: 1117 },
+    notch: null,
+    credit: "Generated geometry — no third-party asset, nothing to license",
   },
 ];
 

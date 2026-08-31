@@ -13,6 +13,7 @@ import { sampleAnimation, type Animation } from "./animation";
 import { recolorBodyTexture } from "./bodyTexture";
 import { StudioEnvironment } from "./StudioEnvironment";
 import { ShadowRig } from "./ShadowRig";
+import { LaptopScene } from "./LaptopScene";
 import { StageLoader } from "./StageLoader";
 import { DEFAULT_SHADOW, type ShadowSettings } from "./shadow";
 import { DEFAULT_LIGHTING, type LightingId } from "./lighting";
@@ -743,7 +744,10 @@ function NotchPlane({
 // Preload every registered device. The list is small and the models are all
 // under 1MB compressed, so warming them up front costs less than a visible
 // stall the first time someone switches device.
-DEVICES.forEach((d) => useGLTF.preload(d.modelPath));
+// Generated devices have no file to warm.
+DEVICES.forEach((d) => {
+  if (d.modelPath) useGLTF.preload(d.modelPath);
+});
 
 function GLBPhoneScene({
   screenTexture,
@@ -758,7 +762,9 @@ function GLBPhoneScene({
 }) {
   const { color: bodyColor, metalness: bodyMetalness, roughness: bodyRoughness } =
     getFinish(finishId);
-  const gltf = useGLTF(device.modelPath);
+  // Only ever mounted for a device that has one; the branch that chooses
+  // between this and the generated bodies is in PhoneScene.
+  const gltf = useGLTF(device.modelPath as string);
   const { scene, width, height, depth, screen, screenMaterials } = useMemo(() => {
     const cloned = gltf.scene.clone(true) as Group;
     const screenLocalBox = new Box3().makeEmpty();
@@ -1458,7 +1464,10 @@ function PhoneScene({
 
   return (
     <group ref={groupRef}>
-      {USE_GLB ? (
+      {device.kind === "laptop" ? (
+        // Generated geometry: nothing to load, nothing to suspend on.
+        <LaptopScene texture={screenTexture} finishId={finishId} />
+      ) : USE_GLB ? (
         /*
          * Nothing while the model loads, not a stand-in phone.
          *
