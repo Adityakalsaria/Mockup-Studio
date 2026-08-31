@@ -101,6 +101,16 @@ export interface Device {
    * composes with them in ways that are not predictable from the file.
    */
   autoStand?: boolean;
+  /**
+   * Which mesh is the screen, for `autoStand`.
+   *
+   * Standing a model up by measuring height and depth cannot tell front from
+   * back -- a phone facing away is exactly as tall and as thin as one facing
+   * you. Naming the screen lets the search prefer the pose that puts it toward
+   * the camera, which is the difference between a mockup and a photo of the
+   * back of a phone.
+   */
+  screenHint?: string;
   /** Licence + author. Required for anything that ships. */
   credit: string;
 }
@@ -139,7 +149,30 @@ export const DEVICES: Device[] = [
     autoStand: true,
     // Only 8 meshes here, so the name is unambiguous. Object_2 is the front
     // glass: the flattest panel at the right aspect.
-    hideHints: ["Object_2"],
+    // Floated, not bound. Binding to this model's glass rendered the picture
+    // mirrored, and un-mirroring it via `screenFlipX` blanked the screen: that
+    // works by negating the texture's repeat, which assumes UVs spanning 0..1,
+    // and this mesh's do not -- so the mirrored copy landed outside the mapped
+    // area. The floated plane gets the content right; what it got wrong was
+    // which FACE, and that is fixed in the pose search instead.
+    //
+    // Object_2 is the screen: the camera cluster sits at +Y in this model, so
+    // the back is +Y and the display is the -Y face.
+    // Bound, not floated: hiding the screen mesh and floating a plane in front
+    // left the model's own wallpaper showing and the plane nowhere to be seen.
+    // Object_2 / Glass_-_Heavy_Color is the display -- the camera cluster sits
+    // at +Y in this model, so the back is +Y and the screen is the -Y face.
+    hideHints: [],
+    screenHint: "Object_2",
+    screenMaterial: "Glass_-_Heavy_Color",
+    // KNOWN: the picture renders MIRRORED on this model. Its screen UVs run
+    // right to left, and the usual fix -- `screenFlipX`, which negates the
+    // texture's repeat -- does not work here: the mesh's UVs do not span 0..1,
+    // so the mirrored copy samples outside the mapped area and the middle of
+    // the screen comes back blank. Left un-flipped deliberately: a mirrored
+    // screenshot is wrong but visible and correctly placed, which beats a
+    // blank one. Fixing it properly means flipping the pixels when the texture
+    // is built rather than flipping how it is sampled.
     screenCornerRadiusPct: 0.135,
     screenInsetPct: 0.988,
     // Derived from the mesh's own aspect (2.127) rather than a published
