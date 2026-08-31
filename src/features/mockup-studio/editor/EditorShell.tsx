@@ -230,6 +230,15 @@ export default function EditorShell() {
   const [recordProgress, setRecordProgress] = useState<number | null>(null);
 
   const [timelineOpen, setTimelineOpen] = useState(false);
+  /**
+   * Dismissed by hand.
+   *
+   * Kept separate from `timelineOpen` rather than folded into it, because the
+   * timeline also appears on its own the moment a track has keys -- without a
+   * second flag, closing it would be undone by the very state that opened it,
+   * and the panel would spring back the instant anything re-rendered.
+   */
+  const [timelineHidden, setTimelineHidden] = useState(false);
   const [exportFps, setExportFps] = useState(60);
   const [exportScale, setExportScale] = useState(2);
   const [playhead, setPlayhead] = useState(0);
@@ -520,6 +529,36 @@ export default function EditorShell() {
   }, [animation.tracks, playhead]);
 
   const animated = hasKeys(animation);
+
+  const timelineVisible = (timelineOpen || animated) && !timelineHidden;
+
+  const toggleTimeline = useCallback(() => {
+    if (timelineVisible) {
+      setTimelineHidden(true);
+      return;
+    }
+    // Reopening has to clear BOTH: a clip with no keys is not `animated`, so
+    // clearing the dismissal alone would leave nothing to show.
+    setTimelineHidden(false);
+    setTimelineOpen(true);
+  }, [timelineVisible]);
+
+  // T shows and hides the timeline. Its own listener rather than a branch in
+  // the one above, only because that one is declared before `toggleTimeline`
+  // exists and reordering the file to suit a keystroke is the wrong trade.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key.toLowerCase() !== "t") return;
+      const el = event.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (el && (tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable)) return;
+      event.preventDefault();
+      toggleTimeline();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleTimeline]);
 
   useEffect(() => {
     animatedRef.current = animated;
@@ -1219,7 +1258,7 @@ export default function EditorShell() {
 
       {/* Outside the row, so it spans the full width rather than being
           boxed in between the two panels. */}
-        {timelineOpen || animated ? (
+        {timelineVisible ? (
           <Timeline
             animation={animation}
             playhead={playhead}
@@ -1231,6 +1270,7 @@ export default function EditorShell() {
             onMoveKey={moveKey}
             onRemoveKey={dropKey}
             onSetKeyEasing={setKeyEasing}
+            onClose={() => setTimelineHidden(true)}
             onClear={() => {
               setPlaying(false);
               setPlayhead(0);

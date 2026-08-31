@@ -51,6 +51,7 @@ export function Timeline({
   onMoveKey,
   onRemoveKey,
   onSetKeyEasing,
+  onClose,
   onClear,
   onScrubbingChange,
   onEasingChange,
@@ -73,6 +74,7 @@ export function Timeline({
   onMoveKey: (property: AnimatableKey, from: number, to: number) => void;
   onRemoveKey: (property: AnimatableKey, time: number) => void;
   onSetKeyEasing: (property: AnimatableKey, time: number, easing: Easing) => void;
+  onClose: () => void;
   onClear: () => void;
   /** True for the duration of a playhead drag, so the stage can stop easing. */
   onScrubbingChange: (active: boolean) => void;
@@ -243,6 +245,20 @@ export function Timeline({
           small print. Now: transport, then motion, then output, then view —
           tight inside a group, wide between them, with a hairline where the
           subject changes. */}
+      {/* Pinned rather than placed in the toolbar row: the toolbar is centred,
+          and adding a control to one end of it would push everything off
+          centre by half a button. */}
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close timeline"
+        title="Close timeline (T)"
+        className="ks-press absolute right-[10px] top-[8px] z-10 grid h-[24px] w-[24px] place-items-center rounded-full"
+        style={{ color: "var(--ks-text-dim)" }}
+      >
+        <Icon name="dismiss" />
+      </button>
+
       {/* Centred as one group.
           It used to run from the left edge with the easing and zoom controls
           pushed to the right by `ml-auto`, which read as two unrelated
