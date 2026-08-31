@@ -90,11 +90,18 @@ export const EDITOR_THEME_CSS = `
      in a way it does not in a colour borrowed from elsewhere.
      #007AFF is the light-mode value; the kit's variables gave #0091FF for
      dark, which is the pair Apple ships. */
-  --ks-accent: #007AFF;
-  --ks-accent-strong: rgba(0, 122, 255, 0.85);
-  --ks-accent-line: rgba(0, 122, 255, 0.5);
-  --ks-accent-wash: rgba(0, 122, 255, 0.14);
-  --ks-accent-wash-soft: rgba(0, 122, 255, 0.09);
+  /* One triplet, five derived tokens.
+     They used to be five hardcoded rgba values, which meant changing the
+     accent meant changing all five in both themes and never missing one.
+     Custom properties are substituted at computed-value time, so overriding
+     the triplet anywhere -- the dark block below, or an inline style on the
+     root -- re-resolves every token that reads it. */
+  --ks-accent-rgb: 0 122 255;
+  --ks-accent: rgb(var(--ks-accent-rgb));
+  --ks-accent-strong: rgb(var(--ks-accent-rgb) / 0.85);
+  --ks-accent-line: rgb(var(--ks-accent-rgb) / 0.5);
+  --ks-accent-wash: rgb(var(--ks-accent-rgb) / 0.14);
+  --ks-accent-wash-soft: rgb(var(--ks-accent-rgb) / 0.09);
   --ks-accent-text: #FFFFFF;
 
   /* Ours, not the mock's. */
@@ -237,11 +244,12 @@ export const EDITOR_THEME_CSS = `
   /* Accents/Blue as the kit's dark palette defines it. Apple lightens the
      accent in dark mode rather than reusing the light one, because #007AFF on
      black is noticeably heavier than it is on white. */
-  --ks-accent: #0091FF;
-  --ks-accent-strong: rgba(0, 145, 255, 0.85);
-  --ks-accent-line: rgba(0, 145, 255, 0.5);
-  --ks-accent-wash: rgba(0, 145, 255, 0.2);
-  --ks-accent-wash-soft: rgba(0, 145, 255, 0.12);
+  --ks-accent-rgb: 0 145 255;
+  /* Only the washes are redefined: the rest read the triplet above and
+     re-resolve on their own. Dark needs a heavier wash to register against a
+     dark surface at all. */
+  --ks-accent-wash: rgb(var(--ks-accent-rgb) / 0.2);
+  --ks-accent-wash-soft: rgb(var(--ks-accent-rgb) / 0.12);
 
   --ks-ctl: rgba(255, 255, 255, 0.05);
   --ks-knob: #FFFFFF;

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon } from "./icons";
+import { ACCENTS, DEFAULT_ACCENT, accentCss, type AccentId } from "./accents";
 import { ColorField } from "./ColorField";
 
 /* ------------------------------------------------------------------ *
@@ -606,6 +607,107 @@ export function Toggle({
   );
 }
 
+/**
+ * The accent picker.
+ *
+ * A dot of the current colour that opens a grid of the rest. It sits beside
+ * the light/dark toggle because it is the same kind of setting -- how the
+ * chrome looks, not what the shot looks like -- and neither belongs in a
+ * section with the controls that change the render.
+ */
+export function AccentPicker({
+  accent,
+  theme,
+  onChange,
+}: {
+  accent: AccentId;
+  theme: "light" | "dark";
+  onChange: (next: AccentId) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const current = ACCENTS.find((a) => a.id === accent) ?? ACCENTS[0];
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Accent colour: ${current.label}`}
+        title={`Accent colour: ${current.label}`}
+        className="ks-press grid h-[24px] w-[24px] place-items-center rounded-full"
+      >
+        <span
+          className="h-[14px] w-[14px] rounded-full"
+          style={{
+            background: accentCss(current, theme),
+            boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.22)",
+          }}
+        />
+      </button>
+
+      {open ? (
+        <div
+          role="menu"
+          // Below and right-aligned: this lives in the panel's top right, so
+          // there is nothing above it and everything below.
+          className="ks-menu absolute right-0 top-[calc(100%+8px)] z-40 grid w-[152px] grid-cols-5 gap-[6px] rounded-[var(--ks-r-menu)] border p-[8px]"
+          style={{
+            background: "var(--ks-surface-solid)",
+            borderColor: "var(--ks-line-strong)",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.28)",
+            transformOrigin: "top right",
+          }}
+        >
+          {ACCENTS.map((option) => {
+            const selected = option.id === accent;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={selected}
+                aria-label={option.label}
+                title={option.label}
+                onClick={() => {
+                  onChange(option.id);
+                  setOpen(false);
+                }}
+                className="grid h-[20px] w-[20px] place-items-center rounded-full transition-transform hover:scale-110"
+                style={{
+                  background: accentCss(option, theme),
+                  boxShadow: selected
+                    ? "0 0 0 1.5px var(--ks-surface-solid), 0 0 0 3px var(--ks-text)"
+                    : "inset 0 0 0 1px rgba(0,0,0,0.22)",
+                }}
+              />
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** MANUAL | PRESETS — a raised active segment on a recessed strip. */
 export function Tabs<T extends string>({
   options,
@@ -765,6 +867,27 @@ function subscribeTheme(onChange: () => void) {
 
 function readTheme(): "light" | "dark" {
   return window.localStorage.getItem("ks-theme") === "dark" ? "dark" : "light";
+}
+
+function readAccent(): AccentId {
+  const stored = window.localStorage.getItem("ks-accent");
+  return ACCENTS.some((a) => a.id === stored) ? (stored as AccentId) : DEFAULT_ACCENT;
+}
+
+/**
+ * The accent, alongside the theme and stored the same way.
+ *
+ * Shares THEME_EVENT rather than having its own: both are the same kind of
+ * change -- a chrome preference written to localStorage that every mounted
+ * editor should pick up at once -- and one event means one subscription.
+ */
+export function useEditorAccent(): [AccentId, (next: AccentId) => void] {
+  const accent = useSyncExternalStore(subscribeTheme, readAccent, () => DEFAULT_ACCENT);
+  const set = useCallback((next: AccentId) => {
+    window.localStorage.setItem("ks-accent", next);
+    window.dispatchEvent(new Event(THEME_EVENT));
+  }, []);
+  return [accent, set];
 }
 
 export function useEditorTheme(): ["light" | "dark", () => void] {

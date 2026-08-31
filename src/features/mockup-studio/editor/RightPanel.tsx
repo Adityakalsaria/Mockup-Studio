@@ -5,6 +5,7 @@ import { isVideoSource } from "../useScreenTexture";
 import { getDevice } from "../devices";
 import { FINISHES } from "../finishes";
 import {
+  AccentPicker,
   ColorRow,
   ControlRow,
   PanelSection,
@@ -23,6 +24,7 @@ import { MotionPanel } from "./MotionPanel";
 import { FOCAL_MAX, FOCAL_MIN, focalFromFov, fovFromFocal } from "../lens";
 import { DEFAULT_SHADOW, SHADOW_RANGES } from "../shadow";
 import { LIGHTING_PRESETS, type LightingId } from "../lighting";
+import type { AccentId } from "./accents";
 import { AspectSelect, ExportMenu } from "./framing";
 import { useLiquidGlass } from "./useLiquidGlass";
 import type { Easing } from "../animation";
@@ -62,6 +64,8 @@ export function RightPanel({
   recordProgress,
   theme,
   onToggleTheme,
+  accent,
+  onAccentChange,
   keyedNow,
   onToggleKey,
 }: {
@@ -109,6 +113,8 @@ export function RightPanel({
   recordProgress: number | null;
   theme: "light" | "dark";
   onToggleTheme: () => void;
+  accent: AccentId;
+  onAccentChange: (next: AccentId) => void;
   /** Properties with a keyframe sitting exactly on the playhead. */
   keyedNow: Partial<Record<AnimatableKey, boolean>>;
   onToggleKey: (property: AnimatableKey) => void;
@@ -177,6 +183,8 @@ export function RightPanel({
           the empty bar so both columns start their sections at one height. */}
       <div className="flex h-[46px] shrink-0 items-center justify-end">
         {side === "right" ? (
+        <div className="flex items-center gap-[var(--ks-space-1)]">
+        <AccentPicker accent={accent} theme={theme} onChange={onAccentChange} />
         <button
           type="button"
           onClick={onToggleTheme}
@@ -186,6 +194,7 @@ export function RightPanel({
         >
           <Icon name={theme === "light" ? "dark" : "light"} />
         </button>
+        </div>
         ) : null}
       </div>
 

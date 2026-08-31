@@ -22,7 +22,8 @@ import { useScreenTexture } from "../useScreenTexture";
 import { RightPanel } from "./RightPanel";
 import { getRatio } from "./framing";
 import { EditorTheme, EditorThemeContext } from "./theme";
-import { Tabs, useEditorTheme } from "./primitives";
+import { Tabs, useEditorAccent, useEditorTheme } from "./primitives";
+import { getAccent } from "./accents";
 import { Icon } from "./icons";
 import {
   DEFAULT_EDITOR_STATE,
@@ -82,6 +83,7 @@ const HISTORY_LIMIT = 60;
 
 export default function EditorShell() {
   const [theme, toggleTheme] = useEditorTheme();
+  const [accent, setAccent] = useEditorAccent();
   const [state, setState] = useState<EditorState>(DEFAULT_EDITOR_STATE);
 
   /*
@@ -988,6 +990,14 @@ export default function EditorShell() {
       className="ks h-screen w-screen overflow-hidden"
       data-ks-theme={theme}
       data-ks-step={mobileStep}
+      // One variable, and every accent token in the sheet re-resolves from it.
+      // The light and dark values are Apple's own for each colour rather than
+      // one shade dimmed: the blue that reads right on white is heavy on black.
+      style={
+        {
+          "--ks-accent-rgb": theme === "dark" ? getAccent(accent).dark : getAccent(accent).light,
+        } as React.CSSProperties
+      }
     >
       <EditorThemeContext.Provider value={theme}>
       <EditorTheme />
@@ -1088,6 +1098,8 @@ export default function EditorShell() {
           recordProgress={recordProgress}
           theme={theme}
           onToggleTheme={toggleTheme}
+          accent={accent}
+          onAccentChange={setAccent}
           keyedNow={keyedNow}
           onToggleKey={toggleKey}
         />
@@ -1250,6 +1262,8 @@ export default function EditorShell() {
           recordProgress={recordProgress}
           theme={theme}
           onToggleTheme={toggleTheme}
+          accent={accent}
+          onAccentChange={setAccent}
           keyedNow={keyedNow}
           onToggleKey={toggleKey}
         />
