@@ -68,6 +68,13 @@ export interface Device {
    */
   screenFlipX?: boolean;
   /**
+   * The same for the V axis, when a model's screen UVs run bottom to top.
+   *
+   * Separate from `screenFlipX` because the two are independent facts about an
+   * export and no model has yet needed both.
+   */
+  screenFlipY?: boolean;
+  /**
    * The colour the model was authored in, when part of the body is baked into
    * a base-colour map rather than driven by a material factor. Texels sharing
    * this hue follow the selected finish; everything else in the map — lens
@@ -145,41 +152,37 @@ export const DEVICES: Device[] = [
     id: "iphone-air",
     label: "iPhone Air",
     modelPath: `${MODELS}/iphone-air.glb`,
-    // Modelled lying down; the upright pose is found by measuring.
-    autoStand: true,
-    // Only 8 meshes here, so the name is unambiguous. Object_2 is the front
-    // glass: the flattest panel at the right aspect.
-    // Floated, not bound. Binding to this model's glass rendered the picture
-    // mirrored, and un-mirroring it via `screenFlipX` blanked the screen: that
-    // works by negating the texture's repeat, which assumes UVs spanning 0..1,
-    // and this mesh's do not -- so the mirrored copy landed outside the mapped
-    // area. The floated plane gets the content right; what it got wrong was
-    // which FACE, and that is fixed in the pose search instead.
-    //
-    // Object_2 is the screen: the camera cluster sits at +Y in this model, so
-    // the back is +Y and the display is the -Y face.
-    // Bound, not floated: hiding the screen mesh and floating a plane in front
-    // left the model's own wallpaper showing and the plane nowhere to be seen.
-    // Object_2 / Glass_-_Heavy_Color is the display -- the camera cluster sits
-    // at +Y in this model, so the back is +Y and the screen is the -Y face.
+    // This export names its materials, so none of the guesswork the previous
+    // one needed applies: "Display" is the screen, and binding to it takes the
+    // face from the geometry rather than inferring it.
     hideHints: [],
-    screenHint: "Object_2",
-    screenMaterial: "Glass_-_Heavy_Color",
-    // KNOWN: the picture renders MIRRORED on this model. Its screen UVs run
-    // right to left, and the usual fix -- `screenFlipX`, which negates the
-    // texture's repeat -- does not work here: the mesh's UVs do not span 0..1,
-    // so the mirrored copy samples outside the mapped area and the middle of
-    // the screen comes back blank. Left un-flipped deliberately: a mirrored
-    // screenshot is wrong but visible and correctly placed, which beats a
-    // blank one. Fixing it properly means flipping the pixels when the texture
-    // is built rather than flipping how it is sampled.
+    screenMaterial: "Display",
+    // Its screen UVs run bottom to top, so the picture arrives upside down.
+    screenFlipY: true,
+    // KNOWN: the picture is STRETCHED on this model. Binding puts it on the
+    // right face and the right way up, but this mesh's UVs are not a clean
+    // rectangle so the screenshot smears across them. Floating a plane instead
+    // was tried -- the plane renders BEHIND the model's own glass layers, so
+    // the screen just goes dark. Fixing it properly means either hiding the
+    // glass as well as the display and floating in front of both, or
+    // re-unwrapping the mesh outside this project.
+    // Its accessor bounds read as upright, but those are MESH space: this is a
+    // Blender export and the scene carries a node rotation on top, so it
+    // arrived lying on its side. The pose search measures the result rather
+    // than trusting the file, and the named screen tells it which of the two
+    // upright poses faces the camera.
+    autoStand: true,
+    // The search gets it upright but not which way round -- both faces score
+    // the same on height and depth. Turned here rather than inferred.
+    modelYawDeg: 180,
     screenCornerRadiusPct: 0.135,
-    screenInsetPct: 0.988,
-    // Derived from the mesh's own aspect (2.127) rather than a published
-    // spec, so the texture maps onto it without stretching.
-    screenNative: { width: 402, height: 855 },
+    screenInsetPct: 1,
+    // The Display mesh measures 0.07 x 0.15, a 2.14 ratio; this is that.
+    screenNative: { width: 402, height: 860 },
+    // The model carries its own Dynamic Island.
     notch: null,
-    // TODO: unconfirmed. Supplied as `iphone_air.glb` with no licence file.
+    // TODO: unconfirmed. Supplied as `iPhone Air Simple.glb`; provenance and
+    // licence still to be established before this ships anywhere public.
     credit: "UNKNOWN — provenance not yet confirmed",
   },
 ];

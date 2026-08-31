@@ -3,7 +3,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { RoundedBox, useGLTF } from "@react-three/drei";
-import { Box3, Group, RepeatWrapping, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
+import { Box3, ClampToEdgeWrapping, Group, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
 import type { Texture } from "three";
 import { Leva } from "leva";
 
@@ -821,31 +821,13 @@ function GLBPhoneScene({
 
       /*
        * Height and depth alone cannot tell front from back: a phone facing
-       * away is exactly as tall and as thin as one facing you, so the search
-       * picked whichever came first and the picture rendered on the far side.
-       *
-       * If the device names its screen, the pose that puts it on the far side
-       * of the body's own centre wins. Far side, because the stage opens at
-       * yAxis 180 -- a screen at -Z here is a screen facing the camera there.
+       * away is exactly as tall and as thin as one facing you. Naming the
+       * screen and preferring the pose that puts it forward was tried and
+       * removed -- it fired for some models and not others, so the same file
+       * could come up facing either way between runs, which is worse than
+       * consistently wrong. Uprightness is decided here; which way round is
+       * `modelYawDeg`, set once per model and verified by looking.
        */
-      if (device.screenHint) {
-        const hint = device.screenHint.toLowerCase();
-        let screenZ: number | null = null;
-        posed.traverse((child) => {
-          if (screenZ !== null || !(child as Mesh).isMesh) return;
-          if (!(child.name ?? "").toLowerCase().includes(hint)) return;
-          const c = new Vector3();
-          new Box3().setFromObject(child).getCenter(c);
-          screenZ = c.z;
-        });
-        if (screenZ !== null) {
-          const bodyZ = new Vector3();
-          candidateBox.getCenter(bodyZ);
-          // Dominates the geometric score, so it decides between two poses
-          // that are equally upright rather than competing with them.
-          if (screenZ < bodyZ.z) score += 1000;
-        }
-      }
       if (score > bestScore) {
         bestScore = score;
         bestPose = pose;
@@ -1203,6 +1185,7 @@ function GLBPhoneScene({
       const srcHeight = image?.videoHeight || image?.height || 0;
 
       const flip = device.screenFlipX ? -1 : 1;
+      const flipV = device.screenFlipY ? -1 : 1;
       let fx = 1;
       let fy = 1;
 
@@ -1221,16 +1204,16 @@ function GLBPhoneScene({
 
       screenTexture.center.set(0.5, 0.5);
       /*
-       * Repeat wrapping, because a mirrored screen needs a NEGATIVE repeat and
-       * three clamps by default. Under clamping the mirrored copy runs outside
-       * 0..1 and every sample past the edge returns the edge pixel -- which on
-       * the iPhone Air blanked the middle of the screen and left a band of
-       * colour smeared from the border. Wrapping puts the sample back inside
-       * the texture where it belongs.
+       * Clamped, deliberately. Repeat wrapping was tried here to make a
+       * negative repeat mirror correctly for a model whose UVs ran right to
+       * left; that model is gone, and on one whose UVs stray outside 0..1 the
+       * wrap tiles the screenshot and smears it down the screen. Clamping is
+       * the safer default: a UV past the edge returns the edge pixel rather
+       * than a copy of the whole image.
        */
-      screenTexture.wrapS = RepeatWrapping;
-      screenTexture.wrapT = RepeatWrapping;
-      screenTexture.repeat.set(fx * flip, fy);
+      screenTexture.wrapS = ClampToEdgeWrapping;
+      screenTexture.wrapT = ClampToEdgeWrapping;
+      screenTexture.repeat.set(fx * flip, fy * flipV);
       screenTexture.offset.set(-fitOffsetX * fx, fitOffsetY * fy);
       screenTexture.needsUpdate = true;
       invalidate();
