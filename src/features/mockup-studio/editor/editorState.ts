@@ -1,6 +1,7 @@
 import { DEFAULT_BLUR, type BlurSettings } from "../blurStyles";
 import { DEFAULT_FINISH_ID } from "../finishes";
 import { DEFAULT_BACKGROUND, type BackgroundSettings } from "../backgrounds";
+import { DEFAULT_DEVICE_ID } from "../devices";
 import { DEFAULT_SHADOW, type ShadowSettings } from "../shadow";
 import { DEFAULT_LIGHTING, type LightingId } from "../lighting";
 import { DEFAULT_ANIMATION, type Animation } from "../animation";
@@ -55,7 +56,10 @@ export interface EditorState {
 }
 
 export const DEFAULT_EDITOR_STATE: EditorState = {
-  deviceId: "iphone-16",
+  // The registry's first entry, so the model warmed at module load is the
+  // one the editor actually opens on. Naming it separately meant preloading
+  // one device and then immediately fetching another.
+  deviceId: DEFAULT_DEVICE_ID,
   finishId: DEFAULT_FINISH_ID,
 
   // Opens front-on, centred, and sized to leave a margin on every side.

@@ -109,89 +109,6 @@ const MODELS = "/figma-assets/mockup-studio/models";
 
 export const DEVICES: Device[] = [
   {
-    id: "iphone-16",
-    label: "iPhone 16",
-    modelPath: `${MODELS}/iphone-16.glb`,
-    // Screen on +Z, where the stage assumes -Z. Turned so the default
-    // framing opens on the display rather than the camera bump.
-    modelYawDeg: 180,
-    // The model's meshes are named Object_0..Object_40 and its materials are
-    // content hashes, so nothing self-identifies as a screen. The screen mesh
-    // is Object_3 — but hints match by substring, and "Object_3" would also
-    // catch Object_30..Object_39. Its material is unique to that one mesh, so
-    // match on that instead.
-    // Bound to the model's own screen material rather than hiding the mesh and
-    // floating a plane in front. The plane is axis-aligned and the model's
-    // screen is not, so it landed mirrored and upside down; binding reuses the
-    // geometry and the UVs the author already got right.
-    hideHints: [],
-    screenMaterial: "4130c6244c49c5d5712e",
-    screenCornerRadiusPct: 0.135,
-    screenInsetPct: 0.988,
-    screenNative: { width: 393, height: 852 },
-    // TODO: unverified. Set once it is clear whether the model carries its own
-    // Dynamic Island geometry or the screen plane has to draw one.
-    notch: null,
-    // TODO: unconfirmed. Supplied as `iphone_16_-_free.glb` with no licence
-    // file. Provenance and licence to be established before this ships.
-    credit: "UNKNOWN — provenance not yet confirmed",
-  },
-  {
-    id: "iphone-air",
-    label: "iPhone Air",
-    modelPath: `${MODELS}/iphone-air.glb`,
-    // Modelled lying down; the upright pose is found by measuring.
-    autoStand: true,
-    // Only 8 meshes here, so the name is unambiguous. Object_2 is the front
-    // glass: the flattest panel at the right aspect.
-    hideHints: ["Object_2"],
-    screenCornerRadiusPct: 0.135,
-    screenInsetPct: 0.988,
-    // Derived from the mesh's own aspect (2.127) rather than a published
-    // spec, so the texture maps onto it without stretching.
-    screenNative: { width: 402, height: 855 },
-    notch: null,
-    // TODO: unconfirmed. Supplied as `iphone_air.glb` with no licence file.
-    credit: "UNKNOWN — provenance not yet confirmed",
-  },
-  {
-    id: "macbook-pro-14",
-    label: 'MacBook Pro 14"',
-    modelPath: `${MODELS}/macbook-pro-14.glb`,
-    // Faces +Z where the phones face -Z, so it needs turning to meet the
-    // stage's 180 default front-on.
-    modelYawDeg: 180,
-    // Matched by mesh name, not material: this model reuses one material
-    // across seven meshes, so a material hint would hide most of the lid.
-    // Same as the iPhone 16, and more so: a laptop lid is TILTED, so a flat
-    // plane placed at the screen's centre floated off the front of it rather
-    // than lying on it.
-    // TODO: the screen still renders blank. The lid is several coincident
-    // layers and the display is not yet among the ones tried:
-    //   gGmExFByNnyrwMm  the lid shell, 0.91 thick  -> picture behind the glass
-    //   vJOGifqMXcmlCkF  z 0.88, frontmost          -> UVs cover only the rim
-    //   XvtJEVWVvyDeJRR  z 0.81, thinnest           -> blank, still occluded
-    // Something opaque is in front of all three. The next step is to hide
-    // meshes one at a time until the bound layer shows, rather than guessing
-    // from geometry -- the body, keyboard and framing are all correct, so this
-    // is the only thing outstanding on this device.
-    hideHints: ["vJOGifqMXcmlCkF"],
-    // The lid has three coincident layers: the shell (0.91 thick), the panel
-    // and the glass. Binding the shell put the picture BEHIND the glass, which
-    // showed as a grey screen with a sliver of colour at each edge. This is the
-    // frontmost of the three.
-    screenMaterial: "XvtJEVWVvyDeJRR",
-    screenCornerRadiusPct: 0.02,
-    screenInsetPct: 0.99,
-    // 1512x982 points — the 3024x1964 panel at 2x.
-    screenNative: { width: 1512, height: 982 },
-    notch: null,
-    // TODO: unconfirmed. Supplied as `macbook_pro_14_inch_M5.glb` with no
-    // licence file. The GLB embeds its own textures, so the separate
-    // `textures/` folder it shipped with is not needed.
-    credit: "UNKNOWN — provenance not yet confirmed",
-  },
-  {
     id: "iphone-17-pro-max",
     label: "iPhone 17 Pro Max",
     modelPath: `${MODELS}/iphone-17-pro-max.glb`,
@@ -212,6 +129,24 @@ export const DEVICES: Device[] = [
     notch: null,
     // TODO: unconfirmed. Supplied as `phone-17-pro-max (1).zip`; provenance
     // and licence still to be established before this ships anywhere public.
+    credit: "UNKNOWN — provenance not yet confirmed",
+  },
+  {
+    id: "iphone-air",
+    label: "iPhone Air",
+    modelPath: `${MODELS}/iphone-air.glb`,
+    // Modelled lying down; the upright pose is found by measuring.
+    autoStand: true,
+    // Only 8 meshes here, so the name is unambiguous. Object_2 is the front
+    // glass: the flattest panel at the right aspect.
+    hideHints: ["Object_2"],
+    screenCornerRadiusPct: 0.135,
+    screenInsetPct: 0.988,
+    // Derived from the mesh's own aspect (2.127) rather than a published
+    // spec, so the texture maps onto it without stretching.
+    screenNative: { width: 402, height: 855 },
+    notch: null,
+    // TODO: unconfirmed. Supplied as `iphone_air.glb` with no licence file.
     credit: "UNKNOWN — provenance not yet confirmed",
   },
 ];

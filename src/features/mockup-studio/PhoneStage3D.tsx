@@ -7,7 +7,7 @@ import { Box3, Group, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vecto
 import type { Texture } from "three";
 import { Leva } from "leva";
 
-import { DEVICES, getDevice, type Device, type DeviceNotch } from "./devices";
+import { DEFAULT_DEVICE_ID, getDevice, type Device, type DeviceNotch } from "./devices";
 import { getFinish } from "./finishes";
 import { sampleAnimation, type Animation } from "./animation";
 import { recolorBodyTexture } from "./bodyTexture";
@@ -743,13 +743,20 @@ function NotchPlane({
   );
 }
 
-// Preload every registered device. The list is small and the models are all
-// under 1MB compressed, so warming them up front costs less than a visible
-// stall the first time someone switches device.
-// Generated devices have no file to warm.
-DEVICES.forEach((d) => {
-  if (d.modelPath) useGLTF.preload(d.modelPath);
-});
+/*
+ * Warm the DEFAULT device only.
+ *
+ * This used to warm every registered model, on the reasoning that they were
+ * all about a megabyte and warming them cost less than a stall on first
+ * switch. That stopped being true: the registry now carries a 14" MacBook at
+ * 5MB compressed and 10MB decoded, and the four together were 7.9MB fetched,
+ * parsed and uploaded to the GPU before the first frame -- which is a stall on
+ * EVERY load rather than one on a switch that may never happen.
+ *
+ * The others load when they are chosen, which is what the loading capsule over
+ * the stage is for.
+ */
+useGLTF.preload(getDevice(DEFAULT_DEVICE_ID).modelPath as string);
 
 function GLBPhoneScene({
   screenTexture,
