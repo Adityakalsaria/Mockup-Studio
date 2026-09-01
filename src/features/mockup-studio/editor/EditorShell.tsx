@@ -1071,10 +1071,9 @@ export default function EditorShell() {
             style={{ containerType: "size" }}
           >
             <div
-              className="relative overflow-hidden rounded-[var(--ks-r-panel)] border"
+              className="relative overflow-hidden rounded-[var(--ks-r-panel)]"
               style={{
                 ...backgroundCss(state.background),
-                borderColor: "var(--ks-line-strong)",
                 ...(ratio === null
                   ? { width: "100%", height: "100%" }
                   : {

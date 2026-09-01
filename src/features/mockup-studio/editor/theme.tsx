@@ -403,8 +403,13 @@ export const EDITOR_THEME_CSS = `
      A drop shadow separates a surface from what is behind it, and there is
      nothing behind these — the regions sit side by side on flat page colour,
      with an 8px gutter already doing the separating. The shadow was falling
-     on nothing and reading as a smudge around each edge. The border and the
-     specular rim say "surface" on their own. */
+     on nothing and reading as a smudge around each edge.
+
+     No drawn border either. The regions were each ringed in --ks-line-strong,
+     which on a light page put three hard grey rectangles around three panels
+     that were already separated by their own fill and an 8px gutter. The
+     specular rim below says "surface" on its own, and says it as light on
+     glass rather than as a line. */
 }
 
 /* The specular edge.

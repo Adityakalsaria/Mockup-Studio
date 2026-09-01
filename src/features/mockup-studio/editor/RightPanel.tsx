@@ -120,10 +120,9 @@ export function RightPanel({
   return (
     <aside
       ref={glassRef}
-      className="ks-material flex h-full w-full flex-col overflow-hidden rounded-[var(--ks-r-panel)] border laptop:w-[var(--ks-panel-w)] laptop:shrink-0"
+      className="ks-material flex h-full w-full flex-col overflow-hidden rounded-[var(--ks-r-panel)] laptop:w-[var(--ks-panel-w)] laptop:shrink-0"
       style={{
         background: "var(--ks-surface)",
-        borderColor: "var(--ks-line-strong)",
         ...glassStyle,
       }}
     >

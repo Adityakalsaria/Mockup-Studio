@@ -243,10 +243,9 @@ export function Timeline({
       // it. A tool's chrome should not change size because of what you are
       // working on: the lanes scroll inside it now, and the transport stays
       // where you left it.
-      className="ks-material relative z-30 flex h-[156px] shrink-0 flex-col gap-[8px] rounded-[var(--ks-r-panel)] border px-[12px] py-[8px] laptop:h-[var(--ks-timeline-h)]"
+      className="ks-material relative z-30 flex h-[156px] shrink-0 flex-col gap-[8px] rounded-[var(--ks-r-panel)] px-[12px] py-[8px] laptop:h-[var(--ks-timeline-h)]"
       style={{
         background: "var(--ks-surface)",
-        borderColor: "var(--ks-line-strong)",
       }}
     >
       {/* The toolbar, in groups.
