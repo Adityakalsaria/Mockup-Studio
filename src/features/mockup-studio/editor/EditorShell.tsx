@@ -21,6 +21,7 @@ import { useFilmstrip } from "./useFilmstrip";
 import { useScreenTexture } from "../useScreenTexture";
 import { RightPanel } from "./RightPanel";
 import { getRatio } from "./framing";
+import { applyCanvasShadow, clearCanvasShadow } from "../shadow";
 import { EditorTheme, EditorThemeContext } from "./theme";
 import { Tabs, useEditorAccent, useEditorTheme } from "./primitives";
 import { getAccent } from "./accents";
@@ -319,9 +320,14 @@ export default function EditorShell() {
   }, [exportScale]);
 
   const backgroundRef = useRef(state.background);
+  const shadowRef = useRef(state.shadow);
   useEffect(() => {
     backgroundRef.current = state.background;
   }, [state.background]);
+
+  useEffect(() => {
+    shadowRef.current = state.shadow;
+  }, [state.shadow]);
 
   const { animation } = state;
 
@@ -859,7 +865,12 @@ export default function EditorShell() {
     if (!ctx) return;
 
     paintBackground(ctx, backgroundRef.current, out.width, out.height, scale);
+    // The drop shadow is a CSS filter on the live canvas, which a pixel read
+    // does not carry, so the export lays it down itself -- scaled, since the
+    // settings are in 1x pixels and the export may be 2x or 3x.
+    applyCanvasShadow(ctx, shadowRef.current, scale);
     ctx.drawImage(shot, 0, 0);
+    clearCanvasShadow(ctx);
 
     const link = document.createElement("a");
     link.href = out.toDataURL("image/png");
@@ -907,6 +918,7 @@ export default function EditorShell() {
         blob = await renderVideoExact({
           recorder,
           background: backgroundRef.current,
+        shadow: shadowRef.current,
           scale: exportScale,
           durationSec,
           fps: exportFps,

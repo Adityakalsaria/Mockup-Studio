@@ -595,11 +595,11 @@ export function RightPanel({
         expanded={isOpen("shadow")}
         onToggle={() => toggle("shadow")}
       >
-        <ControlRow label="Cast shadow">
+        <ControlRow label="Drop shadow">
           <Toggle
             checked={shadow.enabled}
             onChange={(enabled) => setShadow({ enabled })}
-            label="Cast shadow"
+            label="Drop shadow"
           />
         </ControlRow>
         {shadow.enabled ? (
@@ -607,32 +607,44 @@ export function RightPanel({
             {/* Angle is where the LIGHT is, so the shadow falls opposite it.
                 That is the way every other tool words it and the way anyone
                 who has moved a lamp expects it to behave. */}
+            {/* Position, blur, spread, colour: the same handful a design
+                tool offers, because that is what this is -- the phone's own
+                silhouette offset behind it, not a light in the scene. */}
             <ParamRow
-              label="Direction"
-              value={shadow.angle}
-              {...SHADOW_RANGES.angle}
-              suffix="\u00b0"
-              defaultValue={DEFAULT_SHADOW.angle}
+              label="Position X"
+              value={shadow.offsetX}
+              {...SHADOW_RANGES.offsetX}
+              suffix="px"
+              defaultValue={DEFAULT_SHADOW.offsetX}
               animatable={false}
-              onChange={(angle) => setShadow({ angle })}
+              onChange={(offsetX) => setShadow({ offsetX })}
             />
             <ParamRow
-              label="Distance"
-              value={shadow.throwDistance}
-              {...SHADOW_RANGES.throwDistance}
-              decimals={2}
-              defaultValue={DEFAULT_SHADOW.throwDistance}
+              label="Position Y"
+              value={shadow.offsetY}
+              {...SHADOW_RANGES.offsetY}
+              suffix="px"
+              defaultValue={DEFAULT_SHADOW.offsetY}
               animatable={false}
-              onChange={(throwDistance) => setShadow({ throwDistance })}
+              onChange={(offsetY) => setShadow({ offsetY })}
             />
             <ParamRow
-              label="Softness"
-              value={shadow.softness}
-              {...SHADOW_RANGES.softness}
-              decimals={1}
-              defaultValue={DEFAULT_SHADOW.softness}
+              label="Blur"
+              value={shadow.blur}
+              {...SHADOW_RANGES.blur}
+              suffix="px"
+              defaultValue={DEFAULT_SHADOW.blur}
               animatable={false}
-              onChange={(softness) => setShadow({ softness })}
+              onChange={(blur) => setShadow({ blur })}
+            />
+            <ParamRow
+              label="Spread"
+              value={shadow.spread}
+              {...SHADOW_RANGES.spread}
+              suffix="px"
+              defaultValue={DEFAULT_SHADOW.spread}
+              animatable={false}
+              onChange={(spread) => setShadow({ spread })}
             />
             <ParamRow
               label="Opacity"

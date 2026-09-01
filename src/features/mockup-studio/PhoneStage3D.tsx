@@ -12,9 +12,8 @@ import { getFinish } from "./finishes";
 import { sampleAnimation, type Animation } from "./animation";
 import { recolorBodyTexture } from "./bodyTexture";
 import { StudioEnvironment } from "./StudioEnvironment";
-import { ShadowRig } from "./ShadowRig";
 import { StageLoader } from "./StageLoader";
-import { DEFAULT_SHADOW, type ShadowSettings } from "./shadow";
+import { DEFAULT_SHADOW, dropShadowCss, type ShadowSettings } from "./shadow";
 import { DEFAULT_LIGHTING, type LightingId } from "./lighting";
 import { isBlurActive, type BlurSettings } from "./blurStyles";
 import type { Quat } from "./gyro/quaternion";
@@ -1685,9 +1684,14 @@ export default function PhoneStage3D({
       <StageLoader />
       <Canvas
         className="!h-full !w-full"
-        // VSM rather than PCF-soft: `shadow.radius` is ignored under
-        // PCFSoftShadowMap, so a softness slider would move and do nothing.
-        shadows="variance"
+        /*
+         * The drop shadow is a CSS filter on the canvas, and it works because
+         * the stage renders transparent over the background: the only opaque
+         * thing in the canvas is the phone, so `drop-shadow` reads its
+         * silhouette directly and follows every rotation for free. No light,
+         * no surface for it to land on, and nothing it can fall across.
+         */
+
         // Initial only — r3f reads this once. CameraFov keeps it current.
         camera={{ position: [0, 0, 1.8], fov }}
         // `preserveDrawingBuffer` is gone with the html-to-image export that
@@ -1703,7 +1707,14 @@ export default function PhoneStage3D({
           antialias: true,
           powerPreference: "high-performance",
         }}
-        style={{ background: "transparent" }}
+        /*
+         * The drop shadow is a CSS filter on the canvas, and it works because
+         * the stage renders transparent over the background: the only opaque
+         * thing in the canvas is the phone, so `drop-shadow` reads its
+         * silhouette directly and follows every rotation for free. No light,
+         * no surface for it to land on, and nothing it can fall across.
+         */
+        style={{ background: "transparent", filter: dropShadowCss(shadow) }}
         // Retina, not 1.5x. The old cap was set when the body was a smooth
         // procedural box; against a real model with a machined edge running
         // its whole length, rendering below the display's native density is
@@ -1722,7 +1733,6 @@ export default function PhoneStage3D({
           />
         ) : null}
         <StudioEnvironment lighting={lighting} />
-        <ShadowRig settings={shadow} rotateX={rotateX} rotateY={rotateY} />
         <CameraFov fov={fov} />
         <PhoneScene
           rail={rail}

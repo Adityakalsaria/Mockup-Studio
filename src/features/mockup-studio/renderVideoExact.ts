@@ -2,6 +2,7 @@
 
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 import { paintBackground, type BackgroundSettings } from "./backgrounds";
+import { applyCanvasShadow, clearCanvasShadow, type ShadowSettings } from "./shadow";
 import type { StageRecorder } from "./PhoneStage3D";
 
 /**
@@ -30,6 +31,8 @@ import type { StageRecorder } from "./PhoneStage3D";
 export interface ExactRenderOptions {
   recorder: StageRecorder;
   background: BackgroundSettings;
+  /** Composited behind the stage on every frame, as the live preview does. */
+  shadow: ShadowSettings;
   scale: number;
   durationSec: number;
   fps: number;
@@ -85,6 +88,7 @@ function seekTo(video: HTMLVideoElement, time: number): Promise<void> {
 export async function renderVideoExact({
   recorder,
   background,
+  shadow,
   scale,
   durationSec,
   fps,
@@ -203,7 +207,11 @@ export async function renderVideoExact({
 
       ctx.clearRect(0, 0, width, height);
       paintBackground(ctx, background, width, height, scale);
+      // Same reason as the still export: the shadow lives in a CSS filter on
+      // the live canvas and has to be re-laid here to reach the file.
+      applyCanvasShadow(ctx, shadow, scale);
       recorder.frame((source) => ctx.drawImage(source, 0, 0, width, height));
+      clearCanvasShadow(ctx);
 
       const frame = new VideoFrame(composite, {
         timestamp: Math.round(i * frameDurationUs),
