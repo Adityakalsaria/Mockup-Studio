@@ -33,6 +33,33 @@ import type { ShadowSettings } from "./shadow";
  * shadow rather than as another object.
  */
 const BACKDROP_Z = -0.14;
+/** Roughly the phone's own size in scene units: normalised to one unit tall,
+    about half that wide, and a slim slab through. */
+const PHONE_H = 1;
+const PHONE_W = 0.5;
+const PHONE_D = 0.075;
+/** Kept between the phone's rearmost point and the backdrop. Small, because
+    every unit of it costs apparent shadow size to perspective. */
+const BACKDROP_MARGIN = 0.06;
+
+/**
+ * How far behind its own centre the phone reaches at a given tilt.
+ *
+ * A flat phone reaches back by half its thickness and no more, which is why a
+ * backdrop at 0.14 was fine head on. Tilt it and the far edge swings back:
+ * past about 11 degrees it crosses the backdrop, and from then on the plane --
+ * and the shadow drawn on it -- renders IN FRONT of part of the phone. That is
+ * the shadow appearing to lie across the screen.
+ */
+function rearReach(rotateXDeg: number, rotateYDeg: number): number {
+  const rx = (rotateXDeg * Math.PI) / 180;
+  const ry = (rotateYDeg * Math.PI) / 180;
+  return (
+    (PHONE_H / 2) * Math.abs(Math.sin(rx)) +
+    (PHONE_W / 2) * Math.abs(Math.sin(ry)) +
+    (PHONE_D / 2)
+  );
+}
 /** Big enough to cover the frame at any zoom; it costs nothing, being a
     single unlit quad that draws only where the shadow is. */
 const BACKDROP_SIZE = 12;
@@ -54,11 +81,31 @@ const THROW_GAIN = 1.6;
     wide enough for a 12 unit plane would spend its whole map on empty space. */
 const SHADOW_EXTENT = 1.15;
 
-export function ShadowRig({ settings }: { settings: ShadowSettings }) {
+export function ShadowRig({
+  settings,
+  rotateX = 0,
+  rotateY = 0,
+}: {
+  settings: ShadowSettings;
+  /** The phone's current tilt, in degrees. The backdrop has to stay behind it. */
+  rotateX?: number;
+  rotateY?: number;
+}) {
   const lightRef = useRef<DirectionalLight>(null);
   const invalidate = useThree((state) => state.invalidate);
 
   const theta = (settings.angle * Math.PI) / 180;
+  /*
+   * The backdrop tracks the phone rather than sitting at a fixed depth.
+   *
+   * Fixed at 0.14 it was close enough to keep the shadow near the phone's own
+   * apparent size, which is what a distant backdrop loses to perspective -- but
+   * only while the phone was flat. It is placed just behind whatever the
+   * current tilt actually reaches now, so it can never cut through the phone,
+   * and it stays as close as that allows so the shadow keeps its size.
+   */
+  const backdropZ = Math.min(BACKDROP_Z, -(rearReach(rotateX, rotateY) + BACKDROP_MARGIN));
+
   const lean = settings.throwDistance * THROW_GAIN;
   /*
    * The shadow camera has to grow as the light leans.
@@ -122,7 +169,7 @@ export function ShadowRig({ settings }: { settings: ShadowSettings }) {
         // edge from detaching without opening a gap at the silhouette.
         shadow-bias={-0.0012}
       />
-      <mesh position={[0, 0, BACKDROP_Z]} receiveShadow>
+      <mesh position={[0, 0, backdropZ]} receiveShadow>
         <planeGeometry args={[BACKDROP_SIZE, BACKDROP_SIZE]} />
         <shadowMaterial
           transparent

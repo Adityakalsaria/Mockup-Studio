@@ -1722,7 +1722,7 @@ export default function PhoneStage3D({
           />
         ) : null}
         <StudioEnvironment lighting={lighting} />
-        <ShadowRig settings={shadow} />
+        <ShadowRig settings={shadow} rotateX={rotateX} rotateY={rotateY} />
         <CameraFov fov={fov} />
         <PhoneScene
           rail={rail}
