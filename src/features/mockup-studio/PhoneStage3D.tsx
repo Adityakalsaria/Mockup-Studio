@@ -1391,11 +1391,51 @@ function ProceduralPhoneScene({
   );
 }
 
-// Critical-damped easing time constant in seconds. Applied to every transform
-// (scale, position, rotation) so the entire phone motion — auto-driven step
-// transitions, slider input, and cursor-drag rotation — moves through the
-// same smoothing pipeline and never snaps.
-const TRANSFORM_EASE_TIME = 0.18;
+/**
+ * The phone's transform spring, in rad/s. Applied to every transform (scale,
+ * position, rotation) so auto-driven step transitions, slider input and
+ * cursor-drag rotation all move with the same weight.
+ *
+ * 14 is measured, not chosen: fitting a reference recording frame by frame
+ * gives a critically damped spring at omega 14, zeta 1.01, and the panel
+ * chrome runs the same number through --ks-spring. The phone and the controls
+ * around it settle together as a result.
+ *
+ * What this replaced was `1 - exp(-dt / 0.18)`, which is a first-order lag,
+ * not the critically damped spring its comment claimed. The difference is the
+ * first frame: a lag filter's velocity is highest at t=0 and only decays, so
+ * the phone left instantly and then crawled into place. A spring starts from
+ * rest, which is what makes a heavy object look heavy.
+ */
+const TRANSFORM_OMEGA = 14;
+
+/**
+ * One step of a critically damped spring towards `target`.
+ *
+ * The textbook integration (v += (-2*w*v - w*w*(x - target)) * dt) goes
+ * unstable once w * dt approaches 1, and on a canvas that renders on demand
+ * dt is whatever the gap since the last frame happened to be — a tab left in
+ * the background hands back a dt of seconds. This is the stable closed form
+ * (Game Programming Gems 4), which is exact for any dt and needs no exp():
+ * `decay` is a Pade approximation of e^-x, well under a pixel of error across
+ * the range and a good deal cheaper six times a frame.
+ *
+ * Velocity has to persist across frames, so it lives in `vel` under `key`.
+ */
+function springTo(
+  current: number,
+  target: number,
+  vel: Record<string, number>,
+  key: string,
+  dt: number,
+): number {
+  const x = TRANSFORM_OMEGA * dt;
+  const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  const change = current - target;
+  const temp = (vel[key] + TRANSFORM_OMEGA * change) * dt;
+  vel[key] = (vel[key] - TRANSFORM_OMEGA * temp) * decay;
+  return target + (change + temp) * decay;
+}
 
 /** Scratch target for the live-pose slerp. Module scope so the frame loop
     does not allocate a quaternion sixty times a second. */
@@ -1463,6 +1503,17 @@ function PhoneScene({
   const rad = Math.PI / 180;
   const groupRef = useRef<Group>(null);
 
+  /** Live velocity for each sprung transform. A ref, not state — it is written
+      every frame and nothing renders off it. */
+  const springVel = useRef<Record<string, number>>({
+    sz: 0,
+    ox: 0,
+    oy: 0,
+    rx: 0,
+    ry: 0,
+    rz: 0,
+  });
+
   const targetSizeScale = (heightPct / 100) * (scale / 100);
   const targetOffsetX = (offsetX / 500) * PHONE_HEIGHT;
   const targetOffsetY = -(offsetY / 500) * PHONE_HEIGHT;
@@ -1517,35 +1568,56 @@ function PhoneScene({
     }
 
     // Playback and export ask for the pose they were given, exactly. The
-    // easing below is a lag filter: lovely on a slider nudge, but during an
-    // animation it trails every keyframe by its time constant and quietly
-    // rounds off the extremes that were keyed on purpose.
-    const k = immediate ? 1 : 1 - Math.exp(-dt / TRANSFORM_EASE_TIME);
-    const s = g.scale.x;
-    g.scale.setScalar(s + (sz - s) * k);
-    g.position.x += (ox - g.position.x) * k;
-    g.position.y += (oy - g.position.y) * k;
-
+    // spring below is a filter: lovely on a slider nudge, but during an
+    // animation it trails every keyframe and quietly rounds off the extremes
+    // that were keyed on purpose.
+    const vel = springVel.current;
     const live = livePose?.current;
+    if (immediate) {
+      g.scale.setScalar(sz);
+      g.position.x = ox;
+      g.position.y = oy;
+      // A spring carries velocity, so snapping has to clear it too or the next
+      // interactive move starts mid-flight from wherever playback stopped.
+      for (const key in vel) vel[key] = 0;
+    } else {
+      g.scale.setScalar(springTo(g.scale.x, sz, vel, "sz", dt));
+      g.position.x = springTo(g.position.x, ox, vel, "ox", dt);
+      g.position.y = springTo(g.position.y, oy, vel, "oy", dt);
+    }
+
     if (live) {
-      // Same easing constant as every other transform, so the phone answers a
-      // real tilt with the same weight it answers a slider.
+      // The live feed keeps its lag filter rather than the spring. A spring is
+      // the right shape for a move between two settled poses; a gyro stream
+      // never settles, and what it needs is noise smoothed off a signal that
+      // is already continuous. A second-order filter on top of that would add
+      // its own momentum to a hand that has already stopped moving.
+      const k = immediate ? 1 : 1 - Math.exp(-dt * TRANSFORM_OMEGA);
       LIVE_TARGET.set(live.x, live.y, live.z, live.w).multiply(MODEL_FACING);
       g.quaternion.slerp(LIVE_TARGET, k);
       // A live feed never settles, so it drives the demand loop itself.
       state.invalidate();
+    } else if (immediate) {
+      g.rotation.x = rx;
+      g.rotation.y = ry;
+      g.rotation.z = rz;
     } else {
-      g.rotation.x += (rx - g.rotation.x) * k;
-      g.rotation.y += (ry - g.rotation.y) * k;
-      g.rotation.z += (rz - g.rotation.z) * k;
+      g.rotation.x = springTo(g.rotation.x, rx, vel, "rx", dt);
+      g.rotation.y = springTo(g.rotation.y, ry, vel, "ry", dt);
+      g.rotation.z = springTo(g.rotation.z, rz, vel, "rz", dt);
     }
 
     // Settled is measured against the largest remaining delta rather than each
     // axis separately: rotation in radians and scale in units are different
     // magnitudes, and stopping on whichever finishes first leaves the others
     // frozen mid-move.
+    // Velocity counts as well as distance. A spring passes close to its target
+    // while still carrying speed, and testing position alone would park the
+    // demand loop mid-move and freeze the phone a fraction short.
+    const moving = Object.values(springVel.current).some((v) => Math.abs(v) > 1e-3);
     const settled =
       !live &&
+      !moving &&
       Math.abs(sz - g.scale.x) < 1e-4 &&
       Math.abs(ox - g.position.x) < 1e-4 &&
       Math.abs(oy - g.position.y) < 1e-4 &&
