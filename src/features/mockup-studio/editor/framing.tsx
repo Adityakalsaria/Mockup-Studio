@@ -152,11 +152,17 @@ export function ExportMenu({
         disabled={recording}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
-        className="ks-press ks-label flex h-[var(--ks-row-h)] w-full items-center justify-center gap-[8px] rounded-[var(--ks-r)] disabled:opacity-60"
-        style={{ background: "var(--ks-accent-wash)", color: "var(--ks-accent)" }}
+        /* Solid accent, not the 14% wash it used to wear. Export is the one
+           thing in the panel that ends the session, and at wash strength it
+           sat at the same weight as every reset and toggle above it -- in
+           light mode close enough to the panel's own grey to read as another
+           row rather than as the button you came here to press. */
+        className="ks-press ks-label flex h-[var(--ks-row-h)] w-full items-center justify-center rounded-[var(--ks-r)] disabled:opacity-60"
+        style={{ background: "var(--ks-accent)", color: "var(--ks-accent-text)" }}
       >
+        {/* No chevron. On a filled button it read as the second thing to look
+            at, and the menu it points to opens on click either way. */}
         {recording ? `Recording ${Math.round((recordProgress ?? 0) * 100)}%` : "Export"}
-        <Icon name="chevronUp" />
       </button>
 
       {menuOpen && !recording ? (
