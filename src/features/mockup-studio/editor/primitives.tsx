@@ -640,7 +640,7 @@ export function Toggle({
       className="relative h-[20px] w-[48px] shrink-0 rounded-full"
       style={{
         background: checked ? "var(--ks-accent)" : "var(--ks-switch-off)",
-        transition: "background-color 160ms var(--ks-ease-out)",
+        transition: "background-color var(--ks-move) var(--ks-spring)",
       }}
     >
       <span
@@ -654,7 +654,7 @@ export function Toggle({
           height: SWITCH_KNOB_H,
           transform: `translateY(-50%) translateX(${checked ? SWITCH_TRAVEL : 0}px)`,
           background: "var(--ks-knob)",
-          transition: "transform 180ms var(--ks-ease-out)",
+          transition: "transform var(--ks-move) var(--ks-spring)",
         }}
       />
     </button>
@@ -808,7 +808,7 @@ export function Tabs<T extends string>({
           // general-purpose control lift -- the selection is meant to sit
           // barely above the track, not hover over it.
           boxShadow: "0 2px 10px rgba(0, 0, 0, 0.06)",
-          transition: "transform 260ms var(--ks-ease-out)",
+          transition: "transform var(--ks-move) var(--ks-spring)",
         }}
       />
       {options.map((option) => {

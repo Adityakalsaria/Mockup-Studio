@@ -1546,7 +1546,7 @@ function AccordionSection({
         </span>
         <span
           aria-hidden
-          className={`flex h-[16px] w-[16px] items-center justify-center text-white/45 transition-transform duration-200 ${
+          className={`flex h-[16px] w-[16px] items-center justify-center text-white/45 transition-transform duration-[420ms] ease-[cubic-bezier(0.3,0.31,0.2,0.92)] ${
             expanded ? "rotate-180" : "rotate-0"
           }`}
         >
@@ -1562,7 +1562,7 @@ function AccordionSection({
         </span>
       </button>
       <div
-        className={`grid transition-[grid-template-rows,opacity,margin-top] duration-200 ease-out ${
+        className={`grid transition-[grid-template-rows,opacity,margin-top] duration-[420ms] ease-[cubic-bezier(0.3,0.31,0.2,0.92)] ${
           expanded
             ? "mt-[var(--space-12)] grid-rows-[1fr] opacity-100"
             : "mt-0 grid-rows-[0fr] opacity-0"
@@ -3542,7 +3542,7 @@ export default function MockupStudioClient() {
       <div className="hidden h-full laptop:block">
         <div className="flex h-full w-full items-stretch bg-[#050505] p-[var(--space-8)]">
           <div
-            className={`overflow-hidden transition-[width,opacity,transform,margin] duration-400 ease-out ${
+            className={`overflow-hidden transition-[width,opacity,transform,margin] duration-[420ms] ease-[cubic-bezier(0.3,0.31,0.2,0.92)] ${
               showBackgroundControls
                 ? "mr-0 w-0 -translate-x-[18px] opacity-0"
                 : "mr-0 w-[410px] translate-x-0 opacity-100"
