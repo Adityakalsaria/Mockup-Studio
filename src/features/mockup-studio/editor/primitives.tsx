@@ -143,17 +143,33 @@ function KeyframeButton({
     Track 30, fill inset 3 so 24 tall, knob 20 — 2px of capsule visible above
     and below it. Flush, the knob was exactly the fill's height and its shadow
     spilled past, which read as the cap being too big for the bar it caps. */
-const KNOB = 20;
-/** Same 2px, so the gap around the knob is even on all four sides. */
+/*
+ * Slider geometry, to the spec's numbers.
+ *
+ *   28  track height
+ *    4  the fill is inset from the track on every side
+ *   28  knob width, and 16 its height -- a horizontal capsule, not a circle
+ *    2  the knob's gap inside the fill
+ *
+ * Which makes the fill 20 tall and the knob a capsule sitting in it with 2 to
+ * spare, top, bottom and trailing edge.
+ */
+const FILL_INSET = 4;
+const KNOB_W = 28;
+const KNOB_H = 16;
 const KNOB_INSET = 2;
 /**
- * The part of the track the knob's centre cannot reach: its own width, its
- * insets, and the 3px the fill is inset by at each end. The fill interpolates
- * from one knob width up to the full track less this, so the knob's centre
- * travels exactly `trackWidth - KNOB_TRAVEL_INSET` -- which is therefore what
- * a drag is measured against, keeping knob and pointer together.
+ * The fill's floor: one knob plus its gaps. At zero there still has to be a
+ * capsule for the knob to sit in, or the cap floats on nothing.
  */
-const KNOB_TRAVEL_INSET = KNOB + KNOB_INSET * 2 + 6;
+const FILL_MIN = KNOB_W + KNOB_INSET * 2;
+/**
+ * The part of the track the knob's centre cannot reach: the fill's own insets
+ * either side, plus the minimum fill it can never shrink past. Subtracting it
+ * gives the distance the knob's centre actually travels, which is what a drag
+ * has to be measured against for the two to stay together.
+ */
+const KNOB_TRAVEL_INSET = FILL_INSET * 2 + FILL_MIN;
 
 export function ParamRow({
   label,
@@ -318,9 +334,15 @@ export function ParamRow({
             floor instead spreads the same travel evenly across the range. */}
         <span
           aria-hidden
-          className="absolute inset-y-[3px] left-[3px] rounded-full"
+          className="absolute rounded-full"
+          // Inset by style rather than by class: the numbers come from the
+          // constants above, and Tailwind only sees class names it can read in
+          // the source, so a built-up `inset-y-[4px]` compiles to nothing.
           style={{
-            width: `calc(${KNOB + KNOB_INSET * 2}px + ${fillPct / 100} * (100% - ${KNOB_TRAVEL_INSET}px))`,
+            top: FILL_INSET,
+            bottom: FILL_INSET,
+            left: FILL_INSET,
+            width: `calc(${FILL_MIN}px + ${fillPct / 100} * (100% - ${KNOB_TRAVEL_INSET}px))`,
             background: "var(--ks-ctl-fill)",
           }}
         >
@@ -328,8 +350,11 @@ export function ParamRow({
             className="absolute top-1/2 -translate-y-1/2 rounded-full"
             style={{
               right: KNOB_INSET,
-              width: KNOB,
-              height: KNOB,
+              width: KNOB_W,
+              // Centred rather than inset top and bottom, so the capsule stays
+              // in the middle of the fill even where the track is taller --
+              // touch sizing raises it, and a fixed inset would sit it high.
+              height: KNOB_H,
               background: "var(--ks-knob)",
               // Tighter than before. A drop big enough to spread past the
               // capsule made the knob look oversized for it; this one only has

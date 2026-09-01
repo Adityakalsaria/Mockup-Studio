@@ -179,7 +179,7 @@ export const EDITOR_THEME_CSS = `
   --ks-row-h: 36px;
   /* The slider track. Shorter than a row because it holds nothing but the
      fill and its cap now — the name moved above it. */
-  --ks-track-h: 30px;
+  --ks-track-h: 28px;
   /* The macOS control inset. Ours was 10, which read as cramped once the
      shapes became capsules — a capsule's corners eat horizontal space that a
      rectangle's do not, so the same number reads tighter. */
