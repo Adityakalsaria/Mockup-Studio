@@ -610,10 +610,18 @@ export function Toggle({
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      // Apple's switch, at Apple's size: 64x28 track, 38x24 knob, inset 2,
-      // travel 22. Not scaled down this time — a 44px row has the height for
-      // it, and every earlier attempt to fit it into 20px is what made it read
-      // as a different control that happened to be a similar shape.
+      /*
+       * Sized to match the slider, so the two read as one family.
+       *
+       * The track stays 64x28. The knob takes the slider's exact capsule --
+       * 28 by 16 -- and its exact clearance: 6 from the track edge, which is
+       * the slider's 4 of fill inset plus its 2 of knob gap. That leaves 24 of
+       * travel across a 64 track.
+       *
+       * It was Apple's own 38x24 at inset 2 before, which is correct for a
+       * switch on its own and wrong next to these sliders: a fatter knob with
+       * a tighter margin, sitting in a row of thinner ones with more.
+       */
       className="relative h-[28px] w-[64px] shrink-0 rounded-full"
       style={{
         background: checked ? "var(--ks-accent)" : "var(--ks-switch-off)",
@@ -621,9 +629,14 @@ export function Toggle({
       }}
     >
       <span
-        className="absolute left-[2px] top-[2px] h-[24px] w-[38px] rounded-full"
+        // Centred vertically rather than inset, for the same reason as the
+        // slider's: touch sizing can raise the row, and a fixed top would sit
+        // the capsule high.
+        className="absolute left-[6px] top-1/2 h-[16px] w-[28px] rounded-full"
         style={{
-          transform: checked ? "translateX(22px)" : "translateX(0)",
+          transform: checked
+            ? "translateY(-50%) translateX(24px)"
+            : "translateY(-50%) translateX(0)",
           background: "var(--ks-knob)",
           transition: "transform 180ms var(--ks-ease-out)",
         }}
