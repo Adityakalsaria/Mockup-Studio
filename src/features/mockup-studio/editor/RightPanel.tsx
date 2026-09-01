@@ -638,15 +638,6 @@ export function RightPanel({
               onChange={(blur) => setShadow({ blur })}
             />
             <ParamRow
-              label="Spread"
-              value={shadow.spread}
-              {...SHADOW_RANGES.spread}
-              suffix="px"
-              defaultValue={DEFAULT_SHADOW.spread}
-              animatable={false}
-              onChange={(spread) => setShadow({ spread })}
-            />
-            <ParamRow
               label="Opacity"
               value={shadow.opacity}
               {...SHADOW_RANGES.opacity}

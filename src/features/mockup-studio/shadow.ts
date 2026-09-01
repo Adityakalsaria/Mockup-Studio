@@ -23,8 +23,6 @@ export type ShadowSettings = {
   offsetX: number;
   offsetY: number;
   blur: number;
-  /** Dilates the silhouette before blurring. */
-  spread: number;
   opacity: number;
   color: string;
 };
@@ -39,7 +37,6 @@ export const DEFAULT_SHADOW: ShadowSettings = {
   offsetX: 0,
   offsetY: 24,
   blur: 48,
-  spread: 0,
   opacity: 0.28,
   color: "#000000",
 };
@@ -48,7 +45,6 @@ export const SHADOW_RANGES = {
   offsetX: { min: -200, max: 200, step: 1 },
   offsetY: { min: -200, max: 200, step: 1 },
   blur: { min: 0, max: 200, step: 1 },
-  spread: { min: 0, max: 60, step: 1 },
   opacity: { min: 0, max: 1, step: 0.01 },
 } as const;
 
@@ -67,34 +63,24 @@ function rgba(hex: string, alpha: number): string {
  * possible: the stage renders on a transparent canvas over the background, so
  * the only opaque thing in it is the phone, and its silhouette is already the
  * shape the shadow needs. It follows every rotation for free.
- *
- * Spread has no CSS equivalent, so it is built from repeats: the same shadow
- * with no blur, offset around a ring, dilates the silhouette before the blurred
- * one is laid over it. Only paid for when spread is actually set.
+
  */
 export function dropShadowCss(shadow: ShadowSettings, scale = 1): string | undefined {
   if (!shadow.enabled) return undefined;
   const colour = rgba(shadow.color, shadow.opacity);
-  const layers: string[] = [];
-
-  if (shadow.spread > 0) {
-    const r = shadow.spread * scale;
-    // Eight points is enough for a silhouette this smooth; a ring of them
-    // reads as a dilation rather than as eight copies.
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      layers.push(
-        `drop-shadow(${(Math.cos(a) * r).toFixed(1)}px ${(Math.sin(a) * r).toFixed(1)}px 0 ${colour})`,
-      );
-    }
-  }
-
-  layers.push(
-    `drop-shadow(${(shadow.offsetX * scale).toFixed(1)}px ${(shadow.offsetY * scale).toFixed(1)}px ${(
-      shadow.blur * scale
-    ).toFixed(1)}px ${colour})`,
-  );
-  return layers.join(" ");
+  // ONE pass, deliberately.
+  //
+  // Spread used to live here, built from eight zero-blur copies offset around
+  // a ring. It does not dilate: each filter in a CSS chain applies to the
+  // RESULT of the one before it, at full opacity, so what it drew was eight
+  // separate silhouettes -- and it cost nine full-canvas filter passes on
+  // every frame, which is what made the stage drag while dragging.
+  //
+  // CSS has no spread and cannot be talked into one. Better to offer four
+  // controls that are exactly right than five where one lies.
+  return `drop-shadow(${(shadow.offsetX * scale).toFixed(1)}px ${(shadow.offsetY * scale).toFixed(1)}px ${(
+    shadow.blur * scale
+  ).toFixed(1)}px ${colour})`;
 }
 
 /**
@@ -114,7 +100,7 @@ export function applyCanvasShadow(
   ctx.shadowColor = rgba(shadow.color, shadow.opacity);
   ctx.shadowOffsetX = shadow.offsetX * scale;
   ctx.shadowOffsetY = shadow.offsetY * scale;
-  ctx.shadowBlur = (shadow.blur + shadow.spread) * scale;
+  ctx.shadowBlur = shadow.blur * scale;
 }
 
 /** Clears it again, so nothing drawn afterwards inherits it. */
