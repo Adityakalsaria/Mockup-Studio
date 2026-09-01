@@ -171,6 +171,22 @@ const FILL_MIN = KNOB_W + KNOB_INSET * 2;
  */
 const KNOB_TRAVEL_INSET = FILL_INSET * 2 + FILL_MIN;
 
+/*
+ * The switch, built the same way and from the same spec.
+ *
+ *   28  track height, and the knob's width
+ *    4  fill inset from the track
+ *    2  knob inset inside the fill
+ *   18  clearance at the far end of the fill when it is on
+ *
+ * Which makes the fill 48 wide, the track 56, and the travel 16.
+ */
+const SWITCH_FILL_INSET = 4;
+const SWITCH_KNOB_INSET = 2;
+const SWITCH_KNOB_W = 28;
+const SWITCH_KNOB_H = 16;
+const SWITCH_TRAVEL = 18 - SWITCH_KNOB_INSET;
+
 export function ParamRow({
   label,
   value,
@@ -611,36 +627,48 @@ export function Toggle({
       aria-label={label}
       onClick={() => onChange(!checked)}
       /*
-       * Sized to match the slider, so the two read as one family.
+       * The slider's construction, not just its knob.
        *
-       * The track stays 64x28. The knob takes the slider's exact capsule --
-       * 28 by 16 -- and its exact clearance: 6 from the track edge, which is
-       * the slider's 4 of fill inset plus its 2 of knob gap. That leaves 24 of
-       * travel across a 64 track.
+       * Three layers, exactly as the slider has them: a grey track, a fill
+       * inset 4 on every side, and the knob inset 2 inside that fill. Before,
+       * the switch was two layers -- the whole track changed colour and the
+       * knob sat directly on it -- which is why it never quite matched the
+       * rows above it even once the knob was the right size.
        *
-       * It was Apple's own 38x24 at inset 2 before, which is correct for a
-       * switch on its own and wrong next to these sliders: a fatter knob with
-       * a tighter margin, sitting in a row of thinner ones with more.
+       * Every figure is the spec's: 28 knob against 18 of clearance at the far
+       * end and 2 at the near one, so the fill is 48 and the track 56, and the
+       * knob travels 16.
        */
-      className="relative h-[28px] w-[64px] shrink-0 rounded-full"
-      style={{
-        background: checked ? "var(--ks-accent)" : "var(--ks-switch-off)",
-        transition: "background-color 160ms var(--ks-ease-out)",
-      }}
+      className="relative h-[28px] w-[56px] shrink-0 rounded-full"
+      style={{ background: "var(--ks-ctl)" }}
     >
       <span
-        // Centred vertically rather than inset, for the same reason as the
-        // slider's: touch sizing can raise the row, and a fixed top would sit
-        // the capsule high.
-        className="absolute left-[6px] top-1/2 h-[16px] w-[28px] rounded-full"
+        aria-hidden
+        className="absolute rounded-full"
         style={{
-          transform: checked
-            ? "translateY(-50%) translateX(24px)"
-            : "translateY(-50%) translateX(0)",
-          background: "var(--ks-knob)",
-          transition: "transform 180ms var(--ks-ease-out)",
+          top: SWITCH_FILL_INSET,
+          bottom: SWITCH_FILL_INSET,
+          left: SWITCH_FILL_INSET,
+          right: SWITCH_FILL_INSET,
+          background: checked ? "var(--ks-accent)" : "var(--ks-switch-off)",
+          transition: "background-color 160ms var(--ks-ease-out)",
         }}
-      />
+      >
+        <span
+          // Centred vertically rather than inset, for the same reason as the
+          // slider's: touch sizing can raise the row, and a fixed top would
+          // sit the capsule high.
+          className="absolute top-1/2 rounded-full"
+          style={{
+            left: SWITCH_KNOB_INSET,
+            width: SWITCH_KNOB_W,
+            height: SWITCH_KNOB_H,
+            transform: `translateY(-50%) translateX(${checked ? SWITCH_TRAVEL : 0}px)`,
+            background: "var(--ks-knob)",
+            transition: "transform 180ms var(--ks-ease-out)",
+          }}
+        />
+      </span>
     </button>
   );
 }
