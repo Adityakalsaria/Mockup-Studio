@@ -19,7 +19,7 @@ import { fitToClip, getMotionPreset } from "./motionPresets";
 import { useFilmstrip } from "./useFilmstrip";
 import { useScreenTexture } from "../useScreenTexture";
 import { RightPanel } from "./RightPanel";
-import { getRatio } from "./framing";
+import { AspectSelect, getRatio } from "./framing";
 import { applyCanvasShadow, clearCanvasShadow } from "../shadow";
 import { EditorTheme, EditorThemeContext } from "./theme";
 import { Tabs, useEditorAccent, useEditorTheme } from "./primitives";
@@ -1072,8 +1072,6 @@ export default function EditorShell() {
           onStopMirror={stopMirror}
           easing={animation.easing}
           onApplyPreset={applyMotionPreset}
-          ratioId={ratioId}
-          onRatioChange={setRatioId}
           onExportPng={exportPng}
           onExportVideo={exportVideo}
           canExportVideo={
@@ -1120,13 +1118,7 @@ export default function EditorShell() {
                 whole shot, and the panels are each only half of one. Top left,
                 away from the loading capsule in the centre. */}
             <div
-              className="absolute left-[8px] top-[8px] z-20 flex items-center gap-[2px] rounded-full p-[2px]"
-              style={{
-                background: "var(--ks-surface)",
-                backdropFilter: "blur(24px) saturate(180%)",
-                WebkitBackdropFilter: "blur(24px) saturate(180%)",
-                boxShadow: "inset 0 0 0 1px var(--ks-line-strong)",
-              }}
+              className="ks-stage-chip absolute left-[8px] top-[8px] z-20 flex items-center gap-[2px] p-[2px]"
             >
               <StageAction
                 icon="undo"
@@ -1148,6 +1140,10 @@ export default function EditorShell() {
                 hint="Reset every setting to its default"
                 onClick={resetAll}
               />
+            </div>
+            {/* Opposite the history chip, against the edge it describes. */}
+            <div className="absolute right-[8px] top-[8px] z-20">
+              <AspectSelect ratioId={ratioId} onRatioChange={setRatioId} />
             </div>
             <PhoneStage3D
               rail={undefined}
@@ -1214,8 +1210,6 @@ export default function EditorShell() {
           onStopMirror={stopMirror}
           easing={animation.easing}
           onApplyPreset={applyMotionPreset}
-          ratioId={ratioId}
-          onRatioChange={setRatioId}
           onExportPng={exportPng}
           onExportVideo={exportVideo}
           canExportVideo={

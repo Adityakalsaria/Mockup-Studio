@@ -486,6 +486,19 @@ export const EDITOR_THEME_CSS = `
   animation: ks-menu-in var(--ks-move) var(--ks-spring);
 }
 
+/* The chips that float over the stage: history in one corner, framing in the
+   other. One class rather than two copies of the same four properties -- they
+   sit at the same height in opposite corners of the same frame, which is
+   exactly the arrangement where a difference in tint, ring or radius reads as
+   a mistake rather than as a variation. */
+.ks-stage-chip {
+  background: var(--ks-surface);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: inset 0 0 0 1px var(--ks-line-strong);
+  border-radius: var(--ks-r-pill);
+}
+
 /* ------------------------------------------------------- ACCESSIBILITY --
    Reduced motion is not "no feedback" — it is feedback without the
    vestibular part. The press keeps its colour change and loses its scale;

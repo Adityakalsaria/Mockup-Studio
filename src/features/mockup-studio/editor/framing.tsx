@@ -45,11 +45,18 @@ export function getRatio(id: string): number | null {
 }
 
 /**
- * The aspect selector, as a panel row.
+ * The aspect selector, floating in the top-right of the stage.
  *
- * It used to sit centred in a top bar. The bar is gone — it held three
- * controls and a strip of empty space across the full width, and the canvas
- * wanted that height more than the chrome did.
+ * It has now been in three places. A centred top bar, which cost the canvas a
+ * whole strip of height to show three controls and a lot of empty space. Then
+ * a row at the head of the Shot panel, which fixed the height but filed the
+ * frame under the same heading as the lens and the background — and the frame
+ * is not a property of the shot in that sense, it is the shape of the thing
+ * the shot is being composed inside.
+ *
+ * So: on the stage, against the edge it actually describes, opposite the
+ * history chip. Intrinsic width rather than the panel row's full width, since
+ * out here nothing sets the measure for it.
  */
 export function AspectSelect({
   ratioId,
@@ -62,9 +69,9 @@ export function AspectSelect({
     RATIOS.find((r) => r.id === ratioId) ?? STORE_RATIOS.find((r) => r.id === ratioId);
 
   return (
-    <label className="relative flex h-[var(--ks-row-h)] w-full items-center justify-between rounded-[var(--ks-r)] px-[var(--ks-ctl-pad)]"
-      style={{ background: "var(--ks-ctl)" }}
-    >
+    /* 32 tall to match the history chip across the stage: 28 of button plus
+       its 2 of padding on each side. */
+    <label className="ks-stage-chip relative flex h-[32px] items-center gap-[12px] pl-[12px] pr-[10px]">
       <span className="ks-label" style={{ color: "var(--ks-text-dim)" }}>
         Frame
       </span>

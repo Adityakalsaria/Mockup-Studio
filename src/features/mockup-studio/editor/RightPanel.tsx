@@ -25,7 +25,7 @@ import { FOCAL_MAX, FOCAL_MIN, focalFromFov, fovFromFocal } from "../lens";
 import { DEFAULT_SHADOW, SHADOW_RANGES } from "../shadow";
 import { LIGHTING_PRESETS, type LightingId } from "../lighting";
 import type { AccentId } from "./accents";
-import { AspectSelect, ExportMenu } from "./framing";
+import { ExportMenu } from "./framing";
 import { useLiquidGlass } from "./useLiquidGlass";
 import type { Easing } from "../animation";
 import type { AnimatableKey } from "../animation";
@@ -47,8 +47,6 @@ export function RightPanel({
   onStopMirror,
   easing,
   onApplyPreset,
-  ratioId,
-  onRatioChange,
   onExportPng,
   onExportVideo,
   canExportVideo,
@@ -85,8 +83,6 @@ export function RightPanel({
   easing: Easing;
   onApplyPreset: (id: string) => void;
   /** Both moved off the old top bar. */
-  ratioId: string;
-  onRatioChange: (id: string) => void;
   onExportPng: () => void;
   onExportVideo: () => void;
   canExportVideo: boolean;
@@ -408,9 +404,6 @@ export function RightPanel({
       {/* The shot: how it moves, what the lens does, what sits behind it. */}
       {side === "right" && rightTab === "shot" && (
         <>
-          <div className="pb-[12px]">
-            <AspectSelect ratioId={ratioId} onRatioChange={onRatioChange} />
-          </div>
       {/* ---------------------------------------------------------- CAMERA */}
       <PanelSection
         title="Camera"
