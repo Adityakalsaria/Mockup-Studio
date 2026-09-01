@@ -172,16 +172,14 @@ const FILL_MIN = KNOB_W + KNOB_INSET * 2;
 const KNOB_TRAVEL_INSET = FILL_INSET * 2 + FILL_MIN;
 
 /*
- * The switch, built the same way and from the same spec.
+ * The switch: one capsule, from the same drawing.
  *
- *   28  track height, and the knob's width
- *    4  fill inset from the track
- *    2  knob inset inside the fill
- *   18  clearance at the far end of the fill when it is on
+ *   28  the knob's width
+ *    2  its inset inside the capsule
+ *   18  the clearance behind it when the switch is on
  *
- * Which makes the fill 48 wide, the track 56, and the travel 16.
+ * Which makes the capsule 48 by 20 and the travel 16.
  */
-const SWITCH_FILL_INSET = 4;
 const SWITCH_KNOB_INSET = 2;
 const SWITCH_KNOB_W = 28;
 const SWITCH_KNOB_H = 16;
@@ -627,48 +625,38 @@ export function Toggle({
       aria-label={label}
       onClick={() => onChange(!checked)}
       /*
-       * The slider's construction, not just its knob.
+       * ONE capsule, with the knob inside it.
        *
-       * Three layers, exactly as the slider has them: a grey track, a fill
-       * inset 4 on every side, and the knob inset 2 inside that fill. Before,
-       * the switch was two layers -- the whole track changed colour and the
-       * knob sat directly on it -- which is why it never quite matched the
-       * rows above it even once the knob was the right size.
+       * The spec's outer grey was read as a track and built as one, which put
+       * a second ring around the switch -- the row behind it, the track, and
+       * the fill, three nested shapes where the drawing has one. The grey in
+       * the drawing is the row; the 4 above and below it is the gap the row
+       * leaves, not a layer of the control.
        *
-       * Every figure is the spec's: 28 knob against 18 of clearance at the far
-       * end and 2 at the near one, so the fill is 48 and the track 56, and the
-       * knob travels 16.
+       * So: a 48 by 20 capsule, a 28 by 16 knob inset 2, and 16 of travel,
+       * which is the drawing's 18 of clearance behind the knob less its 2 in
+       * front.
        */
-      className="relative h-[28px] w-[56px] shrink-0 rounded-full"
-      style={{ background: "var(--ks-ctl)" }}
+      className="relative h-[20px] w-[48px] shrink-0 rounded-full"
+      style={{
+        background: checked ? "var(--ks-accent)" : "var(--ks-switch-off)",
+        transition: "background-color 160ms var(--ks-ease-out)",
+      }}
     >
       <span
-        aria-hidden
-        className="absolute rounded-full"
+        // Centred vertically rather than inset, for the same reason as the
+        // slider's: touch sizing can raise the row, and a fixed top would sit
+        // the capsule high.
+        className="absolute top-1/2 rounded-full"
         style={{
-          top: SWITCH_FILL_INSET,
-          bottom: SWITCH_FILL_INSET,
-          left: SWITCH_FILL_INSET,
-          right: SWITCH_FILL_INSET,
-          background: checked ? "var(--ks-accent)" : "var(--ks-switch-off)",
-          transition: "background-color 160ms var(--ks-ease-out)",
+          left: SWITCH_KNOB_INSET,
+          width: SWITCH_KNOB_W,
+          height: SWITCH_KNOB_H,
+          transform: `translateY(-50%) translateX(${checked ? SWITCH_TRAVEL : 0}px)`,
+          background: "var(--ks-knob)",
+          transition: "transform 180ms var(--ks-ease-out)",
         }}
-      >
-        <span
-          // Centred vertically rather than inset, for the same reason as the
-          // slider's: touch sizing can raise the row, and a fixed top would
-          // sit the capsule high.
-          className="absolute top-1/2 rounded-full"
-          style={{
-            left: SWITCH_KNOB_INSET,
-            width: SWITCH_KNOB_W,
-            height: SWITCH_KNOB_H,
-            transform: `translateY(-50%) translateX(${checked ? SWITCH_TRAVEL : 0}px)`,
-            background: "var(--ks-knob)",
-            transition: "transform 180ms var(--ks-ease-out)",
-          }}
-        />
-      </span>
+      />
     </button>
   );
 }
