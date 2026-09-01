@@ -31,7 +31,7 @@ import type { Easing } from "../animation";
 import type { AnimatableKey } from "../animation";
 import { Icon } from "./icons";
 
-type SectionId = "source" | "phone" | "mockup" | "camera" | "blur" | "background" | "shadow";
+type SectionId = "source" | "mockup" | "camera" | "blur" | "background" | "shadow";
 
 export function RightPanel({
   side,
@@ -45,15 +45,6 @@ export function RightPanel({
   canMirror,
   onStartMirror,
   onStopMirror,
-  onPair,
-  phoneConnected,
-  phoneQr,
-  phoneSecure,
-  phoneReason,
-  phoneZeroed,
-  liveMotion,
-  onToggleLiveMotion,
-  onSetZero,
   easing,
   onApplyPreset,
   ratioId,
@@ -90,17 +81,6 @@ export function RightPanel({
   canMirror: boolean;
   onStartMirror: () => void;
   onStopMirror: () => void;
-  /** Arms pairing — opens the event stream and fetches the QR. */
-  onPair: () => void;
-  phoneConnected: boolean;
-  /** Inline SVG, generated server-side so there is no image request. */
-  phoneQr: string | null;
-  phoneSecure: boolean;
-  phoneReason: string | null;
-  phoneZeroed: boolean;
-  liveMotion: boolean;
-  onToggleLiveMotion: (next: boolean) => void;
-  onSetZero: () => void;
   /** Passed to the motion previews so they play the easing you have chosen. */
   easing: Easing;
   onApplyPreset: (id: string) => void;
@@ -333,63 +313,6 @@ export function RightPanel({
         ) : null}
       </PanelSection>
 
-      {/* ----------------------------------------------------------- PHONE */}
-      <PanelSection
-        title="Phone"
-        expanded={isOpen("phone")}
-        onToggle={() => {
-          toggle("phone");
-          // Opening the section is what arms pairing: closed, nothing fetches
-          // a QR and no event stream is held open.
-          if (!isOpen("phone")) onPair();
-        }}
-      >
-        <div className="flex flex-col gap-[12px]">
-          <div className="flex items-center gap-[8px]">
-            <span
-              className="h-[7px] w-[7px] rounded-full"
-              style={{ background: phoneConnected ? "var(--ks-accent)" : "var(--ks-line-strong)" }}
-            />
-            <span className="ks-label" style={{ color: "var(--ks-text-dim)" }}>
-              {phoneConnected ? "Phone connected" : "Scan to connect a phone"}
-            </span>
-          </div>
-
-          {/* The QR is only a shortcut for typing the LAN URL — the phone still
-              has to grant motion access itself, which iOS only allows from a
-              tap on the phone. */}
-          {phoneQr && !phoneConnected ? (
-            <div
-              className="mx-auto w-[132px] rounded-[var(--ks-r-card)] bg-white p-[8px]"
-              // The QR is generated server-side as an inline SVG, so there is
-              // no image request and nothing to load.
-              dangerouslySetInnerHTML={{ __html: phoneQr }}
-            />
-          ) : null}
-
-          {!phoneSecure ? (
-            <p className="ks-micro" style={{ color: "var(--ks-text-faint)", lineHeight: 1.5 }}>
-              This page is on http. iOS only releases motion data over https —
-              start with <code>npm run dev:https</code>.
-            </p>
-          ) : null}
-
-          {phoneReason ? (
-            <p className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>{phoneReason}</p>
-          ) : null}
-
-          {/* Pairing status only. The Manual/Gyro switch lives in Camera,
-              beside the rotation rows it replaces. */}
-          {phoneConnected ? (
-            <p className="ks-micro" style={{ color: "var(--ks-text-faint)", lineHeight: 1.5 }}>
-              {liveMotion
-                ? "Driving rotation. Switch back to Manual under Camera to use the sliders."
-                : "Ready. Switch Camera to Gyro to drive the mockup with it."}
-            </p>
-          ) : null}
-        </div>
-      </PanelSection>
-
       {/* ---------------------------------------------------------- MOCKUP */}
       <PanelSection
         title="Mockup"
@@ -495,41 +418,9 @@ export function RightPanel({
         onToggle={() => toggle("camera")}
       >
         <>
-            {/* Where the rotation comes from. It lives here, directly above the
-                axis rows, because those rows are exactly what it takes over —
-                putting it in the Phone section left you reading one part of the
-                panel to understand why another had stopped responding. */}
-            <div className="mb-[8px] mt-[8px]">
-              <Tabs
-                value={liveMotion ? "phone" : "manual"}
-                onChange={(next) => onToggleLiveMotion(next === "phone")}
-                options={[
-                  { id: "manual", label: "Manual" },
-                  { id: "phone", label: "Gyro" },
-                ]}
-              />
-            </div>
-
-            {liveMotion ? (
-              <div className="flex flex-col gap-[8px] pb-[4px]">
-                <p className="ks-micro" style={{ color: "var(--ks-text-faint)", lineHeight: 1.5 }}>
-                  {phoneConnected
-                    ? "Rotation is coming from the phone. Hold it how you want the mockup to sit, then set zero."
-                    : "No phone is sending yet — open the Phone section and scan the code."}
-                </p>
-                {phoneConnected ? (
-                  <PillButton onClick={onSetZero}>
-                    {phoneZeroed ? "Re-zero" : "Set zero"}
-                  </PillButton>
-                ) : null}
-              </div>
-            ) : (
-              <>
             <ParamRow label="X axis" value={state.xAxis} {...RANGES.xAxis} defaultValue={DEFAULT_EDITOR_STATE.xAxis} keyframed={keyedNow.xAxis} onKeyframe={() => onToggleKey("xAxis")} onChange={(xAxis) => onChange({ xAxis })} />
             <ParamRow label="Y axis" value={state.yAxis} {...RANGES.yAxis} defaultValue={DEFAULT_EDITOR_STATE.yAxis} keyframed={keyedNow.yAxis} onKeyframe={() => onToggleKey("yAxis")} onChange={(yAxis) => onChange({ yAxis })} />
             <ParamRow label="Z axis" value={state.zAxis} {...RANGES.zAxis} defaultValue={DEFAULT_EDITOR_STATE.zAxis} keyframed={keyedNow.zAxis} onKeyframe={() => onToggleKey("zAxis")} onChange={(zAxis) => onChange({ zAxis })} />
-              </>
-            )}
             <ParamRow label="Zoom" value={state.zoom} {...RANGES.zoom} defaultValue={DEFAULT_EDITOR_STATE.zoom} decimals={2} keyframed={keyedNow.zoom} onKeyframe={() => onToggleKey("zoom")} onChange={(zoom) => onChange({ zoom })} />
             {/* No "Space drag" hint on the pans: the canvas only handles
                 drag-rotate and wheel-zoom, so panning is these rows only. */}
