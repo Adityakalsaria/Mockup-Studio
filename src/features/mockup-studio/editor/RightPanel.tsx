@@ -28,7 +28,6 @@ import type { AccentId } from "./accents";
 import { ExportMenu } from "./framing";
 import { useLiquidGlass } from "./useLiquidGlass";
 import type { Easing } from "../animation";
-import type { AnimatableKey } from "../animation";
 import { Icon } from "./icons";
 
 type SectionId = "source" | "mockup" | "camera" | "blur" | "background" | "shadow";
@@ -55,8 +54,6 @@ export function RightPanel({
   onToggleTheme,
   accent,
   onAccentChange,
-  keyedNow,
-  onToggleKey,
 }: {
   /**
    * Which flank this instance is. One component renders both panels rather
@@ -92,8 +89,6 @@ export function RightPanel({
   accent: AccentId;
   onAccentChange: (next: AccentId) => void;
   /** Properties with a keyframe sitting exactly on the playhead. */
-  keyedNow: Partial<Record<AnimatableKey, boolean>>;
-  onToggleKey: (property: AnimatableKey) => void;
 }) {
   const [open, setOpen] = useState<Set<SectionId>>(
     () => new Set<SectionId>(["source", "mockup", "camera", "blur", "background"]),
@@ -411,14 +406,14 @@ export function RightPanel({
         onToggle={() => toggle("camera")}
       >
         <>
-            <ParamRow label="X axis" value={state.xAxis} {...RANGES.xAxis} defaultValue={DEFAULT_EDITOR_STATE.xAxis} keyframed={keyedNow.xAxis} onKeyframe={() => onToggleKey("xAxis")} onChange={(xAxis) => onChange({ xAxis })} />
-            <ParamRow label="Y axis" value={state.yAxis} {...RANGES.yAxis} defaultValue={DEFAULT_EDITOR_STATE.yAxis} keyframed={keyedNow.yAxis} onKeyframe={() => onToggleKey("yAxis")} onChange={(yAxis) => onChange({ yAxis })} />
-            <ParamRow label="Z axis" value={state.zAxis} {...RANGES.zAxis} defaultValue={DEFAULT_EDITOR_STATE.zAxis} keyframed={keyedNow.zAxis} onKeyframe={() => onToggleKey("zAxis")} onChange={(zAxis) => onChange({ zAxis })} />
-            <ParamRow label="Zoom" value={state.zoom} {...RANGES.zoom} defaultValue={DEFAULT_EDITOR_STATE.zoom} decimals={2} keyframed={keyedNow.zoom} onKeyframe={() => onToggleKey("zoom")} onChange={(zoom) => onChange({ zoom })} />
+            <ParamRow label="X axis" value={state.xAxis} {...RANGES.xAxis} defaultValue={DEFAULT_EDITOR_STATE.xAxis} onChange={(xAxis) => onChange({ xAxis })} />
+            <ParamRow label="Y axis" value={state.yAxis} {...RANGES.yAxis} defaultValue={DEFAULT_EDITOR_STATE.yAxis} onChange={(yAxis) => onChange({ yAxis })} />
+            <ParamRow label="Z axis" value={state.zAxis} {...RANGES.zAxis} defaultValue={DEFAULT_EDITOR_STATE.zAxis} onChange={(zAxis) => onChange({ zAxis })} />
+            <ParamRow label="Zoom" value={state.zoom} {...RANGES.zoom} defaultValue={DEFAULT_EDITOR_STATE.zoom} decimals={2} onChange={(zoom) => onChange({ zoom })} />
             {/* No "Space drag" hint on the pans: the canvas only handles
                 drag-rotate and wheel-zoom, so panning is these rows only. */}
-            <ParamRow label="Pan X" value={state.panX} {...RANGES.panX} defaultValue={DEFAULT_EDITOR_STATE.panX} decimals={2} keyframed={keyedNow.panX} onKeyframe={() => onToggleKey("panX")} onChange={(panX) => onChange({ panX })} />
-            <ParamRow label="Pan Y" value={state.panY} {...RANGES.panY} defaultValue={DEFAULT_EDITOR_STATE.panY} decimals={2} keyframed={keyedNow.panY} onKeyframe={() => onToggleKey("panY")} onChange={(panY) => onChange({ panY })} />
+            <ParamRow label="Pan X" value={state.panX} {...RANGES.panX} defaultValue={DEFAULT_EDITOR_STATE.panX} decimals={2} onChange={(panX) => onChange({ panX })} />
+            <ParamRow label="Pan Y" value={state.panY} {...RANGES.panY} defaultValue={DEFAULT_EDITOR_STATE.panY} decimals={2} onChange={(panY) => onChange({ panY })} />
             {/* The lens, in millimetres rather than in degrees.
                 The state is a vertical field of view because that is what the
                 camera takes, but nobody frames a shot in degrees -- 35 and 85

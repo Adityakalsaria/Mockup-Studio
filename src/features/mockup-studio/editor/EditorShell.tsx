@@ -414,25 +414,6 @@ export default function EditorShell() {
     setState((prev) => ({ ...prev, animation: { ...prev.animation, ...patch } }));
   }, []);
 
-  /** The diamond: key this property here, or drop the key that is already here. */
-  const toggleKey = useCallback((property: AnimatableKey) => {
-    setState((prev) => {
-      const time = playheadRef.current;
-      const keys = prev.animation.tracks[property];
-      const existing = keyAt(keys, time);
-      const value = sampleAnimation(prev.animation, time)[property] ?? prev[property];
-      const nextKeys = existing
-        ? removeKey(keys, time)
-        : putKey(keys, time, value as number);
-      const tracks = { ...prev.animation.tracks };
-      // An empty array and no track are the same thing; keeping the empty one
-      // would leave a lane in the timeline with nothing in it.
-      if (nextKeys.length) tracks[property] = nextKeys;
-      else delete tracks[property];
-      return { ...prev, animation: { ...prev.animation, tracks } };
-    });
-  }, []);
-
   /**
    * Set the easing for the segment starting at `time`.
    *
@@ -521,14 +502,6 @@ export default function EditorShell() {
       setPlayhead(playheadRef.current);
     };
   }, [playing, animation.durationSec]);
-
-  const keyedNow = useMemo(() => {
-    const out: Partial<Record<AnimatableKey, boolean>> = {};
-    for (const [property, keys] of Object.entries(animation.tracks)) {
-      out[property as AnimatableKey] = Boolean(keyAt(keys, playhead));
-    }
-    return out;
-  }, [animation.tracks, playhead]);
 
   const animated = hasKeys(animation);
 
@@ -1083,8 +1056,6 @@ export default function EditorShell() {
           onToggleTheme={toggleTheme}
           accent={accent}
           onAccentChange={setAccent}
-          keyedNow={keyedNow}
-          onToggleKey={toggleKey}
         />
         </div>
 
@@ -1221,8 +1192,6 @@ export default function EditorShell() {
           onToggleTheme={toggleTheme}
           accent={accent}
           onAccentChange={setAccent}
-          keyedNow={keyedNow}
-          onToggleKey={toggleKey}
         />
         </div>
       </div>

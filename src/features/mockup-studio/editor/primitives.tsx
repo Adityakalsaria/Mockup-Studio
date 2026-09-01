@@ -399,8 +399,13 @@ export function ParamRow({
 
       {/* Beside the track, not above it: they act on the value the track
           holds, and a control sitting next to what it affects needs no label
-          to explain the relationship. */}
-      {animatable ? (
+          to explain the relationship.
+
+          Rendered only where a handler is actually passed. `animatable` says
+          the value COULD be keyed; a handler says something is currently
+          offering to key it. While the editor is template-first nothing does,
+          so the diamond does not appear — rather than appearing dead. */}
+      {animatable && onKeyframe ? (
         <KeyframeButton active={Boolean(keyframed)} onClick={onKeyframe} label={label} />
       ) : null}
 
@@ -500,7 +505,7 @@ export function ControlRow({
         </span>
         {children}
       </div>
-      {animatable ? (
+      {animatable && onKeyframe ? (
         <KeyframeButton active={Boolean(keyframed)} onClick={onKeyframe} label={label} />
       ) : null}
     </div>
