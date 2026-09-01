@@ -23,6 +23,8 @@ export type ShadowSettings = {
   offsetX: number;
   offsetY: number;
   blur: number;
+  /** Dilates the silhouette before it is blurred, as a design tool's does. */
+  spread: number;
   opacity: number;
   color: string;
 };
@@ -37,6 +39,7 @@ export const DEFAULT_SHADOW: ShadowSettings = {
   offsetX: 0,
   offsetY: 24,
   blur: 48,
+  spread: 0,
   opacity: 0.28,
   color: "#000000",
 };
@@ -45,6 +48,7 @@ export const SHADOW_RANGES = {
   offsetX: { min: -200, max: 200, step: 1 },
   offsetY: { min: -200, max: 200, step: 1 },
   blur: { min: 0, max: 200, step: 1 },
+  spread: { min: 0, max: 80, step: 1 },
   opacity: { min: 0, max: 1, step: 0.01 },
 } as const;
 
@@ -57,30 +61,43 @@ function rgba(hex: string, alpha: number): string {
 }
 
 /**
- * The shadow as a CSS `filter` value, for the live stage.
+ * The shadow as an SVG filter, for the live stage.
  *
- * `drop-shadow` works on the canvas's ALPHA, which is exactly what makes this
- * possible: the stage renders on a transparent canvas over the background, so
- * the only opaque thing in it is the phone, and its silhouette is already the
- * shape the shadow needs. It follows every rotation for free.
-
+ * SVG rather than CSS `drop-shadow`, and for one reason: spread. CSS has no
+ * spread, and the obvious workaround -- stacking offset copies of the shadow --
+ * does not dilate anything. Each filter in a CSS chain applies to the RESULT of
+ * the one before it, so eight copies around a ring draw eight silhouettes, not
+ * one fatter one. It also cost nine full-canvas passes a frame.
+ *
+ * `feMorphology` with operator="dilate" IS the dilation, in one pass, and the
+ * rest of the chain is the same drop shadow spelled out: grow the silhouette,
+ * blur it, offset it, fill it with the colour, then lay the phone back on top.
+ *
+ * It works on `SourceAlpha` because the stage renders transparent over the
+ * background -- the only opaque thing in the canvas is the phone, so its alpha
+ * IS the silhouette, at whatever angle it happens to be.
  */
-export function dropShadowCss(shadow: ShadowSettings, scale = 1): string | undefined {
-  if (!shadow.enabled) return undefined;
-  const colour = rgba(shadow.color, shadow.opacity);
-  // ONE pass, deliberately.
-  //
-  // Spread used to live here, built from eight zero-blur copies offset around
-  // a ring. It does not dilate: each filter in a CSS chain applies to the
-  // RESULT of the one before it, at full opacity, so what it drew was eight
-  // separate silhouettes -- and it cost nine full-canvas filter passes on
-  // every frame, which is what made the stage drag while dragging.
-  //
-  // CSS has no spread and cannot be talked into one. Better to offer four
-  // controls that are exactly right than five where one lies.
-  return `drop-shadow(${(shadow.offsetX * scale).toFixed(1)}px ${(shadow.offsetY * scale).toFixed(1)}px ${(
-    shadow.blur * scale
-  ).toFixed(1)}px ${colour})`;
+export type ShadowFilter = {
+  /** stdDeviation; CSS blur radius is twice this, which is the figure the
+      slider shows so it matches what a design tool would call it. */
+  deviation: number;
+  dilate: number;
+  dx: number;
+  dy: number;
+  color: string;
+  opacity: number;
+};
+
+export function shadowFilterParams(shadow: ShadowSettings, scale = 1): ShadowFilter | null {
+  if (!shadow.enabled) return null;
+  return {
+    deviation: (shadow.blur * scale) / 2,
+    dilate: shadow.spread * scale,
+    dx: shadow.offsetX * scale,
+    dy: shadow.offsetY * scale,
+    color: shadow.color,
+    opacity: shadow.opacity,
+  };
 }
 
 /**
@@ -95,16 +112,37 @@ export function applyCanvasShadow(
   ctx: CanvasRenderingContext2D,
   shadow: ShadowSettings,
   scale = 1,
+  filterId?: string | null,
 ): void {
   if (!shadow.enabled) return;
+
+  /*
+   * Prefer the SAME filter the stage uses, so the export matches the preview
+   * exactly rather than approximating it. A 2D context can point `filter` at
+   * an SVG filter in the document by id, which is the only route that carries
+   * spread -- the shadow* properties below have no dilation at all.
+   *
+   * The filter is authored in 1x pixels for the stage, so an export at 2x or
+   * 3x has to be drawn through a scaled transform for it to match; that is
+   * handled by the caller, which already scales its draw.
+   */
+  if (filterId && typeof ctx.filter === "string") {
+    ctx.filter = `url(#${filterId})`;
+    return;
+  }
   ctx.shadowColor = rgba(shadow.color, shadow.opacity);
   ctx.shadowOffsetX = shadow.offsetX * scale;
   ctx.shadowOffsetY = shadow.offsetY * scale;
-  ctx.shadowBlur = shadow.blur * scale;
+  // No filter id to point at, so this is the fallback: a 2D context has no
+  // dilation, and folding spread into the blur is the closest it can get. It
+  // reads slightly softer than the stage rather than slightly smaller, which
+  // is the better way to be wrong.
+  ctx.shadowBlur = (shadow.blur + shadow.spread) * scale;
 }
 
 /** Clears it again, so nothing drawn afterwards inherits it. */
 export function clearCanvasShadow(ctx: CanvasRenderingContext2D): void {
+  ctx.filter = "none";
   ctx.shadowColor = "transparent";
   ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = 0;

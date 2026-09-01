@@ -13,7 +13,8 @@ import { sampleAnimation, type Animation } from "./animation";
 import { recolorBodyTexture } from "./bodyTexture";
 import { StudioEnvironment } from "./StudioEnvironment";
 import { StageLoader } from "./StageLoader";
-import { DEFAULT_SHADOW, dropShadowCss, type ShadowSettings } from "./shadow";
+import { DEFAULT_SHADOW, type ShadowSettings } from "./shadow";
+import { useShadowFilter } from "./ShadowFilter";
 import { DEFAULT_LIGHTING, type LightingId } from "./lighting";
 import { isBlurActive, type BlurSettings } from "./blurStyles";
 import type { Quat } from "./gyro/quaternion";
@@ -1671,8 +1672,10 @@ export default function PhoneStage3D({
   onScaleWheel?: (deltaPct: number) => void;
 }) {
   const device = getDevice(deviceId);
+  const { id: shadowFilterId, defs: shadowDefs } = useShadowFilter(shadow);
   return (
     <>
+      {shadowDefs}
       {IS_DEV ? (
         <Leva
           oneLineLabels
@@ -1714,7 +1717,7 @@ export default function PhoneStage3D({
          * silhouette directly and follows every rotation for free. No light,
          * no surface for it to land on, and nothing it can fall across.
          */
-        style={{ background: "transparent", filter: dropShadowCss(shadow) }}
+        style={{ background: "transparent", filter: shadowFilterId ? `url(#${shadowFilterId})` : undefined }}
         // Retina, not 1.5x. The old cap was set when the body was a smooth
         // procedural box; against a real model with a machined edge running
         // its whole length, rendering below the display's native density is
