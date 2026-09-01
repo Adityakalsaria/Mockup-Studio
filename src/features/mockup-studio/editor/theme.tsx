@@ -405,52 +405,20 @@ export const EDITOR_THEME_CSS = `
      with an 8px gutter already doing the separating. The shadow was falling
      on nothing and reading as a smudge around each edge.
 
-     No drawn border either. The regions were each ringed in --ks-line-strong,
-     which on a light page put three hard grey rectangles around three panels
-     that were already separated by their own fill and an 8px gutter. The
-     specular rim below says "surface" on its own, and says it as light on
-     glass rather than as a line. */
-}
+     No border, and no specular rim either.
 
-/* The specular edge.
-   A single inset highlight along the top is the cheap version and it reads as
-   a drawn line. Real glass catches light unevenly around its rim: bright where
-   the bevel faces the light, dark where it turns away. This is a gradient
-   painted into a 1px ring by masking out everything but the border, which is
-   the only way to get a border whose colour varies along its length. */
-.ks-material::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.9) 0%,
-    rgba(255, 255, 255, 0.25) 22%,
-    rgba(255, 255, 255, 0) 46%,
-    rgba(255, 255, 255, 0.12) 74%,
-    rgba(255, 255, 255, 0.55) 100%
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  pointer-events: none;
-  z-index: 2;
-}
-[data-ks-theme="dark"] .ks-material::after {
-  background: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.22) 0%,
-    rgba(255, 255, 255, 0.06) 22%,
-    rgba(255, 255, 255, 0) 46%,
-    rgba(255, 255, 255, 0.04) 74%,
-    rgba(255, 255, 255, 0.14) 100%
-  );
-}
-@media (prefers-reduced-transparency: reduce) {
-  .ks-material::after { display: none; }
+     The regions were each ringed in --ks-line-strong, which on a light page
+     put three hard grey rectangles around three panels already separated by
+     their own fill and an 8px gutter. Taking that off left the rim -- a white
+     gradient masked into a 1px ring, meant to read as light catching the near
+     edge of a pane. In light mode it is white on near-white and does nothing.
+     In dark mode it is the only bright thing on a near-black panel against a
+     near-black page, so it does not read as light on glass at all: it reads
+     as the border that was supposedly just removed.
+
+     A rim that is either invisible or a border is not worth keeping for the
+     one theme where it might have worked. Fill and gutter do the separating
+     in both. */
 }
 
 /* Where scrolling content meets floating chrome, fade it out rather than
@@ -582,10 +550,15 @@ export const EDITOR_THEME_CSS = `
   }
 }
 
+/* The one place a drawn edge is still right. Someone who has asked for more
+   contrast is asking for the boundaries to be explicit, and "the fill is
+   slightly lighter than the page" is exactly the cue that request means they
+   cannot rely on. It sets border-WIDTH too now: the rule used to set only the
+   colour, which did nothing once the panels stopped carrying a border. */
 @media (prefers-contrast: more) {
   .ks-material {
     background: var(--ks-surface-solid);
-    border-color: var(--ks-text-dim);
+    border: 1px solid var(--ks-text-dim);
   }
 }
 `;
