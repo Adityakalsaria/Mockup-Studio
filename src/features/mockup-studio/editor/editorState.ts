@@ -110,6 +110,22 @@ export const MIRROR_SCREEN_FIT = {
   screenOffsetY: 0.015,
 } as const;
 
+/**
+ * The fit for a direct iPhone broadcast.
+ *
+ * Distinct from `MIRROR_SCREEN_FIT` on purpose. That preset exists to crop a
+ * mirror *window's* chrome — a title bar on one edge, which is why it zooms
+ * and pushes down. A broadcast carries the device framebuffer and nothing
+ * else, so the same nudge would crop real pixels off a screen that already
+ * arrives correct. Neutral is right here, and it is a separate constant so
+ * that stays true if the mirror preset is ever retuned.
+ */
+export const BROADCAST_SCREEN_FIT = {
+  screenScale: 1,
+  screenOffsetX: 0,
+  screenOffsetY: 0,
+} as const;
+
 export const RANGES = {
   xAxis: { min: -180, max: 180, step: 1 },
   // Wider than the other two axes on purpose. The default pose sits at 180,

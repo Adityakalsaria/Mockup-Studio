@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { isVideoSource } from "../useScreenTexture";
+import type { BroadcastLink } from "../broadcast/useBroadcastLink";
 import { DEVICES, getDevice } from "../devices";
 import { FINISHES } from "../finishes";
 import {
@@ -30,7 +31,7 @@ import { useLiquidGlass } from "./useLiquidGlass";
 import type { Easing } from "../animation";
 import { Icon } from "./icons";
 
-type SectionId = "source" | "mockup" | "camera" | "blur" | "background" | "shadow";
+type SectionId = "source" | "phone" | "mockup" | "camera" | "blur" | "background" | "shadow";
 
 export function RightPanel({
   side,
@@ -41,9 +42,19 @@ export function RightPanel({
   onClearSource,
   onPickBackgroundImage,
   isMirroring,
+  broadcast,
   canMirror,
   onStartMirror,
   onStopMirror,
+  onPair,
+  phoneConnected,
+  phoneQr,
+  phoneSecure,
+  phoneReason,
+  phoneZeroed,
+  liveMotion,
+  onToggleLiveMotion,
+  onSetZero,
   easing,
   onApplyPreset,
   onExportPng,
@@ -70,12 +81,25 @@ export function RightPanel({
   onPickBackgroundImage: () => void;
   /** A live window capture is currently driving the screen. */
   isMirroring: boolean;
+  /** The direct iPhone broadcast: pairing QR, connection state, controls. */
+  broadcast: BroadcastLink;
   /** False where the browser has no `getDisplayMedia` — every mobile browser,
       and any insecure context. Hides the control rather than offering a button
       that can only fail. */
   canMirror: boolean;
   onStartMirror: () => void;
   onStopMirror: () => void;
+  /** Arms pairing — opens the event stream and fetches the QR. */
+  onPair: () => void;
+  phoneConnected: boolean;
+  /** Inline SVG, generated server-side so there is no image request. */
+  phoneQr: string | null;
+  phoneSecure: boolean;
+  phoneReason: string | null;
+  phoneZeroed: boolean;
+  liveMotion: boolean;
+  onToggleLiveMotion: (next: boolean) => void;
+  onSetZero: () => void;
   /** Passed to the motion previews so they play the easing you have chosen. */
   easing: Easing;
   onApplyPreset: (id: string) => void;
@@ -191,16 +215,25 @@ export function RightPanel({
                 style={{ background: "var(--ks-accent)" }}
               />
               <span className="ks-label" style={{ color: "var(--ks-ctl-text)" }}>
-                Mirroring a window
+                {broadcast.stream ? "Broadcasting from iPhone" : "Mirroring a window"}
               </span>
               <span className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>
                 Live on the phone
               </span>
+              {broadcast.stream ? (
+                <span
+                  className="ks-micro"
+                  style={{ color: "var(--ks-text-faint)", fontVariantNumeric: "tabular-nums" }}
+                >
+                  {broadcast.diagnostics.frameSize ?? "no frames yet"} ·{" "}
+                  {Math.round(broadcast.diagnostics.bytesReceived / 1024)} KB
+                </span>
+              ) : null}
             </div>
             <button
               type="button"
-              onClick={onStopMirror}
-              aria-label="Stop mirroring"
+              onClick={broadcast.stream ? broadcast.stop : onStopMirror}
+              aria-label={broadcast.stream ? "Stop broadcasting" : "Stop mirroring"}
               className="absolute right-[8px] top-[8px] grid h-[24px] w-[24px] place-items-center rounded-full"
               style={{ background: "rgba(0,0,0,0.4)", color: "#fff" }}
             >
@@ -270,6 +303,63 @@ export function RightPanel({
           </div>
         ) : null}
 
+        {/* Direct from the iPhone, over the LAN.
+            The app scans this code and opens a WebRTC connection straight to
+            this browser — the signalling below is a few kilobytes of text
+            through /api/broadcast, and the frames never touch the server. */}
+        {!isMirroring ? (
+          <div className="mt-[8px]">
+            {broadcast.state === "idle" || broadcast.state === "failed" ? (
+              <PillButton onClick={broadcast.start}>Broadcast from iPhone</PillButton>
+            ) : null}
+
+            {broadcast.state === "pairing" ? (
+              <span className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>
+                Opening a session…
+              </span>
+            ) : null}
+
+            {(broadcast.state === "waiting" || broadcast.state === "connecting") &&
+            broadcast.qr ? (
+              <div
+                className="flex flex-col items-center gap-[8px] rounded-[var(--ks-r-card)] p-[12px]"
+                style={{ background: "var(--ks-row)" }}
+              >
+                <div
+                  className="h-[116px] w-[116px] [&>svg]:h-full [&>svg]:w-full"
+                  // The QR is an inline SVG from the pairing route, not user
+                  // input: it is generated server-side from an address this
+                  // machine reported about itself.
+                  dangerouslySetInnerHTML={{ __html: broadcast.qr }}
+                />
+                <span className="ks-micro" style={{ color: "var(--ks-text-dim)" }}>
+                  {broadcast.state === "connecting"
+                    ? "Connecting…"
+                    : "Scan in the Mockup Studio app"}
+                </span>
+                <BroadcastDiagnostics broadcast={broadcast} />
+                <button
+                  type="button"
+                  onClick={broadcast.stop}
+                  className="ks-micro underline"
+                  style={{ color: "var(--ks-text-faint)" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : null}
+
+            {broadcast.state === "failed" && broadcast.reason ? (
+              <span
+                className="ks-micro mt-[6px] block"
+                style={{ color: "var(--ks-text-faint)" }}
+              >
+                {broadcast.reason}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+
         {/* Nudge on top of the automatic centre-crop. A mirrored window carries
             chrome on one edge only, so the fit lands it low or high; a
             screenshot needs none of this and leaves these at their defaults. */}
@@ -301,6 +391,63 @@ export function RightPanel({
             />
           </div>
         ) : null}
+      </PanelSection>
+
+      {/* ----------------------------------------------------------- PHONE */}
+      <PanelSection
+        title="Phone"
+        expanded={isOpen("phone")}
+        onToggle={() => {
+          toggle("phone");
+          // Opening the section is what arms pairing: closed, nothing fetches
+          // a QR and no event stream is held open.
+          if (!isOpen("phone")) onPair();
+        }}
+      >
+        <div className="flex flex-col gap-[12px]">
+          <div className="flex items-center gap-[8px]">
+            <span
+              className="h-[7px] w-[7px] rounded-full"
+              style={{ background: phoneConnected ? "var(--ks-accent)" : "var(--ks-line-strong)" }}
+            />
+            <span className="ks-label" style={{ color: "var(--ks-text-dim)" }}>
+              {phoneConnected ? "Phone connected" : "Scan to connect a phone"}
+            </span>
+          </div>
+
+          {/* The QR is only a shortcut for typing the LAN URL — the phone still
+              has to grant motion access itself, which iOS only allows from a
+              tap on the phone. */}
+          {phoneQr && !phoneConnected ? (
+            <div
+              className="mx-auto w-[132px] rounded-[var(--ks-r-card)] bg-white p-[8px]"
+              // The QR is generated server-side as an inline SVG, so there is
+              // no image request and nothing to load.
+              dangerouslySetInnerHTML={{ __html: phoneQr }}
+            />
+          ) : null}
+
+          {!phoneSecure ? (
+            <p className="ks-micro" style={{ color: "var(--ks-text-faint)", lineHeight: 1.5 }}>
+              This page is on http. iOS only releases motion data over https —
+              start with <code>npm run dev:https</code>.
+            </p>
+          ) : null}
+
+          {phoneReason ? (
+            <p className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>{phoneReason}</p>
+          ) : null}
+
+          {/* Pairing status only. The Manual/Gyro switch lives in Camera,
+              beside the rotation rows it replaces. */}
+          {phoneConnected ? (
+            <p className="ks-micro" style={{ color: "var(--ks-text-faint)", lineHeight: 1.5 }}>
+              {liveMotion
+                ? "Driving rotation. Switch back to Manual under Camera to use the sliders."
+                : "Ready. Switch Camera to Gyro to drive the mockup with it."}
+            </p>
+          ) : null}
+        </div>
       </PanelSection>
 
       {/* ---------------------------------------------------------- MOCKUP */}
@@ -405,9 +552,41 @@ export function RightPanel({
         onToggle={() => toggle("camera")}
       >
         <>
+            {/* Where the rotation comes from. It lives here, directly above the
+                axis rows, because those rows are exactly what it takes over —
+                putting it in the Phone section left you reading one part of the
+                panel to understand why another had stopped responding. */}
+            <div className="mb-[8px] mt-[8px]">
+              <Tabs
+                value={liveMotion ? "phone" : "manual"}
+                onChange={(next) => onToggleLiveMotion(next === "phone")}
+                options={[
+                  { id: "manual", label: "Manual" },
+                  { id: "phone", label: "Gyro" },
+                ]}
+              />
+            </div>
+
+            {liveMotion ? (
+              <div className="flex flex-col gap-[8px] pb-[4px]">
+                <p className="ks-micro" style={{ color: "var(--ks-text-faint)", lineHeight: 1.5 }}>
+                  {phoneConnected
+                    ? "Rotation is coming from the phone. Hold it how you want the mockup to sit, then set zero."
+                    : "No phone is sending yet — open the Phone section and scan the code."}
+                </p>
+                {phoneConnected ? (
+                  <PillButton onClick={onSetZero}>
+                    {phoneZeroed ? "Re-zero" : "Set zero"}
+                  </PillButton>
+                ) : null}
+              </div>
+            ) : (
+              <>
             <ParamRow label="X axis" value={state.xAxis} {...RANGES.xAxis} defaultValue={DEFAULT_EDITOR_STATE.xAxis} onChange={(xAxis) => onChange({ xAxis })} />
             <ParamRow label="Y axis" value={state.yAxis} {...RANGES.yAxis} defaultValue={DEFAULT_EDITOR_STATE.yAxis} onChange={(yAxis) => onChange({ yAxis })} />
             <ParamRow label="Z axis" value={state.zAxis} {...RANGES.zAxis} defaultValue={DEFAULT_EDITOR_STATE.zAxis} onChange={(zAxis) => onChange({ zAxis })} />
+              </>
+            )}
             <ParamRow label="Zoom" value={state.zoom} {...RANGES.zoom} defaultValue={DEFAULT_EDITOR_STATE.zoom} decimals={2} onChange={(zoom) => onChange({ zoom })} />
             {/* No "Space drag" hint on the pans: the canvas only handles
                 drag-rotate and wheel-zoom, so panning is these rows only. */}
@@ -732,3 +911,73 @@ export function RightPanel({
  * Where the radial blur focuses, picked directly. Two sliders would describe
  * a position; a pad is one, and this is a spatial decision.
  */
+
+/**
+ * Why a broadcast is not showing.
+ *
+ * Every stage of a WebRTC connection can look fine while the next one is dead,
+ * and none of it surfaces on its own — the symptom is always the same blank
+ * phone. Each row here is a stage, so the first one that is not green is the
+ * one to fix.
+ */
+function BroadcastDiagnostics({ broadcast }: { broadcast: BroadcastLink }) {
+  const d = broadcast.diagnostics;
+  const flowing = d.bytesReceived > 0;
+
+  const rows: Array<{ label: string; value: string; ok: boolean }> = [
+    { label: "Offer sent", value: d.offerSent ? "yes" : "no", ok: d.offerSent },
+    {
+      label: "Phone answered",
+      value: d.answerApplied ? "yes" : "waiting",
+      ok: d.answerApplied,
+    },
+    {
+      label: "Candidates",
+      value: `${d.localCandidates} sent · ${d.remoteCandidates} got`,
+      ok: d.localCandidates > 0 && d.remoteCandidates > 0,
+    },
+    { label: "ICE", value: d.ice, ok: d.ice === "connected" || d.ice === "completed" },
+    { label: "Connection", value: d.connection, ok: d.connection === "connected" },
+    { label: "Track", value: d.trackReceived ? "received" : "none", ok: d.trackReceived },
+    {
+      label: "Video",
+      value: flowing
+        ? `${d.frameSize ?? "?"} · ${d.framesDecoded} frames`
+        : "no data",
+      ok: flowing,
+    },
+  ];
+
+  return (
+    <div className="mt-[10px] flex w-full flex-col gap-[3px]">
+      {rows.map((row) => (
+        <div key={row.label} className="flex items-center justify-between gap-[8px]">
+          <span className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>
+            {row.label}
+          </span>
+          <span
+            className="ks-micro"
+            style={{
+              color: row.ok ? "var(--ks-accent)" : "var(--ks-text-faint)",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {row.value}
+          </span>
+        </div>
+      ))}
+
+      {/* The one failure mode that looks like every other failure mode. */}
+      {d.mdns && !flowing ? (
+        <span
+          className="ks-micro mt-[6px] leading-[1.4]"
+          style={{ color: "var(--ks-text-faint)" }}
+        >
+          This browser is hiding its local address behind an mDNS name, which the
+          phone may not resolve. In Chrome, set
+          chrome://flags/#enable-webrtc-hide-local-ips-with-mdns to Disabled.
+        </span>
+      ) : null}
+    </div>
+  );
+}

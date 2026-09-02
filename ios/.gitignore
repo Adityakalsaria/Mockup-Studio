@@ -1,0 +1,9 @@
+# Per-user Xcode state — window layout, breakpoints, scheme ordering. Changes
+# on every open and belongs to whoever opened it.
+xcuserdata/
+*.xcuserstate
+
+# Build output and resolved package checkouts.
+build/
+DerivedData/
+.swiftpm/
