@@ -209,6 +209,17 @@ export interface Device {
    * every finish -- the one large surface the finish exists to change.
    */
   bodyMaterials?: string[];
+  /**
+   * Materials that carry an etched mark rather than a surface.
+   *
+   * Rendered white at a low opacity, which is how a logo milled into a back
+   * panel actually reads -- it is the same material catching light differently,
+   * not a printed white shape. The Fold authors its logo as a 0.84 grey, which
+   * against a black finish came out as a bright white sticker.
+   */
+  logoMaterials?: string[];
+  /** How opaque those marks are, 0..1. */
+  logoOpacity?: number;
   /** Licence + author. Required for anything that ships. */
   credit: string;
 }
@@ -267,7 +278,11 @@ export const DEVICES: Device[] = [
     // "layer on top" rather than "tone curve".
     screenOverlayHide: ["Glass flex", "Glass"],
     // The back panel. Transparent in the file, body in every other sense.
-    bodyMaterials: ["Frosted glass"],
+    // The back panel and the camera island. Both authored as a 0.84 grey with
+    // an alpha of 0.94, so both fell through the finish pass as glass.
+    bodyMaterials: ["Frosted glass", "Tinted glass"],
+    logoMaterials: ["Metal tint"],
+    logoOpacity: 0.1,
     // The outer panel, measured at 77.2 x 115.1mm in the file. Upright and
     // the right way round without help, unlike the inner one.
     coverScreen: {

@@ -1132,6 +1132,20 @@ function GLBPhoneScene({
         // at full strength the sheet mirrors the whole studio rig and the
         // screen turns into a flat milky grey at any angle off head-on. Glass
         // catches a hint of the room, not a copy of it.
+        // An etched mark: white, and mostly transparent. Handled before the
+        // body test, since a logo is neither body nor glass.
+        const markName = (candidate as { name?: string }).name?.toLowerCase();
+        if (device.logoMaterials?.some((n) => n.toLowerCase() === markName)) {
+          if (typeof candidate.clone !== "function") return mat;
+          const mark = candidate.clone() as typeof candidate;
+          mark.color?.set?.("#ffffff");
+          if ("metalness" in mark) mark.metalness = 0;
+          if ("roughness" in mark) mark.roughness = 0.35;
+          if ("opacity" in mark) mark.opacity = device.logoOpacity ?? 0.1;
+          if ("transparent" in mark) mark.transparent = true;
+          return mark;
+        }
+
         // ...unless the device says this one is body. See bodyMaterials.
         const forcedBody = device.bodyMaterials?.some(
           (n) => n.toLowerCase() === (candidate as { name?: string }).name?.toLowerCase(),
