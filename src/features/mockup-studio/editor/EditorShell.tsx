@@ -85,10 +85,57 @@ function StageAction({
 const HISTORY_COALESCE_MS = 450;
 const HISTORY_LIMIT = 60;
 
+/**
+ * Keep the shot across reloads.
+ *
+ * Everything the editor holds -- the camera, the fold, the overlay and, above
+ * all, the keyframes -- lived in memory alone. A refresh, a crashed tab or a
+ * dev-server rebuild threw the lot away with no warning and nothing to recover
+ * from, which is exactly how an afternoon's timeline gets lost.
+ *
+ * localStorage, written on a short debounce so dragging a slider does not
+ * serialise on every frame. Merged over the defaults on the way back in rather
+ * than replacing them, so a saved shot from an older build still opens when new
+ * fields appear.
+ *
+ * Guarded on size and wrapped in try/catch: a background image is a data URL
+ * and can be megabytes, and localStorage is both small and refusable. Failing
+ * to save is not worth breaking the editor over -- it just goes back to the
+ * old behaviour for that shot.
+ */
+const SHOT_KEY = "ks-shot";
+const SHOT_LIMIT = 2_000_000;
+
+function loadShot(): EditorState {
+  if (typeof window === "undefined") return DEFAULT_EDITOR_STATE;
+  try {
+    const raw = window.localStorage.getItem(SHOT_KEY);
+    if (!raw) return DEFAULT_EDITOR_STATE;
+    const saved = JSON.parse(raw) as Partial<EditorState>;
+    return { ...DEFAULT_EDITOR_STATE, ...saved };
+  } catch {
+    return DEFAULT_EDITOR_STATE;
+  }
+}
+
 export default function EditorShell() {
   const [theme, toggleTheme] = useEditorTheme();
   const [accent, setAccent] = useEditorAccent();
-  const [state, setState] = useState<EditorState>(DEFAULT_EDITOR_STATE);
+  const [state, setState] = useState<EditorState>(loadShot);
+
+  // Saved on a short debounce, so dragging a slider does not serialise on
+  // every frame of the drag.
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      try {
+        const raw = JSON.stringify(state);
+        if (raw.length <= SHOT_LIMIT) window.localStorage.setItem(SHOT_KEY, raw);
+      } catch {
+        // Full, blocked, or private mode. Nothing to do but carry on.
+      }
+    }, 400);
+    return () => window.clearTimeout(id);
+  }, [state]);
 
   /*
    * Undo history.

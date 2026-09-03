@@ -875,6 +875,59 @@ export const MOTION_PRESETS: MotionPreset[] = [
     }),
   },
   {
+    id: "fold-hero",
+    label: "Fold hero",
+    kind: "move",
+    needsFold: true,
+    hint: "Opens from edge-on, holds the shot, then lifts away",
+    build: (p) => ({
+      // Ten seconds, from the timeline this was traced off.
+      durationSec: 10,
+      tracks: {
+        /*
+         * Times are read off the ruler and are the shape of the original.
+         * The VALUES are a reconstruction: they were taken from slider
+         * positions in screenshots, where a pixel is about 0.6% of a range --
+         * on the Y axis that is a couple of degrees per pixel, so treat them
+         * as the right move at approximately the right numbers rather than as
+         * the original's own.
+         */
+        yAxis: track("yAxis", [
+          [0, p.yAxis - 150],
+          [5.0, p.yAxis],
+        ]),
+        // Comes up from almost nothing, which is what the first frame is: the
+        // phone edge-on and tiny against an empty stage.
+        zoom: track("zoom", [
+          [0, p.zoom * 0.35],
+          [5.0, p.zoom],
+        ]),
+        // The hinge opens across most of the first half, finishing after the
+        // camera has already arrived -- the last of the swing plays out on a
+        // shot that has stopped moving, which is what makes it read.
+        fold: track("fold", [
+          [0, 100],
+          [7.7, 0],
+        ]),
+        // Four keys: a settle, a hold, and a last drift. The middle pair are
+        // close together, which is what holds the frame still while the fold
+        // finishes behind it.
+        xAxis: track("xAxis", [
+          [0, p.xAxis + 22],
+          [5.65, p.xAxis],
+          [6.75, p.xAxis],
+          [8.8, p.xAxis - 8],
+        ]),
+        // Starts late and runs past the end of everything else: the shot lifts
+        // out of frame after the device has finished doing anything.
+        panY: track("panY", [
+          [6.7, p.panY],
+          [9.1, p.panY + 1.6],
+        ]),
+      },
+    }),
+  },
+  {
     id: "fold-breathe",
     label: "Hinge idle",
     kind: "loop",
