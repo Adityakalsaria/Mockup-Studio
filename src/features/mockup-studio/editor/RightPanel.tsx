@@ -24,6 +24,8 @@ import { DEFAULT_EDITOR_STATE, RANGES, type EditorState } from "./editorState";
 import { MotionPanel } from "./MotionPanel";
 import { FOCAL_MAX, FOCAL_MIN, focalFromFov, fovFromFocal } from "../lens";
 import { DEFAULT_SHADOW, SHADOW_RANGES } from "../shadow";
+import type { AnimatableKey } from "../animation";
+import { DEFAULT_OVERLAY, OVERLAY_FADES, OVERLAY_RANGES, OVERLAY_SHAPES, type OverlayFade, type OverlayShape } from "../overlay";
 import { LIGHTING_PRESETS, type LightingId } from "../lighting";
 import type { AccentId } from "./accents";
 import { ExportMenu } from "./framing";
@@ -31,7 +33,7 @@ import { useLiquidGlass } from "./useLiquidGlass";
 import type { Easing } from "../animation";
 import { Icon } from "./icons";
 
-type SectionId = "source" | "mockup" | "camera" | "blur" | "background" | "shadow";
+type SectionId = "source" | "overlay" | "mockup" | "camera" | "blur" | "background" | "shadow";
 
 export function RightPanel({
   side,
@@ -49,6 +51,8 @@ export function RightPanel({
   canMirror,
   onStartMirror,
   onStopMirror,
+  keyedNow,
+  onToggleKey,
   easing,
   onApplyPreset,
   onExportPng,
@@ -87,6 +91,8 @@ export function RightPanel({
   canMirror: boolean;
   onStartMirror: () => void;
   onStopMirror: () => void;
+  keyedNow: Partial<Record<AnimatableKey, boolean>>;
+  onToggleKey: (property: AnimatableKey) => void;
   /** Passed to the motion previews so they play the easing you have chosen. */
   easing: Easing;
   onApplyPreset: (id: string) => void;
@@ -550,20 +556,20 @@ export function RightPanel({
         onToggle={() => toggle("camera")}
       >
         <>
-            <ParamRow label="X axis" value={state.xAxis} {...RANGES.xAxis} defaultValue={DEFAULT_EDITOR_STATE.xAxis} onChange={(xAxis) => onChange({ xAxis })} />
-            <ParamRow label="Y axis" value={state.yAxis} {...RANGES.yAxis} defaultValue={DEFAULT_EDITOR_STATE.yAxis} onChange={(yAxis) => onChange({ yAxis })} />
-            <ParamRow label="Z axis" value={state.zAxis} {...RANGES.zAxis} defaultValue={DEFAULT_EDITOR_STATE.zAxis} onChange={(zAxis) => onChange({ zAxis })} />
+            <ParamRow label="X axis" value={state.xAxis} {...RANGES.xAxis} defaultValue={DEFAULT_EDITOR_STATE.xAxis} keyframed={keyedNow.xAxis} onKeyframe={() => onToggleKey("xAxis")} onChange={(xAxis) => onChange({ xAxis })} />
+            <ParamRow label="Y axis" value={state.yAxis} {...RANGES.yAxis} defaultValue={DEFAULT_EDITOR_STATE.yAxis} keyframed={keyedNow.yAxis} onKeyframe={() => onToggleKey("yAxis")} onChange={(yAxis) => onChange({ yAxis })} />
+            <ParamRow label="Z axis" value={state.zAxis} {...RANGES.zAxis} defaultValue={DEFAULT_EDITOR_STATE.zAxis} keyframed={keyedNow.zAxis} onKeyframe={() => onToggleKey("zAxis")} onChange={(zAxis) => onChange({ zAxis })} />
             {/* Only where the model has a hinge. A Fold row on a rigid phone
                 would be a control that does nothing, which is worse than a
                 missing one -- it invites you to look for the effect. */}
             {device.fold ? (
-              <ParamRow label="Fold" value={state.fold} {...RANGES.fold} defaultValue={DEFAULT_EDITOR_STATE.fold} onChange={(fold) => onChange({ fold })} />
+              <ParamRow label="Fold" value={state.fold} {...RANGES.fold} defaultValue={DEFAULT_EDITOR_STATE.fold} keyframed={keyedNow.fold} onKeyframe={() => onToggleKey("fold")} onChange={(fold) => onChange({ fold })} />
             ) : null}
-            <ParamRow label="Zoom" value={state.zoom} {...RANGES.zoom} defaultValue={DEFAULT_EDITOR_STATE.zoom} decimals={2} onChange={(zoom) => onChange({ zoom })} />
+            <ParamRow label="Zoom" value={state.zoom} {...RANGES.zoom} defaultValue={DEFAULT_EDITOR_STATE.zoom} decimals={2} keyframed={keyedNow.zoom} onKeyframe={() => onToggleKey("zoom")} onChange={(zoom) => onChange({ zoom })} />
             {/* No "Space drag" hint on the pans: the canvas only handles
                 drag-rotate and wheel-zoom, so panning is these rows only. */}
-            <ParamRow label="Pan X" value={state.panX} {...RANGES.panX} defaultValue={DEFAULT_EDITOR_STATE.panX} decimals={2} onChange={(panX) => onChange({ panX })} />
-            <ParamRow label="Pan Y" value={state.panY} {...RANGES.panY} defaultValue={DEFAULT_EDITOR_STATE.panY} decimals={2} onChange={(panY) => onChange({ panY })} />
+            <ParamRow label="Pan X" value={state.panX} {...RANGES.panX} defaultValue={DEFAULT_EDITOR_STATE.panX} decimals={2} keyframed={keyedNow.panX} onKeyframe={() => onToggleKey("panX")} onChange={(panX) => onChange({ panX })} />
+            <ParamRow label="Pan Y" value={state.panY} {...RANGES.panY} defaultValue={DEFAULT_EDITOR_STATE.panY} decimals={2} keyframed={keyedNow.panY} onKeyframe={() => onToggleKey("panY")} onChange={(panY) => onChange({ panY })} />
             {/* The lens, in millimetres rather than in degrees.
                 The state is a vertical field of view because that is what the
                 camera takes, but nobody frames a shot in degrees -- 35 and 85
@@ -617,6 +623,60 @@ export function RightPanel({
           </select>
         </label>
       </div>
+
+      {/* --------------------------------------------------------- OVERLAY */}
+      <PanelSection
+        title="Overlay"
+        expanded={isOpen("overlay")}
+        onToggle={() => toggle("overlay")}
+      >
+        <ControlRow label="Layer">
+          <Toggle
+            checked={state.overlay.enabled}
+            onChange={(enabled) => onChange({ overlay: { ...state.overlay, enabled } })}
+            label="Overlay layer"
+          />
+        </ControlRow>
+
+        {state.overlay.enabled ? (
+          <div className="mt-[8px]">
+            <div className="mb-[8px]">
+              <Tabs
+                value={state.overlay.shape}
+                onChange={(shape) => onChange({ overlay: { ...state.overlay, shape: shape as OverlayShape } })}
+                options={OVERLAY_SHAPES.map((o) => ({ id: o.id, label: o.label }))}
+              />
+            </div>
+
+            <ColorRow
+              label="Colour"
+              value={state.overlay.color}
+              onChange={(color) => onChange({ overlay: { ...state.overlay, color } })}
+            />
+            <ParamRow label="Opacity" value={state.overlay.opacity} {...OVERLAY_RANGES.opacity} decimals={2} defaultValue={DEFAULT_OVERLAY.opacity} onChange={(opacity) => onChange({ overlay: { ...state.overlay, opacity } })} />
+            <ParamRow label="Blur" value={state.overlay.blur} {...OVERLAY_RANGES.blur} decimals={3} defaultValue={DEFAULT_OVERLAY.blur} onChange={(blur) => onChange({ overlay: { ...state.overlay, blur } })} />
+
+            {/* How the blur varies across the layer. Uniform is one radius
+                everywhere; the other two fade it out, which is what reads as a
+                blur that strengthens as it travels. */}
+            <div className="my-[8px]">
+              <Tabs
+                value={state.overlay.fade}
+                onChange={(fade) => onChange({ overlay: { ...state.overlay, fade: fade as OverlayFade } })}
+                options={OVERLAY_FADES.map((o) => ({ id: o.id, label: o.label }))}
+              />
+            </div>
+            {state.overlay.fade === "linear" ? (
+              <ParamRow label="Direction" value={state.overlay.angle} {...OVERLAY_RANGES.angle} defaultValue={DEFAULT_OVERLAY.angle} onChange={(angle) => onChange({ overlay: { ...state.overlay, angle } })} />
+            ) : null}
+
+            <ParamRow label="X" value={state.overlay.x} {...OVERLAY_RANGES.x} decimals={3} defaultValue={DEFAULT_OVERLAY.x} onChange={(x) => onChange({ overlay: { ...state.overlay, x } })} />
+            <ParamRow label="Y" value={state.overlay.y} {...OVERLAY_RANGES.y} decimals={3} defaultValue={DEFAULT_OVERLAY.y} onChange={(y) => onChange({ overlay: { ...state.overlay, y } })} />
+            <ParamRow label="Width" value={state.overlay.width} {...OVERLAY_RANGES.width} decimals={2} defaultValue={DEFAULT_OVERLAY.width} onChange={(width) => onChange({ overlay: { ...state.overlay, width } })} />
+            <ParamRow label="Height" value={state.overlay.height} {...OVERLAY_RANGES.height} decimals={2} defaultValue={DEFAULT_OVERLAY.height} onChange={(height) => onChange({ overlay: { ...state.overlay, height } })} />
+          </div>
+        ) : null}
+      </PanelSection>
 
       {/* ---------------------------------------------------------- SHADOW */}
       <PanelSection

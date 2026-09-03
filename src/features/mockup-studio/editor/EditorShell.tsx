@@ -21,6 +21,8 @@ import { useScreenTexture } from "../useScreenTexture";
 import { useBroadcastLink } from "../broadcast/useBroadcastLink";
 import { RightPanel } from "./RightPanel";
 import { AspectSelect, getRatio } from "./framing";
+import { isOverlayActive } from "../overlay";
+import { OverlayLayer } from "../OverlayLayer";
 import { applyCanvasShadow, clearCanvasShadow } from "../shadow";
 import { EditorTheme, EditorThemeContext } from "./theme";
 import { Tabs, useEditorAccent, useEditorTheme } from "./primitives";
@@ -463,6 +465,25 @@ export default function EditorShell() {
     setState((prev) => ({ ...prev, animation: { ...prev.animation, ...patch } }));
   }, []);
 
+  /** The diamond: key this property here, or drop the key that is already here. */
+  const toggleKey = useCallback((property: AnimatableKey) => {
+    setState((prev) => {
+      const time = playheadRef.current;
+      const keys = prev.animation.tracks[property];
+      const existing = keyAt(keys, time);
+      const value = sampleAnimation(prev.animation, time)[property] ?? prev[property];
+      const nextKeys = existing
+        ? removeKey(keys, time)
+        : putKey(keys, time, value as number);
+      const tracks = { ...prev.animation.tracks };
+      // An empty array and no track are the same thing; keeping the empty one
+      // would leave a lane in the timeline with nothing in it.
+      if (nextKeys.length) tracks[property] = nextKeys;
+      else delete tracks[property];
+      return { ...prev, animation: { ...prev.animation, tracks } };
+    });
+  }, []);
+
   /**
    * Set the easing for the segment starting at `time`.
    *
@@ -551,6 +572,14 @@ export default function EditorShell() {
       setPlayhead(playheadRef.current);
     };
   }, [playing, animation.durationSec]);
+
+  const keyedNow = useMemo(() => {
+    const out: Partial<Record<AnimatableKey, boolean>> = {};
+    for (const [property, keys] of Object.entries(animation.tracks)) {
+      out[property as AnimatableKey] = Boolean(keyAt(keys, playhead));
+    }
+    return out;
+  }, [animation.tracks, playhead]);
 
   const animated = hasKeys(animation);
 
@@ -1118,6 +1147,8 @@ export default function EditorShell() {
           canMirror={canMirror}
           onStartMirror={startMirror}
           onStopMirror={stopMirror}
+          keyedNow={keyedNow}
+          onToggleKey={toggleKey}
           easing={animation.easing}
           onApplyPreset={applyMotionPreset}
           onExportPng={exportPng}
@@ -1190,6 +1221,13 @@ export default function EditorShell() {
             <div className="absolute right-[8px] top-[8px] z-20">
               <AspectSelect ratioId={ratioId} onRatioChange={setRatioId} />
             </div>
+            {/* Over the phone, under the chips. A layer blur is composited on
+                top of the shot by definition -- putting it below the canvas
+                would make it a background, which the Background section
+                already is. */}
+            {isOverlayActive(state.overlay) ? (
+              <OverlayLayer overlay={state.overlay} />
+            ) : null}
             <PhoneStage3D
               rail={undefined}
               screenTexture={screenTexture}
@@ -1264,6 +1302,8 @@ export default function EditorShell() {
           canMirror={canMirror}
           onStartMirror={startMirror}
           onStopMirror={stopMirror}
+          keyedNow={keyedNow}
+          onToggleKey={toggleKey}
           easing={animation.easing}
           onApplyPreset={applyMotionPreset}
           onExportPng={exportPng}

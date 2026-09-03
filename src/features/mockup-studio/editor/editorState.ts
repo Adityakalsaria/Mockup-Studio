@@ -1,4 +1,5 @@
 import { DEFAULT_BLUR, type BlurSettings } from "../blurStyles";
+import { DEFAULT_OVERLAY, type OverlaySettings } from "../overlay";
 import { DEFAULT_FINISH_ID } from "../finishes";
 import { DEFAULT_BACKGROUND, type BackgroundSettings } from "../backgrounds";
 import { DEFAULT_DEVICE_ID } from "../devices";
@@ -50,6 +51,7 @@ export interface EditorState {
 
   /* BLUR */
   blur: BlurSettings;
+  overlay: OverlaySettings;
 
   /* CANVAS */
   background: BackgroundSettings;
@@ -96,6 +98,7 @@ export const DEFAULT_EDITOR_STATE: EditorState = {
   panY: 0,
 
   blur: DEFAULT_BLUR,
+  overlay: DEFAULT_OVERLAY,
   background: DEFAULT_BACKGROUND,
   shadow: DEFAULT_SHADOW,
   lighting: DEFAULT_LIGHTING,
