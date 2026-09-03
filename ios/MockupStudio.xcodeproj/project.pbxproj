@@ -1,0 +1,519 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0106A37E9BF7D16E109F028A /* SignalClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2309EB3FF6EF381161E0481 /* SignalClient.swift */; };
+		2CBC4FFCA67A22844019A25D /* BroadcastConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24DC49E011BD6AF8C79080CF /* BroadcastConfig.swift */; };
+		4A8ECF42A707E2F7F3A0D345 /* SampleHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA928ABD3621FC10E1B08759 /* SampleHandler.swift */; };
+		5CBAF364095F6CD8CD40AF20 /* WebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = 6288484588E953C4285E0650 /* WebRTC */; };
+		636C7FB19B8B54612B317B7E /* BroadcastExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CD5FF8FDB472469A4A84B06D /* BroadcastExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		644C34975096EEB36C52CD01 /* PairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06D524C23FD7F1C67E8727C1 /* PairingView.swift */; };
+		6EEEEB95485E51EA4877317F /* MotionSender.swift in Sources */ = {isa = PBXBuildFile; fileRef = C97D33785C5B39D8CF6BDC65 /* MotionSender.swift */; };
+		A240E823741A94C07B24C621 /* WebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = DBDFD25D9D94F74CADB5FEDF /* WebRTC */; };
+		BC7924F045A0E84AB80BF933 /* MockupStudioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D0625D241BBF2628DF0FE97 /* MockupStudioApp.swift */; };
+		C5F9479B471102D8FFE23BB9 /* SignalClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2309EB3FF6EF381161E0481 /* SignalClient.swift */; };
+		CEA8384C844CCFBB9BD32BA0 /* MotionSender.swift in Sources */ = {isa = PBXBuildFile; fileRef = C97D33785C5B39D8CF6BDC65 /* MotionSender.swift */; };
+		F376C7E66B5C660F01856F7D /* BroadcastConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24DC49E011BD6AF8C79080CF /* BroadcastConfig.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		4FA708A2510A80829A5AD3B8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C144B6749A12ECAB1243E63D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4D55A2220005E2D94B11DEDD;
+			remoteInfo = BroadcastExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		E6D8624E4FFAE41275C923DE /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				636C7FB19B8B54612B317B7E /* BroadcastExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		06D524C23FD7F1C67E8727C1 /* PairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingView.swift; sourceTree = "<group>"; };
+		1742AF92A3BB8575733505C7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		24DC49E011BD6AF8C79080CF /* BroadcastConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BroadcastConfig.swift; sourceTree = "<group>"; };
+		35A692472570216894DCE077 /* MockupStudio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MockupStudio.entitlements; sourceTree = "<group>"; };
+		4D0625D241BBF2628DF0FE97 /* MockupStudioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockupStudioApp.swift; sourceTree = "<group>"; };
+		7E7C9B42E4A0286317B3F9B5 /* MockupStudio.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MockupStudio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C97D33785C5B39D8CF6BDC65 /* MotionSender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionSender.swift; sourceTree = "<group>"; };
+		CA82DAA88112CAF7E50893EE /* BroadcastExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BroadcastExtension.entitlements; sourceTree = "<group>"; };
+		CD5FF8FDB472469A4A84B06D /* BroadcastExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = BroadcastExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D1CFC8D9B22FB0080D9C1115 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		F2309EB3FF6EF381161E0481 /* SignalClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalClient.swift; sourceTree = "<group>"; };
+		FA928ABD3621FC10E1B08759 /* SampleHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleHandler.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E9AAABA1D1B2EE699B3BF528 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A240E823741A94C07B24C621 /* WebRTC in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F210E8399F08E7DFA370EAFA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5CBAF364095F6CD8CD40AF20 /* WebRTC in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		090B0E5D763213B32DAE9917 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				1742AF92A3BB8575733505C7 /* Info.plist */,
+				35A692472570216894DCE077 /* MockupStudio.entitlements */,
+				4D0625D241BBF2628DF0FE97 /* MockupStudioApp.swift */,
+				06D524C23FD7F1C67E8727C1 /* PairingView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		26C5D0448FEBE1874DD0F3B1 = {
+			isa = PBXGroup;
+			children = (
+				090B0E5D763213B32DAE9917 /* App */,
+				8C842137420CC3C12C8FCD20 /* BroadcastExtension */,
+				63AC018B0BE3FF286DA3B203 /* Shared */,
+				4DF1FE556F51FA0ACDE26DC2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		4DF1FE556F51FA0ACDE26DC2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CD5FF8FDB472469A4A84B06D /* BroadcastExtension.appex */,
+				7E7C9B42E4A0286317B3F9B5 /* MockupStudio.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		63AC018B0BE3FF286DA3B203 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				24DC49E011BD6AF8C79080CF /* BroadcastConfig.swift */,
+				C97D33785C5B39D8CF6BDC65 /* MotionSender.swift */,
+				F2309EB3FF6EF381161E0481 /* SignalClient.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		8C842137420CC3C12C8FCD20 /* BroadcastExtension */ = {
+			isa = PBXGroup;
+			children = (
+				CA82DAA88112CAF7E50893EE /* BroadcastExtension.entitlements */,
+				D1CFC8D9B22FB0080D9C1115 /* Info.plist */,
+				FA928ABD3621FC10E1B08759 /* SampleHandler.swift */,
+			);
+			path = BroadcastExtension;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		3969491B8791B7E60880FC7E /* MockupStudio */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0058E3ACDCE8256DD9823722 /* Build configuration list for PBXNativeTarget "MockupStudio" */;
+			buildPhases = (
+				CE6A5B93BC181DFB59C22BB9 /* Sources */,
+				F210E8399F08E7DFA370EAFA /* Frameworks */,
+				E6D8624E4FFAE41275C923DE /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				910395BCB59D7C75E791CCCB /* PBXTargetDependency */,
+			);
+			name = MockupStudio;
+			packageProductDependencies = (
+				6288484588E953C4285E0650 /* WebRTC */,
+			);
+			productName = MockupStudio;
+			productReference = 7E7C9B42E4A0286317B3F9B5 /* MockupStudio.app */;
+			productType = "com.apple.product-type.application";
+		};
+		4D55A2220005E2D94B11DEDD /* BroadcastExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 28E4E24149EFE6A749C98452 /* Build configuration list for PBXNativeTarget "BroadcastExtension" */;
+			buildPhases = (
+				5122D0200BF967A06F83659D /* Sources */,
+				E9AAABA1D1B2EE699B3BF528 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BroadcastExtension;
+			packageProductDependencies = (
+				DBDFD25D9D94F74CADB5FEDF /* WebRTC */,
+			);
+			productName = BroadcastExtension;
+			productReference = CD5FF8FDB472469A4A84B06D /* BroadcastExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C144B6749A12ECAB1243E63D /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					3969491B8791B7E60880FC7E = {
+						DevelopmentTeam = SK3G8M6N54;
+						ProvisioningStyle = Automatic;
+					};
+					4D55A2220005E2D94B11DEDD = {
+						DevelopmentTeam = SK3G8M6N54;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = A5B891F6A6DD087FD2FB5362 /* Build configuration list for PBXProject "MockupStudio" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 26C5D0448FEBE1874DD0F3B1;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				EAAE75FC4E7C0F9D5D4BA1A9 /* XCRemoteSwiftPackageReference "WebRTC" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 4DF1FE556F51FA0ACDE26DC2 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				3969491B8791B7E60880FC7E /* MockupStudio */,
+				4D55A2220005E2D94B11DEDD /* BroadcastExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		5122D0200BF967A06F83659D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F376C7E66B5C660F01856F7D /* BroadcastConfig.swift in Sources */,
+				6EEEEB95485E51EA4877317F /* MotionSender.swift in Sources */,
+				4A8ECF42A707E2F7F3A0D345 /* SampleHandler.swift in Sources */,
+				C5F9479B471102D8FFE23BB9 /* SignalClient.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE6A5B93BC181DFB59C22BB9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2CBC4FFCA67A22844019A25D /* BroadcastConfig.swift in Sources */,
+				BC7924F045A0E84AB80BF933 /* MockupStudioApp.swift in Sources */,
+				CEA8384C844CCFBB9BD32BA0 /* MotionSender.swift in Sources */,
+				644C34975096EEB36C52CD01 /* PairingView.swift in Sources */,
+				0106A37E9BF7D16E109F028A /* SignalClient.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		910395BCB59D7C75E791CCCB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4D55A2220005E2D94B11DEDD /* BroadcastExtension */;
+			targetProxy = 4FA708A2510A80829A5AD3B8 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		75D441BF2F48DDB66F2B60E6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/MockupStudio.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SK3G8M6N54;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.koshmoney.mockupstudio;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		7DC5A87CD0910BF50DF6BDFB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = BroadcastExtension/BroadcastExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SK3G8M6N54;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BroadcastExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.koshmoney.mockupstudio.broadcast;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		99338A7B599017F2F4C796A8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		AAF5E7FB488A59C8F1FE8A6E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = BroadcastExtension/BroadcastExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SK3G8M6N54;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BroadcastExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.koshmoney.mockupstudio.broadcast;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		D4394FBA07F5A156A5DDFDB8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/MockupStudio.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SK3G8M6N54;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.koshmoney.mockupstudio;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		DC12301839C9288EFF26E5CC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0058E3ACDCE8256DD9823722 /* Build configuration list for PBXNativeTarget "MockupStudio" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D4394FBA07F5A156A5DDFDB8 /* Debug */,
+				75D441BF2F48DDB66F2B60E6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		28E4E24149EFE6A749C98452 /* Build configuration list for PBXNativeTarget "BroadcastExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AAF5E7FB488A59C8F1FE8A6E /* Debug */,
+				7DC5A87CD0910BF50DF6BDFB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A5B891F6A6DD087FD2FB5362 /* Build configuration list for PBXProject "MockupStudio" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DC12301839C9288EFF26E5CC /* Debug */,
+				99338A7B599017F2F4C796A8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		EAAE75FC4E7C0F9D5D4BA1A9 /* XCRemoteSwiftPackageReference "WebRTC" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/stasel/WebRTC";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 152.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		6288484588E953C4285E0650 /* WebRTC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EAAE75FC4E7C0F9D5D4BA1A9 /* XCRemoteSwiftPackageReference "WebRTC" */;
+			productName = WebRTC;
+		};
+		DBDFD25D9D94F74CADB5FEDF /* WebRTC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EAAE75FC4E7C0F9D5D4BA1A9 /* XCRemoteSwiftPackageReference "WebRTC" */;
+			productName = WebRTC;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = C144B6749A12ECAB1243E63D /* Project object */;
+}

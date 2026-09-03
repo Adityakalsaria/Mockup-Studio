@@ -18,6 +18,7 @@ import { Timeline } from "./Timeline";
 import { fitToClip, getMotionPreset } from "./motionPresets";
 import { useFilmstrip } from "./useFilmstrip";
 import { useScreenTexture } from "../useScreenTexture";
+import { useBroadcastLink } from "../broadcast/useBroadcastLink";
 import { RightPanel } from "./RightPanel";
 import { AspectSelect, getRatio } from "./framing";
 import { applyCanvasShadow, clearCanvasShadow } from "../shadow";
@@ -26,6 +27,7 @@ import { Tabs, useEditorAccent, useEditorTheme } from "./primitives";
 import { getAccent } from "./accents";
 import { Icon } from "./icons";
 import {
+  BROADCAST_SCREEN_FIT,
   DEFAULT_EDITOR_STATE,
   MIRROR_SCREEN_FIT,
   RANGES,
@@ -265,7 +267,41 @@ export default function EditorShell() {
   const coverHostRef = useRef<HTMLDivElement>(null);
 
   // A live window capture, when one is running. See `startMirror` below.
-  const [liveStream, setLiveStream] = useState<MediaStream | null>(null);
+  const [windowStream, setWindowStream] = useState<MediaStream | null>(null);
+
+  /**
+   * A direct iPhone broadcast, when one is running.
+   *
+   * Signalling goes through /api/broadcast on this machine; the frames come
+   * peer to peer over the LAN and never touch the Next process.
+   */
+  const broadcast = useBroadcastLink();
+
+  /**
+   * What is actually driving the screen.
+   *
+   * Derived rather than a third piece of state, so the two live sources cannot
+   * disagree about which one is showing. The broadcast wins: it is the more
+   * deliberate act — you scanned a code for it — where a window capture may
+   * still be running from earlier in the session.
+   */
+  const liveStream = broadcast.stream ?? windowStream;
+
+  /**
+   * A broadcast arrives already framed, so it gets the neutral fit.
+   *
+   * Without this a session that follows a window mirror inherits that
+   * preset's zoom and offset, and the phone shows a correct capture cropped
+   * for chrome that is not there.
+   */
+  const hasBroadcast = Boolean(broadcast.stream);
+  useEffect(() => {
+    if (!hasBroadcast) return;
+    setState((prev) => ({ ...prev, ...BROADCAST_SCREEN_FIT }));
+  }, [hasBroadcast]);
+
+  // Phone pairing for the gyro. Off until the panel is opened, so a session
+  // that never pairs opens no event stream and fetches no QR.
   // Resolved in an effect, not during render: this route is prerendered, and
   // `navigator` does not exist on the server. Starting false also means the
   // control never flashes in before we know the browser can honour it.
@@ -737,7 +773,7 @@ export default function EditorShell() {
   };
 
   const stopMirror = useCallback(() => {
-    setLiveStream((current) => {
+    setWindowStream((current) => {
       current?.getTracks().forEach((track) => track.stop());
       return null;
     });
@@ -780,8 +816,8 @@ export default function EditorShell() {
       // Ending the share from the browser's own "Stop sharing" bar fires here.
       // Without this the panel would keep claiming to mirror a window whose
       // track has already gone black.
-      stream.getVideoTracks()[0]?.addEventListener("ended", () => setLiveStream(null));
-      setLiveStream((previous) => {
+      stream.getVideoTracks()[0]?.addEventListener("ended", () => setWindowStream(null));
+      setWindowStream((previous) => {
         previous?.getTracks().forEach((track) => track.stop());
         return stream;
       });
@@ -1078,6 +1114,7 @@ export default function EditorShell() {
             setSourceName(null);
           }}
           isMirroring={Boolean(liveStream)}
+          broadcast={broadcast}
           canMirror={canMirror}
           onStartMirror={startMirror}
           onStopMirror={stopMirror}
@@ -1223,6 +1260,7 @@ export default function EditorShell() {
             setSourceName(null);
           }}
           isMirroring={Boolean(liveStream)}
+          broadcast={broadcast}
           canMirror={canMirror}
           onStartMirror={startMirror}
           onStopMirror={stopMirror}

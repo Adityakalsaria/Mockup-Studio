@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { isVideoSource } from "../useScreenTexture";
+import type { BroadcastLink } from "../broadcast/useBroadcastLink";
 import { DEVICES, getDevice } from "../devices";
 import { FINISHES } from "../finishes";
 import {
@@ -44,6 +45,7 @@ export function RightPanel({
   onClearSource,
   onPickBackgroundImage,
   isMirroring,
+  broadcast,
   canMirror,
   onStartMirror,
   onStopMirror,
@@ -77,6 +79,8 @@ export function RightPanel({
   onPickBackgroundImage: () => void;
   /** A live window capture is currently driving the screen. */
   isMirroring: boolean;
+  /** The direct iPhone broadcast: pairing QR, connection state, controls. */
+  broadcast: BroadcastLink;
   /** False where the browser has no `getDisplayMedia` — every mobile browser,
       and any insecure context. Hides the control rather than offering a button
       that can only fail. */
@@ -206,16 +210,25 @@ export function RightPanel({
                 style={{ background: "var(--ks-accent)" }}
               />
               <span className="ks-label" style={{ color: "var(--ks-ctl-text)" }}>
-                Mirroring a window
+                {broadcast.stream ? "Broadcasting from iPhone" : "Mirroring a window"}
               </span>
               <span className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>
                 Live on the phone
               </span>
+              {broadcast.stream ? (
+                <span
+                  className="ks-micro"
+                  style={{ color: "var(--ks-text-faint)", fontVariantNumeric: "tabular-nums" }}
+                >
+                  {broadcast.diagnostics.frameSize ?? "no frames yet"} ·{" "}
+                  {Math.round(broadcast.diagnostics.bytesReceived / 1024)} KB
+                </span>
+              ) : null}
             </div>
             <button
               type="button"
-              onClick={onStopMirror}
-              aria-label="Stop mirroring"
+              onClick={broadcast.stream ? broadcast.stop : onStopMirror}
+              aria-label={broadcast.stream ? "Stop broadcasting" : "Stop mirroring"}
               className="absolute right-[8px] top-[8px] grid h-[24px] w-[24px] place-items-center rounded-full"
               style={{ background: "rgba(0,0,0,0.4)", color: "#fff" }}
             >
@@ -282,6 +295,63 @@ export function RightPanel({
         {!isMirroring && canMirror ? (
           <div className="mt-[8px]">
             <PillButton onClick={onStartMirror}>Mirror a window</PillButton>
+          </div>
+        ) : null}
+
+        {/* Direct from the iPhone, over the LAN.
+            The app scans this code and opens a WebRTC connection straight to
+            this browser — the signalling below is a few kilobytes of text
+            through /api/broadcast, and the frames never touch the server. */}
+        {!isMirroring ? (
+          <div className="mt-[8px]">
+            {broadcast.state === "idle" || broadcast.state === "failed" ? (
+              <PillButton onClick={broadcast.start}>Broadcast from iPhone</PillButton>
+            ) : null}
+
+            {broadcast.state === "pairing" ? (
+              <span className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>
+                Opening a session…
+              </span>
+            ) : null}
+
+            {(broadcast.state === "waiting" || broadcast.state === "connecting") &&
+            broadcast.qr ? (
+              <div
+                className="flex flex-col items-center gap-[8px] rounded-[var(--ks-r-card)] p-[12px]"
+                style={{ background: "var(--ks-row)" }}
+              >
+                <div
+                  className="h-[116px] w-[116px] [&>svg]:h-full [&>svg]:w-full"
+                  // The QR is an inline SVG from the pairing route, not user
+                  // input: it is generated server-side from an address this
+                  // machine reported about itself.
+                  dangerouslySetInnerHTML={{ __html: broadcast.qr }}
+                />
+                <span className="ks-micro" style={{ color: "var(--ks-text-dim)" }}>
+                  {broadcast.state === "connecting"
+                    ? "Connecting…"
+                    : "Scan in the Mockup Studio app"}
+                </span>
+                <BroadcastDiagnostics broadcast={broadcast} />
+                <button
+                  type="button"
+                  onClick={broadcast.stop}
+                  className="ks-micro underline"
+                  style={{ color: "var(--ks-text-faint)" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : null}
+
+            {broadcast.state === "failed" && broadcast.reason ? (
+              <span
+                className="ks-micro mt-[6px] block"
+                style={{ color: "var(--ks-text-faint)" }}
+              >
+                {broadcast.reason}
+              </span>
+            ) : null}
           </div>
         ) : null}
 
@@ -813,3 +883,73 @@ export function RightPanel({
  * Where the radial blur focuses, picked directly. Two sliders would describe
  * a position; a pad is one, and this is a spatial decision.
  */
+
+/**
+ * Why a broadcast is not showing.
+ *
+ * Every stage of a WebRTC connection can look fine while the next one is dead,
+ * and none of it surfaces on its own — the symptom is always the same blank
+ * phone. Each row here is a stage, so the first one that is not green is the
+ * one to fix.
+ */
+function BroadcastDiagnostics({ broadcast }: { broadcast: BroadcastLink }) {
+  const d = broadcast.diagnostics;
+  const flowing = d.bytesReceived > 0;
+
+  const rows: Array<{ label: string; value: string; ok: boolean }> = [
+    { label: "Offer sent", value: d.offerSent ? "yes" : "no", ok: d.offerSent },
+    {
+      label: "Phone answered",
+      value: d.answerApplied ? "yes" : "waiting",
+      ok: d.answerApplied,
+    },
+    {
+      label: "Candidates",
+      value: `${d.localCandidates} sent · ${d.remoteCandidates} got`,
+      ok: d.localCandidates > 0 && d.remoteCandidates > 0,
+    },
+    { label: "ICE", value: d.ice, ok: d.ice === "connected" || d.ice === "completed" },
+    { label: "Connection", value: d.connection, ok: d.connection === "connected" },
+    { label: "Track", value: d.trackReceived ? "received" : "none", ok: d.trackReceived },
+    {
+      label: "Video",
+      value: flowing
+        ? `${d.frameSize ?? "?"} · ${d.framesDecoded} frames`
+        : "no data",
+      ok: flowing,
+    },
+  ];
+
+  return (
+    <div className="mt-[10px] flex w-full flex-col gap-[3px]">
+      {rows.map((row) => (
+        <div key={row.label} className="flex items-center justify-between gap-[8px]">
+          <span className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>
+            {row.label}
+          </span>
+          <span
+            className="ks-micro"
+            style={{
+              color: row.ok ? "var(--ks-accent)" : "var(--ks-text-faint)",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {row.value}
+          </span>
+        </div>
+      ))}
+
+      {/* The one failure mode that looks like every other failure mode. */}
+      {d.mdns && !flowing ? (
+        <span
+          className="ks-micro mt-[6px] leading-[1.4]"
+          style={{ color: "var(--ks-text-faint)" }}
+        >
+          This browser is hiding its local address behind an mDNS name, which the
+          phone may not resolve. In Chrome, set
+          chrome://flags/#enable-webrtc-hide-local-ips-with-mdns to Disabled.
+        </span>
+      ) : null}
+    </div>
+  );
+}
