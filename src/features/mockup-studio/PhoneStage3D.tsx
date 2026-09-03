@@ -3,7 +3,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { RoundedBox, useGLTF } from "@react-three/drei";
-import { Box3, ClampToEdgeWrapping, Color, ExtrudeGeometry, Group, Object3D, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
+import { Box3, ClampToEdgeWrapping, Color, DoubleSide, ExtrudeGeometry, Group, Object3D, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
 import type { Texture } from "three";
 import { AnimationMixer } from "three";
 // Not Object3D.clone(): that copies a SkinnedMesh but leaves it pointing at
@@ -677,20 +677,41 @@ function ImageCardScene({
     }
     uv.needsUpdate = true;
 
-    return { geometry };
+    /*
+     * The artwork gets its own plane, laid on the front.
+     *
+     * Extrude puts BOTH flat faces in one material group, so a single map on
+     * the card painted the back with a mirrored copy of the picture -- which
+     * is not what a printed card looks like from behind. Splitting that group
+     * means sorting triangles by depth and rebuilding the ranges; a separate
+     * plane is the same result for a fraction of the work, and it lets the
+     * front be unlit while the body stays lit.
+     */
+    const faceGeometry = makeRoundedRect(
+      width,
+      height,
+      Math.min(width, height) * radius,
+    );
+    // Half the card, plus enough to clear the bevel and not z-fight with it.
+    const faceZ = (flat ? 0.0005 : depth) / 2 + 0.0004;
+
+    return { geometry, faceGeometry, faceZ };
   }, [texture, radius, depth]);
 
   const face = useMemo(() => {
-    const m = new MeshBasicMaterial({ toneMapped: false });
+    const m = new MeshBasicMaterial({ toneMapped: false, side: DoubleSide });
     m.map = texture ?? null;
-    // No artwork yet: a blank card in the chosen finish, rather than a black
-    // hole where the picture will go.
+    // No artwork yet: the plane simply takes the finish, so an empty card is a
+    // blank card rather than a black hole where the picture will go.
     m.color.set(texture ? "#ffffff" : finish.color);
     return m;
   }, [texture, finish.color]);
 
   const edge = useMemo(() => {
-    const m = new MeshBasicMaterial({ toneMapped: false });
+    // Two-sided: an extruded card is a closed solid, but the caps are wound
+    // for a front view and the whole thing vanished the moment the camera got
+    // behind it. Cheaper to draw both faces than to trust the winding.
+    const m = new MeshBasicMaterial({ toneMapped: false, side: DoubleSide });
     m.color.set(finish.color);
     return m;
   }, [finish.color]);
@@ -704,9 +725,31 @@ function ImageCardScene({
     /* eslint-enable react-hooks/immutability */
   }, [texture]);
 
-  // Extrude groups its own output: 0 is the two flat faces, 1 is the wall
-  // around them, which is exactly the split this wants.
-  return <mesh geometry={built.geometry} material={[face, edge]} />;
+  return (
+    <group>
+      {/* The card itself: blank on both faces and around the wall. */}
+      <mesh geometry={built.geometry} material={edge} />
+      {/*
+        * The artwork, on the face the camera is actually on.
+        *
+        * The stage opens at yAxis 180, because the phone GLBs put their screen
+        * on -z -- so the side you see is the model's BACK in its own terms.
+        * Extrude builds forward along +z, which is why the card first arrived
+        * showing a blank face, and why raising the thickness pushed the
+        * picture further away until the body hid it. One cause, both symptoms:
+        * the plane was sitting on the side nobody was looking at.
+        *
+        * Mirrored in x rather than turned, so it reads the right way round
+        * from that side instead of back to front.
+        */}
+      <mesh
+        geometry={built.faceGeometry}
+        material={face}
+        position={[0, 0, -built.faceZ]}
+        scale={[-1, 1, 1]}
+      />
+    </group>
+  );
 }
 
 /**
