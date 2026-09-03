@@ -118,7 +118,13 @@ function loadShot(): EditorState {
   }
 }
 
-export default function EditorShell() {
+export default function EditorShell({
+  /** The signed-in address, or null when auth is not configured. Display only
+      -- the gate is on the server, and a prop cannot be trusted to hold it. */
+  userEmail = null,
+}: {
+  userEmail?: string | null;
+}) {
   const [theme, toggleTheme] = useEditorTheme();
   const [accent, setAccent] = useEditorAccent();
   const [state, setState] = useState<EditorState>(loadShot);
@@ -1230,6 +1236,7 @@ export default function EditorShell() {
           onToggleTheme={toggleTheme}
           accent={accent}
           onAccentChange={setAccent}
+          userEmail={userEmail}
         />
         </div>
 
@@ -1387,6 +1394,7 @@ export default function EditorShell() {
           onToggleTheme={toggleTheme}
           accent={accent}
           onAccentChange={setAccent}
+          userEmail={userEmail}
         />
         </div>
       </div>

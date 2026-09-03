@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { isVideoSource } from "../useScreenTexture";
 import type { BroadcastLink } from "../broadcast/useBroadcastLink";
+import { AccountChip } from "./AccountChip";
 import { DEVICES, getDevice } from "../devices";
 import { FINISHES } from "../finishes";
 import {
@@ -63,6 +64,7 @@ export function RightPanel({
   onToggleTheme,
   accent,
   onAccentChange,
+  userEmail,
 }: {
   /**
    * Which flank this instance is. One component renders both panels rather
@@ -105,6 +107,8 @@ export function RightPanel({
   onToggleTheme: () => void;
   accent: AccentId;
   onAccentChange: (next: AccentId) => void;
+  /** Signed-in address, or null when auth is off. */
+  userEmail?: string | null;
   /** Properties with a keyframe sitting exactly on the playhead. */
 }) {
   const [open, setOpen] = useState<Set<SectionId>>(
@@ -171,6 +175,10 @@ export function RightPanel({
       <div className="flex h-[46px] shrink-0 items-center justify-end">
         {side === "right" ? (
         <div className="flex items-center gap-[var(--ks-space-1)]">
+        {/* Who you are, and the way out. Only when there is an account to
+            show -- with auth unconfigured this would be a control that reports
+            nothing and signs nobody out. */}
+        {userEmail ? <AccountChip email={userEmail} /> : null}
         <AccentPicker accent={accent} theme={theme} onChange={onAccentChange} />
         <button
           type="button"

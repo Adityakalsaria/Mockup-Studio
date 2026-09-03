@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { signIn, signUp, type AuthResult } from "../actions";
 
 /**
@@ -11,6 +12,7 @@ import { signIn, signUp, type AuthResult } from "../actions";
  * that changes is which action the submit runs.
  */
 export default function SignInPage() {
+  const nextPath = useSearchParams().get("next") ?? "";
   const [mode, setMode] = useState<"in" | "up">("in");
   const action = mode === "in" ? signIn : signUp;
   const [result, submit, pending] = useActionState<AuthResult, FormData>(action, undefined);
@@ -29,6 +31,9 @@ export default function SignInPage() {
       </div>
 
       <form action={submit} className="flex flex-col gap-[10px]">
+        {/* Carried through the form rather than read from the URL in the
+            action: a server action has no access to the page's query string. */}
+        <input type="hidden" name="next" value={nextPath} />
         <input
           name="email"
           type="email"

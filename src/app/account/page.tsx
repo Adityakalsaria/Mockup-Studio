@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/supabase/auth";
 import { signOut } from "../auth/actions";
 
 /**
@@ -10,14 +10,16 @@ import { signOut } from "../auth/actions";
  * to be verified, and that is what getUser does.
  */
 export default async function AccountPage() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/auth/sign-in");
+  // currentUser returns null when the project is unconfigured rather than
+  // constructing a client with undefined keys, which threw a 500 on a machine
+  // that simply had no .env.local yet.
+  const user = await currentUser();
+  if (!user) redirect("/auth/sign-in");
 
   return (
     <main className="mx-auto flex min-h-[70svh] w-full max-w-[360px] flex-col justify-center gap-[16px] px-[20px]">
       <h1 className="text-[22px] font-semibold tracking-[-0.01em]">Signed in</h1>
-      <p className="text-[14px] opacity-70">{data.user.email}</p>
+      <p className="text-[14px] opacity-70">{user.email}</p>
       <form action={signOut}>
         <button
           type="submit"

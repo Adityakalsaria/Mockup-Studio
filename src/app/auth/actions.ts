@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/auth";
 
 /**
  * Sign in, sign up and sign out, as server actions.
@@ -17,10 +18,25 @@ import { createClient } from "@/lib/supabase/server";
  */
 export type AuthResult = { error: string } | undefined;
 
+/**
+ * Where to go after signing in.
+ *
+ * Only same-origin paths. A "next" straight off a query string is an open
+ * redirect -- somebody links to the real sign-in page with next=//evil.example
+ * and the site itself delivers the victim there, wearing our domain.
+ */
+function safeNext(value: FormData | string | null): string {
+  const raw = typeof value === "string" ? value : String((value as FormData)?.get?.("next") ?? "");
+  return raw.startsWith("/") && !raw.startsWith("//") ? raw : "/account";
+}
+
 export async function signIn(_prev: AuthResult, formData: FormData): Promise<AuthResult> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   if (!email || !password) return { error: "Enter your email and password." };
+  // Unconfigured is a normal state on a fresh clone. Say so, rather than
+  // throwing a 500 out of a login form.
+  if (!isSupabaseConfigured()) return { error: "Sign-in is not configured yet." };
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -29,7 +45,7 @@ export async function signIn(_prev: AuthResult, formData: FormData): Promise<Aut
   if (error) return { error: "That email and password do not match." };
 
   revalidatePath("/", "layout");
-  redirect("/account");
+  redirect(safeNext(formData));
 }
 
 export async function signUp(_prev: AuthResult, formData: FormData): Promise<AuthResult> {
@@ -39,16 +55,20 @@ export async function signUp(_prev: AuthResult, formData: FormData): Promise<Aut
   // Supabase enforces its own minimum; this is only so the form can say so
   // before spending a round trip on it.
   if (password.length < 8) return { error: "Use at least 8 characters." };
+  // Unconfigured is a normal state on a fresh clone. Say so, rather than
+  // throwing a 500 out of a login form.
+  if (!isSupabaseConfigured()) return { error: "Sign-in is not configured yet." };
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signUp({ email, password });
   if (error) return { error: error.message };
 
   revalidatePath("/", "layout");
-  redirect("/account");
+  redirect(safeNext(formData));
 }
 
 export async function signOut() {
+  if (!isSupabaseConfigured()) redirect("/auth/sign-in");
   const supabase = await createClient();
   await supabase.auth.signOut();
   revalidatePath("/", "layout");
