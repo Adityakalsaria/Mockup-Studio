@@ -218,8 +218,14 @@ export interface Device {
    * against a black finish came out as a bright white sticker.
    */
   logoMaterials?: string[];
-  /** How opaque those marks are, 0..1. */
-  logoOpacity?: number;
+  /**
+   * The colour those marks render at.
+   *
+   * A fixed light grey rather than a tint of the finish: an etched logo is the
+   * same anodised grey whatever colour the body is, and following the finish
+   * would make it vanish on a light one.
+   */
+  logoColor?: string;
   /** Licence + author. Required for anything that ships. */
   credit: string;
 }
@@ -282,7 +288,9 @@ export const DEVICES: Device[] = [
     // an alpha of 0.94, so both fell through the finish pass as glass.
     bodyMaterials: ["Frosted glass", "Tinted glass"],
     logoMaterials: ["Metal tint"],
-    logoOpacity: 0.1,
+    // Matched to the side button in the same model, which is the look this is
+    // after: a light grey that reads as milled metal rather than as paint.
+    logoColor: "#9c9c9c",
     // The outer panel, measured at 77.2 x 115.1mm in the file. Upright and
     // the right way round without help, unlike the inner one.
     coverScreen: {

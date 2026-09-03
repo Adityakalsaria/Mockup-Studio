@@ -1164,25 +1164,23 @@ function GLBPhoneScene({
           if (typeof candidate.clone !== "function") return mat;
           const mark = candidate.clone() as typeof candidate;
           /*
-           * Composited against the body rather than made transparent.
+           * A milled mark, not a printed one.
            *
-           * Real alpha disappeared: the logo is flush against the back panel,
-           * and two coplanar surfaces where the front one is 10% opaque is
-           * exactly the case depth sorting cannot resolve -- it dropped out of
-           * the render entirely rather than going faint.
+           * Two earlier passes got this wrong. Tinting it with the finish hid
+           * it; making it 10% transparent removed it altogether, because it
+           * sits flush against the back panel and two coplanar surfaces where
+           * the front one is nearly clear is exactly what depth sorting cannot
+           * resolve.
            *
-           * The thing behind it is the body, whose colour is known here, so the
-           * blend can just be done up front. Same result, no transparency, no
-           * sorting, and it survives every finish because it is mixed from
-           * whichever one is selected.
+           * What it wants is the model own trim: a light grey, mostly matte,
+           * and holding back from the environment. The blown-out white came
+           * from the studio rig -- at full env strength a smooth light surface
+           * on a flat back mirrors the lighting straight down the lens.
            */
-          mark.color?.set?.(
-            `#${new Color(bodyColor)
-              .lerp(new Color("#ffffff"), device.logoOpacity ?? 0.1)
-              .getHexString()}`,
-          );
-          if ("metalness" in mark) mark.metalness = 0;
-          if ("roughness" in mark) mark.roughness = 0.35;
+          mark.color?.set?.(device.logoColor ?? "#9c9c9c");
+          if ("metalness" in mark) mark.metalness = 0.1;
+          if ("roughness" in mark) mark.roughness = 0.55;
+          if ("envMapIntensity" in mark) mark.envMapIntensity = 0.25;
           if ("transparent" in mark) mark.transparent = false;
           if ("opacity" in mark) mark.opacity = 1;
           return mark;
