@@ -772,6 +772,10 @@ function GLBPhoneScene({
   fold,
   coverTexture,
   coverScreenFit,
+  animation,
+  timeRef,
+  playing,
+  immediate,
 }: {
   screenTexture: Texture | null;
   device: Device;
@@ -782,6 +786,12 @@ function GLBPhoneScene({
   /** Source for the second screen, where the device has one. */
   coverTexture?: Texture | null;
   coverScreenFit?: { scale: number; offsetX: number; offsetY: number };
+  /** The hinge is sampled in the frame loop, so playback and export drive it
+      at render rate rather than at React's. */
+  animation?: Animation;
+  timeRef?: React.RefObject<number>;
+  playing?: boolean;
+  immediate?: boolean;
 }) {
   const { color: bodyColor, metalness: bodyMetalness, roughness: bodyRoughness } =
     getFinish(finishId);
@@ -1267,22 +1277,57 @@ function GLBPhoneScene({
   const maxAnisotropy = useThree((state) => state.gl.capabilities.getMaxAnisotropy());
 
   /*
-   * Scrub the hinge.
+   * Drive the hinge from the frame loop, not from React.
    *
-   * setTime on the mixer rather than playing the clip: the fold is a setting,
-   * not a motion, so it holds wherever it is put and costs nothing when it is
-   * not being moved. The demand loop has to be told, since nothing about the
-   * scene graph changing wakes it by itself.
+   * It used to be an effect on the `fold` prop, which meant the hinge only
+   * moved when React re-rendered. Two things fell out of that. During playback
+   * and export the pose is sampled per FRAME from `timeRef` and React is not
+   * in that path at all, so an animated fold rendered partly or not at all --
+   * the export especially, which advances time and draws without ever
+   * re-rendering. And interactively it stepped at React's cadence while every
+   * other transform was being smoothed by the spring in PhoneScene, so it read
+   * as coarse next to a rigid phone whose moves are all critically damped.
    *
-   * Deliberately NOT remeasuring afterwards -- see the note in the memo.
+   * Here it goes through the same spring at the same omega, off the same
+   * clock as the rest of the phone.
    */
   const foldRange = device.fold;
-  useEffect(() => {
+  const foldVel = useRef<Record<string, number>>({ f: 0 });
+  const foldNow = useRef<number | null>(null);
+  useFrame((state, dt) => {
     if (!mixer || !foldRange) return;
-    const t = (fold ?? 0) / 100;
-    mixer.setTime(foldRange.openSec + (foldRange.closedSec - foldRange.openSec) * t);
+    let target = fold ?? 0;
+    if (animation && timeRef) {
+      const pose = sampleAnimation(animation, timeRef.current);
+      if (pose.fold !== undefined) target = pose.fold;
+    }
+    // Playback and export ask for the pose they were given, exactly -- the
+    // spring is for a value you are dragging, and on a keyed track it would
+    // trail every keyframe and round off the extremes that were set on
+    // purpose.
+    if (foldNow.current === null || immediate || playing) {
+      foldNow.current = target;
+      foldVel.current.f = 0;
+    } else {
+      foldNow.current = springTo(foldNow.current, target, foldVel.current, "f", dt);
+    }
+    const t = foldNow.current / 100;
+    mixer.setTime(
+      foldRange.openSec + (foldRange.closedSec - foldRange.openSec) * t,
+    );
+    if (
+      Math.abs(foldNow.current - target) > 0.01 ||
+      Math.abs(foldVel.current.f) > 0.01
+    ) {
+      state.invalidate();
+    }
+  });
+
+  // A change while the loop is asleep has to wake it; the frame callback
+  // cannot ask for a frame it is not being given.
+  useEffect(() => {
     invalidate();
-  }, [mixer, foldRange, fold, invalidate]);
+  }, [fold, invalidate]);
 
   // Pulled apart so the effect depends on the three numbers rather than on the
   // object, which the editor rebuilds every render — depending on the object
@@ -1940,6 +1985,10 @@ function PhoneScene({
             fold={fold}
             coverTexture={coverTexture}
             coverScreenFit={coverScreenFit}
+            animation={animation}
+            timeRef={timeRef}
+            playing={playing}
+            immediate={immediate}
           />
         </Suspense>
       ) : (
