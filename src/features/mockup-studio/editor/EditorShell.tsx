@@ -1125,6 +1125,7 @@ export default function EditorShell() {
               rotateY={effective.yAxis}
               rotateZ={effective.zAxis}
               fov={effective.fov}
+              fold={state.fold}
               shadow={state.shadow}
               lighting={state.lighting}
               screenFit={{

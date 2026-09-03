@@ -408,6 +408,12 @@ export function RightPanel({
             <ParamRow label="X axis" value={state.xAxis} {...RANGES.xAxis} defaultValue={DEFAULT_EDITOR_STATE.xAxis} onChange={(xAxis) => onChange({ xAxis })} />
             <ParamRow label="Y axis" value={state.yAxis} {...RANGES.yAxis} defaultValue={DEFAULT_EDITOR_STATE.yAxis} onChange={(yAxis) => onChange({ yAxis })} />
             <ParamRow label="Z axis" value={state.zAxis} {...RANGES.zAxis} defaultValue={DEFAULT_EDITOR_STATE.zAxis} onChange={(zAxis) => onChange({ zAxis })} />
+            {/* Only where the model has a hinge. A Fold row on a rigid phone
+                would be a control that does nothing, which is worse than a
+                missing one -- it invites you to look for the effect. */}
+            {device.fold ? (
+              <ParamRow label="Fold" value={state.fold} {...RANGES.fold} defaultValue={DEFAULT_EDITOR_STATE.fold} onChange={(fold) => onChange({ fold })} />
+            ) : null}
             <ParamRow label="Zoom" value={state.zoom} {...RANGES.zoom} defaultValue={DEFAULT_EDITOR_STATE.zoom} decimals={2} onChange={(zoom) => onChange({ zoom })} />
             {/* No "Space drag" hint on the pans: the canvas only handles
                 drag-rotate and wheel-zoom, so panning is these rows only. */}

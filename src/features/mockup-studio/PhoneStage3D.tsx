@@ -5,6 +5,12 @@ import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { RoundedBox, useGLTF } from "@react-three/drei";
 import { Box3, ClampToEdgeWrapping, Group, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
 import type { Texture } from "three";
+import { AnimationMixer } from "three";
+// Not Object3D.clone(): that copies a SkinnedMesh but leaves it pointing at
+// the ORIGINAL skeleton, so posing the copy's bones moves nothing. This is
+// three's own fix for exactly that, and it behaves identically on models
+// with no skin, so it can be the single clone path rather than a branch.
+import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { Leva } from "leva";
 
 import { DEFAULT_DEVICE_ID, getDevice, type Device, type DeviceNotch } from "./devices";
@@ -763,19 +769,53 @@ function GLBPhoneScene({
   device,
   finishId,
   screenFit,
+  fold,
 }: {
   screenTexture: Texture | null;
   device: Device;
   finishId?: string;
   screenFit?: ScreenFit;
+  /** 0-100, how far the hinge is closed. Unused by rigid devices. */
+  fold?: number;
 }) {
   const { color: bodyColor, metalness: bodyMetalness, roughness: bodyRoughness } =
     getFinish(finishId);
   // Only ever mounted for a device that has one; the branch that chooses
   // between this and the generated bodies is in PhoneScene.
   const gltf = useGLTF(device.modelPath as string);
-  const { scene, width, height, depth, screen, screenMaterials } = useMemo(() => {
-    const cloned = gltf.scene.clone(true) as Group;
+  const { scene, width, height, depth, screen, screenMaterials, mixer } = useMemo(() => {
+    const cloned = cloneSkinned(gltf.scene) as Group;
+
+    /*
+     * Freeze the model at one frame of its own animation.
+     *
+     * A rigid phone has one pose and its node transforms are it. A folding one
+     * does not: the iPhone Fold ships a hinge animation, and its NODE
+     * transforms are just wherever the author left the rig -- for that file,
+     * the two leaves lying flat while the skinned inner display is still
+     * folded shut, which renders as a screen detached from the body.
+     *
+     * The coherent poses are the frames of the clip, so the pose is picked by
+     * asking for one. Sampled once and left there rather than played: this is
+     * a mockup studio, and the fold is a property of the device you chose, not
+     * something to animate.
+     *
+     * Done before the measuring below, so the fit and the screen placement see
+     * the pose that will actually be rendered.
+     */
+    const clip = gltf.animations?.[0];
+    let mixer: AnimationMixer | null = null;
+    if (device.fold && clip) {
+      mixer = new AnimationMixer(cloned);
+      mixer.clipAction(clip).play();
+      // Posed OPEN for the measuring below, whatever the hinge is currently
+      // set to. Measuring the live pose instead would refit the camera as the
+      // phone closed, so the thing would appear to grow while shutting -- and
+      // the screen, whose placement comes off the same measurement, would
+      // drift with it. One silhouette, taken at the pose the device is for.
+      mixer.setTime(device.fold.openSec);
+      cloned.updateMatrixWorld(true);
+    }
     /*
      * Stand the model up by MEASURING, not by naming an angle.
      *
@@ -1144,6 +1184,7 @@ function GLBPhoneScene({
       depth: size.z * scaleFactor,
       screen,
       screenMaterials,
+      mixer,
     };
   }, [gltf.scene, device, bodyColor, bodyMetalness, bodyRoughness]);
 
@@ -1153,6 +1194,25 @@ function GLBPhoneScene({
   // both default to true — leave it and the screenshot renders upside down.
   const invalidate = useThree((state) => state.invalidate);
   const maxAnisotropy = useThree((state) => state.gl.capabilities.getMaxAnisotropy());
+
+  /*
+   * Scrub the hinge.
+   *
+   * setTime on the mixer rather than playing the clip: the fold is a setting,
+   * not a motion, so it holds wherever it is put and costs nothing when it is
+   * not being moved. The demand loop has to be told, since nothing about the
+   * scene graph changing wakes it by itself.
+   *
+   * Deliberately NOT remeasuring afterwards -- see the note in the memo.
+   */
+  const foldRange = device.fold;
+  useEffect(() => {
+    if (!mixer || !foldRange) return;
+    const t = (fold ?? 0) / 100;
+    mixer.setTime(foldRange.openSec + (foldRange.closedSec - foldRange.openSec) * t);
+    invalidate();
+  }, [mixer, foldRange, fold, invalidate]);
+
   // Pulled apart so the effect depends on the three numbers rather than on the
   // object, which the editor rebuilds every render — depending on the object
   // would rebind every material on every frame.
@@ -1189,10 +1249,17 @@ function GLBPhoneScene({
       let fx = 1;
       let fy = 1;
 
+      // An odd number of quarter turns swaps which way the screen is long, so
+      // the crop has to be computed against the shape the source will occupy
+      // AFTER the turn, not before it.
+      const quarterTurned =
+        Math.abs(Math.round((device.screenRotateDeg ?? 0) / 90)) % 2 === 1;
+
       if (srcWidth && srcHeight) {
-        const screenAspect = screen
+        const flat = screen
           ? screen.width / screen.height
           : device.screenNative.width / device.screenNative.height;
+        const screenAspect = quarterTurned ? 1 / flat : flat;
         const srcAspect = srcWidth / srcHeight;
         if (srcAspect > screenAspect) fx = screenAspect / srcAspect;
         else if (srcAspect < screenAspect) fy = srcAspect / screenAspect;
@@ -1203,6 +1270,7 @@ function GLBPhoneScene({
       fy /= zoom;
 
       screenTexture.center.set(0.5, 0.5);
+      screenTexture.rotation = ((device.screenRotateDeg ?? 0) * Math.PI) / 180;
       /*
        * Clamped, deliberately. Repeat wrapping was tried here to make a
        * negative repeat mirror correctly for a model whose UVs ran right to
@@ -1471,6 +1539,7 @@ function PhoneScene({
   playing,
   livePose,
   screenFit,
+  fold,
 }: {
   rail: Phone3DRail | undefined;
   screenTexture: Texture | null;
@@ -1499,6 +1568,7 @@ function PhoneScene({
   offsetY: number;
   scale: number;
   heightPct: number;
+  fold?: number;
 }) {
   const rad = Math.PI / 180;
   const groupRef = useRef<Group>(null);
@@ -1664,6 +1734,7 @@ function PhoneScene({
             device={device}
             finishId={finishId}
             screenFit={screenFit}
+            fold={fold}
           />
         </Suspense>
       ) : (
@@ -1695,6 +1766,7 @@ export default function PhoneStage3D({
   timeRef,
   playing,
   livePose,
+  fold,
   fov = 38,
   shadow = DEFAULT_SHADOW,
   lighting = DEFAULT_LIGHTING,
@@ -1730,6 +1802,8 @@ export default function PhoneStage3D({
       present — see the note on PhoneScene. */
   livePose?: React.RefObject<Quat> | null;
   /** Camera field of view, in degrees. */
+  /** 0-100, how far a folding device is closed. */
+  fold?: number;
   fov?: number;
   shadow?: ShadowSettings;
   lighting?: LightingId;
@@ -1827,6 +1901,7 @@ export default function PhoneStage3D({
           playing={playing}
           livePose={livePose}
           screenFit={screenFit}
+          fold={fold}
         />
         {isBlurActive(blur) ? (
           <Suspense fallback={null}>

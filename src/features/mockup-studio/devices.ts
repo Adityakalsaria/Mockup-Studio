@@ -75,6 +75,19 @@ export interface Device {
    */
   screenFlipY?: boolean;
   /**
+   * A quarter turn applied to the screen texture, in degrees.
+   *
+   * Separate from the flips because it is a different fact: the flips say the
+   * UVs run backwards, this says they run along the other axis. The Fold's
+   * inner panel is authored landscape, so a portrait screenshot bound to it
+   * arrives lying on its side -- and no combination of mirroring stands it
+   * back up.
+   *
+   * Swaps the aspect used to crop as well as turning the texture, or the fit
+   * would trim the source against the screen's pre-rotation shape.
+   */
+  screenRotateDeg?: number;
+  /**
    * The colour the model was authored in, when part of the body is baked into
    * a base-colour map rather than driven by a material factor. Texels sharing
    * this hue follow the selected finish; everything else in the map — lens
@@ -118,6 +131,20 @@ export interface Device {
    * back of a phone.
    */
   screenHint?: string;
+  /**
+   * Where the two ends of the hinge live in the model's own animation.
+   *
+   * Only for models that ship one. A folding phone has no single correct set
+   * of node transforms -- the file's are wherever the rig was left, which for
+   * the Fold is both leaves flat with the inner display still folded shut, so
+   * the screen renders detached from the body. The poses that make sense are
+   * the frames of the clip, and these name the two that matter.
+   *
+   * Given, the editor grows a Fold control and scrubs between them. Omitted,
+   * the device renders exactly as authored and no mixer is built -- which is
+   * every rigid phone.
+   */
+  fold?: { openSec: number; closedSec: number };
   /** Licence + author. Required for anything that ships. */
   credit: string;
 }
@@ -146,6 +173,43 @@ export const DEVICES: Device[] = [
     notch: null,
     // TODO: unconfirmed. Supplied as `phone-17-pro-max (1).zip`; provenance
     // and licence still to be established before this ships anywhere public.
+    credit: "UNKNOWN — provenance not yet confirmed",
+  },
+  {
+    id: "iphone-fold",
+    label: "iPhone Fold",
+    modelPath: `${MODELS}/iphone-fold.glb`,
+    hideHints: [],
+    // Two screens in this model: "OLED" is the outer cover display and
+    // "OLED IN" the inner one that folds. The match is exact, so naming one
+    // binds only that one -- the other keeps the model's own wallpaper.
+    screenMaterial: "OLED IN",
+    // Both, and measured with a test card rather than reasoned about. The
+    // inner panel's UVs run along its long edge AND right to left: a quarter
+    // turn alone landed the card upright but mirrored, a flip alone left it
+    // lying on its side. The pair is what stands it up the right way round.
+    screenRotateDeg: 90,
+    screenFlipX: true,
+    // The clip closes the phone: the leaves are parallel at t=0 and have swung
+    // 180 degrees onto each other by t=2, holding shut to 5. Rendering both
+    // ends settled which way round it goes -- "parallel leaves" describes
+    // flat-open and folded-shut equally well, so the angle alone cannot say.
+    fold: { openSec: 0, closedSec: 2 },
+    // Open, this model puts its inner screen on the face the stage's default
+    // yaw turns AWAY from -- so it opened showing the back, and the big screen
+    // the device exists for was behind it. Half a turn here rather than a new
+    // camera default, so one convention still holds across the registry.
+    modelYawDeg: 180,
+    // The inner panel measures 158.9 x 111.9mm in the file, so the mockup is
+    // authored landscape. Portrait would letterbox against the mesh.
+    screenNative: { width: 1589, height: 1119 },
+    screenCornerRadiusPct: 0.045,
+    screenInsetPct: 1,
+    // A book fold has no notch on the inner panel; the cameras sit in the
+    // outer half.
+    notch: null,
+    // TODO: unconfirmed. Supplied as `iPhone fold.glb`; provenance and licence
+    // still to be established before this ships anywhere public.
     credit: "UNKNOWN — provenance not yet confirmed",
   },
 ];
