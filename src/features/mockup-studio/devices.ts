@@ -250,7 +250,12 @@ export const DEVICES: Device[] = [
     // 1.42 mesh.
     screenUvAspect: 1,
     // Black at 0.336 alpha, laid straight over the OLED prim on the same mesh.
-    screenOverlayHide: ["Glass flex"],
+    // "Glass flex" veils the inner panel, "Glass" the cover one -- black at
+    // 0.336 and 0.211 alpha respectively, both sitting directly over their
+    // screen. Measured with a step wedge: the inner one multiplied everything
+    // by a flat 0.686, and a constant ratio across the range is what says
+    // "layer on top" rather than "tone curve".
+    screenOverlayHide: ["Glass flex", "Glass"],
     // The outer panel, measured at 77.2 x 115.1mm in the file. Upright and
     // the right way round without help, unlike the inner one.
     coverScreen: {

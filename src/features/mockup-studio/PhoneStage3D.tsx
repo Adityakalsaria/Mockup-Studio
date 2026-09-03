@@ -916,6 +916,27 @@ function GLBPhoneScene({
       }
       const lowerNames = names.map((n) => n.toLowerCase());
 
+      /*
+       * Veils over the screen, hidden before anything else looks at this mesh.
+       *
+       * This has to be its own test, not part of the screen-material branch
+       * below. GLTFLoader splits a mesh's primitives into SEPARATE meshes, so
+       * "Glass flex" is never an entry in the screen mesh's material array --
+       * it is a mesh of its own, and the earlier attempt to catch it in that
+       * array could not have fired.
+       *
+       * Measured with a step wedge: black at 0.336 alpha over the panel
+       * multiplied everything on the screen by a flat 0.686, which is the dull
+       * screen exactly. A constant ratio across the whole range is what says
+       * "layer on top" rather than "tone curve".
+       */
+      if (
+        device.screenOverlayHide?.some((n) => lowerNames.includes(n.toLowerCase()))
+      ) {
+        m.visible = false;
+        return;
+      }
+
       // Preferred path: the model has its own screen material, so bind to it
       // rather than hiding geometry and rebuilding it in front.
       if (device.screenMaterial) {
@@ -961,21 +982,10 @@ function GLBPhoneScene({
            * turned unlit alongside it. The glass laid a second, washed copy
            * of the image over the real one, which is the dull, faded screen.
            */
-          const veils = (device.screenOverlayHide ?? []).map((n) => n.toLowerCase());
           if (Array.isArray(m.material)) {
             m.material = m.material.map((entry) => {
               const named = entry as { name?: string } | undefined;
-              const lower = named?.name?.toLowerCase();
-              if (lower === target) return bind(entry);
-              if (lower && veils.includes(lower)) {
-                // Kept in the array rather than removed, so the prim's group
-                // indices still line up; it just stops drawing.
-                const gone = new MeshBasicMaterial({ transparent: true, opacity: 0 });
-                gone.depthWrite = false;
-                gone.name = named?.name ?? "hidden";
-                return gone as never;
-              }
-              return entry;
+              return named?.name?.toLowerCase() === target ? bind(entry) : entry;
             }) as never;
           } else {
             m.material = bind(m.material) as never;
