@@ -12,7 +12,9 @@ import { signIn, signUp, type AuthResult } from "../actions";
  * that changes is which action the submit runs.
  */
 export default function SignInPage() {
-  const nextPath = useSearchParams().get("next") ?? "";
+  const params = useSearchParams();
+  const nextPath = params.get("next") ?? "";
+  const linkError = params.get("error") === "link";
   const [mode, setMode] = useState<"in" | "up">("in");
   const action = mode === "in" ? signIn : signUp;
   const [result, submit, pending] = useActionState<AuthResult, FormData>(action, undefined);
@@ -55,9 +57,21 @@ export default function SignInPage() {
           className="h-[40px] rounded-[10px] border px-[12px] text-[14px] outline-none"
         />
 
-        {result?.error ? (
+        {result && "error" in result ? (
           <p role="alert" className="text-[13px] text-red-600">
             {result.error}
+          </p>
+        ) : null}
+        {result && "notice" in result ? (
+          <p role="status" className="text-[13px] opacity-70">
+            {result.notice}
+          </p>
+        ) : null}
+        {/* An expired or reused confirmation link lands back here. */}
+        {linkError ? (
+          <p role="alert" className="text-[13px] text-red-600">
+            That link has expired or was already used. Sign in, or create the
+            account again.
           </p>
         ) : null}
 

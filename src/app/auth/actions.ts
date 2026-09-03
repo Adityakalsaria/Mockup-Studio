@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/auth";
@@ -16,7 +17,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/auth";
  * Errors come back as a string rather than thrown: a wrong password is an
  * ordinary outcome of a login form, not an exception.
  */
-export type AuthResult = { error: string } | undefined;
+export type AuthResult = { error: string } | { notice: string } | undefined;
 
 /**
  * Where to go after signing in.
@@ -60,11 +61,31 @@ export async function signUp(_prev: AuthResult, formData: FormData): Promise<Aut
   if (!isSupabaseConfigured()) return { error: "Sign-in is not configured yet." };
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({ email, password });
+  const next = safeNext(formData);
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    // Where the emailed link comes back to. Supabase needs an absolute URL,
+    // and it must be on the project's allow-list or the link silently falls
+    // back to the site URL.
+    options: {
+      emailRedirectTo: `${(await headers()).get("origin") ?? ""}/auth/confirm?next=${encodeURIComponent(next)}`,
+    },
+  });
   if (error) return { error: error.message };
 
+  /*
+   * A signup with confirmation enabled returns a user and NO session -- the
+   * account exists but cannot act until the emailed link is followed. Treating
+   * that as success and redirecting sent people to a protected page that
+   * immediately bounced them back, which reads as "signup failed".
+   */
+  if (!data.session) {
+    return { notice: "Check your email to confirm the account, then sign in." };
+  }
+
   revalidatePath("/", "layout");
-  redirect(safeNext(formData));
+  redirect(next);
 }
 
 export async function signOut() {

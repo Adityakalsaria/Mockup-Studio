@@ -20,18 +20,45 @@ alter table public.profiles enable row level security;
 -- The anon key ships inside the client bundle, so every visitor holds it.
 -- What stops one person reading another's row is these policies and nothing
 -- else. Each is scoped to auth.uid(), the id Supabase proves from the token.
+-- TO authenticated, not auth.role().
+--
+-- auth.role() is deprecated, and it also breaks silently the moment anonymous
+-- sign-ins are enabled: an anonymous visitor carries the authenticated role and
+-- passes the check without being anybody. The TO clause says the same thing to
+-- the planner and does not lie later.
+--
+-- TO authenticated ALONE would be authentication without authorization -- it
+-- checks the role, not the row, which is how you get IDOR. The ownership
+-- predicate in USING is the half that matters.
+--
+-- (select auth.uid()) rather than auth.uid(): wrapped, it is an initplan and
+-- runs once; bare, it is called per row.
 create policy "profiles are readable by their owner"
   on public.profiles for select
+  to authenticated
   using ((select auth.uid()) = id);
 
+-- UPDATE needs both. USING decides which rows may be updated; WITH CHECK
+-- decides what they may become. Without the second, a user can reassign a row
+-- to somebody else's id. Postgres also needs the SELECT policy above for an
+-- UPDATE to see its row at all -- without one it silently affects zero rows.
 create policy "profiles are updatable by their owner"
   on public.profiles for update
+  to authenticated
   using ((select auth.uid()) = id)
   with check ((select auth.uid()) = id);
 
 -- No insert policy on purpose: rows arrive from the trigger below, which runs
 -- as the definer. A client that could insert its own profile could insert one
 -- against somebody else's id.
+
+-- Reachability, which is separate from RLS.
+--
+-- RLS decides which ROWS are visible once a table can be reached at all.
+-- Depending on the project's Data API settings, a table created in SQL may not
+-- be exposed to the API roles -- and the symptom is a table that plainly exists
+-- returning nothing through PostgREST. Granting explicitly removes the guess.
+grant select, update on public.profiles to authenticated;
 
 -- Create the profile with the account, not on first login.
 --
