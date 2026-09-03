@@ -113,3 +113,77 @@ export function overlayStyle(
     pointerEvents: "none",
   };
 }
+
+/**
+ * The same layer, painted onto a canvas for export.
+ *
+ * The live one is a DOM element with a CSS filter, and neither survives a
+ * pixel read -- the exporters composite the backdrop and the WebGL canvas
+ * themselves, so anything living in CSS has to be drawn again here or it is
+ * simply not in the file. The drop shadow already works this way.
+ *
+ * Drawn into an offscreen canvas first, because the fade is a mask: filling
+ * the shape and then compositing a gradient with destination-in is what a CSS
+ * mask-image does, and it cannot be expressed as one fill. The offscreen is
+ * padded by three blur radii so the blur has room to fall off rather than
+ * being clipped at the shape's own edge.
+ */
+export function paintOverlay(
+  ctx: CanvasRenderingContext2D,
+  o: OverlaySettings,
+  width: number,
+  height: number,
+): void {
+  if (!isOverlayActive(o)) return;
+
+  const shorter = Math.min(width, height);
+  const w = o.width * width;
+  const h = o.height * height;
+  const x = o.x * width - w / 2;
+  const y = o.y * height - h / 2;
+  const radius = o.blur * shorter;
+  const pad = Math.ceil(radius * 3);
+
+  const off = document.createElement("canvas");
+  off.width = Math.max(1, Math.ceil(w + pad * 2));
+  off.height = Math.max(1, Math.ceil(h + pad * 2));
+  const c = off.getContext("2d");
+  if (!c) return;
+
+  c.fillStyle = o.color;
+  if (o.shape === "ellipse") {
+    c.beginPath();
+    c.ellipse(off.width / 2, off.height / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+    c.fill();
+  } else {
+    c.fillRect(pad, pad, w, h);
+  }
+
+  if (o.fade !== "uniform") {
+    c.globalCompositeOperation = "destination-in";
+    const cx = off.width / 2;
+    const cy = off.height / 2;
+    let g: CanvasGradient;
+    if (o.fade === "radial") {
+      g = c.createRadialGradient(cx, cy, 0, cx, cy, Math.min(w, h) / 2);
+    } else {
+      // CSS angles run clockwise from "to top", which is this vector.
+      const rad = (o.angle * Math.PI) / 180;
+      const dx = Math.sin(rad);
+      const dy = -Math.cos(rad);
+      const half = (Math.abs(dx) * w + Math.abs(dy) * h) / 2;
+      g = c.createLinearGradient(cx - dx * half, cy - dy * half, cx + dx * half, cy + dy * half);
+    }
+    g.addColorStop(0, "rgba(0,0,0,1)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    c.fillStyle = g;
+    c.fillRect(0, 0, off.width, off.height);
+    c.globalCompositeOperation = "source-over";
+  }
+
+  ctx.save();
+  ctx.globalAlpha = o.opacity;
+  ctx.filter = radius > 0 ? `blur(${radius}px)` : "none";
+  ctx.drawImage(off, x - pad, y - pad);
+  ctx.restore();
+}

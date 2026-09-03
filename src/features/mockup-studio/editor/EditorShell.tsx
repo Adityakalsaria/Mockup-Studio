@@ -21,7 +21,7 @@ import { useScreenTexture } from "../useScreenTexture";
 import { useBroadcastLink } from "../broadcast/useBroadcastLink";
 import { RightPanel } from "./RightPanel";
 import { AspectSelect, getRatio } from "./framing";
-import { isOverlayActive } from "../overlay";
+import { isOverlayActive, paintOverlay } from "../overlay";
 import { OverlayLayer } from "../OverlayLayer";
 import { applyCanvasShadow, clearCanvasShadow } from "../shadow";
 import { EditorTheme, EditorThemeContext } from "./theme";
@@ -408,6 +408,18 @@ export default function EditorShell() {
     [animation, playhead],
   );
   const effective = useMemo(() => ({ ...state, ...sampled }), [state, sampled]);
+  // TEMP: lets the current animation be read out of the page, so a shot built
+  // by hand can be turned into a preset. Remove once that is captured.
+  if (typeof window !== "undefined") {
+    (window as unknown as { __anim?: unknown }).__anim = {
+      animation: state.animation,
+      pose: {
+        xAxis: state.xAxis, yAxis: state.yAxis, zAxis: state.zAxis,
+        zoom: state.zoom, panX: state.panX, panY: state.panY, fold: state.fold,
+      },
+      overlay: state.overlay,
+    };
+  }
   const effectiveRef = useRef(effective);
   useEffect(() => {
     effectiveRef.current = effective;
@@ -896,6 +908,11 @@ export default function EditorShell() {
   // hands back a phone floating on nothing regardless of what the editor
   // shows. Painting the same backdrop underneath is what makes the file match
   // the screen. "None" paints nothing, and the PNG keeps its alpha.
+  const overlayRef = useRef(state.overlay);
+  useEffect(() => {
+    overlayRef.current = state.overlay;
+  }, [state.overlay]);
+
   const exportPng = useCallback(async () => {
     // The painter is synchronous, so the image has to be in the cache before
     // it runs or the export comes out with the base colour where the
@@ -926,6 +943,9 @@ export default function EditorShell() {
     applyCanvasShadow(ctx, shadowRef.current, scale);
     ctx.drawImage(shot, 0, 0);
     clearCanvasShadow(ctx);
+    // After the phone, because the layer sits over the shot -- the same order
+    // the live stage uses, where it renders above the canvas.
+    paintOverlay(ctx, overlayRef.current, out.width, out.height);
 
     const link = document.createElement("a");
     link.href = out.toDataURL("image/png");
@@ -973,6 +993,7 @@ export default function EditorShell() {
         blob = await renderVideoExact({
           recorder,
           background: backgroundRef.current,
+          overlay: overlayRef.current,
         shadow: shadowRef.current,
           scale: exportScale,
           durationSec,
