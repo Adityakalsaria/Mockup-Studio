@@ -847,14 +847,39 @@ function GLBPhoneScene({
        * Correcting it needs the pose the leaves start from, so it is taken
        * here, once, while the model is posed open.
        */
-      for (const name of ["Frame L", "Frame R"]) {
-        const leaf = cloned.getObjectByName(name);
+      /*
+       * Matched loosely, because GLTFLoader renames as it loads.
+       *
+       * three sanitises node names through PropertyBinding.sanitizeNodeName,
+       * which turns whitespace into underscores -- so the file's "Frame L"
+       * arrives as "Frame_L" and an exact getObjectByName finds nothing. That
+       * failed silently: leafRest stayed empty, the block below never ran, and
+       * every attempt at fixing the fold appeared to do nothing at all because
+       * none of the code was reached.
+       */
+      const norm = (n: string) => n.toLowerCase().replace(/[\s_]+/g, "");
+      const wanted = ["Frame L", "Frame R"].map(norm);
+      const found = new Map<string, Object3D>();
+      cloned.traverse((o) => {
+        const i = wanted.indexOf(norm(o.name ?? ""));
+        if (i >= 0 && !found.has(wanted[i])) found.set(wanted[i], o);
+      });
+      for (const key of wanted) {
+        const leaf = found.get(key);
         if (leaf) leafRest.push({ leaf, rest: leaf.quaternion.clone() });
       }
-      hinge = cloned.getObjectByName("pivot") ?? cloned.getObjectByName("Hinge") ?? null;
+      let foundHinge: Object3D | null = null;
+      cloned.traverse((o) => {
+        const n = norm(o.name ?? "");
+        if (!foundHinge && (n === "pivot" || n === "hinge")) foundHinge = o;
+      });
+      hinge = foundHinge as Object3D | null;
       // Where the hinge sits with the phone open. Every later frame puts it
       // back here, so the device turns about its spine instead of drifting.
-      if (hinge) hinge.getWorldPosition(FOLD_ANCHOR_REST);
+      // Where the hinge sits with the phone open, in the same space the frame
+      // loop will measure it in. The root is unparented and at the origin here,
+      // so world, parent and local all coincide.
+      if (hinge) (hinge as Object3D).getWorldPosition(FOLD_ANCHOR_REST);
     }
     /*
      * Stand the model up by MEASURING, not by naming an angle.
@@ -1380,34 +1405,35 @@ function GLBPhoneScene({
     );
 
     /*
-     * Split the swing between the two leaves.
+     * Lock the hinge, and let the leaves swing.
      *
-     * The clip turns ONE leaf and leaves the other alone, so the phone closed
-     * like a door: the fixed half stayed put while the moving half swept the
-     * frame. Counter-rotating the whole model was tried first and is the wrong
-     * shape of fix -- it moves the device to disguise an asymmetric rig rather
-     * than making the rig symmetric, and it fought the stand-up search and the
-     * device yaw sitting above it in the graph.
+     * Measuring what the clip actually does settled this: both leaves already
+     * rotate by the SAME angle -- 13.9 and 13.9 at a quarter closed, 89.9 and
+     * 89.9 at the end -- in their own mirrored frames. The rig was symmetric
+     * all along. What made it read as a door is that the pair pivots about a
+     * point that is not the hinge, so the whole device swings across the frame
+     * and the eye reads the leaf that moved least as "fixed".
      *
-     * Here the swing is measured and then redistributed: whatever total angle
-     * the clip put between the leaves, each one takes half of it, in opposite
-     * senses. Both ends move, they meet in the middle, and the hinge stays
-     * where it is for free -- the leaves already pivot about it, so nothing
-     * needs translating afterwards.
+     * Two earlier attempts got this wrong in different ways. One counter-
+     * rotated the entire model, which is the wrong shape of fix. The other
+     * redistributed the swing between the leaves, which flattened both to zero
+     * because they were already even. Neither had ever run: the lookup used
+     * "Frame L" while GLTFLoader sanitises whitespace to underscores, so the
+     * names never matched and the code was silently unreachable.
      *
-     * Reading the total from the leaves rather than naming an axis keeps it
-     * working whichever leaf the clip animates and whichever way the hinge runs
-     * in the file.
+     * What is left is the small true thing: translate the model each frame so
+     * the hinge stays where it sat when the phone was open. Leaves rotate,
+     * spine holds.
      */
-    if (leafRest.length === 2) {
-      const [first, second] = leafRest;
-      FOLD_DELTA.copy(first.rest).invert().multiply(first.leaf.quaternion);
-      FOLD_SWING.copy(second.rest).invert().multiply(second.leaf.quaternion);
-      FOLD_SWING.premultiply(FOLD_DELTA);
-
-      FOLD_HALF.identity().slerp(FOLD_SWING, 0.5);
-      first.leaf.quaternion.copy(first.rest).multiply(FOLD_HALF_INV.copy(FOLD_HALF).invert());
-      second.leaf.quaternion.copy(second.rest).multiply(FOLD_HALF);
+    if (hinge) {
+      // Recomputed from zero each frame, not accumulated. Adding the
+      // correction to the existing offset compounds it, and the phone leaves
+      // the frame within a few frames of touching the slider.
+      foldRoot.position.set(0, 0, 0);
+      foldRoot.updateMatrixWorld(true);
+      hinge.getWorldPosition(FOLD_ANCHOR);
+      foldRoot.parent?.worldToLocal(FOLD_ANCHOR);
+      foldRoot.position.copy(FOLD_ANCHOR_REST).sub(FOLD_ANCHOR);
     }
 
     if (
