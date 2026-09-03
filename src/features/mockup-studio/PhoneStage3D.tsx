@@ -3,7 +3,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { RoundedBox, useGLTF } from "@react-three/drei";
-import { Box3, ClampToEdgeWrapping, Group, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
+import { Box3, ClampToEdgeWrapping, Group, Object3D, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
 import type { Texture } from "three";
 import { AnimationMixer } from "three";
 // Not Object3D.clone(): that copies a SkinnedMesh but leaves it pointing at
@@ -798,7 +798,10 @@ function GLBPhoneScene({
   // Only ever mounted for a device that has one; the branch that chooses
   // between this and the generated bodies is in PhoneScene.
   const gltf = useGLTF(device.modelPath as string);
-  const { scene, width, height, depth, screen, screenMaterials, coverMaterials, mixer } = useMemo(() => {
+  const {
+    scene, width, height, depth, screen, screenMaterials, coverMaterials, mixer,
+    leafRest, hinge, foldRoot,
+  } = useMemo(() => {
     const cloned = cloneSkinned(gltf.scene) as Group;
 
     /*
@@ -820,6 +823,8 @@ function GLBPhoneScene({
      */
     const clip = gltf.animations?.[0];
     let mixer: AnimationMixer | null = null;
+    const leafRest: { leaf: Object3D; rest: Quaternion }[] = [];
+    let hinge: Object3D | null = null;
     if (device.fold && clip) {
       mixer = new AnimationMixer(cloned);
       mixer.clipAction(clip).play();
@@ -830,6 +835,26 @@ function GLBPhoneScene({
       // drift with it. One silhouette, taken at the pose the device is for.
       mixer.setTime(device.fold.openSec);
       cloned.updateMatrixWorld(true);
+
+      /*
+       * Remember the open pose of each leaf, and where the hinge sits.
+       *
+       * The clip swings ONE leaf and leaves the other where it is, so the
+       * device folds off one edge like a door rather than closing like a book:
+       * the fixed half stays put and the moving half sweeps the frame. The rig
+       * is not wrong -- it is just anchored to a leaf instead of to the hinge.
+       *
+       * Correcting it needs the pose the leaves start from, so it is taken
+       * here, once, while the model is posed open.
+       */
+      for (const name of ["Frame L", "Frame R"]) {
+        const leaf = cloned.getObjectByName(name);
+        if (leaf) leafRest.push({ leaf, rest: leaf.quaternion.clone() });
+      }
+      hinge = cloned.getObjectByName("pivot") ?? cloned.getObjectByName("Hinge") ?? null;
+      // Where the hinge sits with the phone open. Every later frame puts it
+      // back here, so the device turns about its spine instead of drifting.
+      if (hinge) hinge.getWorldPosition(FOLD_ANCHOR_REST);
     }
     /*
      * Stand the model up by MEASURING, not by naming an angle.
@@ -1107,7 +1132,11 @@ function GLBPhoneScene({
         // at full strength the sheet mirrors the whole studio rig and the
         // screen turns into a flat milky grey at any angle off head-on. Glass
         // catches a hint of the room, not a copy of it.
-        if (candidate.transparent) {
+        // ...unless the device says this one is body. See bodyMaterials.
+        const forcedBody = device.bodyMaterials?.some(
+          (n) => n.toLowerCase() === (candidate as { name?: string }).name?.toLowerCase(),
+        );
+        if (candidate.transparent && !forcedBody) {
           if (typeof candidate.clone !== "function") return mat;
           const glass = candidate.clone() as typeof candidate;
           if ("envMapIntensity" in glass) {
@@ -1266,6 +1295,9 @@ function GLBPhoneScene({
       screenMaterials,
       coverMaterials,
       mixer,
+      leafRest,
+      hinge,
+      foldRoot: cloned,
     };
   }, [gltf.scene, device, bodyColor, bodyMetalness, bodyRoughness]);
 
@@ -1315,6 +1347,53 @@ function GLBPhoneScene({
     mixer.setTime(
       foldRange.openSec + (foldRange.closedSec - foldRange.openSec) * t,
     );
+
+    /*
+     * Re-anchor the fold to the hinge.
+     *
+     * The clip turns one leaf and leaves the other alone, so on its own the
+     * device closes like a door: the fixed half stays put and the moving half
+     * sweeps across the frame. Rotating the whole model back by HALF of what
+     * the leaves did puts the bisector where the rig should have had it -- each
+     * leaf then appears to swing the same amount in opposite directions, which
+     * is a book closing rather than a door.
+     *
+     * Composed from the leaves themselves rather than from a hard-coded axis:
+     * the product of their deltas is the total swing whichever of them the clip
+     * happened to animate, and half of that is the correction regardless of
+     * which way the hinge runs in the file.
+     */
+    if (leafRest.length) {
+      FOLD_SWING.identity();
+      for (const { leaf, rest } of leafRest) {
+        FOLD_DELTA.copy(rest).invert().premultiply(leaf.quaternion);
+        FOLD_SWING.multiply(FOLD_DELTA);
+      }
+      // Half of it, backwards. slerp from identity is the clean way to halve a
+      // rotation without going near Euler angles.
+      FOLD_HALF.identity().slerp(FOLD_SWING, 0.5).invert();
+      foldRoot.quaternion.copy(FOLD_HALF);
+
+      /*
+       * Rotating the root swings the hinge away from where it was measured, so
+       * without this the phone would arc across the frame as it folded.
+       *
+       * Done in the root's OWN space, not the world. The first attempt read
+       * the hinge with getWorldPosition and wrote the result into
+       * foldRoot.position, which is local to its parent -- two different
+       * coordinate systems, so the correction was wrong by whatever the
+       * stand-up search and the device yaw had done above it.
+       *
+       * The anchor was captured while the root sat at identity and had no
+       * parent, which makes it the hinge in the root's child space. Rotating
+       * that point by the same correction says where the hinge is about to
+       * land, and the difference is exactly the translation that puts it back.
+       */
+      if (hinge) {
+        FOLD_ANCHOR.copy(FOLD_ANCHOR_REST).applyQuaternion(FOLD_HALF);
+        foldRoot.position.copy(FOLD_ANCHOR_REST).sub(FOLD_ANCHOR);
+      }
+    }
     if (
       Math.abs(foldNow.current - target) > 0.01 ||
       Math.abs(foldVel.current.f) > 0.01
@@ -1765,6 +1844,13 @@ function springTo(
 /** Scratch target for the live-pose slerp. Module scope so the frame loop
     does not allocate a quaternion sixty times a second. */
 const LIVE_TARGET = new Quaternion();
+
+/** Scratch for the fold re-anchor, so the frame loop allocates nothing. */
+const FOLD_SWING = new Quaternion();
+const FOLD_DELTA = new Quaternion();
+const FOLD_HALF = new Quaternion();
+const FOLD_ANCHOR = new Vector3();
+const FOLD_ANCHOR_REST = new Vector3();
 
 /**
  * The GLB is authored facing away from the camera, so something has to turn it

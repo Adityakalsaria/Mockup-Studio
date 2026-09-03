@@ -199,6 +199,16 @@ export interface Device {
    * what makes that screen read dull and faded.
    */
   screenOverlayHide?: string[];
+  /**
+   * Materials that are BODY, even though the model marks them transparent.
+   *
+   * The finish pass leaves anything transparent alone, because on a phone that
+   * is nearly always the screen glass or a lens cover and tinting it would be
+   * wrong. The Fold names its back panel "Frosted glass" and gives it an alpha
+   * of 0.94, so it fell into that branch and stayed the authored near-white in
+   * every finish -- the one large surface the finish exists to change.
+   */
+  bodyMaterials?: string[];
   /** Licence + author. Required for anything that ships. */
   credit: string;
 }
@@ -256,6 +266,8 @@ export const DEVICES: Device[] = [
     // by a flat 0.686, and a constant ratio across the range is what says
     // "layer on top" rather than "tone curve".
     screenOverlayHide: ["Glass flex", "Glass"],
+    // The back panel. Transparent in the file, body in every other sense.
+    bodyMaterials: ["Frosted glass"],
     // The outer panel, measured at 77.2 x 115.1mm in the file. Upright and
     // the right way round without help, unlike the inner one.
     coverScreen: {
