@@ -179,7 +179,26 @@ export interface Device {
     flipX?: boolean;
     flipY?: boolean;
     rotateDeg?: number;
+    /**
+     * The sub-rectangle of texture space the cover mesh's UVs actually
+     * occupy, when it is not the full 0..1 square.
+     *
+     * The Fold's cover panel runs v from 0.3138 to 1.0 -- the model packs it
+     * into part of a shared wallpaper. Binding a source without accounting
+     * for that samples the wrong 69% of it and offsets what is left.
+     */
+    uvRect?: { x?: number; y?: number; w?: number; h?: number };
   };
+  /**
+   * Materials sharing the screen mesh that should stop drawing.
+   *
+   * `hideHints` cannot reach these: the screen-material branch returns as soon
+   * as it has bound, so a prim on the SAME mesh never reaches the hide test.
+   * The Fold's inner panel carries "Glass flex" -- black at a third alpha --
+   * directly over the OLED, which sits on the screenshot as a grey veil and is
+   * what makes that screen read dull and faded.
+   */
+  screenOverlayHide?: string[];
   /** Licence + author. Required for anything that ships. */
   credit: string;
 }
@@ -230,11 +249,15 @@ export const DEVICES: Device[] = [
     // TEXCOORD_0 on the inner panel spans u 0..1, v 0..1 -- a square, over a
     // 1.42 mesh.
     screenUvAspect: 1,
+    // Black at 0.336 alpha, laid straight over the OLED prim on the same mesh.
+    screenOverlayHide: ["Glass flex"],
     // The outer panel, measured at 77.2 x 115.1mm in the file. Upright and
     // the right way round without help, unlike the inner one.
     coverScreen: {
       material: "OLED",
       native: { width: 772, height: 1151 },
+      // TEXCOORD_0 on the cover panel: u 0..1, v 0.3138..1.0.
+      uvRect: { y: 0.3138, h: 0.6862 },
       // Its UVs run right to left, like the inner panel's: text bound to it
       // came back reversed when read from outside the closed phone, which is
       // the only side this screen is ever seen from.

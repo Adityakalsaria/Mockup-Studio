@@ -309,6 +309,17 @@ export function RightPanel({
           </div>
         ) : null}
 
+        {/* The cover's own nudges. Separate from the three above on purpose:
+            those belong to the panel you are composing, and one pair of
+            sliders moving two different images would be worse than two. */}
+        {device.coverScreen && coverSrc ? (
+          <div className="mt-[8px]">
+            <ParamRow label="Cover zoom" value={state.coverScale} {...RANGES.coverScale} defaultValue={DEFAULT_EDITOR_STATE.coverScale} decimals={2} onChange={(coverScale) => onChange({ coverScale })} />
+            <ParamRow label="Cover X" value={state.coverOffsetX} {...RANGES.coverOffsetX} defaultValue={DEFAULT_EDITOR_STATE.coverOffsetX} decimals={3} onChange={(coverOffsetX) => onChange({ coverOffsetX })} />
+            <ParamRow label="Cover Y" value={state.coverOffsetY} {...RANGES.coverOffsetY} defaultValue={DEFAULT_EDITOR_STATE.coverOffsetY} decimals={3} onChange={(coverOffsetY) => onChange({ coverOffsetY })} />
+          </div>
+        ) : null}
+
         {/* Mirror any window the OS will share: a phone mirrored over USB
             (scrcpy, QuickTime), a simulator, or a browser tab. The web cannot
             capture a phone's own screen from the phone, so the desktop picking

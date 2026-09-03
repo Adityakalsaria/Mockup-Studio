@@ -1164,6 +1164,11 @@ export default function EditorShell() {
               fov={effective.fov}
               fold={state.fold}
               coverTexture={coverTexture}
+              coverScreenFit={{
+                scale: effective.coverScale,
+                offsetX: effective.coverOffsetX,
+                offsetY: effective.coverOffsetY,
+              }}
               shadow={state.shadow}
               lighting={state.lighting}
               screenFit={{

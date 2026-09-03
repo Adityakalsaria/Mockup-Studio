@@ -35,6 +35,10 @@ export interface EditorState {
   screenScale: number;
   screenOffsetX: number;
   screenOffsetY: number;
+  /** The same three, for a device's second screen. */
+  coverScale: number;
+  coverOffsetX: number;
+  coverOffsetY: number;
   zoom: number;
   /** How far the hinge is closed, 0-100. Ignored by devices that do not fold. */
   fold: number;
@@ -79,6 +83,9 @@ export const DEFAULT_EDITOR_STATE: EditorState = {
   screenScale: 1,
   screenOffsetX: 0,
   screenOffsetY: 0,
+  coverScale: 1,
+  coverOffsetX: 0,
+  coverOffsetY: 0,
   zoom: 0.85,
   // Open. A fold's whole point is the big inner screen, and a mockup that
   // opens shut would be a mockup of a device you cannot see the screen of.
@@ -128,6 +135,9 @@ export const RANGES = {
   screenScale: { min: 0.5, max: 2, step: 0.01 },
   screenOffsetX: { min: -0.5, max: 0.5, step: 0.005 },
   screenOffsetY: { min: -0.5, max: 0.5, step: 0.005 },
+  coverScale: { min: 0.5, max: 2, step: 0.01 },
+  coverOffsetX: { min: -0.5, max: 0.5, step: 0.005 },
+  coverOffsetY: { min: -0.5, max: 0.5, step: 0.005 },
   zoom: { min: 0.5, max: 10.5, step: 0.01 },
   fold: { min: 0, max: 100, step: 1 },
   // 14 is very wide and 90 is nearly fisheye. Below 14 a phone at this
