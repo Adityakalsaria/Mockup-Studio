@@ -20,6 +20,8 @@
     "@react-three/fiber": "^9.5.0",
     "@react-three/postprocessing": "^3.0.5",
     "@splinetool/react-spline": "^4.1.0",
+    "@supabase/ssr": "^0.12.5",
+    "@supabase/supabase-js": "^2.115.0",
     "@vercel/analytics": "^2.0.0",
     "animejs": "^3.2.2",
     "cobe": "^2.0.1",
