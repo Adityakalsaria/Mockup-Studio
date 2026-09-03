@@ -33,7 +33,7 @@ export interface Device {
    * geometry and needs no file. Absent means glb, so every existing entry is
    * unchanged.
    */
-  kind?: "glb" | "laptop";
+  kind?: "glb" | "laptop" | "image";
   /** Served from /public. Required for `kind: "glb"`. */
   modelPath?: string;
   /**
@@ -324,6 +324,28 @@ export const DEVICES: Device[] = [
     // TODO: unconfirmed. Supplied as `iPhone fold.glb`; provenance and licence
     // still to be established before this ships anywhere public.
     credit: "UNKNOWN — provenance not yet confirmed",
+  },
+  {
+    /*
+     * Not a device: the uploaded artwork itself, as a card on the stage.
+     *
+     * It earns its place in this list because everything downstream is already
+     * device-agnostic -- the camera transform sits on a wrapper group, the fit
+     * is measured off a bounding box, the shadow reads the canvas alpha and the
+     * export reads the canvas. Registering it here is what gives it the whole
+     * studio for free.
+     */
+    id: "image-card",
+    label: "Image card",
+    kind: "image",
+    hideHints: [],
+    // Nothing here is measured off a model, because there is no model. The
+    // aspect comes from the image, and the rest does not apply.
+    screenCornerRadiusPct: 0,
+    screenInsetPct: 0,
+    screenNative: { width: 1000, height: 1000 },
+    notch: null,
+    credit: "Generated geometry -- nothing third-party to licence.",
   },
 ];
 

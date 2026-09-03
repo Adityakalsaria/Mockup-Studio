@@ -43,6 +43,10 @@ export interface EditorState {
   zoom: number;
   /** How far the hinge is closed, 0-100. Ignored by devices that do not fold. */
   fold: number;
+  /** Corner radius of the image card, as a fraction of its shorter side. */
+  cardRadius: number;
+  /** Thickness of the image card, in world units. */
+  cardDepth: number;
   /** Camera field of view, vertical, in degrees. The lens rather than the
       distance: zoom moves the phone, this changes how the perspective reads. */
   fov: number;
@@ -92,6 +96,11 @@ export const DEFAULT_EDITOR_STATE: EditorState = {
   // Open. A fold's whole point is the big inner screen, and a mockup that
   // opens shut would be a mockup of a device you cannot see the screen of.
   fold: 0,
+  // A radius you can see at a glance and a thickness you can see at an angle.
+  // Both start where a printed card sits rather than at zero, since zero is a
+  // sheet of paper and that is the one thing this is not for.
+  cardRadius: 0.03,
+  cardDepth: 0.012,
   // The lens the stage was framed at.
   fov: 38,
   panX: 0,
@@ -159,6 +168,8 @@ export const RANGES = {
   coverOffsetY: { min: -0.5, max: 0.5, step: 0.005 },
   zoom: { min: 0.5, max: 10.5, step: 0.01 },
   fold: { min: 0, max: 100, step: 1 },
+  cardRadius: { min: 0, max: 0.5, step: 0.005 },
+  cardDepth: { min: 0, max: 0.08, step: 0.001 },
   // 14 is very wide and 90 is nearly fisheye. Below 14 a phone at this
   // distance stops being recognisable as one.
   fov: { min: 14, max: 90, step: 1 },

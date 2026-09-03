@@ -3,7 +3,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { RoundedBox, useGLTF } from "@react-three/drei";
-import { Box3, ClampToEdgeWrapping, Color, Group, Object3D, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
+import { Box3, ClampToEdgeWrapping, Color, ExtrudeGeometry, Group, Object3D, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
 import type { Texture } from "three";
 import { AnimationMixer } from "three";
 // Not Object3D.clone(): that copies a SkinnedMesh but leaves it pointing at
@@ -14,7 +14,7 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import { Leva } from "leva";
 
 import { DEFAULT_DEVICE_ID, getDevice, type Device, type DeviceNotch } from "./devices";
-import { getFinish } from "./finishes";
+import { DEFAULT_FINISH_ID, getFinish } from "./finishes";
 import { sampleAnimation, type Animation } from "./animation";
 import { recolorBodyTexture } from "./bodyTexture";
 import { StudioEnvironment } from "./StudioEnvironment";
@@ -555,7 +555,7 @@ function PhoneFrontDecal({
  * range and tile. Remapping against the shape's own extents is what makes the
  * screenshot land exactly once, filling the plane.
  */
-function makeRoundedRect(width: number, height: number, radius: number) {
+function makeRoundedShape(width: number, height: number, radius: number) {
   const w = width / 2;
   const h = height / 2;
   const r = Math.max(0, Math.min(radius, w, h));
@@ -570,7 +570,14 @@ function makeRoundedRect(width: number, height: number, radius: number) {
   shape.lineTo(-w, -h + r);
   shape.quadraticCurveTo(-w, -h, -w + r, -h);
 
-  const geometry = new ShapeGeometry(shape, 16);
+  return shape;
+}
+
+/** The same rectangle as flat geometry, with UVs remapped to 0..1. */
+function makeRoundedRect(width: number, height: number, radius: number) {
+  const w = width / 2;
+  const h = height / 2;
+  const geometry = new ShapeGeometry(makeRoundedShape(width, height, radius), 16);
   const pos = geometry.attributes.position;
   const uv = geometry.attributes.uv;
   for (let i = 0; i < pos.count; i++) {
@@ -578,6 +585,128 @@ function makeRoundedRect(width: number, height: number, radius: number) {
   }
   uv.needsUpdate = true;
   return geometry;
+}
+
+/**
+ * Any artwork, as an object in the same studio.
+ *
+ * The point is how little this needs. The spring transform lives on a wrapper
+ * group in PhoneScene rather than on the phone, so anything rendered inside
+ * inherits every camera move and keyframe; the fit is MEASURED off a bounding
+ * box rather than assuming a phone; the shadow is a CSS filter over the canvas
+ * alpha, so it follows whatever silhouette is there; and the export reads the
+ * canvas. None of that had to change to put a picture on the stage.
+ *
+ * A card with thickness, not a plane. At zero depth it reads as paper the
+ * moment the camera comes off head-on, and every camera move here is oblique.
+ *
+ * The face is unlit, for the same reason the phone's screen is: what goes in
+ * is what comes out. The edges are not -- they are the only part that should
+ * catch the room, and they are what makes it read as an object.
+ */
+/** Fallbacks, for the rare caller that renders the stage without the editor. */
+const DEFAULT_EDITOR_STATE_CARD_RADIUS = 0.03;
+const DEFAULT_EDITOR_STATE_CARD_DEPTH = 0.012;
+
+function ImageCardScene({
+  texture,
+  finishId,
+  radius,
+  depth,
+}: {
+  texture: Texture | null;
+  finishId: string;
+  /** Fraction of the card's shorter side. */
+  radius: number;
+  depth: number;
+}) {
+  const finish = getFinish(finishId);
+
+  const built = useMemo(() => {
+    const image = texture?.image as { width?: number; height?: number } | undefined;
+    const iw = image?.width ?? 0;
+    const ih = image?.height ?? 0;
+    // Square until an image says otherwise, so the stage is never empty and
+    // never guesses an aspect it has to correct a frame later.
+    const aspect = iw > 0 && ih > 0 ? iw / ih : 1;
+
+    /*
+     * Fitted the same way the GLB path fits a model: normalise to the height
+     * budget, then pull back if the width would overflow. Built at
+     * PHONE_HEIGHT alone, a landscape card came out 1.8x wider than the stage
+     * allows, because a phone is never the thing that tests the width.
+     */
+    const fit = Math.min(1, PHONE_WIDTH_BUDGET / (PHONE_HEIGHT * aspect));
+    const height = PHONE_HEIGHT * fit;
+    const width = height * aspect;
+    const shape = makeRoundedShape(
+      width,
+      height,
+      Math.min(width, height) * radius,
+    );
+
+    // A card can be asked for at zero thickness. Extrude with a bevel on a
+    // zero depth collapses, so below a hair's breadth it becomes a plain flat
+    // face -- which is what zero thickness means anyway.
+    const flat = depth <= 0.0005;
+    const geometry = new ExtrudeGeometry(shape, {
+      depth: flat ? 0.0005 : depth,
+      bevelEnabled: !flat,
+      bevelThickness: depth * 0.25,
+      bevelSize: depth * 0.25,
+      bevelSegments: 2,
+      curveSegments: 16,
+    });
+    // Extrude builds forward from z = 0; centring puts the card on the origin
+    // so it turns about itself rather than swinging around its own back face.
+    geometry.center();
+
+    // UVs remapped against the shape extents, for the same reason the screen
+    // plane does it: extrude derives them from raw shape coordinates, which on
+    // a centred shape run negative, and the artwork would tile instead of
+    // landing once. The side wall gets odd UVs, which costs nothing -- it is
+    // painted with a flat colour, not the map.
+    const pos = geometry.attributes.position;
+    const uv = geometry.attributes.uv;
+    for (let i = 0; i < pos.count; i++) {
+      uv.setXY(
+        i,
+        (pos.getX(i) + width / 2) / width,
+        (pos.getY(i) + height / 2) / height,
+      );
+    }
+    uv.needsUpdate = true;
+
+    return { geometry };
+  }, [texture, radius, depth]);
+
+  const face = useMemo(() => {
+    const m = new MeshBasicMaterial({ toneMapped: false });
+    m.map = texture ?? null;
+    // No artwork yet: a blank card in the chosen finish, rather than a black
+    // hole where the picture will go.
+    m.color.set(texture ? "#ffffff" : finish.color);
+    return m;
+  }, [texture, finish.color]);
+
+  const edge = useMemo(() => {
+    const m = new MeshBasicMaterial({ toneMapped: false });
+    m.color.set(finish.color);
+    return m;
+  }, [finish.color]);
+
+  useEffect(() => {
+    if (!texture) return;
+    /* eslint-disable react-hooks/immutability -- the texture is ours to set up,
+       and this is the same colour-space assignment the screen path makes. */
+    texture.colorSpace = SRGBColorSpace;
+    texture.needsUpdate = true;
+    /* eslint-enable react-hooks/immutability */
+  }, [texture]);
+
+  // Extrude groups its own output: 0 is the two flat faces, 1 is the wall
+  // around them, which is exactly the split this wants.
+  return <mesh geometry={built.geometry} material={[face, edge]} />;
 }
 
 /**
@@ -1924,6 +2053,8 @@ function PhoneScene({
   livePose,
   screenFit,
   fold,
+  cardRadius,
+  cardDepth,
   coverTexture,
   coverScreenFit,
 }: {
@@ -1957,6 +2088,8 @@ function PhoneScene({
   fold?: number;
   coverTexture?: Texture | null;
   coverScreenFit?: { scale: number; offsetX: number; offsetY: number };
+  cardRadius: number;
+  cardDepth: number;
 }) {
   const rad = Math.PI / 180;
   const groupRef = useRef<Group>(null);
@@ -2102,7 +2235,15 @@ function PhoneScene({
 
   return (
     <group ref={groupRef}>
-      {USE_GLB ? (
+      {device.kind === "image" ? (
+        /* Generated on the spot from the upload -- no loader, no Suspense. */
+        <ImageCardScene
+          texture={screenTexture}
+          finishId={finishId ?? DEFAULT_FINISH_ID}
+          radius={cardRadius}
+          depth={cardDepth}
+        />
+      ) : USE_GLB ? (
         /*
          * Nothing while the model loads, not a stand-in phone.
          *
@@ -2161,6 +2302,8 @@ export default function PhoneStage3D({
   playing,
   livePose,
   fold,
+  cardRadius,
+  cardDepth,
   coverTexture,
   coverScreenFit,
   fov = 38,
@@ -2200,6 +2343,8 @@ export default function PhoneStage3D({
   /** Camera field of view, in degrees. */
   /** 0-100, how far a folding device is closed. */
   fold?: number;
+  cardRadius?: number;
+  cardDepth?: number;
   coverTexture?: Texture | null;
   coverScreenFit?: { scale: number; offsetX: number; offsetY: number };
   fov?: number;
@@ -2300,6 +2445,8 @@ export default function PhoneStage3D({
           livePose={livePose}
           screenFit={screenFit}
           fold={fold}
+          cardRadius={cardRadius ?? DEFAULT_EDITOR_STATE_CARD_RADIUS}
+          cardDepth={cardDepth ?? DEFAULT_EDITOR_STATE_CARD_DEPTH}
           coverTexture={coverTexture}
           coverScreenFit={coverScreenFit}
         />

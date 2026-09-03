@@ -565,6 +565,15 @@ export function RightPanel({
             {device.fold ? (
               <ParamRow label="Fold" value={state.fold} {...RANGES.fold} defaultValue={DEFAULT_EDITOR_STATE.fold} keyframed={keyedNow.fold} onKeyframe={() => onToggleKey("fold")} onChange={(fold) => onChange({ fold })} />
             ) : null}
+            {/* Only for the generated card. A phone's corners and thickness are
+                facts about the model, not settings -- these exist because this
+                body is built rather than loaded. */}
+            {device.kind === "image" ? (
+              <>
+                <ParamRow label="Corner radius" value={state.cardRadius} {...RANGES.cardRadius} decimals={3} defaultValue={DEFAULT_EDITOR_STATE.cardRadius} onChange={(cardRadius) => onChange({ cardRadius })} />
+                <ParamRow label="Thickness" value={state.cardDepth} {...RANGES.cardDepth} decimals={3} defaultValue={DEFAULT_EDITOR_STATE.cardDepth} onChange={(cardDepth) => onChange({ cardDepth })} />
+              </>
+            ) : null}
             <ParamRow label="Zoom" value={state.zoom} {...RANGES.zoom} defaultValue={DEFAULT_EDITOR_STATE.zoom} decimals={2} keyframed={keyedNow.zoom} onKeyframe={() => onToggleKey("zoom")} onChange={(zoom) => onChange({ zoom })} />
             {/* No "Space drag" hint on the pans: the canvas only handles
                 drag-rotate and wheel-zoom, so panning is these rows only. */}

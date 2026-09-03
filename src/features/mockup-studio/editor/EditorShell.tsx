@@ -1307,6 +1307,8 @@ export default function EditorShell() {
               rotateZ={effective.zAxis}
               fov={effective.fov}
               fold={effective.fold}
+              cardRadius={effective.cardRadius}
+              cardDepth={effective.cardDepth}
               coverTexture={coverTexture}
               coverScreenFit={{
                 scale: effective.coverScale,
