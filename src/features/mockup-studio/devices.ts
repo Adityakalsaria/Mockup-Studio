@@ -225,6 +225,7 @@ export const DEVICES: Device[] = [
     // A card carrying a CIRCLE settled it: the panel maps the source upright,
     // so the turn was doing nothing except sending the crop to the wrong axis,
     // which is what stretched every portrait source across the panel.
+    screenRotateDeg: 90,
     screenFlipX: true,
     // TEXCOORD_0 on the inner panel spans u 0..1, v 0..1 -- a square, over a
     // 1.42 mesh.
