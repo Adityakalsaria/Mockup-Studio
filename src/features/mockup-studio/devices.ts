@@ -88,6 +88,23 @@ export interface Device {
    */
   screenRotateDeg?: number;
   /**
+   * The aspect of the span the screen mesh's own UVs occupy.
+   *
+   * Geometry alone does not say how a texture lands on a mesh. The Fold's
+   * inner panel is 1.42 times wider than it is tall but its UVs span a 1.0
+   * SQUARE, so the mapping stretches anything bound to it by 1.42 -- and the
+   * fit, targeting the geometry, cropped to 1.42 as well, for 1.42 x 1.42 =
+   * 2.02x. That is the stretch: a circle came back twice as wide as tall no
+   * matter what size the source was, which is why no authoring size could fix
+   * it from the outside.
+   *
+   * With this the fit targets uvAspect / meshAspect instead, which is the
+   * region shape that comes out undistorted. Read straight off TEXCOORD_0 in
+   * the file rather than guessed. Omit it and the fit uses the geometry, which
+   * is right for any model whose UVs are laid out proportionally.
+   */
+  screenUvAspect?: number;
+  /**
    * The colour the model was authored in, when part of the body is baked into
    * a base-colour map rather than driven by a material factor. Texels sharing
    * this hue follow the selected finish; everything else in the map — lens
@@ -202,12 +219,16 @@ export const DEVICES: Device[] = [
     // "OLED IN" the inner one that folds. The match is exact, so naming one
     // binds only that one -- the other keeps the model's own wallpaper.
     screenMaterial: "OLED IN",
-    // Both, and measured with a test card rather than reasoned about. The
-    // inner panel's UVs run along its long edge AND right to left: a quarter
-    // turn alone landed the card upright but mirrored, a flip alone left it
-    // lying on its side. The pair is what stands it up the right way round.
-    screenRotateDeg: 90,
+    // Just the mirror. An earlier reading added a 90 degree turn as well, on
+    // the strength of test cards that could not tell the two apart -- a square
+    // card is rotation-blind, and a portrait one came back upright either way.
+    // A card carrying a CIRCLE settled it: the panel maps the source upright,
+    // so the turn was doing nothing except sending the crop to the wrong axis,
+    // which is what stretched every portrait source across the panel.
     screenFlipX: true,
+    // TEXCOORD_0 on the inner panel spans u 0..1, v 0..1 -- a square, over a
+    // 1.42 mesh.
+    screenUvAspect: 1,
     // The outer panel, measured at 77.2 x 115.1mm in the file. Upright and
     // the right way round without help, unlike the inner one.
     coverScreen: {

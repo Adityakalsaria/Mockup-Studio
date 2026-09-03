@@ -1307,7 +1307,12 @@ function GLBPhoneScene({
         const flat = screen
           ? screen.width / screen.height
           : device.screenNative.width / device.screenNative.height;
-        const screenAspect = quarterTurned ? 1 / flat : flat;
+        // What shape of source region comes out undistorted. Where the model's
+        // UVs are laid out proportionally that is just the geometry; where
+        // they are not, the mapping's own stretch has to be divided back out.
+        const undistorted =
+          device.screenUvAspect !== undefined ? device.screenUvAspect / flat : flat;
+        const screenAspect = quarterTurned ? 1 / undistorted : undistorted;
         const srcAspect = srcWidth / srcHeight;
         if (srcAspect > screenAspect) fx = screenAspect / srcAspect;
         else if (srcAspect < screenAspect) fy = srcAspect / screenAspect;
