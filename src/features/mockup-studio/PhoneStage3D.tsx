@@ -3,7 +3,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { RoundedBox, useGLTF } from "@react-three/drei";
-import { Box3, ClampToEdgeWrapping, Group, Object3D, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
+import { Box3, ClampToEdgeWrapping, Color, Group, Object3D, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
 import type { Texture } from "three";
 import { AnimationMixer } from "three";
 // Not Object3D.clone(): that copies a SkinnedMesh but leaves it pointing at
@@ -1138,11 +1138,28 @@ function GLBPhoneScene({
         if (device.logoMaterials?.some((n) => n.toLowerCase() === markName)) {
           if (typeof candidate.clone !== "function") return mat;
           const mark = candidate.clone() as typeof candidate;
-          mark.color?.set?.("#ffffff");
+          /*
+           * Composited against the body rather than made transparent.
+           *
+           * Real alpha disappeared: the logo is flush against the back panel,
+           * and two coplanar surfaces where the front one is 10% opaque is
+           * exactly the case depth sorting cannot resolve -- it dropped out of
+           * the render entirely rather than going faint.
+           *
+           * The thing behind it is the body, whose colour is known here, so the
+           * blend can just be done up front. Same result, no transparency, no
+           * sorting, and it survives every finish because it is mixed from
+           * whichever one is selected.
+           */
+          mark.color?.set?.(
+            `#${new Color(bodyColor)
+              .lerp(new Color("#ffffff"), device.logoOpacity ?? 0.1)
+              .getHexString()}`,
+          );
           if ("metalness" in mark) mark.metalness = 0;
           if ("roughness" in mark) mark.roughness = 0.35;
-          if ("opacity" in mark) mark.opacity = device.logoOpacity ?? 0.1;
-          if ("transparent" in mark) mark.transparent = true;
+          if ("transparent" in mark) mark.transparent = false;
+          if ("opacity" in mark) mark.opacity = 1;
           return mark;
         }
 
@@ -1363,51 +1380,36 @@ function GLBPhoneScene({
     );
 
     /*
-     * Re-anchor the fold to the hinge.
+     * Split the swing between the two leaves.
      *
-     * The clip turns one leaf and leaves the other alone, so on its own the
-     * device closes like a door: the fixed half stays put and the moving half
-     * sweeps across the frame. Rotating the whole model back by HALF of what
-     * the leaves did puts the bisector where the rig should have had it -- each
-     * leaf then appears to swing the same amount in opposite directions, which
-     * is a book closing rather than a door.
+     * The clip turns ONE leaf and leaves the other alone, so the phone closed
+     * like a door: the fixed half stayed put while the moving half swept the
+     * frame. Counter-rotating the whole model was tried first and is the wrong
+     * shape of fix -- it moves the device to disguise an asymmetric rig rather
+     * than making the rig symmetric, and it fought the stand-up search and the
+     * device yaw sitting above it in the graph.
      *
-     * Composed from the leaves themselves rather than from a hard-coded axis:
-     * the product of their deltas is the total swing whichever of them the clip
-     * happened to animate, and half of that is the correction regardless of
-     * which way the hinge runs in the file.
+     * Here the swing is measured and then redistributed: whatever total angle
+     * the clip put between the leaves, each one takes half of it, in opposite
+     * senses. Both ends move, they meet in the middle, and the hinge stays
+     * where it is for free -- the leaves already pivot about it, so nothing
+     * needs translating afterwards.
+     *
+     * Reading the total from the leaves rather than naming an axis keeps it
+     * working whichever leaf the clip animates and whichever way the hinge runs
+     * in the file.
      */
-    if (leafRest.length) {
-      FOLD_SWING.identity();
-      for (const { leaf, rest } of leafRest) {
-        FOLD_DELTA.copy(rest).invert().premultiply(leaf.quaternion);
-        FOLD_SWING.multiply(FOLD_DELTA);
-      }
-      // Half of it, backwards. slerp from identity is the clean way to halve a
-      // rotation without going near Euler angles.
-      FOLD_HALF.identity().slerp(FOLD_SWING, 0.5).invert();
-      foldRoot.quaternion.copy(FOLD_HALF);
+    if (leafRest.length === 2) {
+      const [first, second] = leafRest;
+      FOLD_DELTA.copy(first.rest).invert().multiply(first.leaf.quaternion);
+      FOLD_SWING.copy(second.rest).invert().multiply(second.leaf.quaternion);
+      FOLD_SWING.premultiply(FOLD_DELTA);
 
-      /*
-       * Rotating the root swings the hinge away from where it was measured, so
-       * without this the phone would arc across the frame as it folded.
-       *
-       * Done in the root's OWN space, not the world. The first attempt read
-       * the hinge with getWorldPosition and wrote the result into
-       * foldRoot.position, which is local to its parent -- two different
-       * coordinate systems, so the correction was wrong by whatever the
-       * stand-up search and the device yaw had done above it.
-       *
-       * The anchor was captured while the root sat at identity and had no
-       * parent, which makes it the hinge in the root's child space. Rotating
-       * that point by the same correction says where the hinge is about to
-       * land, and the difference is exactly the translation that puts it back.
-       */
-      if (hinge) {
-        FOLD_ANCHOR.copy(FOLD_ANCHOR_REST).applyQuaternion(FOLD_HALF);
-        foldRoot.position.copy(FOLD_ANCHOR_REST).sub(FOLD_ANCHOR);
-      }
+      FOLD_HALF.identity().slerp(FOLD_SWING, 0.5);
+      first.leaf.quaternion.copy(first.rest).multiply(FOLD_HALF_INV.copy(FOLD_HALF).invert());
+      second.leaf.quaternion.copy(second.rest).multiply(FOLD_HALF);
     }
+
     if (
       Math.abs(foldNow.current - target) > 0.01 ||
       Math.abs(foldVel.current.f) > 0.01
@@ -1863,6 +1865,7 @@ const LIVE_TARGET = new Quaternion();
 const FOLD_SWING = new Quaternion();
 const FOLD_DELTA = new Quaternion();
 const FOLD_HALF = new Quaternion();
+const FOLD_HALF_INV = new Quaternion();
 const FOLD_ANCHOR = new Vector3();
 const FOLD_ANCHOR_REST = new Vector3();
 
