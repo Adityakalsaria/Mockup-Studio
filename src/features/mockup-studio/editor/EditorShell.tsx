@@ -709,6 +709,7 @@ export default function EditorShell() {
             zoom: pose.zoom,
             panX: pose.panX,
             panY: pose.panY,
+            fold: pose.fold,
           }),
           clipLengthRef.current,
         ),
@@ -1162,7 +1163,7 @@ export default function EditorShell() {
               rotateY={effective.yAxis}
               rotateZ={effective.zAxis}
               fov={effective.fov}
-              fold={state.fold}
+              fold={effective.fold}
               coverTexture={coverTexture}
               coverScreenFit={{
                 scale: effective.coverScale,

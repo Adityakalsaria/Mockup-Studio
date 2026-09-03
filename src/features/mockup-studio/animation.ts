@@ -14,6 +14,10 @@ export const ANIMATABLE = [
   { key: "zoom", label: "Zoom" },
   { key: "panX", label: "Pan X" },
   { key: "panY", label: "Pan Y" },
+  // Only folding devices have a hinge, but the track list is about what CAN be
+  // keyed, not what the current device has. A rigid phone simply never gets a
+  // fold track, because nothing writes one.
+  { key: "fold", label: "Fold" },
 ] as const;
 
 export type AnimatableKey = (typeof ANIMATABLE)[number]["key"];

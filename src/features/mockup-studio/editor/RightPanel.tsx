@@ -452,7 +452,7 @@ export function RightPanel({
       )}
 
       {side === "right" && rightTab === "motion" ? (
-        <MotionPanel easing={easing} onApplyPreset={onApplyPreset} />
+        <MotionPanel easing={easing} onApplyPreset={onApplyPreset} hasFold={Boolean(device.fold)} />
       ) : null}
 
       {/* The shot: how it moves, what the lens does, what sits behind it. */}

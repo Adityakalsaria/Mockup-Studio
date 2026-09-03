@@ -22,7 +22,9 @@ import { MOTION_PRESETS, PRESET_GROUPS, type MotionPreset } from "./motionPreset
 /** The pose the previews animate around: square on, unrotated, unzoomed.
     Presets are built relative to whatever pose is on screen, so feeding them a
     neutral one shows the MOVE rather than your current framing. */
-const NEUTRAL = { xAxis: 0, yAxis: 0, zAxis: 0, zoom: 1, panX: 0, panY: 0 };
+const NEUTRAL = { xAxis: 0, yAxis: 0, zAxis: 0, zoom: 1, panX: 0, panY: 0,
+  fold: 0,
+};
 
 /** Pan is a fraction of the stage; in a 76px-tall card it needs a scale to
     read at all. Tuned so a full-width preset move stays inside its card. */
@@ -201,7 +203,11 @@ function PresetCard({
 export function MotionPanel({
   easing,
   onApplyPreset,
+  hasFold = false,
 }: {
+  /** Whether the current device has a hinge. Hides the fold presets when not:
+      they would animate in the preview and do nothing on the stage. */
+  hasFold?: boolean;
   /** Previews use the easing you have chosen, so what you watch is what the
       timeline will play. */
   easing: Easing;
@@ -219,7 +225,9 @@ export function MotionPanel({
       </p>
 
       {PRESET_GROUPS.map((group) => {
-        const presets = MOTION_PRESETS.filter((preset) => preset.kind === group.kind);
+        const presets = MOTION_PRESETS.filter(
+          (preset) => preset.kind === group.kind && (hasFold || !preset.needsFold),
+        );
         if (!presets.length) return null;
         return (
           <div key={group.kind} className="flex flex-col gap-[8px]">

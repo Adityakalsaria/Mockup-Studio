@@ -21,6 +21,7 @@ export interface Pose {
   zoom: number;
   panX: number;
   panY: number;
+  fold: number;
 }
 
 /**
@@ -32,6 +33,7 @@ const BOUNDED: Partial<Record<AnimatableKey, { min: number; max: number }>> = {
   zoom: RANGES.zoom,
   panX: RANGES.panX,
   panY: RANGES.panY,
+  fold: RANGES.fold,
 };
 
 function clamp(key: AnimatableKey, value: number): number {
@@ -60,6 +62,14 @@ export interface MotionPreset {
   id: string;
   label: string;
   kind: PresetKind;
+  /**
+   * Only offered for devices with a hinge.
+   *
+   * A fold preset on a rigid phone would key a property the model has no
+   * geometry for: the card would animate in the picker and do nothing on the
+   * stage, which is worse than not being there.
+   */
+  needsFold?: boolean;
   /** Shown in the picker; says what it does, not what it is called. */
   hint: string;
   /**
@@ -762,6 +772,133 @@ export const MOTION_PRESETS: MotionPreset[] = [
       },
     }),
   },
+
+  // ------------------------------------------------------------- FOLDS ----
+  //
+  // The hinge is the only thing this device does that no other device can, so
+  // these are built around it rather than around the camera. In each one the
+  // fold leads and the camera follows a beat behind: opening a phone and
+  // pushing in at the same rate reads as one blurred event, where letting the
+  // hinge finish first gives the eye something to arrive at.
+  {
+    id: "unfold",
+    label: "Unfold",
+    kind: "entrance",
+    needsFold: true,
+    hint: "Opens the hinge, camera eases in behind it",
+    build: (p) => ({
+      durationSec: 2.4,
+      tracks: {
+        // Shut, then most of the way open by 1.4s. The last 20 degrees take
+        // as long as the first 80 -- a hinge has mass, and the slow finish is
+        // the whole reason it reads as a hinge and not a wipe.
+        fold: track("fold", [
+          [0, 100],
+          [0.5, 88],
+          [1.4, 18],
+          [2.0, 2],
+          [2.4, 0],
+        ]),
+        // Starts after the hinge has broken open, so the two moves are legible
+        // as cause and effect rather than one gesture.
+        zoom: track("zoom", [
+          [0, p.zoom * 0.9],
+          [0.6, p.zoom * 0.92],
+          [2.4, p.zoom],
+        ]),
+        yAxis: track("yAxis", [
+          [0, p.yAxis - 16],
+          [2.4, p.yAxis],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "fold-shut",
+    label: "Fold shut",
+    kind: "move",
+    needsFold: true,
+    hint: "Closes it, and pulls back as it goes",
+    build: (p) => ({
+      durationSec: 2.0,
+      tracks: {
+        // The mirror of Unfold, and deliberately not its reverse: closing is
+        // the faster half of a hinge in the hand, and it lands rather than
+        // settles.
+        fold: track("fold", [
+          [0, 0],
+          [0.35, 8],
+          [1.5, 92],
+          [2.0, 100],
+        ]),
+        zoom: track("zoom", [
+          [0, p.zoom],
+          [2.0, p.zoom * 0.94],
+        ]),
+        xAxis: track("xAxis", [
+          [0, p.xAxis],
+          [2.0, p.xAxis + 4],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "fold-reveal",
+    label: "Cover to inside",
+    kind: "move",
+    needsFold: true,
+    hint: "Shows the cover screen, turns, then opens",
+    build: (p) => ({
+      durationSec: 3.4,
+      tracks: {
+        // Held shut long enough to read the cover screen, then opened once the
+        // turn has carried the inside toward the camera.
+        fold: track("fold", [
+          [0, 100],
+          [1.2, 100],
+          [2.6, 12],
+          [3.4, 0],
+        ]),
+        // Half a turn across the whole clip, so the device presents its
+        // outside first and its inside last.
+        yAxis: track("yAxis", [
+          [0, p.yAxis - 180],
+          [1.2, p.yAxis - 150],
+          [3.4, p.yAxis],
+        ]),
+        zoom: track("zoom", [
+          [0, p.zoom * 0.95],
+          [1.2, p.zoom * 0.95],
+          [3.4, p.zoom],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "fold-breathe",
+    label: "Hinge idle",
+    kind: "loop",
+    needsFold: true,
+    hint: "Opens and closes a little, forever",
+    build: (p) => ({
+      durationSec: 5.0,
+      tracks: {
+        // Never fully shut and never fully open: a loop that hits either end
+        // pauses there, and the pause is what makes a loop look like a loop.
+        fold: track("fold", [
+          [0, 8],
+          [2.5, 34],
+          [5.0, 8],
+        ]),
+        yAxis: track("yAxis", [
+          [0, p.yAxis],
+          [2.5, p.yAxis + 7],
+          [5.0, p.yAxis],
+        ]),
+      },
+    }),
+  },
+
 ];
 
 /** Order the picker shows them in. */
