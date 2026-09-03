@@ -1265,6 +1265,24 @@ function GLBPhoneScene({
         else if (srcAspect < screenAspect) fy = srcAspect / screenAspect;
       }
 
+      /*
+       * The crop is chosen against the turned aspect, but fx and fy scale the
+       * texture's OWN axes and three applies the scale BEFORE the rotation --
+       * so after a quarter turn the shrink meant for one axis lands on the
+       * other. Left alone, a square source came out pulled 2.1x sideways
+       * across the panel, which is a circle rendering as an ellipse twice as
+       * wide as it is tall.
+       *
+       * Verified with a test card carrying a circle and a square, because
+       * reasoning about it got the direction wrong twice: the matrix says one
+       * thing and the render says the other, and the render is what ships.
+       */
+      if (quarterTurned) {
+        const turned = fx;
+        fx = fy;
+        fy = turned;
+      }
+
       const zoom = fitScale > 0 ? fitScale : 1;
       fx /= zoom;
       fy /= zoom;
@@ -1282,7 +1300,12 @@ function GLBPhoneScene({
       screenTexture.wrapS = ClampToEdgeWrapping;
       screenTexture.wrapT = ClampToEdgeWrapping;
       screenTexture.repeat.set(fx * flip, fy * flipV);
-      screenTexture.offset.set(-fitOffsetX * fx, fitOffsetY * fy);
+      // Nudges follow the turn, so Screen X still moves the image the way the
+      // screen looks rather than the way its UVs happen to run.
+      screenTexture.offset.set(
+        quarterTurned ? -fitOffsetY * fx : -fitOffsetX * fx,
+        quarterTurned ? fitOffsetX * fy : fitOffsetY * fy,
+      );
       screenTexture.needsUpdate = true;
       invalidate();
     };
