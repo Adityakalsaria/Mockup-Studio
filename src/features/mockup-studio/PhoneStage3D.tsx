@@ -1521,29 +1521,42 @@ function GLBPhoneScene({
       coverTexture.wrapS = ClampToEdgeWrapping;
       coverTexture.wrapT = ClampToEdgeWrapping;
       /*
-       * Remap the mesh's own UV rect onto the whole source.
+       * Map the mesh's UV span onto the chosen window of the source.
        *
-       * The cover panel's UVs do not span 0..1 -- the model packs it into part
-       * of a shared wallpaper -- so a texture bound at repeat 1 shows only the
-       * slice the UVs happen to point at, scaled wrong and shifted.
+       * three composes the transform as
+       *   sampled = repeat * uv + centre * (1 - repeat) + offset
+       * so with the mesh's UVs running ry..ry+rh and the window running A..B:
+       *   repeat = (B - A) / rh
+       *   offset = A - repeat * ry - centre * (1 - repeat)
+       *
+       * Worth deriving rather than adjusting by eye. The cover panel's UVs
+       * start at v = 0.3138, and the earlier arithmetic left the offset about
+       * 0.46 low -- which is exactly what "the image keeps falling to the
+       * bottom" looks like. The same formula reduces to the main screen's
+       * existing numbers when the UVs span the full square, which is how it
+       * was checked.
        */
       const rect = coverConfig.uvRect;
       const rw = rect?.w ?? 1;
       const rh = rect?.h ?? 1;
       const rx = rect?.x ?? 0;
       const ry = rect?.y ?? 0;
-      // The cover's own nudges, on top of the automatic crop. Zoom shrinks
-      // the sampled window and re-centres on the same point, so turning it
-      // scales about the middle instead of sliding toward a corner.
-      const zoom = coverFit.scale > 0 ? coverFit.scale : 1;
-      fx /= zoom;
-      fy /= zoom;
-      const sx = (fx / rw) * (coverConfig.flipX ? -1 : 1);
-      const sy = (fy / rh) * (coverConfig.flipY ? -1 : 1);
+
+      // The centred crop, nudged. A flip swaps which end of the window the
+      // mesh's first UV lands on, which is all a mirror is.
+      const u0 = (1 - fx) / 2 - coverFit.offsetX * fx;
+      const u1 = u0 + fx;
+      const v0 = (1 - fy) / 2 + coverFit.offsetY * fy;
+      const v1 = v0 + fy;
+      const [ua, ub] = coverConfig.flipX ? [u1, u0] : [u0, u1];
+      const [va, vb] = coverConfig.flipY ? [v1, v0] : [v0, v1];
+
+      const sx = (ub - ua) / rw;
+      const sy = (vb - va) / rh;
       coverTexture.repeat.set(sx, sy);
       coverTexture.offset.set(
-        -rx * sx + (1 - fx / rw) / 2 - coverFit.offsetX * fx,
-        -ry * sy + (1 - fy / rh) / 2 + coverFit.offsetY * fy,
+        ua - sx * rx - 0.5 * (1 - sx),
+        va - sy * ry - 0.5 * (1 - sy),
       );
       coverTexture.needsUpdate = true;
       invalidate();

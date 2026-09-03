@@ -184,6 +184,14 @@ export function RightPanel({
         expanded={isOpen("source")}
         onToggle={() => toggle("source")}
       >
+        {/* Named only when there are two screens to tell apart. On a rigid
+            phone there is one image and one set of sliders, and a heading over
+            them would be labelling the obvious. */}
+        {device.coverScreen ? (
+          <span className="ks-micro mb-[6px] block" style={{ color: "var(--ks-text-faint)" }}>
+            Inner screen
+          </span>
+        ) : null}
         {/* A live mirror outranks the upload in the texture hook, so it has to
             outrank it here too — showing the old still under a running mirror
             would say the phone is displaying something it is not. */}
@@ -267,6 +275,55 @@ export function RightPanel({
           </button>
         )}
 
+        {/* Mirror any window the OS will share: a phone mirrored over USB
+            (scrcpy, QuickTime), a simulator, or a browser tab. The web cannot
+            capture a phone's own screen from the phone, so the desktop picking
+            up a mirror window is the whole trick. */}
+        {!isMirroring && canMirror ? (
+          <div className="mt-[8px]">
+            <PillButton onClick={onStartMirror}>Mirror a window</PillButton>
+          </div>
+        ) : null}
+
+        {/* Nudge on top of the automatic centre-crop. A mirrored window carries
+            chrome on one edge only, so the fit lands it low or high; a
+            screenshot needs none of this and leaves these at their defaults. */}
+        {isMirroring || sourceSrc ? (
+          <div className="mt-[12px]">
+            <ParamRow
+              label="Screen zoom"
+              value={state.screenScale}
+              {...RANGES.screenScale}
+              defaultValue={DEFAULT_EDITOR_STATE.screenScale}
+              decimals={2}
+              onChange={(screenScale) => onChange({ screenScale })}
+            />
+            <ParamRow
+              label="Screen X"
+              value={state.screenOffsetX}
+              {...RANGES.screenOffsetX}
+              defaultValue={DEFAULT_EDITOR_STATE.screenOffsetX}
+              decimals={3}
+              onChange={(screenOffsetX) => onChange({ screenOffsetX })}
+            />
+            <ParamRow
+              label="Screen Y"
+              value={state.screenOffsetY}
+              {...RANGES.screenOffsetY}
+              defaultValue={DEFAULT_EDITOR_STATE.screenOffsetY}
+              decimals={3}
+              onChange={(screenOffsetY) => onChange({ screenOffsetY })}
+            />
+          </div>
+        ) : null}
+
+        {/* A rule between the two, because the pair above and the pair below
+            are the same three controls twice and the only thing separating
+            them is which image they belong to. */}
+        {device.coverScreen ? (
+          <div className="mt-[16px] h-px w-full" style={{ background: "var(--ks-line)" }} />
+        ) : null}
+
         {/* The cover panel gets its own upload, and only appears for a device
             that has one. A fold shows different things on its two screens in
             any real screenshot -- binding one source to both would be a mockup
@@ -317,48 +374,6 @@ export function RightPanel({
             <ParamRow label="Cover zoom" value={state.coverScale} {...RANGES.coverScale} defaultValue={DEFAULT_EDITOR_STATE.coverScale} decimals={2} onChange={(coverScale) => onChange({ coverScale })} />
             <ParamRow label="Cover X" value={state.coverOffsetX} {...RANGES.coverOffsetX} defaultValue={DEFAULT_EDITOR_STATE.coverOffsetX} decimals={3} onChange={(coverOffsetX) => onChange({ coverOffsetX })} />
             <ParamRow label="Cover Y" value={state.coverOffsetY} {...RANGES.coverOffsetY} defaultValue={DEFAULT_EDITOR_STATE.coverOffsetY} decimals={3} onChange={(coverOffsetY) => onChange({ coverOffsetY })} />
-          </div>
-        ) : null}
-
-        {/* Mirror any window the OS will share: a phone mirrored over USB
-            (scrcpy, QuickTime), a simulator, or a browser tab. The web cannot
-            capture a phone's own screen from the phone, so the desktop picking
-            up a mirror window is the whole trick. */}
-        {!isMirroring && canMirror ? (
-          <div className="mt-[8px]">
-            <PillButton onClick={onStartMirror}>Mirror a window</PillButton>
-          </div>
-        ) : null}
-
-        {/* Nudge on top of the automatic centre-crop. A mirrored window carries
-            chrome on one edge only, so the fit lands it low or high; a
-            screenshot needs none of this and leaves these at their defaults. */}
-        {isMirroring || sourceSrc ? (
-          <div className="mt-[12px]">
-            <ParamRow
-              label="Screen zoom"
-              value={state.screenScale}
-              {...RANGES.screenScale}
-              defaultValue={DEFAULT_EDITOR_STATE.screenScale}
-              decimals={2}
-              onChange={(screenScale) => onChange({ screenScale })}
-            />
-            <ParamRow
-              label="Screen X"
-              value={state.screenOffsetX}
-              {...RANGES.screenOffsetX}
-              defaultValue={DEFAULT_EDITOR_STATE.screenOffsetX}
-              decimals={3}
-              onChange={(screenOffsetX) => onChange({ screenOffsetX })}
-            />
-            <ParamRow
-              label="Screen Y"
-              value={state.screenOffsetY}
-              {...RANGES.screenOffsetY}
-              defaultValue={DEFAULT_EDITOR_STATE.screenOffsetY}
-              decimals={3}
-              onChange={(screenOffsetY) => onChange({ screenOffsetY })}
-            />
           </div>
         ) : null}
       </PanelSection>
