@@ -145,6 +145,24 @@ export interface Device {
    * every rigid phone.
    */
   fold?: { openSec: number; closedSec: number };
+  /**
+   * A second screen on the same body, with its own source.
+   *
+   * A fold has two: the big inner panel you open it for, and the cover panel
+   * on the outside. They show different things in any real screenshot, so one
+   * source bound to both would be a mockup of a phone mirroring itself.
+   *
+   * Bound exactly like `screenMaterial`, but fed from the second upload and
+   * cropped against `native` rather than a measured mesh -- the cover panel is
+   * small, flat and rectangular, so its authored aspect is all the fit needs.
+   */
+  coverScreen?: {
+    material: string;
+    native: { width: number; height: number };
+    flipX?: boolean;
+    flipY?: boolean;
+    rotateDeg?: number;
+  };
   /** Licence + author. Required for anything that ships. */
   credit: string;
 }
@@ -190,6 +208,16 @@ export const DEVICES: Device[] = [
     // lying on its side. The pair is what stands it up the right way round.
     screenRotateDeg: 90,
     screenFlipX: true,
+    // The outer panel, measured at 77.2 x 115.1mm in the file. Upright and
+    // the right way round without help, unlike the inner one.
+    coverScreen: {
+      material: "OLED",
+      native: { width: 772, height: 1151 },
+      // Its UVs run right to left, like the inner panel's: text bound to it
+      // came back reversed when read from outside the closed phone, which is
+      // the only side this screen is ever seen from.
+      flipX: true,
+    },
     // The clip closes the phone: the leaves are parallel at t=0 and have swung
     // 180 degrees onto each other by t=2, holding shut to 5. Rendering both
     // ends settled which way round it goes -- "parallel leaves" describes

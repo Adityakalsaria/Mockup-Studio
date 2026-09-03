@@ -38,6 +38,9 @@ export function RightPanel({
   onChange,
   sourceSrc,
   onPickSource,
+  coverSrc,
+  onPickCoverSource,
+  onClearCoverSource,
   onClearSource,
   onPickBackgroundImage,
   isMirroring,
@@ -65,6 +68,10 @@ export function RightPanel({
   onChange: (patch: Partial<EditorState>) => void;
   sourceSrc: string | null;
   onPickSource: () => void;
+  /** The second screen's source, for devices with a cover panel. */
+  coverSrc: string | null;
+  onPickCoverSource: () => void;
+  onClearCoverSource: () => void;
   onClearSource: () => void;
   /** Opens the file picker for a background image. */
   onPickBackgroundImage: () => void;
@@ -259,6 +266,48 @@ export function RightPanel({
             </span>
           </button>
         )}
+
+        {/* The cover panel gets its own upload, and only appears for a device
+            that has one. A fold shows different things on its two screens in
+            any real screenshot -- binding one source to both would be a mockup
+            of a phone mirroring itself. */}
+        {device.coverScreen ? (
+          <div className="mt-[12px]">
+            <span className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>
+              Cover screen
+            </span>
+            {coverSrc ? (
+              <div className="relative mt-[6px] h-[92px] overflow-hidden rounded-[var(--ks-r-card)]">
+                <img
+                  src={coverSrc}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={onClearCoverSource}
+                  aria-label="Remove cover source"
+                  className="absolute right-[8px] top-[8px] grid h-[24px] w-[24px] place-items-center rounded-full"
+                  style={{ background: "rgba(0,0,0,0.4)", color: "#fff" }}
+                >
+                  <Icon name="dismiss" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onPickCoverSource}
+                className="mt-[6px] flex h-[92px] w-full flex-col items-center justify-center gap-[6px] rounded-[var(--ks-r-card)] border border-dashed transition-colors"
+                style={{ borderColor: "var(--ks-line-strong)", background: "var(--ks-row)" }}
+              >
+                <Icon name="upload" />
+                <span className="ks-micro" style={{ color: "var(--ks-text-dim)" }}>
+                  Upload for the outer screen
+                </span>
+              </button>
+            )}
+          </div>
+        ) : null}
 
         {/* Mirror any window the OS will share: a phone mirrored over USB
             (scrcpy, QuickTime), a simulator, or a browser tab. The web cannot

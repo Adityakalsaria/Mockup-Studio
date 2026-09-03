@@ -770,6 +770,7 @@ function GLBPhoneScene({
   finishId,
   screenFit,
   fold,
+  coverTexture,
 }: {
   screenTexture: Texture | null;
   device: Device;
@@ -777,13 +778,15 @@ function GLBPhoneScene({
   screenFit?: ScreenFit;
   /** 0-100, how far the hinge is closed. Unused by rigid devices. */
   fold?: number;
+  /** Source for the second screen, where the device has one. */
+  coverTexture?: Texture | null;
 }) {
   const { color: bodyColor, metalness: bodyMetalness, roughness: bodyRoughness } =
     getFinish(finishId);
   // Only ever mounted for a device that has one; the branch that chooses
   // between this and the generated bodies is in PhoneScene.
   const gltf = useGLTF(device.modelPath as string);
-  const { scene, width, height, depth, screen, screenMaterials, mixer } = useMemo(() => {
+  const { scene, width, height, depth, screen, screenMaterials, coverMaterials, mixer } = useMemo(() => {
     const cloned = cloneSkinned(gltf.scene) as Group;
 
     /*
@@ -882,6 +885,7 @@ function GLBPhoneScene({
     // real screen. Built per instance so two devices on screen at once do not
     // share one map.
     const screenMaterials: MeshBasicMaterial[] = [];
+    const coverMaterials: MeshBasicMaterial[] = [];
     // Hide any mesh that looks like a baked screen / display so our React
     // overlay isn't competing with a placeholder texture.
     cloned.traverse((child) => {
@@ -945,14 +949,57 @@ function GLBPhoneScene({
             screenMaterials.push(basic);
             return basic;
           };
+          /*
+           * Only the screen material, not every material on the mesh.
+           *
+           * This used to convert the lot. On a one-material screen mesh that
+           * is the same thing, which is why it went unnoticed -- but the
+           * Fold's inner panel is four prims, and "Glass flex", "Display
+           * Frame" and "Rubber" were all being handed the screenshot and
+           * turned unlit alongside it. The glass laid a second, washed copy
+           * of the image over the real one, which is the dull, faded screen.
+           */
           if (Array.isArray(m.material)) {
-            m.material = m.material.map((entry) => bind(entry)) as never;
+            m.material = m.material.map((entry) => {
+              const named = entry as { name?: string } | undefined;
+              return named?.name?.toLowerCase() === target ? bind(entry) : entry;
+            }) as never;
           } else {
             m.material = bind(m.material) as never;
           }
           screenLocalBox.union(new Box3().setFromObject(m));
           return;
         }
+      }
+
+      // The second screen, where the device has one. Same swap, its own list,
+      // and deliberately NOT unioned into screenLocalBox -- the cover panel is
+      // a screen, but it is not the screen the camera frames or the notch is
+      // placed against.
+      const cover = device.coverScreen;
+      if (cover && lowerNames.includes(cover.material.toLowerCase())) {
+        const bindCover = (entry: unknown) => {
+          const source = entry as MeshStandardMaterial | undefined;
+          const basic = new MeshBasicMaterial({
+            toneMapped: false,
+            side: source?.side,
+          });
+          basic.name = source?.name ?? "cover screen";
+          coverMaterials.push(basic);
+          return basic;
+        };
+        // Same rule as the main screen: swap the screen material only, and
+        // leave the glass and frame prims sharing the mesh alone.
+        const coverTarget = cover.material.toLowerCase();
+        if (Array.isArray(m.material)) {
+          m.material = m.material.map((entry) => {
+            const named = entry as { name?: string } | undefined;
+            return named?.name?.toLowerCase() === coverTarget ? bindCover(entry) : entry;
+          }) as never;
+        } else {
+          m.material = bindCover(m.material) as never;
+        }
+        return;
       }
 
       const matchHide = lowerNames.some((n) =>
@@ -1184,6 +1231,7 @@ function GLBPhoneScene({
       depth: size.z * scaleFactor,
       screen,
       screenMaterials,
+      coverMaterials,
       mixer,
     };
   }, [gltf.scene, device, bodyColor, bodyMetalness, bodyRoughness]);
@@ -1352,6 +1400,84 @@ function GLBPhoneScene({
     fitOffsetX,
     fitOffsetY,
   ]);
+
+  /*
+   * The cover screen, from its own source.
+   *
+   * A separate effect rather than a second pass through the one above: that
+   * path carries the Screen zoom / X / Y nudges, and those belong to the panel
+   * you are composing. The cover is a second, smaller screen -- it wants a
+   * plain cover-crop and nothing to tune, and giving it the same controls
+   * would mean one pair of sliders quietly moving two images at once.
+   */
+  const coverConfig = device.coverScreen;
+  useEffect(() => {
+    if (!coverMaterials.length) return;
+    /* eslint-disable react-hooks/immutability */
+    const fitCover = () => {
+      if (!coverTexture || !coverConfig) return;
+      const image = coverTexture.image as
+        | (HTMLVideoElement & { width: number; height: number })
+        | undefined;
+      const srcWidth = image?.videoWidth || image?.width || 0;
+      const srcHeight = image?.videoHeight || image?.height || 0;
+
+      const turned =
+        Math.abs(Math.round((coverConfig.rotateDeg ?? 0) / 90)) % 2 === 1;
+      const flat = coverConfig.native.width / coverConfig.native.height;
+      const panel = turned ? 1 / flat : flat;
+
+      let fx = 1;
+      let fy = 1;
+      if (srcWidth && srcHeight) {
+        const srcAspect = srcWidth / srcHeight;
+        if (srcAspect > panel) fx = panel / srcAspect;
+        else if (srcAspect < panel) fy = srcAspect / panel;
+      }
+      // Same reason as the main screen: the scale is applied before the
+      // rotation, so a quarter turn puts each shrink on the other axis.
+      if (turned) {
+        const swap = fx;
+        fx = fy;
+        fy = swap;
+      }
+
+      coverTexture.center.set(0.5, 0.5);
+      coverTexture.rotation = ((coverConfig.rotateDeg ?? 0) * Math.PI) / 180;
+      coverTexture.wrapS = ClampToEdgeWrapping;
+      coverTexture.wrapT = ClampToEdgeWrapping;
+      coverTexture.repeat.set(
+        fx * (coverConfig.flipX ? -1 : 1),
+        fy * (coverConfig.flipY ? -1 : 1),
+      );
+      coverTexture.offset.set(0, 0);
+      coverTexture.needsUpdate = true;
+      invalidate();
+    };
+
+    for (const material of coverMaterials) {
+      if (coverTexture) {
+        coverTexture.flipY = false;
+        coverTexture.anisotropy = maxAnisotropy;
+        coverTexture.colorSpace = SRGBColorSpace;
+        fitCover();
+      }
+      material.map = coverTexture ?? null;
+      material.color.set(coverTexture ? 0xffffff : 0x050505);
+      material.needsUpdate = true;
+    }
+    /* eslint-enable react-hooks/immutability */
+    invalidate();
+
+    const image = coverTexture?.image as HTMLVideoElement | undefined;
+    if (!image || typeof image.videoWidth !== "number") return;
+    image.addEventListener("loadedmetadata", fitCover);
+    image.addEventListener("resize", fitCover);
+    return () => {
+      image.removeEventListener("loadedmetadata", fitCover);
+      image.removeEventListener("resize", fitCover);
+    };
+  }, [coverMaterials, coverTexture, coverConfig, invalidate, maxAnisotropy]);
 
   // Placement comes from the model's own screen mesh where there is one, and
   // falls back to the old percentage guesses only if a model ships without a
@@ -1563,6 +1689,7 @@ function PhoneScene({
   livePose,
   screenFit,
   fold,
+  coverTexture,
 }: {
   rail: Phone3DRail | undefined;
   screenTexture: Texture | null;
@@ -1592,6 +1719,7 @@ function PhoneScene({
   scale: number;
   heightPct: number;
   fold?: number;
+  coverTexture?: Texture | null;
 }) {
   const rad = Math.PI / 180;
   const groupRef = useRef<Group>(null);
@@ -1758,6 +1886,7 @@ function PhoneScene({
             finishId={finishId}
             screenFit={screenFit}
             fold={fold}
+            coverTexture={coverTexture}
           />
         </Suspense>
       ) : (
@@ -1790,6 +1919,7 @@ export default function PhoneStage3D({
   playing,
   livePose,
   fold,
+  coverTexture,
   fov = 38,
   shadow = DEFAULT_SHADOW,
   lighting = DEFAULT_LIGHTING,
@@ -1827,6 +1957,7 @@ export default function PhoneStage3D({
   /** Camera field of view, in degrees. */
   /** 0-100, how far a folding device is closed. */
   fold?: number;
+  coverTexture?: Texture | null;
   fov?: number;
   shadow?: ShadowSettings;
   lighting?: LightingId;
@@ -1925,6 +2056,7 @@ export default function PhoneStage3D({
           livePose={livePose}
           screenFit={screenFit}
           fold={fold}
+          coverTexture={coverTexture}
         />
         {isBlurActive(blur) ? (
           <Suspense fallback={null}>

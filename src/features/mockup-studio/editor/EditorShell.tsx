@@ -222,6 +222,7 @@ export default function EditorShell() {
   }, [undo, redo, seekTo]);
 
   const [sourceSrc, setSourceSrc] = useState<string | null>(null);
+  const [coverSrc, setCoverSrc] = useState<string | null>(null);
   const [sourceName, setSourceName] = useState<string | null>(null);
   /** Where the source layer starts on the timeline, in seconds. */
   const [sourceStart, setSourceStart] = useState(0);
@@ -251,6 +252,8 @@ export default function EditorShell() {
   const ratio = getRatio(ratioId);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // The cover screen's own file, for devices that have a second panel.
+  const coverInputRef = useRef<HTMLInputElement>(null);
   const backgroundInputRef = useRef<HTMLInputElement>(null);
   /** Which of the two mobile steps is showing. Ignored above `laptop`, where
       both panels are on screen at once. */
@@ -259,6 +262,7 @@ export default function EditorShell() {
   const captureRef = useRef<StageCapture | null>(null);
   const recorderRef = useRef<StageRecorder | null>(null);
   const screenHostRef = useRef<HTMLDivElement>(null);
+  const coverHostRef = useRef<HTMLDivElement>(null);
 
   // A live window capture, when one is running. See `startMirror` below.
   const [liveStream, setLiveStream] = useState<MediaStream | null>(null);
@@ -277,6 +281,15 @@ export default function EditorShell() {
     2,
     false,
     liveStream,
+  );
+  // The cover panel's own texture. Same hook, its own host and source, so the
+  // two screens are independent all the way down rather than sharing a crop.
+  const coverTexture = useScreenTexture(
+    coverHostRef,
+    coverSrc ?? undefined,
+    2,
+    false,
+    null,
   );
   const screenVideo = (screenTexture as { image?: HTMLVideoElement } | null)?.image;
   // three's own flag rather than `instanceof HTMLVideoElement`. This runs
@@ -704,6 +717,7 @@ export default function EditorShell() {
   }, []);
 
   const pickSource = () => fileInputRef.current?.click();
+  const pickCoverSource = () => coverInputRef.current?.click();
   const pickBackgroundImage = () => backgroundInputRef.current?.click();
 
   const onBackgroundFile = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -798,6 +812,14 @@ export default function EditorShell() {
       setSourceStart(0);
       setSourceSpan(null);
     };
+    reader.readAsDataURL(file);
+  };
+
+  const onCoverFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setCoverSrc(String(reader.result));
     reader.readAsDataURL(file);
   };
 
@@ -989,6 +1011,13 @@ export default function EditorShell() {
         className="hidden"
       />
       <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*,video/*"
+        onChange={onCoverFile}
+        className="hidden"
+      />
+      <input
         ref={backgroundInputRef}
         type="file"
         accept="image/*"
@@ -1000,6 +1029,11 @@ export default function EditorShell() {
           display:none — a hidden node has no box and captures blank. */}
       <div
         ref={screenHostRef}
+        aria-hidden
+        className="pointer-events-none fixed left-[-10000px] top-0"
+      />
+      <div
+        ref={coverHostRef}
         aria-hidden
         className="pointer-events-none fixed left-[-10000px] top-0"
       />
@@ -1034,6 +1068,9 @@ export default function EditorShell() {
           onChange={change}
           sourceSrc={sourceSrc}
           onPickSource={pickSource}
+          coverSrc={coverSrc}
+          onPickCoverSource={pickCoverSource}
+          onClearCoverSource={() => setCoverSrc(null)}
           onPickBackgroundImage={pickBackgroundImage}
           onClearSource={() => {
             setSourceSrc(null);
@@ -1126,6 +1163,7 @@ export default function EditorShell() {
               rotateZ={effective.zAxis}
               fov={effective.fov}
               fold={state.fold}
+              coverTexture={coverTexture}
               shadow={state.shadow}
               lighting={state.lighting}
               screenFit={{
@@ -1170,6 +1208,9 @@ export default function EditorShell() {
           onChange={change}
           sourceSrc={sourceSrc}
           onPickSource={pickSource}
+          coverSrc={coverSrc}
+          onPickCoverSource={pickCoverSource}
+          onClearCoverSource={() => setCoverSrc(null)}
           onPickBackgroundImage={pickBackgroundImage}
           onClearSource={() => {
             setSourceSrc(null);
