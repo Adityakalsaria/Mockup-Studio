@@ -258,6 +258,54 @@ export interface Device {
    */
   bodyMaterials?: string[];
   /**
+   * The ONLY materials the finish paints. An allow-list.
+   *
+   * `keepMaterials` is the deny-list version of the same decision, and the two
+   * fail opposite ways: leave a material out of the deny-list and it gets
+   * painted, leave one out of this and it keeps what the file says. For an
+   * Apple asset the second is a safe default -- the authored colour is already
+   * correct for the colourway that file shipped as -- and the first is not.
+   *
+   * Prefer this on anything with more than a handful of materials. A laptop
+   * has around thirty and five of them are the finish; naming those five is
+   * both shorter and stable across a reconversion, where the deny-list has to
+   * be re-audited every time because a material that appears from nowhere is
+   * painted by default.
+   *
+   * `materialColors` and `meshColors` still win over this, so a device can
+   * name an exception without adding it to the finish.
+   */
+  finishMaterials?: string[];
+  /**
+   * A perforated panel, stated PER FINISH.
+   *
+   * Every other override in this file is one value that carries across the
+   * lineup, because a panel keeps its relationship to the body whatever colour
+   * the body is. This one does not, and the reason is worth writing down: the
+   * holes are absent from the model -- they live in an opacity map the
+   * converter cannot carry -- so what is being tuned is not a colour but an
+   * illusion of texture, and the illusion needs opposite settings at opposite
+   * ends of the lineup.
+   *
+   * On Silver the deck is bright by its own albedo, so the band reads as
+   * perforated by going LIGHTER and killing its reflection: matte, bright, and
+   * obviously not the polished metal beside it. On Space Black the deck is
+   * near-black and almost all of its lightness is reflection, so the same
+   * treatment produced a black rectangle. There the band has to go slightly
+   * darker and reflect MORE than the deck, not less.
+   *
+   * Four derived attempts failed before this: a quarter step darker read as
+   * paint, an eighth still read as a stripe, a twentieth vanished, and the
+   * roughness trick inverted between the two finishes. These numbers were set
+   * by eye against the real thing, which is the only way to fix a value that
+   * stands in for geometry the file does not contain.
+   */
+  speakerGrille?: {
+    material: string;
+    /** Keyed by finish id. Falls back to the first entry. */
+    byFinish: Record<string, MaterialOverride>;
+  };
+  /**
    * Materials that carry an etched mark rather than a surface.
    *
    * Rendered white at a low opacity, which is how a logo milled into a back
@@ -368,9 +416,124 @@ export interface Device {
    * with different lineups.
    */
   finishIds?: string[];
+  /**
+   * Whole cameras the source model does not ship.
+   *
+   * Apple's own design-resource files are not uniformly detailed. The iPad
+   * Pro's wide camera is built from eight meshes -- rim, cover glass, dark
+   * glass, and a stack of tiny elements down the barrel -- while the
+   * ultra-wide beside it is a single filled disc standing in for all of it. It
+   * reads as a black hole punched in the bump.
+   *
+   * The second camera is COPIED from the first rather than authored. Building
+   * one by hand means guessing a radius, a wall, a material, a roughness and a
+   * metalness for every part, and every one of those guesses sits a centimetre
+   * from the real thing where the eye can compare them directly. Copying gets
+   * all of them right by construction, and stays right if the model is ever
+   * reconverted with different textures or tolerances.
+   *
+   * Which meshes make up a camera is not listed here, because a list would go
+   * stale the moment the file changed. It is read off the model: everything
+   * lying inside the rim's outer circle is part of that camera and everything
+   * else is not. On this file the split is unambiguous -- eight meshes within
+   * 5.40mm of the rim's centre, and the next nearest thing 9.67mm out.
+   */
+  cameraCopies?: {
+    /**
+     * The rim of a complete camera on this model. The circle it encloses is
+     * what decides which meshes belong to that camera.
+     */
+    from: string;
+    /**
+     * The stand-in the copy replaces. It sets the position only -- the copy
+     * is full size, because a stand-in disc is something somebody drew rather
+     * than a measurement, and two lenses on one device are the same lens.
+     * Hidden once the real assembly stands in its place.
+     */
+    onto: string;
+  }[];
   /** Licence + author. Required for anything that ships. */
   credit: string;
 }
+
+/**
+ * Polished metal, derived from the finish rather than pinned to a hex.
+ *
+ * Apple authors a rail at metalness 1, roughness 0.01 -- a mirror -- and the
+ * finish pass would otherwise overwrite that with the body's own values and
+ * flatten it into painted trim. Stating the surface here keeps it a mirror.
+ *
+ * Saturated well up because polished metal returns a deeper version of the
+ * body colour than matte glass does, and lifted slightly because a mirror
+ * shows almost none of its albedo: what that number really sets is how dark
+ * the reflections come back, and at a near-black finish the rig otherwise
+ * reflects into it as a black band.
+ */
+const RAIL = {
+  lighten: 0.06,
+  saturate: 1.9,
+  metalness: 1,
+  roughness: 0.05,
+} as const;
+
+/**
+ * The camera plateau: one piece of coloured glass, on every finish.
+ *
+ * Set on sliders against Apple's own crop rather than derived, because the
+ * plateau's look comes from translucency, tint and gloss interacting across
+ * four stacked meshes and no single one of them can be reasoned about alone.
+ * Four separate corrections each fixed the wrong mesh before it went on a
+ * panel.
+ *
+ * Two of these are worth reading twice. `roughness: 0` is a true mirror --
+ * anything above it and the bump goes back to reading as paint, which is what
+ * every earlier attempt looked like. And `saturate: 1.7` is what separates the
+ * plateau from the back, NOT a step in lightness: a coloured pane over a lit
+ * surface deepens the colour it passes, so `shade` sits at almost nothing.
+ *
+ * One value for the whole lineup, unlike the speaker grille -- this one holds
+ * because it is a property of glass rather than an illusion standing in for
+ * geometry the file does not have.
+ */
+const PLATEAU = {
+  darken: 0.02,
+  saturate: 1.7,
+  opacity: 0.74,
+  roughness: 0,
+  metalness: 0,
+  envMapIntensity: 1.9,
+} as const;
+
+/**
+ * The antenna band: matte, where the rail it interrupts is a mirror.
+ *
+ * How it was finally identified: it rendered GOLD. Nothing in this file is
+ * gold, and nothing in the finish lineup is either -- what produces gold is
+ * `RAIL` on a sage phone, where metalness 1 at roughness 0.05 turns a
+ * yellow-green body into a mirror and the studio comes back off it as
+ * chrome. So the band had to be a mesh on the rail treatment, and only two
+ * are band-shaped.
+ *
+ * Deliberately narrower than the first attempt at this, which also matted a
+ * 116.8mm strip running nearly the length of the phone and changed the whole
+ * side rather than a line across it.
+ *
+ * Fully matte -- metalness 0, roughness 1, and almost none of the environment.
+ * Half measures do not work on a band this narrow: at roughness 0.7 it still
+ * caught enough of the rig along its length to read as a polished sliver,
+ * because a 0.4mm strip is nearly all edge and an edge finds a highlight at
+ * almost any angle.
+ *
+ * Near the body's own colour, because Apple matches these closely: the
+ * difference the eye reads is in the finish, not the hue.
+ */
+const ANTENNA = {
+  lighten: 0.02,
+  saturate: 1,
+  metalness: 0,
+  roughness: 1,
+  envMapIntensity: 0.25,
+} as const;
 
 const MODELS = "/figma-assets/mockup-studio/models";
 
@@ -392,6 +555,249 @@ export const DEVICES: Device[] = [
    * (1206x2622 = 2.1741, 1320x2868 = 2.1727). Do not "tidy" it -- the name is
    * what the file says.
    */
+  {
+    id: "apple-iphone-17",
+    label: "Apple iPhone 17",
+    modelPath: `${MODELS}/apple-iphone-17.glb`,
+    hideHints: [],
+    /*
+     * 66.5 x 144.9mm, aspect 0.4587 against 1206 x 2622's 0.4600.
+     *
+     * Cross-checks against the hardware rather than just against itself: a
+     * 6.3-inch panel at 460ppi is 66.6 x 144.8mm, so the mesh is within two
+     * tenths of a millimetre on both axes.
+     */
+    screenMaterial: "iqSsZrznlbGUhNs",
+    /*
+     * The surfaces that ARE the finish -- an allow-list, so a material nobody
+     * classified keeps what Apple authored instead of being painted.
+     *
+     * The deny-list version of this was wrong in a way that showed: the back
+     * glass is `KChxKESNhKjaHJY` and `NWVRqxSZYCCnuGM`, both TEXTURED, and the
+     * rule that kept anything textured kept them. So the rails and the camera
+     * plateau followed the finish while the back stayed the lavender the file
+     * shipped in, and switching colour gave a two-tone phone that Apple does
+     * not sell.
+     */
+    finishMaterials: [
+      // The back shell, the rails, and the panels between them.
+      "SSCOTROIPktOHPN",
+      "sWPfdEwNBQxWmmj",
+      "QHnEMQTzosCQTsD",
+      "qctyujhTxZaVOMy",
+      "ttTjynsjERFvYxa",
+      "lBQHEyACJPuljkC",
+      // The back glass. Textured, which is what hid them.
+      "KChxKESNhKjaHJY",
+      "NWVRqxSZYCCnuGM",
+      // The camera plateau and its rings.
+      // The plateau shell itself. Textured like the back glass, and hidden by
+      // the same rule: 25.0 x 42.5mm at z 3.8..5.8, which is the bump.
+      "botRksrkmicTufW",
+      "GSJgRpZoabPIkha",
+      "ThlRTlIfGAMlfQi",
+      "BZMPiKcUUzPQcpW",
+      "TeFnKcOBMBwAIln",
+      "kqZbamRFCmYvdWV",
+      "EbFQbFEYKgUZRPQ",
+      "oKEipclYWPpUKiP",
+    ],
+    /*
+     * `NWVRqxSZYCCnuGM` is declared `alphaMode: "BLEND"` over a fully opaque
+     * colour -- the converter carries the blend flag from an opacity map it
+     * cannot carry itself -- so three marks it transparent and the finish pass
+     * would hand it to the glass branch, which never touches colour. Naming it
+     * body is what gets it past that.
+     */
+    bodyMaterials: ["NWVRqxSZYCCnuGM"],
+    /*
+     * The two back-glass panels, flattened.
+     *
+     * Their maps are not body-colour maps -- they are detail masks over a
+     * white factor, so running them through `recolorBodyTexture` multiplies
+     * the finish by a mostly dark image and the panel comes out near-black.
+     * Dropping them and letting the finish fill flat is correct here.
+     *
+     * `botRksrkmicTufW`, the plateau shell, is the third and was the reason
+     * the bump would not take the body colour however it was tuned: a stated
+     * colour MULTIPLIES the base map, so its own dark detail map was sitting
+     * over every value the sliders produced. No amount of shade or saturation
+     * reaches past a map -- the map has to go.
+     *
+     * Removing this line was tried, to stop the camera plateau flattening
+     * along with the glass, and it cost more than it bought. The plateau has
+     * its own mesh (`botRksrkmicTufW`) and its own entry below, which is the
+     * right place to give it back its depth.
+     */
+    plainMaterials: ["KChxKESNhKjaHJY", "NWVRqxSZYCCnuGM", "botRksrkmicTufW"],
+    /*
+     * What this file is: the back shell states linear 0.631/0.533/0.750, which
+     * is #d0c1e1 -- Lavender. Any textured body material is recoloured from
+     * here rather than multiplied by the finish.
+     */
+    /*
+     * The file's own shell colour, which is NOT the Lavender swatch: #d0c1e1
+     * against Apple's published #e6d5f1. This value exists to tell
+     * `recolorBodyTexture` what hue the maps were painted in, so it must stay
+     * the model's, not the swatch's.
+     */
+    authoredBodyColor: "#d0c1e1",
+    /*
+     * The camera plateau and the rails, as offsets from the finish -- the same
+     * treatment the Air gets, and derived the same way rather than dialled by
+     * eye: each is the panel's authored lightness and saturation measured
+     * against the back shell's in sRGB, inverted through `shiftLightness`. So
+     * Lavender reproduces the file exactly, and Sage and Black keep the same
+     * relationships in their own colour.
+     */
+    /*
+     * The two body shells that form the side wall, named by MESH.
+     *
+     * Their material `eqbTxKzrzIFoAVn` is authored black and used on eleven
+     * meshes -- the front bezel, the camera internals and these. Naming the
+     * material would blacken the rail or lighten the lens barrels depending on
+     * which way it was set; naming the mesh reaches exactly the two that are
+     * the outside of the phone.
+     *
+     * Given the Air's rail treatment, not a dark offset: a rail is a mirror,
+     * and what that lighten really sets is how dark the REFLECTIONS come back.
+     */
+    meshColors: {
+      GMafcrtCzpsZpsb: RAIL,
+      CpxQiFcpQUiESUC: RAIL,
+      /*
+       * The pad the lenses sit in -- 19.6 x 37.0mm. By mesh, because
+       * `KChxKESNhKjaHJY` is also the whole back panel, and the back is a soft
+       * frosted glass where this is polished.
+       */
+      jefwjNZicFpvTUO: PLATEAU,
+    },
+    /*
+     * The Air's treatment, role for role.
+     *
+     * The 17 had been given a set of offsets measured off its own file, which
+     * reproduces the Lavender it shipped as and is not the same thing as
+     * looking right. Three of those were structurally wrong, and the Air --
+     * which has been through this -- had all three the other way round:
+     *
+     *  - the RAIL was a desaturated dark step, which paints trim onto a phone
+     *    whose rail is polished metal;
+     *  - the LOGO was lifted, when it is milled INTO the glass and so catches
+     *    less light than the panel, not more;
+     *  - the BACK sat at the finish exactly, with nothing to separate it from
+     *    the rail.
+     */
+
+    materialColors: {
+      /*
+       * The back glass, a step above the rail.
+       *
+       * The lift is proportional to the headroom left (`l + (1 - l) * amount`)
+       * so a dark finish gets a bigger absolute step than a light one from the
+       * same number -- which is what lets one value work across all five.
+       */
+      SSCOTROIPktOHPN: { lighten: 0.1 },
+      /*
+       * The camera plateau, a shade under the back.
+       *
+       * Both directions have now been tried and the darker one is right on
+       * this phone, where it was the lighter one on the Air. The difference is
+       * the geometry: the Air's pad is a flat inlay level with the glass and
+       * catches the room like the glass does, while this is a raised pill with
+       * a curved shoulder, and a curve turned away from a top light reads
+       * darker than the flat panel it rises out of, not brighter.
+       *
+       * The surface is stated because the model gets it wrong: this mesh is
+       * authored at roughness 1, fully matte and fully opaque, and the plateau
+       * is GLASS -- the same continuous piece as the back on the real phone.
+       * No amount of colour fixes that, which is why every value tried here
+       * read as paint. What makes it glass is the gloss, the reflection and
+       * the translucency, not the shade.
+       *
+       * Saturated up rather than darkened, because a coloured pane over a
+       * lit surface deepens the colour it passes; that is what separates the
+       * bump from the back, not a step down in lightness.
+       *
+       * The pad over it (`oKEipclYWPpUKiP`) needs none of this: the file
+       * already authors that one at roughness 0.1 and 25% alpha, and an
+       * override sets colour and leaves the surface alone.
+       */
+      botRksrkmicTufW: PLATEAU,
+      /*
+       * The surround around each lens -- 13.8mm, and the thing that was
+       * actually dark.
+       *
+       * Authored #393939 and kept, so it stayed near-charcoal in every finish.
+       * Two of them sit stacked with the lenses, and together they form the
+       * peanut-shaped dark field that filled the plateau: every attempt at
+       * lightening the plateau missed because the plateau was not what was
+       * dark.
+       *
+       * Translucent tinted glass rather than a lighter opaque grey. It is part
+       * of the same cover as the plateau, and what it does on the hardware is
+       * let the dark barrel beneath show through a coloured pane -- so the
+       * body colour reads across the whole bump and the lenses still sit in
+       * something deeper than the back.
+       */
+      wiybngYOfUNIZCW: PLATEAU,
+      /*
+       * The Apple mark -- 15.7 x 19.3mm at dead centre of the back, which is
+       * how it was found after being filed with the camera rings.
+       *
+       * Darker, not lighter, and the same 0.12 as the Air: it is milled into
+       * the glass, so it catches less light than the panel around it and reads
+       * as etched rather than as printed.
+       */
+      TeFnKcOBMBwAIln: { darken: 0.12 },
+      EbFQbFEYKgUZRPQ: { darken: 0.12 },
+      // The rail, and the camera rings that match it on the real phone.
+      sWPfdEwNBQxWmmj: RAIL,
+      GSJgRpZoabPIkha: RAIL,
+      /*
+       * The two antenna bands: 38.00 x 0.09mm and 15.32 x 0.40mm, both at
+       * y = -74.8. A line four tenths of a millimetre across is a cut through
+       * the rail, not a part of it.
+       */
+      ThlRTlIfGAMlfQi: ANTENNA,
+      BZMPiKcUUzPQcpW: ANTENNA,
+      qctyujhTxZaVOMy: { darken: 0.06, saturate: 0.4 },
+      /*
+       * The pad over the plateau, matched to it.
+       *
+       * This took the Air's stated lens-coating violet for a while, on the
+       * assumption it was the same part. It is not: on the Air that material
+       * is a narrow ring around the glass, and here it is a 19.6 x 37.0mm
+       * sheet covering the WHOLE plateau top -- so a saturated violet at 25%
+       * alpha washed the entire bump purple instead of tinting a lens.
+       *
+       * Same step as the plateau underneath, so the two read as one surface.
+       */
+      oKEipclYWPpUKiP: PLATEAU,
+      // Small parts flush with the rail, kept on their measured offsets.
+      QHnEMQTzosCQTsD: { darken: 0.05, saturate: 0.31 },
+      ttTjynsjERFvYxa: { darken: 0.08, saturate: 0.57 },
+      lBQHEyACJPuljkC: { darken: 0.08, saturate: 0.57 },
+      kqZbamRFCmYvdWV: { darken: 0.06, saturate: 1.09 },
+    },
+    /*
+     * Apple's own lineup for this phone. Lavender first because it is what
+     * the file ships as -- the body states linear 0.631/0.533/0.750, which is
+     * the Lavender swatch exactly, so the model opens in its authored colour
+     * rather than jumping to something else on load.
+     */
+    finishIds: ["lavender", "sage", "mist-blue", "iphone17-white", "iphone17-black"],
+    screenFlipY: true,
+    screenCornerRadiusPct: 0.135,
+    screenInsetPct: 1,
+    screenNative: { width: 1206, height: 2622 },
+    notch: null,
+    /*
+     * Converted with `--rotate-y 180`, no flattening needed. 72.3 x 149.8 x
+     * 11.4mm against Apple's 71.5 x 149.6 x 7.95 -- the extra depth is the
+     * camera plateau, which the published figure excludes.
+     */
+    credit: "Apple — design resources (iphone-17-e-sim.usdz)",
+  },
   {
     id: "apple-iphone-17-pro",
     label: "Apple iPhone 17 Pro",
@@ -1070,6 +1476,529 @@ export const DEVICES: Device[] = [
     credit: "Apple — design resources (iphone-air-e-sim.usdz)",
   },
   {
+    id: "apple-ipad-pro",
+    label: "Apple iPad Pro",
+    modelPath: `${MODELS}/apple-ipad-pro.glb`,
+    hideHints: [],
+    /*
+     * 264.4 x 198.0mm, aspect 1.3356 against the real 13-inch panel's 1.3333
+     * (2752 x 2064). The next candidate up is 1.3118, which is the cover glass
+     * over it -- the display is the smaller, darker one inside the bezel.
+     */
+    /*
+     * Apple sells the iPad Pro in two, and this file is the Silver one -- its
+     * enclosure is authored white at metalness 1, which is the silver
+     * anodising, not a colour.
+     */
+    finishIds: ["silver", "space-black"],
+    screenMaterial: "dUmOgLJvvBzDJsS",
+    screenCornerRadiusPct: 0.03,
+    screenInsetPct: 1,
+    screenNative: { width: 2064, height: 2752 },
+    notch: null,
+    keepMaterials: [
+      "sTxjZEaaZCEAdSG",
+      "asTuNFUpfGPjMcx",
+      "YCcebkAXtICaczr",
+      "DVJDZUsBtkmFcUI",
+      "HsAPHiTgUtTYmiz",
+      "AyDTMpfiGqgZKCy",
+      /*
+       * The ultra-wide lens and the flash, which share one material.
+       *
+       * Both are single domes on the bump -- 8.5mm at (114.9, 254.6) and
+       * 3.5mm at (129.0, 241.9) -- and the model authors them near-black and
+       * glossy (0.022, roughness 0.1). Without this the finish pass reads
+       * them as body and repaints them in the selected colour, which turns
+       * the second camera into a blank silver disc: the lens is not missing,
+       * it is painted over. The wide camera escaped only because its glass
+       * happens to sit on `sTxjZEaaZCEAdSG`, which was already kept.
+       */
+      "zwvjNESxlDTOtJp",
+    ],
+    /*
+     * `ndwzBqEeWjhbAAd` is the wide camera's rim, an annulus of inner radius
+     * 4.98mm and outer 5.40 wrapping cover glass of 5.00. `CyYMSQWHZHooFQu`
+     * is the stand-in for the second lens, 12.03mm along the bump from it.
+     *
+     * The copy clears the first camera's rim by 1.24mm and the LiDAR by 5.34,
+     * and stays inside the camera plateau on every edge.
+     */
+    cameraCopies: [{ from: "ndwzBqEeWjhbAAd", onto: "CyYMSQWHZHooFQu" }],
+    screenFlipY: true,
+    /*
+     * Converted with `--root DgiadvLtuFUnohu --rotate-x 30.5 --rotate-y 180`.
+     *
+     * Three things had to happen to get a tablet out of this file. It is an
+     * ASSEMBLY of an iPad, a Magic Keyboard and an Apple Pencil -- 283 x 218 x
+     * 305mm all told, because the whole thing is standing up -- so `--root`
+     * takes the tablet alone. The tablet is POSED in that keyboard, tilted
+     * back, and measured 282 x 188 x 112mm instead of 282 x 216 x 7; 30.5
+     * degrees of pitch levels it, found by sweeping for the angle that
+     * minimises depth. And its screen then faced +Z, so the yaw turns it to
+     * meet the studio's default pose.
+     *
+     * The file also needed flattening before any of that: its geometry hangs
+     * off a payload to a nested layer, and three's reader does not resolve
+     * those -- it loaded zero meshes until `usdcat --flatten` composed it.
+     */
+    credit: "Apple — design resources (ipad-pro-silver.usdz)",
+  },
+  {
+    id: "apple-macbook-neo",
+    label: "Apple MacBook",
+    modelPath: `${MODELS}/apple-macbook-neo.glb`,
+    hideHints: [],
+    /*
+     * 278.2 x 174.2mm measured in the lid's plane, aspect 1.5966 -- 16:10,
+     * which no other Mac in this list is. The MacBook Pro 14 and the Air are
+     * both 1.539, so this panel is a different shape rather than a different
+     * size of the same one, and its diagonal works out at 12.9 inches.
+     *
+     * `screenNative` is therefore an ASSUMPTION. 2560 x 1600 is the 16:10
+     * retina resolution that fits, but this model is of a machine that has no
+     * published spec, so it is a guess where every other entry here is a
+     * measurement.
+     */
+    finishIds: ["macbook-blush", "macbook-citrus", "macbook-indigo", "macbook-silver"],
+    screenMaterial: "hXtiMyeKExVbRFQ",
+    /*
+     * The four surfaces that ARE the finish, found by area rather than by
+     * colour.
+     *
+     * The chroma rule that worked on the phones fails outright here. This
+     * machine's outside is `KHHvFZfpkvtZonL` on the lid (296 x 194mm, and
+     * yellow) but `UPulTUSNtwaSJxl` on the base (296 x 207mm, and authored
+     * WHITE) -- so the rule kept the entire bottom half and painted the lid,
+     * which rendered as a lavender lid on an off-white body: two colours the
+     * machine does not come in, neither of them the one it does.
+     *
+     * Biggest panels win. The lid, the base, the deck and the rim are the
+     * finish; the twelve black shells, the bezel, the keyboard and the screen
+     * are not.
+     */
+    finishMaterials: [
+      "KHHvFZfpkvtZonL",
+      "UPulTUSNtwaSJxl",
+      "KVZSQhfJQHQvYgL",
+      "rdGooAQcPGBkiCj",
+      "CIyTCPGAldnNfGM",
+      "ULqkeDqArmhsrXJ",
+      "LpPERdJkupwUXNF",
+      "MyFKZJwTFMkKJZH",
+      "XrZvzuidKgCcMWr",
+      "RNuqjmcXvvUnMcF",
+      "wzVnkwDCLKpZtry",
+      "eQGVTkgZBnOSOIe",
+    ],
+    /*
+     * Panels stated as offsets from the finish, measured against the lid shell
+     * the same way the iMac's are -- authored lightness and saturation in
+     * sRGB, inverted through `shiftLightness`. Citrus reproduces the file, and
+     * Indigo gets the same relationships in blue.
+     *
+     * Without these every one of these surfaces came out the flat finish
+     * colour, and two things disappeared: the keys, which are lighter than
+     * the deck they sit in, and the logo.
+     */
+    materialColors: {
+      // The keycaps -- authored #fffeaa against the shell's #f5f381. That gap
+      // is what separates the keys from the deck at a glance.
+      LpPERdJkupwUXNF: { lighten: 0.38, saturate: 1.18 },
+      MyFKZJwTFMkKJZH: { lighten: 0.38, saturate: 1.18 },
+      XrZvzuidKgCcMWr: { lighten: 0.2, saturate: 0.88 },
+      /*
+       * The lid logo: 36 x 42mm dead centre of the lid, and authored only six
+       * percent darker than the shell around it. Painted the flat finish
+       * colour it was mathematically identical to the lid and vanished
+       * completely.
+       *
+       * Six percent is not enough on its own either -- what makes it read on
+       * the hardware is that it is a polished inlay in a matte panel, so it
+       * catches the room where the lid does not. Hence the roughness and the
+       * envMapIntensity: the logo is a difference in FINISH more than a
+       * difference in colour.
+       */
+      rdGooAQcPGBkiCj: {
+        darken: 0.06,
+        saturate: 0.82,
+        roughness: 0.18,
+        metalness: 0.7,
+        envMapIntensity: 1.8,
+      },
+      // Recessed: the rim, the hinge shoulder and the port bay.
+      RNuqjmcXvvUnMcF: { darken: 0.12, saturate: 0.51 },
+      eQGVTkgZBnOSOIe: { darken: 0.12, saturate: 0.51 },
+      wzVnkwDCLKpZtry: { darken: 0.02, saturate: 0.79 },
+    },
+    screenFlipY: true,
+    screenCornerRadiusPct: 0.012,
+    screenInsetPct: 1,
+    screenNative: { width: 2560, height: 1600 },
+    notch: null,
+    /*
+     * Needed the same flatten-and-repack as the MacBook Pro 14 -- three's
+     * crate reader failed with "Unsupported scalar type 55" and produced
+     * nothing. `usdzip` then dropped the texture directory and the convert
+     * came up one PNG short, so the archive is rebuilt by hand instead:
+     * stored, no compression, every file's data aligned to 64 bytes.
+     *
+     * 297.2 x 198.5 x 281.3mm open. No finish list, because the machine has
+     * no announced colourway to restrict it to -- the file itself is yellow.
+     */
+    credit: "Apple — design resources (macbook-neo.usdz)",
+  },
+  {
+    id: "apple-macbook-pro-14",
+    label: "Apple MacBook Pro 14\"",
+    modelPath: `${MODELS}/apple-macbook-pro-14.glb`,
+    hideHints: [],
+    /*
+     * Measured IN THE LID'S OWN PLANE, not from the bounding box.
+     *
+     * The lid is open and tilted back, so every mesh on it has a box that
+     * grows in both Y and Z and states nothing useful about the panel. Along
+     * the lid this one is 300.8 x 195.5mm, aspect 1.5387 against the real
+     * 14-inch panel's 1.5397 -- a 0.06% error, which is the display and
+     * nothing else.
+     *
+     * `gGmExFByNnyrwMm` was here first and was wrong: it is on SEVEN meshes,
+     * two of them lid layers behind the panel and three of them the base --
+     * the bottom cover, the inner shell and a deck plate. So the screenshot
+     * was bound to the underside of the laptop and to the keyboard deck, and
+     * the display, being a different material, stayed black. A material is
+     * only safe to bind a screen to if it is unique to the screen.
+     */
+    /*
+     * Apple sells the 14-inch Pro in two, and this file is the Space Black
+     * one: its largest panel states #565457 at metalness 1, which is that
+     * anodising rather than aluminium catching the room.
+     */
+    finishIds: ["space-black", "silver"],
+    screenMaterial: "HlQwFCAPWzetDQy",
+    screenCornerRadiusPct: 0.012,
+    screenInsetPct: 1,
+    screenNative: { width: 3024, height: 1964 },
+    notch: null,
+    /*
+     * The five surfaces that ARE the finish. Everything else in the file --
+     * around two dozen materials: bezel, hinge, keyboard well, keycaps,
+     * legends, Touch ID, ports, feet, internals -- keeps what Apple authored.
+     *
+     * `HdeQgqDhVRltuvQ`, `XvtJEVWVvyDeJRR` and `zNRfbdNyoCOxSDD` are the
+     * aluminium shells, `gGmExFByNnyrwMm` the bottom cover and the layers
+     * behind the display, and `WiyOPYJEeiHNVjF` the trackpad -- which is
+     * interior to the deck and still body, one of the reasons no positional
+     * rule separates these from the keyboard.
+     *
+     * This replaced a sixteen-name `keepMaterials` that had already been wrong
+     * twice: once when the screenshot bound to seven meshes including the
+     * underside, and once when the surfaces around the keys came out in the
+     * body colour. Both were materials nobody had thought to deny.
+     */
+    finishMaterials: [
+      "HdeQgqDhVRltuvQ",
+      "XvtJEVWVvyDeJRR",
+      "zNRfbdNyoCOxSDD",
+      "gGmExFByNnyrwMm",
+      "WiyOPYJEeiHNVjF",
+    ],
+    /*
+     * The two speaker grilles -- a pair of 13.9 x 106.5mm plates flanking the
+     * keyboard, 12 vertices between them.
+     *
+     * They are here rather than simply left out of `keepMaterials`, and that
+     * distinction is the whole bug. The model states them black and punches
+     * the holes with an OPACITY MAP (`yZHxHesWWWUpuZv.jpg` on the red channel,
+     * plus a normal map for the dimples), letting the deck show through from
+     * behind. The converter cannot carry that map, but it does carry the fact
+     * that the material is blended -- so the glTF says `alphaMode: "BLEND"`
+     * over a fully opaque colour, three sets `transparent = true`, and the
+     * finish pass hands the material to the GLASS branch, which adjusts
+     * reflections and never touches colour. Dropping them from
+     * `keepMaterials` therefore changed nothing at all: they stayed black
+     * because they were never reaching the body branch to begin with.
+     *
+     * `materialColors` is what gets them out of that branch: it runs ahead of
+     * the transparency test, so a stated colour reaches them, where
+     * `bodyMaterials` alone only changed which branch they fell into.
+     *
+     * Made visible by ROUGHNESS, not by colour.
+     *
+     * Darkening alone has no good setting. A quarter step under the deck read
+     * as a grey stripe someone had painted on the aluminium; an eighth was
+     * still a stripe; a twentieth disappeared. That is because the difference
+     * being modelled is not one of colour at all -- the panel is the same
+     * aluminium as the deck, and what sets it apart on the hardware is that
+     * several thousand half-millimetre holes SCATTER the light the deck
+     * reflects.
+     *
+     * So the band is nearly the deck's colour and answers the room quite
+     * differently: rough where the deck is polished, and taking a fraction of
+     * the environment. It reads as an inset at any angle without ever reading
+     * as paint, which is what the holes actually do at this size.
+     */
+    /*
+     * The grille is `alphaMode: "BLEND"` over an opaque colour -- the
+     * converter carries the blend flag from an opacity map it cannot carry
+     * itself -- so without this it falls to the glass branch, which never
+     * touches colour, and stays black whatever else is set.
+     */
+    bodyMaterials: ["YMmdfGRsPviDXYd"],
+    speakerGrille: {
+      material: "YMmdfGRsPviDXYd",
+      byFinish: {
+        // Bright and dead matte against polished aluminium.
+        silver: { lighten: 0.6, roughness: 0, metalness: 0.67, envMapIntensity: 0 },
+        // A shade under the deck, and reflecting nearly three times as much --
+        // on a black machine the reflection is the only thing there is to
+        // differ in.
+        "space-black": {
+          darken: 0.1,
+          roughness: 0.73,
+          metalness: 0,
+          envMapIntensity: 2.85,
+        },
+      },
+    },
+    materialColors: {
+      /*
+       * The key legends. Authored as a flat 0.8 grey with no map, so left to
+       * the finish pass they picked up the body colour and the whole keyboard
+       * was lettered in Cosmic Orange. White on every finish, which is what
+       * the backlit keys are.
+       */
+      quuXrfeUujYrUMo: "#ffffff",
+
+    },
+    screenFlipY: true,
+    /*
+     * The one model here that is not flat. It arrives OPEN -- 311.7 x 211.6 x
+     * 300.4mm -- and is left that way, because a closed laptop is a slab and
+     * the whole point of putting a screenshot on one is that the lid is up.
+     *
+     * The stage frames on whichever side runs out first rather than on height,
+     * which is what makes this possible at all: normalising to height alone
+     * would scale a landscape body to one unit TALL and put it one and a half
+     * units wide, filling the frame edge to edge.
+     *
+     * Needed the same `usdcat --flatten` as the iPad. Worse, actually: three's
+     * crate reader failed outright on this one with "Unsupported scalar type
+     * 55" and produced no geometry at all, and the file also carries a Color
+     * variant set that has to be composed down before anything can read it.
+     */
+    credit: "Apple — design resources (macbook-pro-14-in-space-black-variant.usdz)",
+  },
+  {
+    id: "apple-imac-24",
+    label: "Apple iMac 24\"",
+    modelPath: `${MODELS}/apple-imac-24.glb`,
+    hideHints: [],
+    /*
+     * 520.1 x 292.0mm in the panel's own plane, aspect 1.7811 against
+     * 4480 x 2520's 1.7778. Measured in-plane because the screen tilts back
+     * about eight degrees, which foreshortens its bounding box to 289.2mm and
+     * would have made the aspect look wrong by two percent.
+     */
+    screenMaterial: "FBoFbQxFTGDSJfj",
+    finishIds: [
+      "imac-blue",
+      "imac-purple",
+      "imac-pink",
+      "imac-orange",
+      "imac-yellow",
+      "imac-green",
+      "imac-silver",
+    ],
+    /*
+     * The two-tone enclosure, carried through every finish.
+     *
+     * An iMac is not one colour: the rear shell is deep and saturated and the
+     * chin in front of it is pale, and painting both with the finish -- which
+     * is what happens to any material that just falls through to the body
+     * branch -- collapses that into a flat slab. It is the single most
+     * recognisable thing about this machine.
+     *
+     * So each panel states its own offset FROM the finish rather than a colour
+     * of its own. None of these numbers is chosen by eye: each is the panel's
+     * authored lightness and saturation measured against the REAR SHELL's in
+     * sRGB, then inverted through `shiftLightness`, so picking Blue reproduces
+     * the file exactly and picking Yellow gives the same relationships in
+     * yellow.
+     *
+     * Which panel is the reference matters more than the arithmetic. The first
+     * version measured against `BaYfiGSQafXWMJP` -- picked as the chromatic
+     * material on the most meshes, which turns out to be the twelve
+     * Thunderbolt connectors, not a panel at all. Every offset came out
+     * relative to a port, so the whole machine rendered a pale wash. The shell
+     * is `gsFcgkEVeCyWNEt`, the single 548 x 373mm surface, and it takes the
+     * finish untouched -- which is why it is absent from the table below.
+     */
+    materialColors: {
+      /*
+       * The stand. Lighter than the shell AND polished where the shell is
+       * blasted matte -- on the hardware it is the one part that throws a
+       * proper highlight, and with the shell's own roughness it read as the
+       * same flat slab continuing downward.
+       */
+      CXQIHleaUtrytdw: {
+        lighten: 0.41,
+        saturate: 0.78,
+        roughness: 0.28,
+        metalness: 0.62,
+        envMapIntensity: 1.5,
+      },
+      // The chin and the panel behind it: lighter, and matte like the shell.
+      bwhllwxfTuQUeTe: { lighten: 0.41, saturate: 0.78 },
+      McYhbkQhRgXsulg: { lighten: 0.41, saturate: 0.78 },
+      hjBHiqduEUsTjWz: { lighten: 0.52, saturate: 1.0 },
+      OxCRqvrJBBjZaSz: { lighten: 0.6, saturate: 1.0 },
+      shbEUnsXpTPWhzR: { lighten: 0.3, saturate: 0.48 },
+      EawlUsidsXxTKSk: { lighten: 0.3, saturate: 0.48 },
+      TFWpUowOykkxbOj: { lighten: 0.28, saturate: 0.26 },
+      // Recessed and shadowed: the port bay, the vent and the trim around it.
+      BaYfiGSQafXWMJP: { darken: 0.32, saturate: 0.41 },
+      HDhDeSCxdQAGYWj: { darken: 0.05, saturate: 0.53 },
+      RQgrpgoKrgbmKZd: { darken: 0.65, saturate: 0.39 },
+      INOQqKBFDbXxyLJ: { darken: 0.19, saturate: 0.51 },
+      FqYoilDNNQXhPEm: { darken: 0.08, saturate: 0.31 },
+    },
+    /*
+     * Everything the file did NOT author as a colour.
+     *
+     * Picked by measurement rather than by eye, because these models carry
+     * thirty-odd materials each and naming the wrong one is invisible until
+     * someone switches finish. A material follows the finish only if it has
+     * real chroma, is not textured, is not polished to a mirror, and sits
+     * within 60 degrees of the body's hue. Everything else is kept.
+     *
+     * The last two tests are what stop the obvious version being wrong: a
+     * mirror finish is a lens or a contact rather than a panel, and an
+     * off-hue metal is a different substance entirely.
+     */
+    keepMaterials: [
+      "YxfzGNleNQMFMrR",
+      "wugwtfdQOByMWZn",
+      "BgxFiSggCXLzjkS",
+      "LMQHrYWjYSLyjsA",
+      "HcXeXWGnYpAxYia",
+      "llvxOmqBTHaCsLN",
+      "fqrjVUYlmCEhncX",
+      "DZizbSGEdVauBiQ",
+      "KJBYmZgvVcBUSvC",
+      "TNnXTeNhIPYkOsa",
+      "VNbdnbBXcjtnKdJ",
+      "vprnhkKaWJfLVCe",
+      "OtjAwuWiGXjZVfW",
+      "PeoHJzUfJXylKvT",
+      "LyDqttVHFnVIjqu",
+      "OnfBadaKkpAPVzM",
+      "KCzcUVmPRfCcGrd",
+    ],
+    screenFlipY: true,
+    // Square, like the Studio Display and unlike everything portable here.
+    screenCornerRadiusPct: 0,
+    screenInsetPct: 1,
+    screenNative: { width: 4480, height: 2520 },
+    notch: null,
+    /*
+     * Converted with `--root lXCRCNUacPtLDKW`, after the same flatten and
+     * hand-repack the MacBook needed. The file is an assembly: the other two
+     * roots are the Magic Mouse (57.1 x 21.6 x 113.9mm) and the Magic
+     * Keyboard (278.9 x 16.4 x 115.2mm), both dropped.
+     *
+     * 547.6 x 460.9 x 177.2mm against Apple's published 547 x 461.
+     *
+     * The one thing to know about this model: the enclosure is TWO-TONE, a
+     * deep blue back against a pale blue chin, and the finish pass paints one
+     * colour. Picking a finish therefore flattens it. Left that way rather
+     * than half-fixed, because the honest fix is to carry each panel's own
+     * lightness relative to the body through the finish, which is a change to
+     * the finish pass and not to this entry.
+     */
+    credit: "Apple — design resources (imac-with-accessories-blue.usdz)",
+  },
+  {
+    id: "apple-studio-display",
+    label: "Apple Studio Display",
+    modelPath: `${MODELS}/apple-studio-display.glb`,
+    hideHints: [],
+    /*
+     * 595.2 x 334.3mm, aspect 1.7803 against 5120 x 2880's 1.7778.
+     *
+     * NOT the obvious mesh. `ZQLlPihLbCcQtXw` sits right beside it at
+     * 596.7 x 335.8 -- a closer aspect, and a dead match for the real 27-inch
+     * active area of 596.5 x 335.6 -- so it looks like the better answer and
+     * is not the display at all. Ray-testing the middle of the panel against
+     * every triangle says it is OPEN there: it is a 0.75mm frame drawn around
+     * the edge of the picture, and binding a screenshot to it would have lit
+     * a hairline rectangle and left the screen black.
+     *
+     * The two are coplanar to the last bit -- both at z 1.69577508mm exactly,
+     * as is the surround `aQccjubsBUcrILS` -- which normally means
+     * z-fighting. Here it does not: all three are nested frames and a fill
+     * that TILE the plane rather than stack on it, so no two ever cover the
+     * same pixel.
+     */
+    screenMaterial: "KxgzPwdxWQPjqSG",
+    // Square. A desktop display's picture has corners, unlike every phone
+    // and tablet above it in this list.
+    screenCornerRadiusPct: 0,
+    screenInsetPct: 1,
+    screenNative: { width: 5120, height: 2880 },
+    notch: null,
+    /*
+     * Everything that is not the enclosure.
+     *
+     * Inverted from the usual list because this model is the opposite shape
+     * to the phones: two materials are aluminium -- `TQKNDCPAZitfZzq` on the
+     * stand and `wTRySRHltaosTlU` on the body, both stating the same
+     * 0.661/0.677/0.692 at metalness 0.8 -- and the other twenty-three are
+     * glass, bezel, camera, speaker slats and internals that should not move
+     * when a finish is picked. Naming the two that DO follow the finish and
+     * keeping the rest is the shorter and the more robust statement.
+     */
+    keepMaterials: [
+      "qtjedrcDjVtNUGz",
+      "HhqelzPoDtNmTrb",
+      "HfkYMcykYVUNXtT",
+      "rvQwufwYKYlOZAD",
+      "gXrvflTESmJUXOz",
+      "mrPfbpQfWbCqgYU",
+      "OyPPZCedKdhpDtS",
+      "lieRsyonMJFJlVP",
+      "xKfSTPilyNRwkqI",
+      "jmflzZVCxiEidBC",
+      "aQccjubsBUcrILS",
+      "ZQLlPihLbCcQtXw",
+      "IQAXNupDLRkLyTT",
+      "FVZdyPciOOojoEH",
+      "MgvEhXTdNNZtzJa",
+      "gQOUAgKDzqkQTZA",
+      "TNLmHgxtvVZHOpu",
+      "SPGLzkHBBAPFwQE",
+      "jkwvXOHrNwcBvrF",
+      "QTqAYcbOuuZQiAn",
+      "tMEyZYQuXWlUvvx",
+      "IFFseTomZZQFAcW",
+      "vlHqjqyELAjiygG",
+    ],
+    // Silver is the only one Apple sells, so the picker shows one swatch.
+    finishIds: ["silver"],
+    screenFlipY: true,
+    /*
+     * Converted with `--rotate-y 180`, and this one needed no flattening at
+     * all -- no payloads, no variant sets, 81 meshes in a single crate that
+     * three's reader took first time.
+     *
+     * 622.7 x 530.1 x 285.4mm with the stand. The width is the fact worth
+     * checking: 622.7 against Apple's published 622.8, which is what says the
+     * file is a Studio Display and the "xdr" in its name is Apple's own asset
+     * naming rather than a Pro Display XDR, whose panel is 717.9mm across.
+     */
+    credit: "Apple — design resources (studio-display-xdr.usdz)",
+  },
+  {
     id: "iphone-fold",
     label: "iPhone Fold",
     modelPath: `${MODELS}/iphone-fold.glb`,
@@ -1162,7 +2091,16 @@ export const DEVICES: Device[] = [
   },
 ];
 
-export const DEFAULT_DEVICE_ID = DEVICES[0].id;
+/*
+ * Named, not `DEVICES[0].id`.
+ *
+ * The list is ordered for the picker -- iPhones, then iPad, then laptops,
+ * then desktops -- and reordering it for that reason silently changed which
+ * model the studio opens on, and which one `useGLTF.preload` fetches before
+ * anything is chosen. The default should be a deliberate choice: the 17 Pro
+ * is the most worked-over model here, so it is the one to land on.
+ */
+export const DEFAULT_DEVICE_ID = "apple-iphone-17-pro";
 
 export function getDevice(id: string | undefined): Device {
   return DEVICES.find((d) => d.id === id) ?? DEVICES[0];

@@ -83,6 +83,16 @@ const ROOT = rootIndex === -1 ? null : rest[rootIndex + 1];
  * anyone should have to know about downstream.
  */
 const ROTATE_Y = arg("rotate-y", 0);
+/*
+ * A pitch, in degrees, applied before the yaw.
+ *
+ * For a component posed rather than laid flat. Apple ships its iPad Pro
+ * standing in a Magic Keyboard, so the tablet arrives tilted back about 29
+ * degrees and measures 188 tall by 112 deep instead of 215 by 5. The studio
+ * frames a device from its bounding box, so a posed one is framed as the box
+ * of a posed one -- too short, too thick, and leaning.
+ */
+const ROTATE_X = arg("rotate-x", 0);
 const MAX_ORM = arg("max-orm", 1024);
 /*
  * The satin band the roughness map is remapped into, as `lo,hi`.
@@ -699,6 +709,9 @@ for (const mesh of meshes) {
   const geometry = mesh.geometry.clone();
   geometry.applyMatrix4(mesh.matrixWorld);
   geometry.scale(USD_TO_M, USD_TO_M, USD_TO_M);
+  // Pitch before yaw: levelling a tilted part is a statement about the part,
+  // and turning it to face the camera is a statement about the stage.
+  if (ROTATE_X) geometry.rotateX((ROTATE_X * Math.PI) / 180);
   if (ROTATE_Y) geometry.rotateY((ROTATE_Y * Math.PI) / 180);
 
   const position = geometry.attributes.position;

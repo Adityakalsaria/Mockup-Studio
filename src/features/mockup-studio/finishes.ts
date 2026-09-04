@@ -55,6 +55,65 @@ export const FINISHES: Finish[] = [
   { id: "light-gold", label: "Light Gold", color: "#f0e8d8", metalness: 0.55, roughness: 0.38 },
   { id: "cloud-white", label: "Cloud White", color: "#f4f4f5", metalness: 0.5, roughness: 0.4 },
   { id: "space-black", label: "Space Black", color: "#1e1e21", metalness: 0.6, roughness: 0.34 },
+  /*
+   * The iPhone 17's five, sampled from Apple's own swatch strip.
+   *
+   * apple.com/iphone-17 carries no hex anywhere in its markup, but the buy
+   * page loads one 170 x 26 PNG holding all five circles. Reading the opaque
+   * column runs out of it finds the swatches at x 3-22, 39-58, 75-94, 111-130
+   * and 147-166, and the centre of each is the colour Apple publishes.
+   *
+   * That beats the model, which is the usual source here: the file states
+   * #d0c1e1 for its shell, and Apple's Lavender swatch is #e6d5f1 -- the
+   * model's is the glass under studio light, the swatch is the colour named on
+   * the box. Sage and Mist Blue had been matched by eye and were both a long
+   * way out.
+   *
+   * White and Black are the phone's own, not the shared Cloud White and Space
+   * Black: Apple's Black here is #353839, a good deal lighter than the Air's
+   * #1e1e21.
+   */
+  { id: "lavender", label: "Lavender", color: "#e6d5f1", metalness: 0.5, roughness: 0.4 },
+  { id: "sage", label: "Sage", color: "#b4c294", metalness: 0.5, roughness: 0.4 },
+  { id: "mist-blue", label: "Mist Blue", color: "#a2b9dc", metalness: 0.5, roughness: 0.4 },
+  { id: "iphone17-white", label: "White", color: "#fcfcfc", metalness: 0.5, roughness: 0.4 },
+  { id: "iphone17-black", label: "Black", color: "#353839", metalness: 0.5, roughness: 0.4 },
+  /*
+   * The 24-inch iMac's seven, in the order apple.com/imac lists them.
+   *
+   * Read out of Apple's own USDZ for each colourway rather than eyedropped off
+   * the site: every one is the `diffuseColor` that file states for the REAR
+   * SHELL, converted linear to sRGB. Identified by area -- the shell is the
+   * one 548 x 373mm panel in the file, and nothing else is close.
+   *
+   * The first attempt took the chromatic material bound to the most prims
+   * instead, which is not the shell but the twelve Thunderbolt connectors, and
+   * produced a set of port-coloured swatches. Biggest surface, not most
+   * numerous.
+   *
+   * Matte, not glossy: an iMac back is bead-blasted anodised aluminium, so
+   * metalness stays low and roughness high. The stand is the polished part and
+   * says so itself, in the device entry.
+   */
+  { id: "imac-blue", label: "Blue", color: "#73b0ff", metalness: 0.22, roughness: 0.58 },
+  { id: "imac-purple", label: "Purple", color: "#938fcb", metalness: 0.22, roughness: 0.58 },
+  { id: "imac-pink", label: "Pink", color: "#ff617e", metalness: 0.22, roughness: 0.58 },
+  { id: "imac-orange", label: "Orange", color: "#ff6d45", metalness: 0.22, roughness: 0.58 },
+  { id: "imac-yellow", label: "Yellow", color: "#ffcf26", metalness: 0.22, roughness: 0.58 },
+  { id: "imac-green", label: "Green", color: "#58d38c", metalness: 0.22, roughness: 0.58 },
+  { id: "imac-silver", label: "Silver", color: "#e5e6e7", metalness: 0.35, roughness: 0.42 },
+  /*
+   * The MacBook's four.
+   *
+   * Citrus is measured -- it is what the file states for its lid shell
+   * (`KHHvFZfpkvtZonL`), and the only one of the four with a model to read.
+   * The other three are the published names matched by eye, so they are the
+   * weakest colours in this file and worth checking against a real one.
+   */
+  { id: "macbook-blush", label: "Blush", color: "#f0c6c1", metalness: 0.5, roughness: 0.45 },
+  { id: "macbook-citrus", label: "Citrus", color: "#f5f381", metalness: 0.5, roughness: 0.45 },
+  { id: "macbook-indigo", label: "Indigo", color: "#5b6aa8", metalness: 0.5, roughness: 0.45 },
+  { id: "macbook-silver", label: "Silver", color: "#e4e5e7", metalness: 0.5, roughness: 0.42 },
 ];
 
 export const DEFAULT_FINISH_ID = FINISHES[0].id;
@@ -70,6 +129,27 @@ export function getFinish(id: string | undefined): Finish {
  * swatch, and a device that names none gets everything -- which is right for
  * the Fold and the image card, neither of which is a specific colourway.
  */
+/**
+ * The finish a device actually renders in.
+ *
+ * `getFinish` answers "is this id a finish", which is the wrong question once
+ * devices have lineups: Lavender is a real finish and not one a MacBook comes
+ * in. Switching device clamps the id in `EditorShell`, but only on the switch
+ * -- so a session restored from storage, or one open while a device gains a
+ * lineup it did not have, keeps rendering a colour whose swatch is not even in
+ * the row. That is what put a lavender lid on the yellow MacBook.
+ *
+ * Resolving at the point of use closes it for good: there is no path to a
+ * colour the device does not offer, however the id got there.
+ */
+export function finishForDevice(
+  ids: readonly string[] | undefined,
+  id: string | undefined,
+): Finish {
+  const offered = finishesFor(ids);
+  return offered.find((f) => f.id === id) ?? offered[0] ?? getFinish(id);
+}
+
 export function finishesFor(ids: readonly string[] | undefined): Finish[] {
   if (!ids?.length) return FINISHES;
   return ids

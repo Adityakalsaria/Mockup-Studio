@@ -12,8 +12,8 @@ import { AnimationMixer } from "three";
 // with no skin, so it can be the single clone path rather than a branch.
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 
-import { DEFAULT_DEVICE_ID, getDevice, type Device, type DeviceNotch } from "./devices";
-import { DEFAULT_FINISH_ID, getFinish } from "./finishes";
+import { DEFAULT_DEVICE_ID, getDevice, type Device, type DeviceNotch, type MaterialOverride } from "./devices";
+import { DEFAULT_FINISH_ID, finishForDevice, getFinish } from "./finishes";
 import { sampleAnimation, sampleTrack, type Animation } from "./animation";
 import { recolorBodyTexture } from "./bodyTexture";
 import { StudioEnvironment } from "./StudioEnvironment";
@@ -29,8 +29,8 @@ import type { Quat } from "./gyro/quaternion";
 const DepthOfFieldLayer = lazy(() => import("./DepthOfFieldLayer"));
 
 import type React from "react";
-import { MeshBasicMaterial, Quaternion } from "three";
-import type { Mesh, MeshStandardMaterial, PerspectiveCamera } from "three";
+import { Mesh, MeshBasicMaterial, Quaternion } from "three";
+import type { MeshStandardMaterial, PerspectiveCamera } from "three";
 
 /**
  * Manual nudge on top of the automatic screen fit.
@@ -56,6 +56,133 @@ export type ScreenFit = {
 };
 
 export const DEFAULT_SCREEN_FIT: ScreenFit = { scale: 1, offsetX: 0, offsetY: 0 };
+
+/**
+ * The inner and outer radius of a ring mesh, and the centre it turns about.
+ *
+ * Read off the vertices rather than the bounding box, because a bounding box
+ * cannot tell an annulus from a disc -- both are square and the same size, and
+ * the whole point here is the hole. Radial distance from the XY centre gives
+ * it directly: a ring's minimum is its hole, a disc's minimum is zero.
+ *
+ * XY, not XYZ: both meshes lie flat on the back of the device, so the Z spread
+ * is the rim's wall and has nothing to do with how wide the lens is.
+ */
+function radialSpan(mesh: Mesh): { cx: number; cy: number; inner: number; outer: number } | null {
+  const position = mesh.geometry?.getAttribute?.("position");
+  if (!position || position.count === 0) return null;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < position.count; i += 1) {
+    const x = position.getX(i);
+    const y = position.getY(i);
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  let inner = Infinity;
+  let outer = 0;
+  for (let i = 0; i < position.count; i += 1) {
+    const r = Math.hypot(position.getX(i) - cx, position.getY(i) - cy);
+    if (r < inner) inner = r;
+    if (r > outer) outer = r;
+  }
+  return { cx, cy, inner, outer };
+}
+
+/**
+ * Build a missing camera out of one the model already carries.
+ *
+ * Nothing is authored and no dimension is hard-coded: which meshes belong to
+ * the source camera, how far to shrink them and where to put them are all read
+ * off the two meshes named in the device.
+ *
+ * Done with NODE transforms, never by editing geometry. `useGLTF` caches the
+ * parsed file and `cloneSkinned` copies objects while SHARING their buffers,
+ * so scaling a geometry here would deform the cached model for every later
+ * mount -- switching to the iPad and back would shrink the copy again each
+ * time. Positions and scales live on the object and are copied, not shared.
+ */
+function addCameraCopies(root: Object3D, specs: NonNullable<Device["cameraCopies"]>) {
+  // Copies are added as the loop runs, so a later spec would otherwise sweep
+  // up an earlier spec's parts as if they were the model's own.
+  const added = new Set<Object3D>();
+  for (const spec of specs) {
+    const rimMesh = root.getObjectByName(spec.from) as Mesh | undefined;
+    const lens = root.getObjectByName(spec.onto) as Mesh | undefined;
+    if (!rimMesh?.isMesh || !lens?.isMesh) continue;
+
+    const rim = radialSpan(rimMesh);
+    const target = radialSpan(lens);
+    if (!rim || !target) continue;
+
+    /*
+     * Copied at full size. The disc says WHERE the second camera goes, not
+     * how big it is.
+     *
+     * Scaling to it was tried and looks wrong: the stand-in is 4.22mm against
+     * the wide camera's 5.00mm glass, so the copy came out at 0.844 and the
+     * pair read as two different cameras rather than two of the same one. The
+     * disc is a placeholder somebody drew, not a measurement -- and on an iPad
+     * the two rear lenses are the same size. So only the centre is taken from
+     * it.
+     */
+
+    /*
+     * The camera is whatever lies inside its rim.
+     *
+     * A named list of parts would be the obvious alternative and is worse:
+     * these are content-hash names from the USD, so the list would be eight
+     * opaque strings that silently stop matching the next time the file is
+     * converted. The circle is a property of the model, so it survives that.
+     */
+    const parts: Mesh[] = [];
+    root.traverse((child) => {
+      const mesh = child as Mesh;
+      if (!mesh.isMesh || mesh === lens || added.has(mesh)) return;
+      const position = mesh.geometry?.getAttribute?.("position");
+      if (!position) return;
+      let far = 0;
+      for (let i = 0; i < position.count; i += 1) {
+        const r = Math.hypot(position.getX(i) - rim.cx, position.getY(i) - rim.cy);
+        if (r > far) {
+          far = r;
+          if (far > rim.outer * 1.001) return;
+        }
+      }
+      parts.push(mesh);
+    });
+    if (!parts.length) continue;
+
+    // One offset for the whole assembly, taken from the rim's centre, so the
+    // whole stack of elements travels together and stays concentric rather
+    // than each part sliding toward its own middle.
+    const offsetX = target.cx - rim.cx;
+    const offsetY = target.cy - rim.cy;
+
+    for (const part of parts) {
+      const copy = new Mesh(part.geometry, part.material) as Mesh;
+      copy.name = `${spec.onto}__${part.name}`;
+      // Slid across the back of the device and nothing else. Z is untouched,
+      // which lands the copy at the first camera's exact height above the bump
+      // for free -- no offset to compute, and nothing to keep in step if the
+      // model is ever reconverted at a different thickness.
+      copy.position.set(offsetX, offsetY, 0);
+      copy.castShadow = true;
+      copy.receiveShadow = false;
+      (part.parent ?? root).add(copy);
+      added.add(copy);
+    }
+
+    // The stand-in has been replaced by the thing it stood in for. Left
+    // visible it would sit a tenth of a millimetre under the copy's dark
+    // glass, at all but the same radius -- close enough to shimmer along the
+    // edge as the camera moves.
+    lens.visible = false;
+  }
+}
 
 export type Phone3DRail = {
   previewSrc: string;
@@ -1171,8 +1298,16 @@ function GLBPhoneScene({
   );
   useEffect(() => () => grainTexture?.dispose(), [grainTexture]);
 
-  const { color: bodyColor, metalness: bodyMetalness, roughness: bodyRoughness } =
-    getFinish(finishId);
+  const {
+    color: bodyColor,
+    metalness: bodyMetalness,
+    roughness: bodyRoughness,
+    // The RESOLVED id, not the prop: a grille stated per finish has to key off
+    // the finish actually being rendered, which is not always the one asked
+    // for. See finishForDevice.
+    id: activeFinishId,
+  } = finishForDevice(device.finishIds, finishId);
+
   // Only ever mounted for a device that has one; the branch that chooses
   // between this and the generated bodies is in PhoneScene.
   const gltf = useGLTF(device.modelPath as string);
@@ -1181,6 +1316,10 @@ function GLBPhoneScene({
     leafRest, hinge, foldRoot,
   } = useMemo(() => {
     const cloned = cloneSkinned(gltf.scene) as Group;
+
+    // Before the posing and the measuring below, so the added rim is part of
+    // the silhouette everything downstream is fitted to.
+    if (device.cameraCopies?.length) addCameraCopies(cloned, device.cameraCopies);
 
     /*
      * Freeze the model at one frame of its own animation.
@@ -1565,7 +1704,18 @@ function GLBPhoneScene({
               ([name]) => name.toLowerCase() === meshName?.toLowerCase(),
             )?.[1]
           : undefined;
+        /*
+         * A grille stated per finish, which no other override needs to be.
+         * Wins over `materialColors` so the two cannot disagree.
+         */
+        const grille = device.speakerGrille;
+        const tuned: MaterialOverride | undefined =
+          grille && grille.material.toLowerCase() === keepName
+            ? grille.byFinish[activeFinishId] ??
+              Object.values(grille.byFinish)[0]
+            : undefined;
         const stated =
+          tuned ??
           byMesh ??
           (device.materialColors
             ? Object.entries(device.materialColors).find(
@@ -1709,6 +1859,44 @@ function GLBPhoneScene({
             (mark as { depthWrite: boolean }).depthWrite = markOpacity >= 1;
           }
           return mark;
+        }
+
+        /*
+         * An allow-list, where `keepMaterials` is a deny-list.
+         *
+         * Both say which materials the finish paints, and they fail in
+         * opposite directions. With a deny-list, a material nobody thought
+         * about gets painted: on the MacBook that put the body colour on the
+         * five surfaces around the keyboard, so the keys read as coloured, and
+         * nothing announced it. Fixing it meant naming five more hashes, and
+         * the next reconversion would have needed the same again.
+         *
+         * The reason a deny-list cannot be made safe here is that there is no
+         * property of a material that separates the two groups. Darkness does
+         * not: this file is the Space Black machine, whose aluminium is
+         * authored at 0.09 linear, right in the middle of the 0.03-0.3 range
+         * the keyboard parts occupy. Nor does position -- the trackpad is
+         * interior to the deck and is body, while the keyboard well beside it
+         * is not.
+         *
+         * What IS knowable is the other direction. A device has a handful of
+         * surfaces that are its finish -- five here, two on the Studio
+         * Display -- and everything else, however many materials that turns
+         * out to be, keeps what the file says. An unlisted material then comes
+         * out in its authored colour, which for an Apple asset is already
+         * right for the colourway it shipped as. That is a safe default; being
+         * painted an arbitrary tint is not.
+         *
+         * Placed after the stated-colour branches on purpose, so a device can
+         * still name an exception -- the white key legends and the darkened
+         * speaker below are both materials the finish must not touch and that
+         * still need saying something about.
+         */
+        if (
+          device.finishMaterials &&
+          !device.finishMaterials.some((n) => n.toLowerCase() === keepName)
+        ) {
+          return mat;
         }
 
         // ...unless the device says this one is body. See bodyMaterials.
@@ -1920,6 +2108,7 @@ function GLBPhoneScene({
     bodyMetalness,
     bodyRoughness,
     grainTexture,
+    activeFinishId,
   ]);
 
   // Bind the live screen texture onto the model's own screen material.
