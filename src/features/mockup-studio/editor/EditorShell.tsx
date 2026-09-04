@@ -18,7 +18,10 @@ import { Timeline } from "./Timeline";
 import { fitToClip, getMotionPreset } from "./motionPresets";
 import { useFilmstrip } from "./useFilmstrip";
 import { useScreenTexture } from "../useScreenTexture";
+import { finishesFor } from "../finishes";
+import { getDevice } from "../devices";
 import { useBroadcastLink } from "../broadcast/useBroadcastLink";
+import { usePhoneLink } from "../gyro/usePhoneLink";
 import { RightPanel } from "./RightPanel";
 import { AspectSelect, getRatio } from "./framing";
 import { isOverlayActive, paintOverlay } from "../overlay";
@@ -355,7 +358,40 @@ export default function EditorShell({
     setState((prev) => ({ ...prev, ...BROADCAST_SCREEN_FIT }));
   }, [hasBroadcast]);
 
-  // Phone pairing for the gyro. Off until the panel is opened, so a session
+  /*
+   * Phone pairing for the gyro.
+   *
+   * Gated on a toggle rather than always on: `usePhoneLink` opens an
+   * EventSource and fetches a pairing QR the moment it is enabled, and a
+   * session that never intends to tilt anything should pay for neither.
+   *
+   * The hook and the stage's `livePose` path both existed already and had
+   * simply never been connected to each other -- the receiver was wired, the
+   * sender was wired, and nothing in between imported either.
+   */
+  const [gyroOn, setGyroOn] = useState(false);
+  const phone = usePhoneLink(gyroOn);
+  /*
+   * Handed to the stage only while samples are actually arriving.
+   *
+   * A ref that exists but holds the identity quaternion is not the same as no
+   * ref at all: the stage treats a present `livePose` as authoritative and
+   * stops applying the X/Y/Z sliders entirely, so pairing and then walking
+   * away would silently freeze the rotation controls at square-on with no
+   * indication why. Null until a phone is really talking.
+   */
+  const livePose = gyroOn && phone.connected ? phone.poseRef : null;
+  const toggleGyro = useCallback(() => {
+    setGyroOn((on) => {
+      // Dropping the zero on the way out, so re-pairing later starts from the
+      // phone's own orientation rather than from a neutral captured in
+      // whatever position it was left in an hour ago.
+      if (on) phone.clearZero();
+      return !on;
+    });
+  }, [phone]);
+
+  // Off until the panel is opened, so a session
   // that never pairs opens no event stream and fetches no QR.
   // Resolved in an effect, not during render: this route is prerendered, and
   // `navigator` does not exist on the server. Starting false also means the
@@ -484,6 +520,21 @@ export default function EditorShell({
   const change = useCallback((patch: Partial<EditorState>) => {
     setState((prev) => {
       const next = { ...prev, ...patch };
+      /*
+       * Switching device can strand the finish.
+       *
+       * The lineups do not overlap -- a 17 Pro comes in Cosmic Orange and an
+       * Air does not -- so carrying the id across leaves a phone tinted a
+       * colour it does not ship in, with no swatch lit in the row to say so.
+       * `getFinish` would not catch it either: the id is still valid, just not
+       * valid HERE.
+       */
+      if (patch.deviceId && patch.deviceId !== prev.deviceId) {
+        const offered = finishesFor(getDevice(patch.deviceId).finishIds);
+        if (!offered.some((f) => f.id === next.finishId)) {
+          next.finishId = offered[0]?.id ?? next.finishId;
+        }
+      }
       const tracks = { ...prev.animation.tracks };
       let touched = false;
       for (const [name, value] of Object.entries(patch)) {
@@ -840,6 +891,7 @@ export default function EditorShell({
             panX: pose.panX,
             panY: pose.panY,
             fold: pose.fold,
+            fov: pose.fov,
           }),
           clipLengthRef.current,
         ),
@@ -1065,6 +1117,8 @@ export default function EditorShell({
         const result = await recordStageVideo({
           recorder,
           background: backgroundRef.current,
+          overlay: overlayRef.current,
+          shadow: shadowRef.current,
           scale: exportScale,
           durationSec,
           fps: exportFps,
@@ -1237,6 +1291,9 @@ export default function EditorShell({
           accent={accent}
           onAccentChange={setAccent}
           userEmail={userEmail}
+          phone={phone}
+          gyroOn={gyroOn}
+          onToggleGyro={toggleGyro}
         />
         </div>
 
@@ -1343,6 +1400,7 @@ export default function EditorShell({
               immediate={playing || scrubbing || recordProgress !== null}
               animation={animation}
               timeRef={playheadRef}
+              livePose={livePose}
               playing={playing || recordProgress !== null}
               heightPct={100}
               canvasRef={canvasRef}
@@ -1395,6 +1453,9 @@ export default function EditorShell({
           accent={accent}
           onAccentChange={setAccent}
           userEmail={userEmail}
+          phone={phone}
+          gyroOn={gyroOn}
+          onToggleGyro={toggleGyro}
         />
         </div>
       </div>

@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { isVideoSource } from "../useScreenTexture";
 import type { BroadcastLink } from "../broadcast/useBroadcastLink";
+import type { PhoneLink } from "../gyro/usePhoneLink";
 import { AccountChip } from "./AccountChip";
 import { DEVICES, getDevice } from "../devices";
-import { FINISHES } from "../finishes";
+import { finishesFor } from "../finishes";
 import {
   AccentPicker,
   ColorRow,
@@ -55,6 +56,9 @@ export function RightPanel({
   keyedNow,
   onToggleKey,
   easing,
+  phone,
+  gyroOn,
+  onToggleGyro,
   onApplyPreset,
   onExportPng,
   onExportVideo,
@@ -109,6 +113,10 @@ export function RightPanel({
   onAccentChange: (next: AccentId) => void;
   /** Signed-in address, or null when auth is off. */
   userEmail?: string | null;
+  /** Live phone orientation: pairing, liveness and the zero. */
+  phone: PhoneLink;
+  gyroOn: boolean;
+  onToggleGyro: () => void;
   /** Properties with a keyframe sitting exactly on the playhead. */
 }) {
   const [open, setOpen] = useState<Set<SectionId>>(
@@ -118,6 +126,9 @@ export function RightPanel({
   // twenty three cards you scan — and the shot controls are an adjusting one;
   // stacking them in one scroll made both worse.
   const [rightTab, setRightTab] = useState<"shot" | "motion">("shot");
+  /** A phone is not just paired but actually sending, which is the condition
+      under which the stage stops reading the rotation sliders. */
+  const gyroLive = gyroOn && phone.connected;
   // Refraction on the panel itself. Falls back to plain frosted glass wherever
   // the browser will not displace a backdrop — see the hook.
   const { ref: glassRef, svg: glassSvg, style: glassStyle } = useLiquidGlass(16);
@@ -504,7 +515,7 @@ export function RightPanel({
             Finish
           </span>
           <div className="flex flex-wrap gap-[8px]">
-            {FINISHES.map((f) => {
+            {finishesFor(device.finishIds).map((f) => {
               const selected = f.id === state.finishId;
               return (
                 <button
@@ -564,15 +575,43 @@ export function RightPanel({
         onToggle={() => toggle("camera")}
       >
         <>
+            {/* Asleep, not gone, while a phone is driving the rotation.
+                `PhoneStage3D` skips the euler assignment entirely when a
+                `livePose` is present, so these three would otherwise move
+                their numbers and change nothing on the stage -- the exact
+                shape of control this codebase deletes elsewhere rather than
+                ship. Dimmed and inert says the same thing and leaves them
+                where you will look for them when the phone disconnects. */}
+            <div
+              style={{
+                opacity: gyroLive ? 0.4 : 1,
+                pointerEvents: gyroLive ? "none" : undefined,
+              }}
+              aria-disabled={gyroLive}
+            >
             <ParamRow label="X axis" value={state.xAxis} {...RANGES.xAxis} defaultValue={DEFAULT_EDITOR_STATE.xAxis} keyframed={keyedNow.xAxis} onKeyframe={() => onToggleKey("xAxis")} onChange={(xAxis) => onChange({ xAxis })} />
             <ParamRow label="Y axis" value={state.yAxis} {...RANGES.yAxis} defaultValue={DEFAULT_EDITOR_STATE.yAxis} keyframed={keyedNow.yAxis} onKeyframe={() => onToggleKey("yAxis")} onChange={(yAxis) => onChange({ yAxis })} />
             <ParamRow label="Z axis" value={state.zAxis} {...RANGES.zAxis} defaultValue={DEFAULT_EDITOR_STATE.zAxis} keyframed={keyedNow.zAxis} onKeyframe={() => onToggleKey("zAxis")} onChange={(zAxis) => onChange({ zAxis })} />
+            </div>
             {/* Only where the model has a hinge. A Fold row on a rigid phone
                 would be a control that does nothing, which is worse than a
                 missing one -- it invites you to look for the effect. */}
             {device.fold ? (
               <ParamRow label="Fold" value={state.fold} {...RANGES.fold} defaultValue={DEFAULT_EDITOR_STATE.fold} keyframed={keyedNow.fold} onKeyframe={() => onToggleKey("fold")} onChange={(fold) => onChange({ fold })} />
             ) : null}
+
+            {/* Directly under the three axis rows, because it REPLACES them.
+                While a phone is streaming, the stage slerps to the live
+                quaternion and never reads the euler values, so those rows go
+                inert -- putting this control anywhere else would leave three
+                sliders that silently stop working with no explanation beside
+                them. */}
+            <GyroControl
+              phone={phone}
+              on={gyroOn}
+              onToggle={onToggleGyro}
+              broadcasting={Boolean(broadcast.stream)}
+            />
             {/* Only for the generated card. A phone's corners and thickness are
                 facts about the model, not settings -- these exist because this
                 body is built rather than loaded. */}
@@ -602,10 +641,14 @@ export function RightPanel({
               step={1}
               suffix="mm"
               defaultValue={focalFromFov(DEFAULT_EDITOR_STATE.fov)}
-              // Not keyframable yet: the frame loop samples the animated keys
-              // and does not know about fov, so a key here would be recorded
-              // and never played back.
-              animatable={false}
+              /* Keyed in DEGREES even though the row reads in millimetres.
+                 The track has to hold what the camera takes, and the two are
+                 not linearly related -- interpolating millimetres would bend
+                 the middle of every lens move away from where the same two
+                 endpoints put it in degrees. The conversion stays here, at
+                 the edge, which is the only place it belongs. */
+              keyframed={keyedNow.fov}
+              onKeyframe={() => onToggleKey("fov")}
               onChange={(mm) => onChange({ fov: fovFromFocal(mm) })}
             />
         </>
@@ -969,6 +1012,114 @@ export function RightPanel({
  * phone. Each row here is a stage, so the first one that is not green is the
  * one to fix.
  */
+/**
+ * Tilt the mockup by tilting a real phone.
+ *
+ * Sits under the three axis rows because it takes them over: `PhoneStage3D`
+ * treats a present `livePose` as authoritative and stops applying the euler
+ * values entirely, so while this is live those sliders do nothing. They are
+ * dimmed rather than hidden -- a control that vanishes is harder to find your
+ * way back to than one that is visibly asleep.
+ *
+ * ## Why the insecure case gets its own branch
+ *
+ * iOS releases `DeviceMotionEvent` only in a secure context, so the phone's
+ * BROWSER cannot send anything when the studio is served over http. Handing
+ * out a pairing URL anyway produces the worst possible failure: the page
+ * loads, the phone appears to pair, and no sample ever arrives.
+ *
+ * The native app is not subject to that -- its `MotionSender` posts straight
+ * to `/api/gyro` from the broadcast extension, no browser involved -- so on
+ * http the honest answer is not "this is broken" but "use the app instead",
+ * which is what this says.
+ */
+function GyroControl({
+  phone,
+  on,
+  onToggle,
+  broadcasting,
+}: {
+  phone: PhoneLink;
+  on: boolean;
+  onToggle: () => void;
+  broadcasting: boolean;
+}) {
+  if (!on) {
+    return (
+      <div className="mt-[8px]">
+        <PillButton onClick={onToggle}>Tilt from iPhone</PillButton>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="mt-[8px] flex flex-col items-center gap-[8px] rounded-[var(--ks-r-card)] p-[12px]"
+      style={{ background: "var(--ks-row)" }}
+    >
+      {phone.connected ? (
+        <>
+          <div className="flex items-center gap-[6px]">
+            <span
+              className="h-[7px] w-[7px] rounded-full"
+              style={{ background: "var(--ks-accent)" }}
+            />
+            <span className="ks-label" style={{ color: "var(--ks-ctl-text)" }}>
+              Phone connected
+            </span>
+          </div>
+          <span className="ks-micro text-center" style={{ color: "var(--ks-text-faint)" }}>
+            {phone.zeroed
+              ? "Tilting from where you set it."
+              : "Hold the phone how you want the mockup to sit, then set zero."}
+          </span>
+          <div className="flex gap-[6px]">
+            <PillButton onClick={phone.zeroed ? phone.clearZero : phone.setZero}>
+              {phone.zeroed ? "Clear zero" : "Set zero"}
+            </PillButton>
+          </div>
+        </>
+      ) : phone.secure === false ? (
+        <>
+          <span className="ks-label text-center" style={{ color: "var(--ks-ctl-text)" }}>
+            {broadcasting ? "Motion comes from the app" : "Needs the app, or https"}
+          </span>
+          <span className="ks-micro text-center" style={{ color: "var(--ks-text-faint)" }}>
+            {broadcasting
+              ? "You are broadcasting, so the app is already sending motion. Move the phone."
+              : "The studio is on http, and iOS gives motion to a web page only over https. Broadcast from the app instead — it sends motion alongside the screen — or run the studio over https."}
+          </span>
+        </>
+      ) : phone.qr ? (
+        <>
+          <div
+            className="h-[116px] w-[116px] [&>svg]:h-full [&>svg]:w-full"
+            // Generated server-side from an address this machine reported
+            // about itself, exactly as the broadcast QR above is.
+            dangerouslySetInnerHTML={{ __html: phone.qr }}
+          />
+          <span className="ks-micro text-center" style={{ color: "var(--ks-text-dim)" }}>
+            Open this on your phone, then allow motion
+          </span>
+        </>
+      ) : (
+        <span className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>
+          {phone.reason ?? "Looking for a pairing address…"}
+        </span>
+      )}
+
+      <button
+        type="button"
+        onClick={onToggle}
+        className="ks-micro underline"
+        style={{ color: "var(--ks-text-faint)" }}
+      >
+        {phone.connected ? "Stop" : "Cancel"}
+      </button>
+    </div>
+  );
+}
+
 function BroadcastDiagnostics({ broadcast }: { broadcast: BroadcastLink }) {
   const d = broadcast.diagnostics;
   const flowing = d.bytesReceived > 0;

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { sampleAnimation, type Animation, type Easing } from "../animation";
-import { MOTION_PRESETS, PRESET_GROUPS, type MotionPreset } from "./motionPresets";
+import { MOTION_PRESETS, PRESET_GROUPS, presetLoops, type MotionPreset } from "./motionPresets";
+import { DEFAULT_EDITOR_STATE } from "./editorState";
 
 /**
  * The motion tab: every preset as a card you can watch before you commit.
@@ -24,6 +25,9 @@ import { MOTION_PRESETS, PRESET_GROUPS, type MotionPreset } from "./motionPreset
     neutral one shows the MOVE rather than your current framing. */
 const NEUTRAL = { xAxis: 0, yAxis: 0, zAxis: 0, zoom: 1, panX: 0, panY: 0,
   fold: 0,
+  // The lens the stage opens on, so a preset that moves the lens is previewed
+  // against the same starting point it will be applied to.
+  fov: DEFAULT_EDITOR_STATE.fov,
 };
 
 /** Pan is a fraction of the stage; in a 76px-tall card it needs a scale to
@@ -37,6 +41,46 @@ const PAN_PX = 26;
 const CARD_FIT_LIMIT = 1.5;
 
 /**
+ * The perspective the cards were tuned at, and the anchor for every lens move.
+ *
+ * Deliberately NOT the geometrically exact projection of the stage camera into
+ * a 76px well, which works out near 110px and turns every existing card into a
+ * much harder 3D than the grid was designed around. The cards are a legend for
+ * the presets, not a second renderer; what they owe is the right CHANGE, and
+ * the ratio below delivers that from a resting point that still looks like
+ * itself.
+ */
+const CARD_PERSPECTIVE = 420;
+
+const halfTan = (fovDeg: number): number => Math.tan((fovDeg * Math.PI) / 360);
+
+/**
+ * How big the phone reads on a given lens, relative to the neutral one.
+ *
+ * The cinema presets pin the phone's size by moving `zoom` against `fov`, and
+ * a preview that plotted `zoom` alone would show those cards ballooning to
+ * twice the size and back -- advertising the exact artefact the preset exists
+ * to avoid. On the stage apparent size is `zoom / halfTan(fov)`; this is that
+ * same ratio, so the card stays honest about a move it cannot otherwise see.
+ */
+function lensScale(fovDeg: number): number {
+  return halfTan(NEUTRAL.fov) / halfTan(fovDeg);
+}
+
+/**
+ * CSS perspective for a lens, in px.
+ *
+ * Perspective distance is inversely proportional to `halfTan(fov)` -- a wider
+ * lens is a nearer viewpoint -- so scaling the resting 420px by that ratio
+ * moves the card the way the stage moves. Without it a lens move would change
+ * only the phone's size in the card and never how much its body recedes,
+ * which is the half of the effect actually worth previewing.
+ */
+function perspectiveFor(fovDeg: number): string {
+  return `${(CARD_PERSPECTIVE * (halfTan(NEUTRAL.fov) / halfTan(fovDeg))).toFixed(1)}px`;
+}
+
+/**
  * How far to shrink one preset's preview so its widest moment still fits.
  *
  * Per preset rather than one global shrink: scaling everything down to suit
@@ -46,8 +90,13 @@ const CARD_FIT_LIMIT = 1.5;
 function fitScaleFor(animation: Animation): number {
   let peak = 1;
   for (let i = 0; i <= 40; i++) {
-    const zoom = sampleAnimation(animation, (i / 40) * animation.durationSec).zoom;
-    if (zoom !== undefined) peak = Math.max(peak, zoom);
+    const pose = sampleAnimation(animation, (i / 40) * animation.durationSec);
+    // The EFFECTIVE size, not the raw zoom. A dolly zoom's zoom track peaks
+    // around 2x while the phone it describes never changes size at all, so
+    // measuring zoom alone would shrink those previews to 75% for a burst
+    // that does not happen.
+    const size = (pose.zoom ?? 1) * lensScale(pose.fov ?? NEUTRAL.fov);
+    peak = Math.max(peak, size);
   }
   return peak > CARD_FIT_LIMIT ? CARD_FIT_LIMIT / peak : 1;
 }
@@ -56,7 +105,7 @@ function poseToTransform(pose: Partial<typeof NEUTRAL>, fit = 1): string {
   const x = pose.xAxis ?? 0;
   const y = pose.yAxis ?? 0;
   const z = pose.zAxis ?? 0;
-  const zoom = pose.zoom ?? 1;
+  const zoom = (pose.zoom ?? 1) * lensScale(pose.fov ?? NEUTRAL.fov);
   const panX = pose.panX ?? 0;
   const panY = pose.panY ?? 0;
   // translate before rotate, and panY inverted, so the preview agrees with the
@@ -110,6 +159,9 @@ function PresetCard({
 }) {
   const [playing, setPlaying] = useState(false);
   const phoneRef = useRef<HTMLDivElement>(null);
+  // The well, not the phone: `perspective` is a property of the container a
+  // 3D child is projected into, so a lens move has to be written here.
+  const wellRef = useRef<HTMLDivElement>(null);
 
   const { animation, fit } = useMemo(() => {
     const built: Animation = { ...preset.build(NEUTRAL), easing };
@@ -127,19 +179,25 @@ function PresetCard({
     // Under reduced motion the card holds the preset's most extreme pose
     // instead of playing it. That still answers "what does this one do" —
     // which is the card's whole job — without moving anything.
+    const well = wellRef.current;
+    const paint = (pose: Partial<typeof NEUTRAL>) => {
+      node.style.transform = poseToTransform(pose, fit);
+      if (well) well.style.perspective = perspectiveFor(pose.fov ?? NEUTRAL.fov);
+    };
+
     if (!playing || reducedMotion) {
-      node.style.transform = poseToTransform(
+      paint(
         reducedMotion
           ? { ...NEUTRAL, ...sampleAnimation(animation, animation.durationSec * 0.35) }
           : NEUTRAL,
-        fit,
       );
       return;
     }
 
     // A one-way preset ends and holds; without a tail you would never see the
-    // pose it settles on before it snapped back to the start.
-    const TAIL = preset.kind === "loop" ? 0 : 0.55;
+    // pose it settles on before it snapped back to the start. A seamless one
+    // must not get the tail, or the loop it is advertising visibly pauses.
+    const TAIL = presetLoops(preset) ? 0 : 0.55;
     const span = animation.durationSec + TAIL;
 
     let frame = 0;
@@ -147,10 +205,7 @@ function PresetCard({
     const tick = (now: number) => {
       if (!start) start = now;
       const t = ((now - start) / 1000) % span;
-      node.style.transform = poseToTransform(
-        { ...NEUTRAL, ...sampleAnimation(animation, Math.min(t, animation.durationSec)) },
-        fit,
-      );
+      paint({ ...NEUTRAL, ...sampleAnimation(animation, Math.min(t, animation.durationSec)) });
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
@@ -177,8 +232,12 @@ function PresetCard({
         // is 2px. Matching the parent's radius instead makes the gap between
         // the two curves widen around the corner, which is the thing that
         // reads as "not quite right" without anyone being able to name it.
+        ref={wellRef}
         className="relative grid h-[76px] w-full place-items-center overflow-hidden rounded-[calc(var(--ks-r-card)-6px)]"
-        style={{ background: "var(--ks-ctl)", perspective: "420px" }}
+        /* Still 420px at rest -- `perspectiveFor(NEUTRAL.fov)` is exactly that
+           -- and written through the helper so a card whose preset moves the
+           lens has something to move away from. */
+        style={{ background: "var(--ks-ctl)", perspective: perspectiveFor(NEUTRAL.fov) }}
       >
         <div
           ref={phoneRef}

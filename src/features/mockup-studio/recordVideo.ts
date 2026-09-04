@@ -1,6 +1,8 @@
 "use client";
 
 import { paintBackground, type BackgroundSettings } from "./backgrounds";
+import { paintOverlay, type OverlaySettings } from "./overlay";
+import { applyCanvasShadow, clearCanvasShadow, type ShadowSettings } from "./shadow";
 import type { StageRecorder } from "./PhoneStage3D";
 
 /**
@@ -62,8 +64,20 @@ export function pickRecordingFormat(): RecordingFormat | null {
 }
 
 export interface RecordOptions {
+  /*
+   * The overlay and the shadow, which this path was silently exporting
+   * without.
+   *
+   * `renderVideoExact` composites both and this one composited neither, so a
+   * shot with either set came out of the fallback missing them -- and the
+   * fallback is what any browser lacking WebCodecs takes, which is every
+   * Firefox. The two encoders producing different pictures from the same
+   * settings is the kind of difference nobody looks for until they hit it.
+   */
   recorder: StageRecorder;
   background: BackgroundSettings;
+  overlay?: OverlaySettings;
+  shadow?: ShadowSettings;
   /** Resolution multiplier over the on-screen canvas. */
   scale: number;
   durationSec: number;
@@ -84,6 +98,8 @@ export interface RecordOptions {
 export async function recordStageVideo({
   recorder,
   background,
+  overlay,
+  shadow,
   scale,
   durationSec,
   fps,
@@ -142,7 +158,15 @@ export async function recordStageVideo({
     // would still be sitting there under the transparent phone.
     ctx.clearRect(0, 0, width, height);
     paintBackground(ctx, background, width, height, scale);
+    // The shadow is a CSS filter on the live canvas, which a pixel read does
+    // not carry, so it is laid down here -- scaled, because the settings are
+    // in 1x pixels and the export may be 2x or 3x.
+    if (shadow) applyCanvasShadow(ctx, shadow, scale);
     recorder.frame((source) => ctx.drawImage(source, 0, 0, width, height));
+    if (shadow) clearCanvasShadow(ctx);
+    // After the phone: the layer sits over the shot, which is the order the
+    // live stage uses and the order `renderVideoExact` uses.
+    if (overlay) paintOverlay(ctx, overlay, width, height);
   };
 
   // Prime the canvas without pushing: the recorder is not running yet, so a

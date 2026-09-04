@@ -1,10 +1,10 @@
 /**
- * Keyframe animation for the stage transform.
+ * Keyframe animation for the stage transform and the lens.
  *
- * Only the six camera values are animatable, and deliberately so: they are
- * the ones whose in-between states are meaningful. Interpolating a device id
- * or a blur mode has no midpoint, and a track for a value that can only jump
- * is a control that lies about what it does.
+ * Only continuous values are animatable, and deliberately so: they are the
+ * ones whose in-between states are meaningful. Interpolating a device id or a
+ * blur mode has no midpoint, and a track for a value that can only jump is a
+ * control that lies about what it does.
  */
 
 export const ANIMATABLE = [
@@ -18,6 +18,23 @@ export const ANIMATABLE = [
   // keyed, not what the current device has. A rigid phone simply never gets a
   // fold track, because nothing writes one.
   { key: "fold", label: "Fold" },
+  /*
+   * The lens, as a vertical field of view in degrees.
+   *
+   * This is NOT a second zoom. Zoom moves the phone; fov changes how much
+   * space the frame subtends, so the phone's size stays put while everything
+   * about the perspective -- how far the body appears to recede, how much the
+   * chamfer flares -- moves underneath it. Keyed on its own it is a lens
+   * breath; keyed AGAINST zoom it is the dolly zoom, which is the one camera
+   * move an audience recognises as cinema and which was unreachable here
+   * while the lens was a constant.
+   *
+   * Sampled per frame by `CameraFov` rather than through React, for the same
+   * reason the transform is: React is pushed the playhead about ten times a
+   * second during playback, and a lens that only moves ten times a second is
+   * a lens that visibly steps.
+   */
+  { key: "fov", label: "Lens" },
 ] as const;
 
 export type AnimatableKey = (typeof ANIMATABLE)[number]["key"];
@@ -96,7 +113,21 @@ export type Easing =
       a different interpolation entirely, which is why it has no parameters. */
   | { kind: "smooth" }
   | { kind: "cubic"; p: [number, number, number, number] }
-  | { kind: "spring"; damping: number; frequency: number };
+  | { kind: "spring"; damping: number; frequency: number }
+  /**
+   * Hold, then jump. The only discontinuous easing, and the reason it exists.
+   *
+   * Every other curve here answers "how does the value travel between these
+   * two keys". A CUT is the case where it does not travel at all: the frame
+   * holds, and then it is a different frame. There is no interpolation to
+   * choose, which is why this carries no parameters -- and no way to express
+   * it with the others, because a curve from A to B always passes through the
+   * values in between, and the whole point of a cut is that nothing does.
+   *
+   * This is what makes a sequence of shots possible on one timeline rather
+   * than needing a second data model beside it: a cut is a keyframe.
+   */
+  | { kind: "step" };
 
 export const EASING_PRESETS: Array<{ id: string; label: string; easing: Easing }> = [
   { id: "smooth", label: "Smooth", easing: { kind: "smooth" } },
@@ -111,6 +142,9 @@ export const EASING_PRESETS: Array<{ id: string; label: string; easing: Easing }
   { id: "easeInOutBack", label: "Ease in and out back", easing: { kind: "cubic", p: [0.68, -0.6, 0.32, 1.6] } },
   { id: "gentle", label: "Gentle", easing: { kind: "spring", damping: 0.8, frequency: 1.1 } },
   { id: "quick", label: "Quick", easing: { kind: "spring", damping: 0.62, frequency: 1.7 } },
+  // Last, and set apart: this one does not interpolate. On a key it means the
+  // value holds until the next key and then cuts to it.
+  { id: "step", label: "Cut", easing: { kind: "step" } },
 ];
 
 export const DEFAULT_EASING: Easing = { kind: "smooth" };
@@ -205,6 +239,9 @@ function spring(dampingRatio: number, frequency: number) {
 /** The curve itself, so a picker can draw what it is offering. */
 export function easingCurve(easing: Easing): (t: number) => number {
   if (easing.kind === "smooth") return (t) => t;
+  // Nothing until the end, everything at the end. Held at the LEADING key's
+  // value for the whole segment, so the jump lands exactly on the next key.
+  if (easing.kind === "step") return (t) => (t >= 1 ? 1 : 0);
   if (easing.kind === "spring") return spring(easing.damping, easing.frequency);
   return cubicBezier(easing.p[0], easing.p[1], easing.p[2], easing.p[3]);
 }
@@ -299,8 +336,33 @@ export function sampleTrack(
   const segment = a.easing ?? easing;
 
   if (segment.kind === "smooth") {
-    const m = monotoneTangents(keys);
-    return hermite(a, b, m[i], m[i + 1], time);
+    /*
+     * Tangents come from the RUN this segment belongs to, not from the whole
+     * track -- where a run is the stretch of keys between two cuts.
+     *
+     * A monotone tangent is an average of the slopes either side of a key, and
+     * across a cut the slope on the far side is a large value change over the
+     * one-frame gap the cut is written as. Feeding that in makes the tangent
+     * enormous. The Fritsch-Carlson limiter then clamps it to three times the
+     * segment's own average slope, so nothing overshoots -- but the shot still
+     * leaves the cut at triple speed and decelerates, which reads as a lurch
+     * out of every single edit.
+     *
+     * Bounding the run at the cut is what makes each shot interpolate as
+     * though it were the only thing on the timeline, which is exactly what a
+     * shot is.
+     */
+    let lo = i;
+    while (lo > 0 && (keys[lo - 1].easing ?? easing).kind !== "step") lo--;
+    let hi = i + 1;
+    while (hi < keys.length - 1 && (keys[hi].easing ?? easing).kind !== "step") hi++;
+    if (lo === 0 && hi === keys.length - 1) {
+      const m = monotoneTangents(keys);
+      return hermite(a, b, m[i], m[i + 1], time);
+    }
+    const run = keys.slice(lo, hi + 1);
+    const m = monotoneTangents(run);
+    return hermite(a, b, m[i - lo], m[i - lo + 1], time);
   }
   const t = (time - a.time) / span;
   return a.value + (b.value - a.value) * easingCurve(segment)(t);

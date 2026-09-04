@@ -1,5 +1,6 @@
 import type { AnimatableKey, Animation, Keyframe } from "../animation";
 import { RANGES } from "./editorState";
+import { compileSequence, type Shot } from "./sequence";
 
 /**
  * Ready-made camera moves.
@@ -22,6 +23,8 @@ export interface Pose {
   panX: number;
   panY: number;
   fold: number;
+  /** Vertical field of view in degrees -- the LENS, not the distance. */
+  fov: number;
 }
 
 /**
@@ -34,6 +37,10 @@ const BOUNDED: Partial<Record<AnimatableKey, { min: number; max: number }>> = {
   panX: RANGES.panX,
   panY: RANGES.panY,
   fold: RANGES.fold,
+  // Below 14 degrees the phone stops reading as a phone and above 90 it is a
+  // fisheye. A dolly zoom wants to run hard at one of those walls, so the
+  // clamp here is doing real work rather than guarding a typo.
+  fov: RANGES.fov,
 };
 
 function clamp(key: AnimatableKey, value: number): number {
@@ -51,12 +58,45 @@ function track(key: AnimatableKey, points: Array<[number, number]>): Keyframe[] 
 }
 
 /**
+ * Half the frame's angular height, as a tangent.
+ *
+ * Apparent size on the stage is proportional to `zoom / halfTan(fov)` -- the
+ * model's scale over how much the lens takes in. Every lens move in this file
+ * is written against that one relation, so it is worth naming rather than
+ * rederiving inline four times.
+ */
+const halfTan = (fovDeg: number): number => Math.tan((fovDeg * Math.PI) / 360);
+
+/** A lens value kept inside the stage's range, so the compensation below is
+    computed from the fov that will actually be used rather than from one the
+    clamp is about to discard. */
+const fovAt = (value: number): number =>
+  Math.max(RANGES.fov.min, Math.min(RANGES.fov.max, value));
+
+/** `factor` times the lens in use -- 1.8 wider, 0.5 longer -- kept in range. */
+const lens = (p: Pose, factor: number): number => fovAt(p.fov * factor);
+
+/**
+ * The zoom that holds the phone at the size it is now, on a different lens.
+ *
+ * This is the whole trick behind a dolly zoom, and it is one line. Change the
+ * lens alone and the phone grows or shrinks with it, so the move reads as an
+ * ordinary zoom that has picked up a distortion artefact. Change the lens and
+ * compensate the scale, and the phone stays pinned to its size in the frame
+ * while its own perspective -- how far the body recedes, how hard the chamfer
+ * flares -- collapses or opens underneath it. Nothing translates, and the
+ * shot moves anyway.
+ */
+const sizeHold = (p: Pose, fovDeg: number): number =>
+  p.zoom * (halfTan(fovDeg) / halfTan(p.fov));
+
+/**
  * Entrances arrive on your framing, Moves travel through it, Loops return to
  * where they began. Grouping them says which is which without reading the
  * hint, and the three behave differently enough that mixing them in one list
  * made the picker read as a pile.
  */
-export type PresetKind = "entrance" | "move" | "loop";
+export type PresetKind = "sequence" | "cinema" | "entrance" | "move" | "loop";
 
 export interface MotionPreset {
   id: string;
@@ -72,6 +112,16 @@ export interface MotionPreset {
   needsFold?: boolean;
   /** Shown in the picker; says what it does, not what it is called. */
   hint: string;
+  /**
+   * Whether the last frame cuts back to the first without a jump.
+   *
+   * Usually the same thing as `kind === "loop"`, and defaulted to it -- but
+   * not always, because `kind` now carries a second meaning. A cinema preset
+   * can be seamless too, and the preview has to know: a one-way preset gets a
+   * tail so you see the pose it settles on, and a seamless one must not, or
+   * the loop it is advertising visibly pauses once per cycle.
+   */
+  loops?: boolean;
   /**
    * Easing is deliberately not part of a preset: it is a global preference
    * about how motion should feel, and applying a preset should not silently
@@ -119,6 +169,541 @@ export interface MotionPreset {
  * the old ones feel like they were being dragged rather than thrown.
  */
 export const MOTION_PRESETS: MotionPreset[] = [
+  // ---------------------------------------------------------- SEQUENCES ----
+  /*
+   * The only presets that CUT.
+   *
+   * Everything else in this file is one continuous camera move, and the reason
+   * these exist is that a reference reel was measured rather than admired.
+   * Ten seconds, twelve transitions, a beat every 0.7 seconds -- and in the
+   * middle of it, 1.4 seconds where the subject's bounding box is identical
+   * frame to frame. The object is not moving at all there. All of the energy
+   * in that stretch is coming from the rhythm of the edit around it.
+   *
+   * That is not a smoother push-in. It is a different instrument, and no
+   * amount of craft inside a single move reaches it.
+   *
+   * Three things carry over from the measurement into every preset below.
+   *
+   * BEATS ARE SHORT AND EVEN. Between half a second and one-and-a-bit. The
+   * regularity is the point -- an edit on an irregular beat reads as a mistake
+   * rather than as a rhythm.
+   *
+   * EVERY SHOT IS STILL BEFORE IT IS CUT FROM. That is `settleAt`: the move
+   * finishes in the first two thirds and the shot SITS for the rest. A shot
+   * still travelling when the cut takes it reads as an accident, and it is the
+   * most common way an edit like this falls apart.
+   *
+   * ONE BEAT DOES NOTHING. Each of these holds a completely still frame
+   * somewhere in the middle. It is what gives the cut after it its snap, and
+   * it is the single most counter-intuitive thing in the measurement -- the
+   * stillest part of the reference is what makes the rest feel fast.
+   *
+   * What is NOT here, and is worth saying plainly: the reference glues its
+   * cuts together with motion blur, and this stage has none. These will read
+   * harder and more abrupt than the thing they are modelled on until that
+   * exists.
+   */
+  {
+    id: "cut-reel",
+    label: "Cut reel",
+    kind: "sequence",
+    hint: "Six angles on a fast beat, cut together — ends on your framing",
+    build: (p) => {
+      // 0.62s a beat. Fast enough to read as an edit rather than as a
+      // slideshow, slow enough that each frame is legible before it goes.
+      const B = 0.62;
+      const shots: Shot[] = [
+        // Wide and off-axis, drifting in. An establishing beat that is already
+        // moving, so the first cut lands on motion rather than starting it.
+        {
+          durationSec: B,
+          settleAt: 0.7,
+          from: { zoom: p.zoom * 0.6, yAxis: p.yAxis - 34, xAxis: p.xAxis + 10 },
+          to: { zoom: p.zoom * 0.72, yAxis: p.yAxis - 24, xAxis: p.xAxis + 7 },
+        },
+        // Hard the other way. Cutting across the axis is what makes a cut feel
+        // like a cut; two similar angles in a row read as a jump in a single
+        // shot, which is the one thing an edit must never look like.
+        {
+          durationSec: B,
+          settleAt: 0.62,
+          from: { zoom: p.zoom * 1.5, yAxis: p.yAxis + 30, panY: p.panY + 0.22 },
+          to: { zoom: p.zoom * 1.62, yAxis: p.yAxis + 22, panY: p.panY + 0.18 },
+        },
+        // Tight and square. The readable beat -- if the screen content matters
+        // at all, this is the frame someone actually reads it in.
+        {
+          durationSec: B,
+          settleAt: 0.55,
+          from: { zoom: p.zoom * 2.1, panY: p.panY - 0.34, yAxis: p.yAxis - 4 },
+          to: { zoom: p.zoom * 2.2, panY: p.panY - 0.3, yAxis: p.yAxis },
+        },
+        // The one that does nothing. Dead still, on a long lens so the body
+        // reads flat and graphic. This is the beat the measurement argued for.
+        {
+          durationSec: B * 0.8,
+          from: {
+            zoom: sizeHold(p, lens(p, 0.6)) * 1.35,
+            fov: lens(p, 0.6),
+            yAxis: p.yAxis + 12,
+            xAxis: p.xAxis - 6,
+          },
+        },
+        // Whip out to wide. Fast, and it settles with a fifth of the beat to
+        // spare, so there is a held frame before the last cut.
+        {
+          durationSec: B,
+          settleAt: 0.5,
+          from: { zoom: p.zoom * 0.5, yAxis: p.yAxis - 52, zAxis: p.zAxis - 7 },
+          to: { zoom: p.zoom * 0.78, yAxis: p.yAxis - 14, zAxis: p.zAxis - 2 },
+        },
+        // Lands on your framing, and gets a beat and a half to sit on it --
+        // the shot anyone would actually freeze the video on.
+        {
+          durationSec: B * 1.6,
+          settleAt: 0.6,
+          from: { zoom: p.zoom * 1.1, yAxis: p.yAxis + 9, xAxis: p.xAxis + 3, fov: p.fov },
+          to: { zoom: p.zoom, yAxis: p.yAxis, xAxis: p.xAxis, panY: p.panY, panX: p.panX },
+        },
+      ];
+      return compileSequence(shots, p);
+    },
+  },
+  {
+    id: "three-beat",
+    label: "Three beats",
+    kind: "sequence",
+    hint: "Wide, then three-quarter, then tight — two cuts, slow and editorial",
+    build: (p) => {
+      /*
+       * The restrained one, and the one to reach for over a headline. Two cuts
+       * in four seconds rather than five in five: the grammar of a considered
+       * product page instead of a social reel, and it survives being watched
+       * more than once, which a fast cut reel does not.
+       *
+       * Wide, three-quarter, tight is the oldest shot progression there is,
+       * and it works because each cut answers a question the previous frame
+       * raised -- what is it, what is it like, what is it made of.
+       */
+      const shots: Shot[] = [
+        {
+          durationSec: 1.35,
+          settleAt: 0.75,
+          from: { zoom: p.zoom * 0.66, yAxis: p.yAxis - 5, fov: lens(p, 1.25) },
+          to: { zoom: p.zoom * 0.74, yAxis: p.yAxis, fov: lens(p, 1.15) },
+        },
+        {
+          durationSec: 1.35,
+          settleAt: 0.7,
+          from: { zoom: p.zoom * 1.18, yAxis: p.yAxis + 34, xAxis: p.xAxis + 8, fov: p.fov },
+          to: { zoom: p.zoom * 1.26, yAxis: p.yAxis + 26, xAxis: p.xAxis + 5, fov: p.fov },
+        },
+        {
+          durationSec: 1.5,
+          settleAt: 0.62,
+          // Ends exactly on your framing, on your lens, like every one-way
+          // preset in this file.
+          from: { zoom: p.zoom * 1.16, yAxis: p.yAxis - 8, panY: p.panY - 0.1, fov: p.fov },
+          to: { zoom: p.zoom, yAxis: p.yAxis, panY: p.panY, xAxis: p.xAxis, fov: p.fov },
+        },
+      ];
+      return compileSequence(shots, p);
+    },
+  },
+  {
+    id: "whip-cuts",
+    label: "Whip cuts",
+    kind: "sequence",
+    hint: "Every shot arrives mid-whip and stops dead — hardest cut of the three",
+    build: (p) => {
+      /*
+       * The aggressive one. Each beat opens ALREADY MOVING fast and stops
+       * inside the first half, so the cut lands on a frame that has just
+       * arrived and is now completely still. That contrast -- violent, then
+       * frozen, then violent again -- is the effect; it is not the speed.
+       *
+       * Beats alternate short and shorter rather than staying even, which is
+       * the one place these presets break their own rule about regularity. A
+       * whip edit is syncopated by nature: identical spacing turns it into a
+       * metronome and the whole thing goes flat.
+       *
+       * This is the preset that will suffer most from having no motion blur.
+       * A real whip cut is half blur; here the move is simply very fast.
+       */
+      const shots: Shot[] = [
+        {
+          durationSec: 0.5,
+          settleAt: 0.42,
+          from: { yAxis: p.yAxis - 88, zoom: p.zoom * 0.85, zAxis: p.zAxis - 9 },
+          to: { yAxis: p.yAxis - 30, zoom: p.zoom * 0.95, zAxis: p.zAxis - 2 },
+        },
+        {
+          durationSec: 0.42,
+          settleAt: 0.38,
+          from: { yAxis: p.yAxis + 76, zoom: p.zoom * 1.7, panX: p.panX + 0.4 },
+          to: { yAxis: p.yAxis + 28, zoom: p.zoom * 1.55, panX: p.panX + 0.12 },
+        },
+        {
+          durationSec: 0.55,
+          settleAt: 0.4,
+          from: { panY: p.panY - 0.75, zoom: p.zoom * 2.3, xAxis: p.xAxis + 16 },
+          to: { panY: p.panY - 0.38, zoom: p.zoom * 2.1, xAxis: p.xAxis + 6 },
+        },
+        // The still beat. Longest of the six and it does nothing at all.
+        {
+          durationSec: 0.62,
+          from: { zoom: p.zoom * 1.25, yAxis: p.yAxis + 16, fov: lens(p, 0.72) },
+        },
+        {
+          durationSec: 0.42,
+          settleAt: 0.45,
+          from: { zAxis: p.zAxis + 12, zoom: p.zoom * 0.62, yAxis: p.yAxis - 40 },
+          to: { zAxis: p.zAxis + 3, zoom: p.zoom * 0.8, yAxis: p.yAxis - 16 },
+        },
+        {
+          durationSec: 0.95,
+          settleAt: 0.5,
+          from: { yAxis: p.yAxis - 22, zoom: p.zoom * 1.14, zAxis: p.zAxis, fov: p.fov },
+          to: {
+            yAxis: p.yAxis,
+            zoom: p.zoom,
+            xAxis: p.xAxis,
+            panX: p.panX,
+            panY: p.panY,
+            fov: p.fov,
+          },
+        },
+      ];
+      return compileSequence(shots, p);
+    },
+  },
+
+  // ------------------------------------------------------------ CINEMA ----
+  /*
+   * The only presets that move the LENS.
+   *
+   * Everything below composes a shot out of position and rotation, which is
+   * what a mockup tool can normally do -- and it is also the ceiling those
+   * moves hit. A camera department has a fourth control. Changing it is what
+   * separates a product film from a slide transition, because the lens decides
+   * how much the body of the phone RECEDES, and an audience reads a change in
+   * that as the camera physically travelling even when nothing has moved.
+   *
+   * Two rules hold this group together.
+   *
+   * The lens ENDS on yours, like every other one-way preset here. One that
+   * left the camera on a 90mm would silently redefine the framing you built,
+   * and the next preset you tried would start from a shot you never set.
+   *
+   * The scale COMPENSATES the lens wherever the point is perspective rather
+   * than travel -- that is `sizeHold`. Without it the phone visibly grows as
+   * the lens narrows and the move degrades into a zoom wearing a distortion;
+   * with it the phone is pinned to its size in frame and the only thing
+   * changing is depth, which is the whole effect.
+   *
+   * These run longer than the rest, 3 to 6 seconds. That is not padding. A
+   * perspective change is a slow read -- the eye needs time to accept the new
+   * geometry as a camera position rather than as a glitch -- and every one of
+   * them is built to be HELD on at the end rather than cut away from.
+   */
+  {
+    id: "vertigo",
+    label: "Dolly zoom",
+    kind: "cinema",
+    hint: "Perspective collapses while the phone holds its size",
+    build: (p) => {
+      /*
+       * This preset used to be a fake, and said so in its own comment: the
+       * stage had one fixed lens, so it borrowed the UNEASE of a dolly zoom
+       * by growing the phone while drifting the frame the other way. That is
+       * a different effect that happens to feel adjacent. This is the move.
+       *
+       * 1.85x takes the stage's default 35mm out to a 17mm. Far enough that the
+       * body visibly flares, short of the range's fisheye end where the
+       * corners bend and it stops reading as a lens and starts reading as a
+       * filter.
+       */
+      const wide = lens(p, 1.85);
+      const span = wide - p.fov;
+      // Front-loaded: most of the collapse is spent by the halfway mark, and
+      // the rest is the shot arriving. Even spacing here reads as a slider
+      // being dragged rather than as a camera being pushed.
+      const at = [wide, fovAt(p.fov + span * 0.42), fovAt(p.fov + span * 0.09), p.fov];
+      return {
+        durationSec: 3.4,
+        tracks: {
+          fov: track("fov", [
+            [0, at[0]],
+            [1.5, at[1]],
+            [2.6, at[2]],
+            [3.4, at[3]],
+          ]),
+          // The same key times as the lens, deliberately. Two tracks holding
+          // a product between them have to interpolate in step, or the size
+          // they are jointly pinning drifts between keys -- and a phone that
+          // breathes three percent mid-move is the one thing that gives the
+          // whole effect away.
+          zoom: track("zoom", [
+            [0, sizeHold(p, at[0])],
+            [1.5, sizeHold(p, at[1])],
+            // The single accent: one percent over its held size, late, so the
+            // move lands on a beat instead of merely ceasing.
+            [2.6, sizeHold(p, at[2]) * 1.012],
+            [3.4, p.zoom],
+          ]),
+          // Off-square through the middle. A dolly zoom on a dead-flat face
+          // has almost nothing to show: the effect lives in the SIDES of the
+          // body, and they have to be visible for any of it to read.
+          yAxis: track("yAxis", [
+            [0, p.yAxis + 9],
+            [2.2, p.yAxis - 2.5],
+            [3.4, p.yAxis],
+          ]),
+        },
+      };
+    },
+  },
+  {
+    id: "compress-in",
+    label: "Compress in",
+    kind: "cinema",
+    hint: "Starts flat and long, gains depth as it arrives",
+    build: (p) => {
+      /*
+       * The dolly zoom run backwards, and a completely different feeling for
+       * it. A long lens flattens the phone into a graphic -- almost a render
+       * of a render -- and opening back out is the moment it becomes an
+       * object with a near edge and a far one. Good over a title, because the
+       * flat end is the readable end.
+       */
+      const long = lens(p, 0.46);
+      const span = p.fov - long;
+      const at = [long, fovAt(long + span * 0.5), fovAt(p.fov * 0.985), p.fov];
+      return {
+        durationSec: 3.2,
+        tracks: {
+          fov: track("fov", [
+            [0, at[0]],
+            [1.4, at[1]],
+            [2.5, at[2]],
+            [3.2, at[3]],
+          ]),
+          zoom: track("zoom", [
+            [0, sizeHold(p, at[0])],
+            [1.4, sizeHold(p, at[1])],
+            [2.5, sizeHold(p, at[2])],
+            [3.2, p.zoom],
+          ]),
+          // A long lens is the one that makes a small sideways move read as a
+          // big one, so the drift here is deliberately tiny. Any more and the
+          // compression stops being the subject.
+          panX: track("panX", [
+            [0, p.panX - 0.1],
+            [3.2, p.panX],
+          ]),
+          xAxis: track("xAxis", [
+            [0, p.xAxis - 6],
+            [2.4, p.xAxis + 1.5],
+            [3.2, p.xAxis],
+          ]),
+        },
+      };
+    },
+  },
+  {
+    id: "wide-crash",
+    label: "Wide crash",
+    kind: "cinema",
+    hint: "Rushes in on a wide lens and slams onto your framing",
+    build: (p) => {
+      /*
+       * The one preset here where the scale is NOT compensated, and it has to
+       * not be. A wide lens exaggerates approach -- things arrive faster than
+       * their speed says they should, which is why every chase is shot on
+       * one. Holding the size would throw away exactly the thing being
+       * borrowed. So the phone genuinely rushes, and the lens closing to
+       * yours is what decelerates it without the timing having to.
+       */
+      const wide = lens(p, 1.7);
+      return {
+        durationSec: 1.15,
+        tracks: {
+          fov: track("fov", [
+            [0, wide],
+            [0.55, fovAt(p.fov * 0.965)],
+            [1.15, p.fov],
+          ]),
+          zoom: track("zoom", [
+            [0, p.zoom * 0.42],
+            [0.55, p.zoom * 1.055],
+            [1.15, p.zoom],
+          ]),
+          // A crash that arrives dead level looks rendered. Six degrees of
+          // roll, gone by the time it settles, is enough to read as impact.
+          zAxis: track("zAxis", [
+            [0, p.zAxis - 6],
+            [0.7, p.zAxis + 1.5],
+            [1.15, p.zAxis],
+          ]),
+          panY: track("panY", [
+            [0, p.panY - 0.16],
+            [1.15, p.panY],
+          ]),
+        },
+      };
+    },
+  },
+  {
+    id: "hero-orbit",
+    label: "Hero orbit",
+    kind: "cinema",
+    hint: "Long lens swings round, opens out and settles — the full move",
+    build: (p) => {
+      /*
+       * The one to put at the top of a landing page. Everything else in this
+       * group does one thing well; this does the sequence a product film
+       * actually shoots -- start long and off-axis so the phone is a
+       * silhouette, carry it round, let the lens open as it turns towards
+       * camera so it gains dimension exactly as it gains face, and land.
+       *
+       * Six seconds, and the four tracks finish at 4.4, 5.1, 5.6 and 6.0. The
+       * staggered arrivals are the difference between a sequence and four
+       * things that stop together.
+       */
+      const long = lens(p, 0.58);
+      const at = [long, fovAt(long + (p.fov - long) * 0.45), fovAt(p.fov * 1.04), p.fov];
+      return {
+        durationSec: 6,
+        tracks: {
+          yAxis: track("yAxis", [
+            [0, p.yAxis - 64],
+            [2.8, p.yAxis - 17],
+            [4.7, p.yAxis + 5],
+            [6, p.yAxis],
+          ]),
+          fov: track("fov", [
+            [0, at[0]],
+            [2.6, at[1]],
+            [4.4, at[2]],
+            [5.6, at[3]],
+          ]),
+          // Held against the lens for the first half, so the turn happens at
+          // a constant size and the eye reads rotation alone; then released
+          // into a real push over the last third, which is where the shot
+          // commits.
+          zoom: track("zoom", [
+            [0, sizeHold(p, at[0]) * 0.82],
+            [2.6, sizeHold(p, at[1]) * 0.93],
+            [4.4, p.zoom * 1.014],
+            [5.1, p.zoom],
+          ]),
+          xAxis: track("xAxis", [
+            [0, p.xAxis + 16],
+            [3.4, p.xAxis - 3.5],
+            [5.6, p.xAxis],
+          ]),
+          panX: track("panX", [
+            [0, p.panX + 0.24],
+            [4, p.panX - 0.05],
+            [6, p.panX],
+          ]),
+        },
+      };
+    },
+  },
+  {
+    id: "lift-away",
+    label: "Lift away",
+    kind: "cinema",
+    hint: "Rises and goes long, leaving the phone small and flat — an ending",
+    build: (p) => {
+      /*
+       * The only one-way preset in the file that is meant to END a video
+       * rather than open one, which is why it is the only one that leaves the
+       * phone smaller than it found it. Rising while the lens goes long is
+       * the last shot of almost everything: the subject stops being an object
+       * you are with and becomes one you are looking back at.
+       *
+       * The lens still returns to yours, because the rule holds -- what
+       * carries the retreat is the scale and the pan, and the lens going long
+       * on the way is what stops it reading as a plain zoom out.
+       */
+      const long = lens(p, 0.6);
+      return {
+        durationSec: 4,
+        tracks: {
+          panY: track("panY", [
+            [0, p.panY],
+            [2.4, p.panY - 0.5],
+            [4, p.panY - 0.86],
+          ]),
+          zoom: track("zoom", [
+            [0, p.zoom],
+            [2.2, p.zoom * 0.74],
+            [4, p.zoom * 0.52],
+          ]),
+          fov: track("fov", [
+            [0, p.fov],
+            [2.2, long],
+            [4, fovAt(p.fov * 0.88)],
+          ]),
+          // Tips down as it goes, the way a crane does when it keeps the
+          // subject in frame on the way up.
+          xAxis: track("xAxis", [
+            [0, p.xAxis],
+            [4, p.xAxis - 13],
+          ]),
+        },
+      };
+    },
+  },
+  {
+    id: "lens-breath",
+    label: "Lens breath",
+    kind: "cinema",
+    loops: true,
+    hint: "A held frame that never quite stops — loops seamlessly",
+    build: (p) => {
+      /*
+       * For the shot you leave on screen. Not a Float -- that drifts the
+       * phone, and a drifting phone under a headline eventually annoys.
+       * Here the phone does not move at all: the LENS breathes by four
+       * percent and the scale holds the size, so what changes is only the
+       * depth of the body. It reads as a camera that is alive rather than as
+       * an animation that is running, which is the distinction that matters
+       * for something on screen for a minute.
+       *
+       * Seven seconds is roughly a slow human breath, and both ends land on
+       * the same values so the cut back is invisible.
+       */
+      const out = lens(p, 1.04);
+      return {
+        durationSec: 7,
+        tracks: {
+          fov: track("fov", [
+            [0, p.fov],
+            [3.5, out],
+            [7, p.fov],
+          ]),
+          zoom: track("zoom", [
+            [0, p.zoom],
+            [3.5, sizeHold(p, out)],
+            [7, p.zoom],
+          ]),
+          // A third of a degree. Below the threshold at which anyone can name
+          // it, above the one at which the frame reads as frozen.
+          yAxis: track("yAxis", [
+            [0, p.yAxis],
+            [2.3, p.yAxis + 0.35],
+            [5.1, p.yAxis - 0.3],
+            [7, p.yAxis],
+          ]),
+        },
+      };
+    },
+  },
+
   // ---------------------------------------------------------- ENTRANCES ----
   {
     id: "rotate-in",
@@ -538,34 +1123,6 @@ export const MOTION_PRESETS: MotionPreset[] = [
   },
 
   {
-    id: "vertigo",
-    label: "Vertigo push",
-    kind: "move",
-    hint: "Closes in while the framing slides under you",
-    build: (p) => ({
-      durationSec: 3,
-      tracks: {
-        // Not a true dolly zoom — that needs the field of view to fight the
-        // camera distance, and the stage has one fixed 38 degree lens. What
-        // it borrows is the unease: the phone grows while the frame drifts
-        // the other way, so the size and the position disagree about what is
-        // happening.
-        zoom: track("zoom", [
-          [0, p.zoom * 0.78],
-          [3, p.zoom * 1.22],
-        ]),
-        panY: track("panY", [
-          [0, p.panY + 0.07],
-          [3, p.panY - 0.07],
-        ]),
-        xAxis: track("xAxis", [
-          [0, p.xAxis - 11],
-          [3, p.xAxis + 11],
-        ]),
-      },
-    }),
-  },
-  {
     id: "whip-pan",
     label: "Whip pan",
     kind: "move",
@@ -956,6 +1513,8 @@ export const MOTION_PRESETS: MotionPreset[] = [
 
 /** Order the picker shows them in. */
 export const PRESET_GROUPS: Array<{ kind: PresetKind; label: string }> = [
+  { kind: "sequence", label: "Sequences — several shots, cut together" },
+  { kind: "cinema", label: "Cinematic — the lens moves too" },
   { kind: "entrance", label: "Entrances — arrive on your framing" },
   { kind: "move", label: "Moves — travel through it" },
   { kind: "loop", label: "Loops — seamless, for idle shots" },
@@ -963,6 +1522,11 @@ export const PRESET_GROUPS: Array<{ kind: PresetKind; label: string }> = [
 
 export function getMotionPreset(id: string): MotionPreset | undefined {
   return MOTION_PRESETS.find((preset) => preset.id === id);
+}
+
+/** Whether a preset's end cuts back to its start. */
+export function presetLoops(preset: MotionPreset): boolean {
+  return preset.loops ?? preset.kind === "loop";
 }
 
 /**

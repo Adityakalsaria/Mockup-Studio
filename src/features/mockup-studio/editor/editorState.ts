@@ -166,7 +166,28 @@ export const RANGES = {
   coverScale: { min: 0.5, max: 2, step: 0.01 },
   coverOffsetX: { min: -0.5, max: 0.5, step: 0.005 },
   coverOffsetY: { min: -0.5, max: 0.5, step: 0.005 },
-  zoom: { min: 0.5, max: 10.5, step: 0.01 },
+  /*
+   * The floor is 0.1, not the 0.5 it was, and that was a real bug rather than
+   * a matter of taste.
+   *
+   * Presets are built as multipliers on whatever zoom is current, and at the
+   * stage's own default of 0.85 anything under 0.588x fell off the bottom of
+   * this range and was clamped. Five multipliers in `motionPresets` did:
+   * Crash zoom was written to slam in from 0.35x and actually started at
+   * 0.588x, so the preset had been running at little over half its authored
+   * travel since the day it was written -- silently, because a clamp does not
+   * report anything, and because the preset still looked like it did SOMETHING.
+   *
+   * It also blocks the lens presets outright. Holding a phone's size on a long
+   * lens means scaling by tan(fov/2), which at a 17 degree lens is 0.38x -- so
+   * against a 0.5 floor the compensation could not be applied, and the shot
+   * that was supposed to hold its size would visibly swell instead.
+   *
+   * The cost of the wider range is precision: the drag maps the whole range
+   * across the track, so every zoom adjustment is 4% coarser. That is a fair
+   * trade for presets that do what they say.
+   */
+  zoom: { min: 0.1, max: 10.5, step: 0.01 },
   fold: { min: 0, max: 100, step: 1 },
   cardRadius: { min: 0, max: 0.5, step: 0.005 },
   cardDepth: { min: 0, max: 0.08, step: 0.001 },

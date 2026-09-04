@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, lazy, useEffect, useMemo, useRef } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { RoundedBox, useGLTF } from "@react-three/drei";
-import { Box3, ClampToEdgeWrapping, Color, DoubleSide, ExtrudeGeometry, Group, Object3D, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
+import { Box3, CanvasTexture, ClampToEdgeWrapping, Color, RepeatWrapping, DoubleSide, ExtrudeGeometry, Group, Object3D, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
 import type { Texture } from "three";
 import { AnimationMixer } from "three";
 // Not Object3D.clone(): that copies a SkinnedMesh but leaves it pointing at
@@ -11,11 +11,10 @@ import { AnimationMixer } from "three";
 // three's own fix for exactly that, and it behaves identically on models
 // with no skin, so it can be the single clone path rather than a branch.
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { Leva } from "leva";
 
 import { DEFAULT_DEVICE_ID, getDevice, type Device, type DeviceNotch } from "./devices";
 import { DEFAULT_FINISH_ID, getFinish } from "./finishes";
-import { sampleAnimation, type Animation } from "./animation";
+import { sampleAnimation, sampleTrack, type Animation } from "./animation";
 import { recolorBodyTexture } from "./bodyTexture";
 import { StudioEnvironment } from "./StudioEnvironment";
 import { StageLoader } from "./StageLoader";
@@ -78,9 +77,6 @@ export type Phone3DRail = {
 //
 // (1024 lands at ~1.4MB. Worth it only if the body reads soft at large sizes.)
 const USE_GLB = true;
-
-// Gate the Leva debug panel to development only.
-const IS_DEV = process.env.NODE_ENV !== "production";
 
 // Hide any mesh inside the GLB whose name OR material name contains one of
 // these substrings — many phone models bake a placeholder screen into a mesh
@@ -311,6 +307,58 @@ type FrameCallbackVideo = HTMLVideoElement & {
   cancelVideoFrameCallback?: (handle: number) => void;
 };
 
+/**
+ * Wakes the demand loop when a new phone orientation arrives.
+ *
+ * The gyro pose is a ref, not state -- deliberately, because 30 samples a
+ * second through React would re-render the whole editor 30 times a second.
+ * The consequence is that nothing about a moving phone participates in the
+ * render cycle at all: no prop changes, so r3f never invalidates on commit,
+ * and `PhoneScene`'s wake-up effect watches only the slider targets.
+ *
+ * That leaves one way for the loop to be driven, and it must not be an
+ * `invalidate` inside `useFrame`. A frame callback only runs when a frame is
+ * already scheduled, so the moment the loop parks, the code that would restart
+ * it stops running too -- the loop can never be woken by something that lives
+ * inside it. That is a deadlock, and it looks exactly like the stage freezing
+ * mid-tilt and never recovering.
+ *
+ * A plain rAF is not gated by demand rendering, so it always runs and can
+ * always wake it.
+ *
+ * It compares against the last orientation it woke on rather than invalidating
+ * every animation frame, because a phone reports continuously whether or not
+ * it is moving -- a device face-up on a desk still streams samples, and waking
+ * for those would be the display-rate render loop this was written to avoid,
+ * reintroduced one layer up.
+ */
+function LivePoseWaker({ livePose }: { livePose?: React.RefObject<Quat> | null }) {
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    if (!livePose) return;
+    let raf = 0;
+    let woke: Quat | null = null;
+    const tick = () => {
+      const q = livePose.current;
+      if (q) {
+        // Same measure as the frame loop's: the dot of two unit quaternions is
+        // cos(theta/2), so this is "has the phone turned enough to see".
+        const dot = woke
+          ? Math.abs(q.x * woke.x + q.y * woke.y + q.z * woke.z + q.w * woke.w)
+          : 0;
+        if (dot < LIVE_SETTLED_DOT) {
+          woke = q;
+          invalidate();
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [livePose, invalidate]);
+  return null;
+}
+
 function VideoFrameDriver({ texture }: { texture: Texture | null }) {
   const invalidate = useThree((state) => state.invalidate);
   const video = (texture as { image?: FrameCallbackVideo } | null)?.image;
@@ -365,22 +413,151 @@ function VideoFrameDriver({ texture }: { texture: Texture | null }) {
  * changes everything around it — which is the dolly zoom, and was impossible
  * here while the lens was a constant.
  */
-function CameraFov({ fov }: { fov: number }) {
+function CameraFov({
+  fov,
+  animation,
+  timeRef,
+  playing,
+}: {
+  fov: number;
+  animation?: Animation;
+  timeRef?: React.RefObject<number> | React.MutableRefObject<number>;
+  playing?: boolean;
+}) {
   const camera = useThree((state) => state.camera);
   const invalidate = useThree((state) => state.invalidate);
+
+  /* eslint-disable react-hooks/immutability -- three.js state lives on the
+     objects themselves: setting fov and rebuilding the projection matrix is
+     the only way to change a camera's lens. The camera is owned by the canvas
+     this component sits in, so nothing outside observes it. */
+  const apply = useCallback(
+    (next: number) => {
+      const perspective = camera as PerspectiveCamera;
+      if (perspective.isPerspectiveCamera !== true || perspective.fov === next) {
+        return false;
+      }
+      perspective.fov = next;
+      perspective.updateProjectionMatrix();
+      return true;
+    },
+    [camera],
+  );
+  /* eslint-enable react-hooks/immutability */
+
+  const keyed = (animation?.tracks.fov?.length ?? 0) > 0;
+
+  // The static lens. Skipped entirely while a fov track exists, because then
+  // the track owns the value and this would write the ~10Hz React copy of it
+  // over the top of the 60Hz one below -- visible as a lens that jitters
+  // against itself.
   useEffect(() => {
-    const perspective = camera as PerspectiveCamera;
-    if (perspective.isPerspectiveCamera !== true || perspective.fov === fov) return;
-    /* eslint-disable react-hooks/immutability -- three.js state lives on the
-       objects themselves: setting fov and rebuilding the projection matrix is
-       the only way to change a camera's lens. The camera is owned by the
-       canvas this component sits in, so nothing outside observes it. */
-    perspective.fov = fov;
-    perspective.updateProjectionMatrix();
-    /* eslint-enable react-hooks/immutability */
-    invalidate();
-  }, [camera, fov, invalidate]);
+    if (keyed) return;
+    if (apply(fov)) invalidate();
+  }, [apply, fov, invalidate, keyed]);
+
+  /*
+   * The animated lens.
+   *
+   * Per frame off `timeRef`, exactly as the transform is, and for the same two
+   * reasons. React only hears about the playhead about ten times a second
+   * during playback, so a lens driven through props steps rather than glides
+   * -- and it steps most visibly in precisely the move worth having, where the
+   * zoom is gliding at 60Hz in the opposite direction. The frame-exact export
+   * also drives `timeRef` synchronously and never re-renders at all, so a
+   * prop-driven lens would export at whatever value the last render left.
+   */
+  useFrame((state) => {
+    if (!animation || !timeRef) return;
+    const keys = animation.tracks.fov;
+    if (!keys?.length) return;
+    const next = sampleTrack(keys, timeRef.current, animation.easing);
+    if (next === undefined) return;
+    // Only a real change costs a projection-matrix rebuild; on a held segment
+    // this is a comparison and nothing else.
+    if (apply(next) && playing) state.invalidate();
+  });
+
   return null;
+}
+
+/**
+ * A procedural anodised grain, as a roughness map.
+ *
+ * The model's own roughness maps were the obvious source and did not work out:
+ * they are authored around 0.17, which reads as chrome under this stage's
+ * six-emitter rig rather than as brushed metal, and three multiplies them by
+ * the finish's own roughness so the two fight. Generating the grain here
+ * sidesteps both -- the numbers are ours, so they can simply be right.
+ *
+ * The texture is white with darker speckle: values run from `1 - amount` to 1,
+ * so it MODULATES whatever roughness the finish asked for rather than
+ * replacing it. The factor is divided by the map's mean below, which keeps the
+ * average roughness exactly where the finish put it and lets the grain live as
+ * variation around it. Turn the amount to zero and the render is identical to
+ * having no map at all.
+ *
+ * Two octaves: a fine per-pixel noise for the anodising itself, and a coarser
+ * one so the surface has some drift across it rather than looking like film
+ * grain pinned to the camera.
+ */
+const GRAIN_SIZE = 512;
+
+/*
+ * The grain's settings, as constants.
+ *
+ * These were a Leva panel for a while so they could be dialled in live. The
+ * panel is gone; the numbers it was there to find are these, and they are the
+ * only thing that mattered. `GRAIN_AMOUNT` at 0 restores the render exactly as
+ * it was before any of this -- the map modulates the finish's roughness rather
+ * than replacing it, so zero variation is the same as no map.
+ */
+const GRAIN_AMOUNT = 0.35;
+const GRAIN_SCALE = 5;
+const GRAIN_SEED = 1;
+
+function makeGrainTexture(amount: number, seed: number): CanvasTexture | null {
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = GRAIN_SIZE;
+  canvas.height = GRAIN_SIZE;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  const image = ctx.createImageData(GRAIN_SIZE, GRAIN_SIZE);
+  // A cheap deterministic PRNG, so a given seed always gives the same grain
+  // and nudging the slider does not reshuffle the whole surface.
+  let state = (seed * 2654435761) >>> 0;
+  const rand = () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return ((state >>> 0) % 100000) / 100000;
+  };
+
+  const coarse = new Float32Array(64 * 64);
+  for (let i = 0; i < coarse.length; i++) coarse[i] = rand();
+
+  for (let y = 0; y < GRAIN_SIZE; y++) {
+    for (let x = 0; x < GRAIN_SIZE; x++) {
+      const cx = Math.floor((x / GRAIN_SIZE) * 64);
+      const cy = Math.floor((y / GRAIN_SIZE) * 64);
+      const n = rand() * 0.65 + coarse[cy * 64 + cx] * 0.35;
+      const value = Math.round((1 - amount + n * amount) * 255);
+      const i = (y * GRAIN_SIZE + x) * 4;
+      image.data[i] = value;
+      image.data[i + 1] = value;
+      image.data[i + 2] = value;
+      image.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+
+  const texture = new CanvasTexture(canvas);
+  texture.wrapS = RepeatWrapping;
+  texture.wrapT = RepeatWrapping;
+  texture.needsUpdate = true;
+  return texture;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -692,8 +869,27 @@ function ImageCardScene({
       height,
       Math.min(width, height) * radius,
     );
-    // Half the card, plus enough to clear the bevel and not z-fight with it.
-    const faceZ = (flat ? 0.0005 : depth) / 2 + 0.0004;
+    /*
+     * Where the front face actually is, measured rather than derived.
+     *
+     * This used to be `depth / 2`, which is where the face would be if the
+     * extrude were a plain prism. It is not: `bevelThickness` extends the
+     * solid BEYOND the requested depth at both ends, so the real half-extent
+     * is 0.75 * depth with the bevel set to a quarter. The artwork plane was
+     * therefore always inside the card -- by a tenth of a millimetre at the
+     * thinnest setting, where it still z-fought its way through and looked
+     * fine, and by centimetres once the thickness slider was raised, at which
+     * point the picture vanished into the body entirely.
+     *
+     * Taken from the bounding box so it stays correct if the bevel is ever
+     * retuned. Deriving it a second time from the same constants is how the
+     * two got out of step in the first place.
+     */
+    geometry.computeBoundingBox();
+    const halfDepth = geometry.boundingBox
+      ? -geometry.boundingBox.min.z
+      : (flat ? 0.0005 : depth) / 2;
+    const faceZ = halfDepth + 0.0004;
 
     return { geometry, faceGeometry, faceZ };
   }, [texture, radius, depth]);
@@ -965,6 +1161,16 @@ function GLBPhoneScene({
   playing?: boolean;
   immediate?: boolean;
 }) {
+  /*
+   * Built once. The inputs are module constants, so this is a memo purely to
+   * keep a 512x512 canvas out of every render rather than to track anything.
+   */
+  const grainTexture = useMemo(
+    () => (GRAIN_AMOUNT > 0 ? makeGrainTexture(GRAIN_AMOUNT, GRAIN_SEED) : null),
+    [],
+  );
+  useEffect(() => () => grainTexture?.dispose(), [grainTexture]);
+
   const { color: bodyColor, metalness: bodyMetalness, roughness: bodyRoughness } =
     getFinish(finishId);
   // Only ever mounted for a device that has one; the branch that chooses
@@ -1303,7 +1509,135 @@ function GLBPhoneScene({
         }
         return;
       }
-      const tintMaterial = (mat: unknown) => {
+      /**
+       * The finish's colour at a different lightness, hue and saturation held.
+       *
+       * In sRGB rather than the linear working space: "a bit lighter" is a
+       * judgement about what the eye sees, and linear lightness does not match
+       * it. Mixing toward white or black would do the brightness change and
+       * desaturate at the same time, which is what made a lifted panel read as
+       * pale rather than as the same colour lit better.
+       */
+      const shiftLightness = (hex: string, amount: number, saturate = 1) => {
+        const hsl = { h: 0, s: 0, l: 0 };
+        new Color(hex).getHSL(hsl, SRGBColorSpace);
+        const next =
+          amount >= 0 ? hsl.l + (1 - hsl.l) * amount : hsl.l * (1 + amount);
+        return `#${new Color()
+          .setHSL(
+            hsl.h,
+            Math.min(1, Math.max(0, hsl.s * saturate)),
+            Math.min(1, Math.max(0, next)),
+            SRGBColorSpace,
+          )
+          .getHexString()}`;
+      };
+
+      const tintMaterial = (mat: unknown, meshName?: string) => {
+        /*
+         * Named as untouchable by the device: hand it back exactly as it came.
+         *
+         * First, before the logo, glass and body branches, because this is the
+         * one answer none of them can produce -- each of those rewrites the
+         * material in some way, and what a lens barrel or a LiDAR window wants
+         * is for nothing to happen to it at all.
+         */
+        const keepName = (mat as { name?: string } | null)?.name?.toLowerCase();
+        if (keepName && device.keepMaterials?.some((n) => n.toLowerCase() === keepName)) {
+          return mat;
+        }
+
+        /*
+         * A colour the device states outright, for a part the model authored
+         * as body but that is not body on the real hardware.
+         *
+         * Second, straight after the untouchables: it has to beat the body
+         * branch and lose to nothing. Only the colour is set -- the maps,
+         * metalness and roughness the model shipped are left alone, because
+         * those are what make a grille read as a grille rather than as a flat
+         * dark patch.
+         */
+        // A mesh named outright wins over one named by material: it is the
+        // more specific statement, and it exists precisely for the cases where
+        // the material is shared by parts that are not alike.
+        const byMesh = device.meshColors
+          ? Object.entries(device.meshColors).find(
+              ([name]) => name.toLowerCase() === meshName?.toLowerCase(),
+            )?.[1]
+          : undefined;
+        const stated =
+          byMesh ??
+          (device.materialColors
+            ? Object.entries(device.materialColors).find(
+                ([name]) => name.toLowerCase() === keepName,
+              )?.[1]
+            : undefined);
+        if (stated) {
+          const source = mat as {
+            clone?: () => unknown;
+            color?: { set?: (hex: string) => void };
+            map?: Texture | null;
+            opacity?: number;
+            transparent?: boolean;
+            depthWrite?: boolean;
+          };
+          if (typeof source?.clone !== "function") return mat;
+          // Cloned, so an override cannot mutate the model's shared instance.
+          const fixed = source.clone() as typeof source;
+          const spec = typeof stated === "string" ? { color: stated } : stated;
+
+          // `plainMaterials` is honoured here too, and has to be: a stated
+          // colour MULTIPLIES the base map, so leaving a painted gradient in
+          // place would put its banding straight back under the new colour.
+          const flat = device.plainMaterials?.some(
+            (n) => n.toLowerCase() === keepName,
+          );
+          if (flat && fixed.map) fixed.map = null;
+
+          const saturate = spec.saturate ?? 1;
+          if (spec.darken !== undefined) {
+            fixed.color?.set?.(shiftLightness(bodyColor, -Math.abs(spec.darken), saturate));
+          } else if (spec.lighten !== undefined || spec.saturate !== undefined) {
+            /*
+             * Lighter, not paler.
+             *
+             * The first version mixed the finish toward white, which raises
+             * brightness and strips saturation in the same move -- so the
+             * panel came out washed rather than simply lit, and read as a
+             * white sheet laid over the phone instead of the same anodised
+             * colour catching more light.
+             *
+             * Raising HSL lightness alone keeps the hue and the saturation
+             * exactly where the finish put them. Done in sRGB rather than the
+             * linear working space, because "a bit lighter" is a judgement
+             * about what the eye sees and linear lightness does not match it.
+             */
+            // `saturate` on its own is a valid statement: same lightness, more
+            // colour, which is exactly what polished trim is against glass.
+            fixed.color?.set?.(shiftLightness(bodyColor, spec.lighten ?? 0, saturate));
+          } else if (spec.color) {
+            fixed.color?.set?.(spec.color);
+          }
+          // Stated surface wins over the model's, where given.
+          if (spec.roughness !== undefined && "roughness" in fixed) {
+            (fixed as { roughness: number }).roughness = spec.roughness;
+          }
+          if (spec.metalness !== undefined && "metalness" in fixed) {
+            (fixed as { metalness: number }).metalness = spec.metalness;
+          }
+          if (spec.envMapIntensity !== undefined && "envMapIntensity" in fixed) {
+            (fixed as { envMapIntensity: number }).envMapIntensity = spec.envMapIntensity;
+          }
+          if (spec.opacity !== undefined) {
+            fixed.opacity = spec.opacity;
+            fixed.transparent = spec.opacity < 1;
+            // A half-clear pane must not write depth, or the body behind it
+            // stops being drawn and the phone reads hollow.
+            fixed.depthWrite = spec.opacity >= 1;
+          }
+          return fixed;
+        }
+
         const candidate = mat as {
           clone?: () => unknown;
           color?: { set?: (hex: string) => void };
@@ -1349,12 +1683,31 @@ function GLBPhoneScene({
            * from the studio rig -- at full env strength a smooth light surface
            * on a flat back mirrors the lighting straight down the lens.
            */
-          mark.color?.set?.(device.logoColor ?? "#9c9c9c");
+          mark.color?.set?.(
+            device.logoDarken !== undefined
+              ? shiftLightness(bodyColor, -Math.abs(device.logoDarken))
+              : (device.logoColor ?? "#9c9c9c"),
+          );
           if ("metalness" in mark) mark.metalness = 0.1;
           if ("roughness" in mark) mark.roughness = 0.55;
           if ("envMapIntensity" in mark) mark.envMapIntensity = 0.25;
-          if ("transparent" in mark) mark.transparent = false;
-          if ("opacity" in mark) mark.opacity = 1;
+          /*
+           * Opaque unless the device asks otherwise.
+           *
+           * The default stays 1 because of the failure recorded above: where a
+           * mark is coplanar with the back panel, a nearly-clear front surface
+           * is exactly what depth sorting cannot resolve and the logo
+           * disappears. Apple's stands 0.4mm proud of the panel, so alpha
+           * behaves there -- a fact about that model, not one to assume.
+           */
+          const markOpacity = device.logoOpacity ?? 1;
+          if ("transparent" in mark) mark.transparent = markOpacity < 1;
+          if ("opacity" in mark) mark.opacity = markOpacity;
+          // A mostly see-through mark must not also punch a hole in the depth
+          // buffer, or the panel behind it stops being drawn.
+          if ("depthWrite" in mark) {
+            (mark as { depthWrite: boolean }).depthWrite = markOpacity >= 1;
+          }
           return mark;
         }
 
@@ -1382,6 +1735,12 @@ function GLBPhoneScene({
         // would drag every texel along with the body, which is what left the
         // Apple logo brown in the grey finishes. The map already holds the
         // final colour once rebuilt, so `color` stays white.
+        // Asked to be flat: drop the painted map and let the finish fill it.
+        const plain = device.plainMaterials?.some(
+          (n) => n.toLowerCase() === (candidate as { name?: string }).name?.toLowerCase(),
+        );
+        if (plain && next.map) next.map = null;
+
         if (next.map && device.authoredBodyColor) {
           next.map = recolorBodyTexture(
             next.map,
@@ -1394,6 +1753,30 @@ function GLBPhoneScene({
         }
         if ("metalness" in next) next.metalness = bodyMetalness;
         if ("roughness" in next) next.roughness = bodyRoughness;
+
+        /*
+         * The grain, as a modulation of the roughness the finish just set.
+         *
+         * three multiplies factor by map, so the factor is divided by the
+         * map's own mean: the AVERAGE roughness stays exactly what the finish
+         * asked for, and the grain lives as variation either side of it. That
+         * is the whole reason this works where the model's own maps did not --
+         * those replaced the finish, this one rides on top of it.
+         *
+         * Only where a material has no roughness map already. Nothing here
+         * ships one today, but overwriting a real one with noise would be a
+         * quiet downgrade if a future model does.
+         */
+        if (grainTexture && "roughness" in next && !(next as { roughnessMap?: unknown }).roughnessMap) {
+          const scaled = grainTexture.clone();
+          scaled.wrapS = RepeatWrapping;
+          scaled.wrapT = RepeatWrapping;
+          scaled.repeat.set(GRAIN_SCALE, GRAIN_SCALE);
+          scaled.needsUpdate = true;
+          (next as { roughnessMap?: unknown }).roughnessMap = scaled;
+          const mean = 1 - GRAIN_AMOUNT / 2;
+          next.roughness = Math.min(1, bodyRoughness / Math.max(0.05, mean));
+        }
         next.emissive?.set?.(BODY_EMISSIVE_COLOR);
         if ("emissiveIntensity" in next) next.emissiveIntensity = BODY_EMISSIVE_INTENSITY;
         if ("envMapIntensity" in next) next.envMapIntensity = BODY_ENV_MAP_INTENSITY;
@@ -1403,9 +1786,11 @@ function GLBPhoneScene({
       };
       const mat2 = m.material as unknown;
       if (Array.isArray(mat2)) {
-        (m as Mesh).material = mat2.map(tintMaterial) as unknown as Mesh["material"];
+        (m as Mesh).material = mat2.map((entry) =>
+          tintMaterial(entry, m.name),
+        ) as unknown as Mesh["material"];
       } else if (mat2) {
-        (m as Mesh).material = tintMaterial(mat2) as unknown as Mesh["material"];
+        (m as Mesh).material = tintMaterial(mat2, m.name) as unknown as Mesh["material"];
       }
     });
     /*
@@ -1525,7 +1910,17 @@ function GLBPhoneScene({
       hinge,
       foldRoot: cloned,
     };
-  }, [gltf.scene, device, bodyColor, bodyMetalness, bodyRoughness]);
+    // Grain is in here because the tint pass is where it is applied: the
+    // materials are cloned per finish, so the texture has to be a dependency
+    // or a rebuild of it would not reach them.
+  }, [
+    gltf.scene,
+    device,
+    bodyColor,
+    bodyMetalness,
+    bodyRoughness,
+    grainTexture,
+  ]);
 
   // Bind the live screen texture onto the model's own screen material.
   //
@@ -2026,6 +2421,24 @@ function ProceduralPhoneScene({
 const TRANSFORM_OMEGA = 14;
 
 /**
+ * When a live pose counts as arrived, as a quaternion dot product.
+ *
+ * `dot` between two unit quaternions is cos(theta/2), so this threshold is an
+ * angle: 1 - 1e-7 is about 0.05 degrees. Sensor noise below that moves the
+ * model by a fraction of a pixel and is not worth a frame.
+ *
+ * It exists because "a live feed never settles" was taken to mean the renderer
+ * must never idle while one is attached, and that turned out to be expensive
+ * in a specific way. Every frame a live pose asked for was a full re-upload of
+ * the broadcast video texture -- which on a current iPhone is a 1320x2868
+ * frame, about 15 MB -- so a phone lying perfectly still on a desk pinned a
+ * 120 Hz display at 120 uploads a second to render an image that was not
+ * changing. Gyro and broadcast then appeared to fight each other, which is the
+ * same fight `VideoFrameDriver` was written to end on the video side.
+ */
+const LIVE_SETTLED_DOT = 1 - 1e-7;
+
+/**
  * One step of a critically damped spring towards `target`.
  *
  * The textbook integration (v += (-2*w*v - w*w*(x - target)) * dt) goes
@@ -2228,9 +2641,26 @@ function PhoneScene({
       // its own momentum to a hand that has already stopped moving.
       const k = immediate ? 1 : 1 - Math.exp(-dt * TRANSFORM_OMEGA);
       LIVE_TARGET.set(live.x, live.y, live.z, live.w).multiply(MODEL_FACING);
+      // Measured BEFORE the step: how far the model still has to travel is
+      // what decides whether another frame is worth asking for.
+      const arrived = Math.abs(g.quaternion.dot(LIVE_TARGET)) >= LIVE_SETTLED_DOT;
       g.quaternion.slerp(LIVE_TARGET, k);
-      // A live feed never settles, so it drives the demand loop itself.
-      state.invalidate();
+      /*
+       * Only while the model is still catching up.
+       *
+       * This used to invalidate unconditionally, on the reasoning that a live
+       * feed never settles. The MODEL does settle, though -- the filter above
+       * converges within a frame or two of the phone stopping -- and the cost
+       * of not noticing is paid by whatever else is in the scene, which here
+       * is a full-resolution video texture being re-uploaded per frame.
+       *
+       * The loop cannot deadlock by stopping here: `LivePoseWaker` watches the
+       * sample ref from a plain rAF, outside the demand loop, and wakes it when
+       * a genuinely new orientation lands. An invalidate that only ever fires
+       * from INSIDE `useFrame` cannot restart a loop that has already parked,
+       * which is the trap this pair of changes exists to stay out of.
+       */
+      if (!arrived) state.invalidate();
     } else if (immediate) {
       g.rotation.x = rx;
       g.rotation.y = ry;
@@ -2408,14 +2838,6 @@ export default function PhoneStage3D({
   return (
     <>
       {shadowDefs}
-      {IS_DEV ? (
-        <Leva
-          oneLineLabels
-          hideCopyButton
-          collapsed
-          titleBar={{ title: "Mobile GLB", drag: true, filter: false }}
-        />
-      ) : null}
       <StageLoader />
       <Canvas
         className="!h-full !w-full"
@@ -2461,6 +2883,7 @@ export default function PhoneStage3D({
         <CaptureBridge captureRef={captureRef} />
         <RecorderBridge recorderRef={recorderRef} />
         <VideoFrameDriver texture={screenTexture} />
+        <LivePoseWaker livePose={livePose} />
         {onRotateDrag ? (
           <PointerDragRotation
             onRotateChange={onRotateDrag}
@@ -2468,7 +2891,7 @@ export default function PhoneStage3D({
           />
         ) : null}
         <StudioEnvironment lighting={lighting} />
-        <CameraFov fov={fov} />
+        <CameraFov fov={fov} animation={animation} timeRef={timeRef} playing={playing} />
         <PhoneScene
           rail={rail}
           screenTexture={screenTexture}
