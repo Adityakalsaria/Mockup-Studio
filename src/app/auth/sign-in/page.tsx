@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { Suspense, useActionState, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn, signUp, type AuthResult } from "../actions";
 
@@ -11,7 +11,7 @@ import { signIn, signUp, type AuthResult } from "../actions";
  * over. A toggle keeps whatever they have already typed, and the only thing
  * that changes is which action the submit runs.
  */
-export default function SignInPage() {
+function SignInForm() {
   const params = useSearchParams();
   const nextPath = params.get("next") ?? "";
   const linkError = params.get("error") === "link";
@@ -92,5 +92,34 @@ export default function SignInPage() {
         {mode === "in" ? "No account yet? Create one" : "Already have an account? Sign in"}
       </button>
     </main>
+  );
+}
+
+/**
+ * The Suspense boundary `useSearchParams` requires.
+ *
+ * Without it this page cannot be prerendered at all, and it took the whole
+ * production build down with it -- reading the query string forces the route
+ * to bail out to client rendering, and Next treats an un-bounded bail-out as
+ * a build error rather than as a slow page.
+ *
+ * The fallback is the form's own frame with no query-dependent parts, so the
+ * prerendered HTML and the hydrated page are the same shape and nothing jumps
+ * when the two swap.
+ */
+export default function SignInPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto flex min-h-[70svh] w-full max-w-[360px] flex-col justify-center gap-[20px] px-[20px]">
+          <div>
+            <h1 className="text-[22px] font-semibold tracking-[-0.01em]">Sign in</h1>
+            <p className="mt-[4px] text-[14px] opacity-60">Email and password.</p>
+          </div>
+        </main>
+      }
+    >
+      <SignInForm />
+    </Suspense>
   );
 }
