@@ -1,62 +1,19 @@
-import type { Metadata } from "next";
-import dynamic from "next/dynamic";
-import Hero from "@/components/sections/HeroSection";
-import Navbar from "@/components/layout/Navbar";
-import FloatingQRCode from "@/components/ui/FloatingQRCode";
-import PrefetchBusinessSequence from "@/components/PrefetchBusinessSequence";
+import { redirect } from "next/navigation";
 
-const HeroSecondSection = dynamic(() => import("@/components/sections/HeroSecondSection"));
-const FourthSection = dynamic(() => import("@/components/sections/FourthSection"));
-const FutureSection = dynamic(() => import("@/components/sections/FutureSection"));
-const BusinessCTASection = dynamic(() => import("@/components/sections/BusinessCTASection"));
-const FAQsSection = dynamic(() => import("@/components/sections/FAQsSection"));
-const FooterSection = dynamic(() => import("@/components/sections/FooterSection"));
-import JsonLd from "@/components/seo/JsonLd";
-import { SITE_DESCRIPTION, SITE_NAME, absoluteUrl } from "@/lib/metadata";
-import {
-  organizationSchema,
-  softwareApplicationSchema,
-  websiteSchema,
-} from "@/lib/seo/schema";
-
-export const metadata: Metadata = {
-  title: {
-    absolute: "KOSH - The Global Financial Account",
-  },
-  description: SITE_DESCRIPTION,
-  alternates: {
-    canonical: absoluteUrl("/"),
-  },
-};
-
-export default function Home() {
-  const schemas = [organizationSchema(), websiteSchema(), softwareApplicationSchema()];
-
-  return (
-    <>
-      <JsonLd data={schemas} />
-      <main>
-        <Navbar />
-        <Hero />
-        <div id="sequence-zone" className="bg-black">
-          <HeroSecondSection />
-        </div>
-        <FourthSection />
-        <FutureSection />
-
-        {/* ── Business CTA Section ──
-            Pulled under FutureSection via -mt-[100vh]. FutureSection (z-10)
-            covers this, so the content is only revealed through FutureSection's
-            bottom gradient as it scrolls away. The sticky inner keeps the
-            image + CTA pinned to the viewport during the reveal scroll.
-            Canvas sequence scrubs 241 frames as user scrolls through. */}
-        <BusinessCTASection />
-
-        <FAQsSection />
-        <FooterSection />
-      </main>
-      <FloatingQRCode />
-      <PrefetchBusinessSequence />
-    </>
-  );
+/**
+ * The studio is the site.
+ *
+ * This repo began as a copy of the Koshmoney marketing site with the studio
+ * added as one route inside it, which meant deploying it served that site --
+ * its homepage, its product pages, its Play Store links -- from whatever
+ * domain this was put on. Those routes are gone; what is left is the studio,
+ * the auth pages it needs, and the two APIs the phone talks to.
+ *
+ * A redirect rather than moving the editor up to `/`: the route is linked from
+ * the pairing QR, the deep link and the iOS app, all of which say
+ * `/mockup-studio` and some of which are compiled into a build on someone's
+ * phone. Those keep working, and the bare domain lands somewhere useful.
+ */
+export default function RootPage() {
+  redirect("/mockup-studio");
 }
