@@ -86,15 +86,51 @@ struct BroadcastConfig: Codable, Equatable {
 /// The App Group both targets share. Must match the capability configured on
 /// the app AND the extension, or the extension reads an empty container and
 /// the broadcast starts with nowhere to send frames.
+///
+/// It has drifted apart three ways once already, which is worth a note because
+/// nothing about the failure points here. A team change renamed the group in
+/// the two entitlement files and missed this constant -- and renamed the two
+/// files to DIFFERENT strings, one of them with a `.broadcast` suffix, as
+/// though an extension needed its own group. It does not: the entire purpose
+/// of the group is to be the one container both processes can open.
+///
+/// The failure is silent by construction. `UserDefaults(suiteName:)` returns
+/// nil for a group the process is not entitled to, so `save` and `load` below
+/// hit their `guard` and return normally. Nothing throws, nothing logs, and
+/// the broadcast simply reports that no studio is paired.
+///
+/// So: one string, in three places, all identical. Changing it here means
+/// changing both .entitlements files in the same commit.
 enum BroadcastStore {
-    static let appGroup = "group.com.koshmoney.mockupstudio"
+    static let appGroup = "group.com.mockup.studio"
     private static let key = "broadcast.config"
 
-    static func save(_ config: BroadcastConfig) {
+    /// Whether this process can actually reach the shared container.
+    ///
+    /// Worth asking separately from "is anything stored", because the two
+    /// failures need opposite fixes and look identical from the outside: an
+    /// unreachable group is a signing mistake, an empty one just means nobody
+    /// has scanned a code yet.
+    static var isAvailable: Bool { UserDefaults(suiteName: appGroup) != nil }
+
+    /// Returns whether the pairing actually landed where the extension reads.
+    ///
+    /// It used to return Void, and the caller could not have checked anyway.
+    /// That is how a broken App Group stayed invisible: the app wrote into
+    /// nothing, showed its paired screen regardless, and the extension -- the
+    /// only process in a position to notice -- reported "no studio is paired"
+    /// to someone who had just watched the app say the opposite.
+    ///
+    /// The write is read straight back rather than trusted. `set` on a suite
+    /// this process is not entitled to is a no-op, not an error, so the only
+    /// way to know it took is to ask for it again.
+    @discardableResult
+    static func save(_ config: BroadcastConfig) -> Bool {
         guard let defaults = UserDefaults(suiteName: appGroup),
               let data = try? JSONEncoder().encode(config)
-        else { return }
+        else { return false }
         defaults.set(data, forKey: key)
+        return defaults.data(forKey: key) == data
     }
 
     static func load() -> BroadcastConfig? {

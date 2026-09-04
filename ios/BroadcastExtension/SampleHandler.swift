@@ -81,6 +81,14 @@ class SampleHandler: RPBroadcastSampleHandler {
     private var adaptedFor: CGSize = .zero
 
     override func broadcastStarted(withSetupInfo setupInfo: [String: NSObject]?) {
+        // Two different failures, two different messages. They were one
+        // message once, and it sent someone to re-scan a code four times over
+        // a problem that was in the entitlements and could never have been
+        // fixed by scanning.
+        guard BroadcastStore.isAvailable else {
+            finish("This build cannot open its shared App Group, so it cannot read the pairing. The app and the extension need the same App Group in both entitlement files. Re-scanning will not help.")
+            return
+        }
         guard let config = BroadcastStore.load() else {
             finish("No studio is paired. Open Mockup Studio on your phone and scan the code again.")
             return
@@ -282,7 +290,7 @@ class SampleHandler: RPBroadcastSampleHandler {
     private func finish(_ reason: String) {
         teardown()
         finishBroadcastWithError(NSError(
-            domain: "com.koshmoney.mockupstudio.broadcast",
+            domain: "com.mockup.studio.broadcast",
             code: 1,
             userInfo: [NSLocalizedDescriptionKey: reason]
         ))

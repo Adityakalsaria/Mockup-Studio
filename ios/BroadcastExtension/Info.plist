@@ -25,10 +25,6 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSMotionUsageDescription</key>
-	<string>Mockup Studio uses device motion so tilting your phone rotates the mockup on your Mac.</string>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Mockup Studio sends your screen directly to the studio on your Mac over your local network.</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>
@@ -38,5 +34,9 @@
 		<key>RPBroadcastProcessMode</key>
 		<string>RPBroadcastProcessModeSampleBuffer</string>
 	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Mockup Studio sends your screen directly to the studio on your Mac over your local network.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Mockup Studio uses device motion so tilting your phone rotates the mockup on your Mac.</string>
 </dict>
 </plist>

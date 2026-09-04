@@ -69,7 +69,19 @@ struct PairingView: View {
                     }
                     // Persisted before the picker is ever shown: the extension
                     // reads this at launch, and the app may not be alive then.
-                    BroadcastStore.save(parsed)
+                    //
+                    // Checked, because a failed write here is invisible until
+                    // the broadcast fails minutes later with a message that
+                    // blames the pairing rather than the entitlement.
+                    guard BroadcastStore.save(parsed) else {
+                        error = """
+                        Paired, but this build cannot write to its shared App \
+                        Group, so the broadcast extension will not see it. The \
+                        app and the extension need the same App Group in both \
+                        entitlement files.
+                        """
+                        return
+                    }
                     config = parsed
                     error = nil
                 }
@@ -126,7 +138,13 @@ struct BroadcastPickerView: UIViewRepresentable {
         )
         // Without this the sheet lists every broadcast-capable app on the
         // device instead of going straight to ours.
-        view.preferredExtension = "com.koshmoney.mockupstudio.broadcast"
+        //
+        // Derived from the app's own bundle id rather than written out, because
+        // a literal here is a second place the identifier has to be renamed and
+        // the one nobody thinks of. Getting it wrong does not fail loudly: the
+        // picker just quietly stops preselecting, and the user is handed a list
+        // of every broadcast app on the phone with no hint which is ours.
+        view.preferredExtension = (Bundle.main.bundleIdentifier ?? "com.mockup.studio") + ".broadcast"
         view.showsMicrophoneButton = false
         view.backgroundColor = .clear
 

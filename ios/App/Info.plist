@@ -18,44 +18,37 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
-	<key>CFBundleVersion</key>
-	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
-	<key>UILaunchScreen</key>
-	<dict/>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-	</array>
-	<!-- Scanning the studio's pairing QR. -->
-	<key>NSCameraUsageDescription</key>
-	<string>Mockup Studio uses the camera to scan the pairing code shown in the studio on your Mac.</string>
-	<!-- Reaching the Mac over the LAN. Without this iOS blocks the connection
-	     and the failure looks like a network fault rather than a permission. -->
-	<key>NSMotionUsageDescription</key>
-	<string>Mockup Studio uses device motion so tilting your phone rotates the mockup on your Mac.</string>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Mockup Studio connects directly to the studio running on your Mac over your local network. Your screen is never sent to the internet.</string>
-	<!-- The studio is served over plain HTTP on the LAN, which ATS blocks by
-	     default. Scoped to local networking only: this does NOT allow
-	     arbitrary insecure loads to the internet. -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
-	<!-- The join page hands off with mockupstudio://join?... -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.koshmoney.mockupstudio</string>
+			<string>com.mockup.studio</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>mockupstudio</string>
 			</array>
 		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Mockup Studio uses the camera to scan the pairing code shown in the studio on your Mac.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Mockup Studio connects directly to the studio running on your Mac over your local network. Your screen is never sent to the internet.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Mockup Studio uses device motion so tilting your phone rotates the mockup on your Mac.</string>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
 	</array>
 </dict>
 </plist>

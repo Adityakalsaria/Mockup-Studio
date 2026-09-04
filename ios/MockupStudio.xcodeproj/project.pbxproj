@@ -183,11 +183,11 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					3969491B8791B7E60880FC7E = {
-						DevelopmentTeam = SK3G8M6N54;
+						DevelopmentTeam = 59JF2M3V8B;
 						ProvisioningStyle = Automatic;
 					};
 					4D55A2220005E2D94B11DEDD = {
-						DevelopmentTeam = SK3G8M6N54;
+						DevelopmentTeam = 59JF2M3V8B;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -258,7 +258,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = SK3G8M6N54;
+				DEVELOPMENT_TEAM = 59JF2M3V8B;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -266,7 +266,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.koshmoney.mockupstudio;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mockup.studio;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -279,7 +279,7 @@
 				CODE_SIGN_ENTITLEMENTS = BroadcastExtension/BroadcastExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = SK3G8M6N54;
+				DEVELOPMENT_TEAM = 59JF2M3V8B;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BroadcastExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -288,7 +288,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.koshmoney.mockupstudio.broadcast;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mockup.studio.broadcast;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -357,7 +357,7 @@
 				CODE_SIGN_ENTITLEMENTS = BroadcastExtension/BroadcastExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = SK3G8M6N54;
+				DEVELOPMENT_TEAM = 59JF2M3V8B;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BroadcastExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -366,7 +366,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.koshmoney.mockupstudio.broadcast;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mockup.studio.broadcast;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -381,7 +381,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = SK3G8M6N54;
+				DEVELOPMENT_TEAM = 59JF2M3V8B;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -389,7 +389,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.koshmoney.mockupstudio;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mockup.studio;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;

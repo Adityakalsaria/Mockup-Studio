@@ -32,10 +32,17 @@ Broadcast extension                             next dev
 | `App/PairingView.swift` | App — QR scanner, broadcast picker |
 | `BroadcastExtension/SampleHandler.swift` | Extension — ReplayKit → WebRTC |
 
-Two targets: the app (`com.koshmoney.mockupstudio`) and the broadcast upload
-extension embedded in it (`…mockupstudio.broadcast`). They share the App Group
-`group.com.koshmoney.mockupstudio`, which is the only channel between them —
-the app is not running by the time iOS launches the extension.
+Two targets: the app (`com.mockup.studio`) and the broadcast upload extension
+embedded in it (`com.mockup.studio.broadcast`). They share the App Group
+`group.com.mockup.studio`, which is the only channel between them — the app is
+not running by the time iOS launches the extension.
+
+Renaming any of that is a four-file change, and three of the four fail silently
+if you miss them: the App Group appears in both `.entitlements` files **and** in
+`BroadcastStore.appGroup`, and the extension's id is also what the broadcast
+picker preselects (`PairingView` derives it from the app's bundle id so it
+cannot drift). The Play Store id `com.koshmoney.app` under `src/` is the
+Android app and is unrelated — do not sweep it up in a rename.
 
 WebRTC comes from `github.com/stasel/WebRTC` (prebuilt libwebrtc XCFramework)
 via SPM, resolved automatically on first build.
