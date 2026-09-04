@@ -1,6 +1,0 @@
-<svg preserveAspectRatio="none" width="100%" height="100%" overflow="visible" style="display: block;" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g id="Subtract">
-<path fill-rule="evenodd" clip-rule="evenodd" d="M7 13H20V18C20 19.1046 19.1046 20 18 20H12.6797L8.48047 17H11.9199L13.3203 18H18V15H7V20H2C0.895523 19.9999 3.90663e-05 19.1045 0 18V13H5V2H2V6.55176L3.01562 8H3V11.4619L0 7.18457V2C0 0.895488 0.895514 9.62339e-05 2 0H7V13ZM2 18H5V15H2V18Z" fill="var(--fill-0, white)"/>
-<path d="M18 0.00195312C19.1045 0.00195312 19.9999 0.897485 20 2.00195V7.59961L19.4736 7.88184L13.6816 11H9.46094L18 6.4043V2.00195H13.5977L9 10.5371V6.31836L12.4023 0.00195312H18Z" fill="var(--fill-0, white)"/>
-</g>
-</svg>
