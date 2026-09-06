@@ -73,6 +73,12 @@ export const radius = {
   swatch: 4.8,
   /** A row inside a panel, at rest. */
   row: 24,
+  /**
+   * A media well — the screen preview, and anything else that holds content
+   * rather than controls. Tighter than a row on purpose: a well is a hole in
+   * the panel, and at the row's corner it reads as another panel inside it.
+   */
+  well: 16,
   /** A floating panel or popup. */
   panel: 20,
   /**
@@ -178,6 +184,8 @@ export const color = {
     red: "#ff383c",
     green: "#34c759",
     blue: "#0088ff",
+    /** `accents/yellow` in the file — the pairing light while it waits. */
+    yellow: "#ffcc00",
   },
 } as const;
 
@@ -507,6 +515,22 @@ export const corner = {
  * raise `radius`; to change how it gets there, change this.
  */
 
+/**
+ * The ground the panels sit on.
+ *
+ * Glass over flat colour looks like a grey rectangle — the blur has nothing to
+ * work on and the material reads as broken when it is fine. The dot grid is
+ * not decoration; it is what gives the frost something to pick up, and it is
+ * why the system page has carried one from the start. A token rather than two
+ * copies of the same gradient, because the studio needs the same surface for
+ * the same reason.
+ */
+export const surface = {
+  dot: `rgb(${INK_RGB} / 0.07)`,
+  /** Spacing of the grid, both axes. */
+  pitch: 22,
+} as const;
+
 /* ===========================================================================
    Motion
    =========================================================================== */
@@ -538,6 +562,14 @@ export const corner = {
  * at `max` for the whole travel and flattened the ramp into a step. It is
  * scaled down by the same factor the spring sped up by.
  */
+/**
+ * How long text takes to become different text, and content to arrive.
+ *
+ * Matched to what `motion.selection` settles in, so a title resolving, a panel
+ * resizing and its body appearing all finish together.
+ */
+export const morph = 240;
+
 export const motion = {
   selection: { stiffness: 450, damping: 43, mass: 1.3 },
   /**
@@ -604,6 +636,12 @@ ${(
   --mo-accent-red: ${color.accent.red};
   --mo-accent-green: ${color.accent.green};
   --mo-accent-blue: ${color.accent.blue};
+  --mo-accent-yellow: ${color.accent.yellow};
+
+  --mo-dots: radial-gradient(circle at 1px 1px, ${surface.dot} 1px, transparent 0);
+  --mo-dots-pitch: ${px(surface.pitch)} ${px(surface.pitch)};
+
+  --mo-morph: ${morph}ms;
 
   --mo-corner-base: ${corner.base};
   --mo-corner-selection: ${corner.selection};
@@ -636,6 +674,7 @@ ${material.selected.depth
   --mo-selected-depth-blend: ${material.selected.depthBlend};
   --mo-selected-rim-blend: ${material.selected.rimBlend};
   --mo-knob-shadow: ${material.knob.shadow};
+  --mo-swatch-edge: ${material.swatch.edge};
   --mo-swatch-shadow: ${material.swatch.shadow};
   --mo-text-shadow: ${material.text.shadow};
 
@@ -849,9 +888,22 @@ ${material.selected.depth
  * surface can still opt out with a plain \`corner-shape: round\`.
  */
 .mo-glass { --mo-corner: var(--mo-corner-base); }
-.mo-mat-selection { --mo-corner: var(--mo-corner-selection); }
-.mo-switch,
-.mo-switch .mo-mat-selection { --mo-corner: var(--mo-corner-switch); }
+.mo-switch { --mo-corner: var(--mo-corner-switch); }
+
+/*
+ * \`.mo-mat-selection\` deliberately sets NO corner.
+ *
+ * It used to set \`--mo-corner-selection\`, and that never worked: the corner
+ * belongs to the shape with the \`border-radius\`, which for a travelling pill is
+ * the lens chrome — the PARENT of the element wearing this class. A variable
+ * set here cannot cascade upward to it, so the chrome drew at the base
+ * exponent while its own material layers drew at 172, and the two disagreed.
+ *
+ * Everything else that wants this material — a button, a preset tile — is a
+ * plain box that sets its own radius, and inherited 172 from here as a
+ * squared-off corner it had to override inline. Taking the corner out means
+ * the material is a material: it takes the shape of whatever wears it.
+ */
 
 :where(
   .mo-glass,
@@ -866,6 +918,24 @@ ${material.selected.depth
 ) {
   corner-shape: superellipse(var(--mo-corner));
 }
+
+/*
+ * Content arriving in a panel that is already there.
+ *
+ * A CSS animation and not a spring, deliberately. A spring is for something
+ * with a position to travel from — this has none: the old contents are gone
+ * and the new ones were never anywhere. Re-triggering a spring on every swap
+ * would also mean resetting it from an effect on each change, which is a
+ * setState in an effect body and the thing the rest of this file avoids.
+ *
+ * The duration is the one \`MorphText\` uses, so a title changing and the body
+ * under it arriving read as one event.
+ */
+@keyframes mo-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.mo-appear { animation: mo-appear var(--mo-morph) ease-out; }
 
 .mo-title { font: var(--mo-text-title); color: var(--mo-ink); }
 .mo-label { font: var(--mo-text-label); color: var(--mo-ink); }

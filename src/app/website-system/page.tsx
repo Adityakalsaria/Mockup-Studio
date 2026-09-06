@@ -120,9 +120,10 @@ export default function WebsiteSystem() {
         style={{
           font: "var(--mo-text-title)",
           // The test surface. See the note at the top of this file.
-          background: `
-            radial-gradient(circle at 1px 1px, rgb(0 0 0 / 0.07) 1px, transparent 0) 0 0 / 22px 22px,
-            linear-gradient(160deg, #f2f2f4, #e6e6e9)`,
+          // The same grid the studio uses — one token, not two copies of a
+          // gradient that would drift the first time either was adjusted.
+          backgroundImage: "var(--mo-dots), linear-gradient(160deg, #f2f2f4, #e6e6e9)",
+          backgroundSize: "var(--mo-dots-pitch), auto",
         }}
       >
         <div className="mx-auto flex max-w-[1200px] flex-col gap-[56px]">

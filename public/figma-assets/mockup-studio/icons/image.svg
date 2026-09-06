@@ -1,0 +1,27 @@
+<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="MacBook Pro 16&#34; - 7">
+<g id="Frame 1991424174">
+<g id="Frame 1991424173">
+<g id="Frame 1991424189">
+<g id="Frame 25" filter="url(#filter0_d_0_1)">
+<g id="carbon:devices">
+<path id="&#244;&#128;&#143;&#133;" d="M3.98535 16.4492C2.50879 16.4492 1.74316 15.6904 1.74316 14.2344V5.9082C1.74316 4.44531 2.50879 3.69336 3.98535 3.69336H15.6953C17.1719 3.69336 17.9375 4.45215 17.9375 5.9082V14.2344C17.9375 15.6904 17.1719 16.4492 15.6953 16.4492H3.98535ZM3.08301 6.02441V13.3389L4.96973 11.6436C5.25684 11.3838 5.53711 11.2607 5.85156 11.2607C6.17285 11.2607 6.4873 11.3975 6.77441 11.6504L8.03906 12.792L11.1221 10.0303C11.4365 9.75684 11.7715 9.62695 12.1475 9.62695C12.5098 9.62695 12.8721 9.76367 13.1729 10.0439L16.5977 13.25V6.02441C16.5977 5.36133 16.2422 5.02637 15.6133 5.02637H4.06738C3.43164 5.02637 3.08301 5.36133 3.08301 6.02441ZM7.04102 10.1943C6.13184 10.1943 5.40039 9.45605 5.40039 8.55371C5.40039 7.6582 6.13184 6.91309 7.04102 6.91309C7.93652 6.91309 8.6748 7.6582 8.6748 8.55371C8.6748 9.45605 7.93652 10.1943 7.04102 10.1943Z" fill="#595959"/>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+<defs>
+<filter id="filter0_d_0_1" x="-92" y="-90" width="394" height="200" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset/>
+<feGaussianBlur stdDeviation="40"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.3 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_0_1"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_0_1" result="shape"/>
+</filter>
+</defs>
+</svg>

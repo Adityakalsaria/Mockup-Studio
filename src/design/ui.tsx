@@ -28,8 +28,39 @@ import {
   useState,
 } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import { TextMorph } from "torph/react";
 import { control, material, motion, radius, SYSTEM_CSS } from "./system";
 import { AaveGlass } from "./useContentLens";
+
+/**
+ * Text that becomes different text, rather than being replaced by it.
+ *
+ * The rule is about WHICH text, not where. A label that changes while staying
+ * put — a popup's title as its subject changes, a readout as its value does —
+ * should transform, because cutting says something arrived when nothing did. A
+ * label that appears or leaves is not this: it has no previous state to come
+ * from, and every fixed name in a list is in that second category.
+ *
+ * The duration matches what `motion.selection` settles in, so text resolving
+ * and the panel around it moving finish together. Torph runs its own engine, so
+ * this is as close as the two can be brought without one driving the other —
+ * text still resolving after its panel had arrived would read as lag.
+ */
+const MORPH_MS = 240;
+
+export function MorphText({
+  children,
+  as = "span",
+}: {
+  children: string;
+  as?: "span" | "p" | "h1" | "h2";
+}) {
+  return (
+    <TextMorph as={as} duration={MORPH_MS}>
+      {children}
+    </TextMorph>
+  );
+}
 
 /** Injects the generated stylesheet. Mount once, above anything using it. */
 export function DesignSystem() {
@@ -162,13 +193,17 @@ export function Glass({ children, shape = "panel", width, className = "", style 
  * a row list, the icon rail — so they all settle at one rate. The constants
  * live in `motion.selection`; nothing here should pass its own.
  *
+ * Exported because motion belongs to the system as much as material does. A
+ * control that eased on a CSS transition instead would be a second timing
+ * model in the same interface, and the two would drift.
+ *
  * Returns live `{ value, velocity }` rather than just the position, because
  * the velocity is what `travellingBend` needs to deepen the glass while the
  * lens is actually moving.
  */
 type Spring = { stiffness: number; damping: number; mass: number };
 
-function useSpring(
+export function useSpring(
   target: number,
   { stiffness, damping, mass }: Spring = motion.selection,
 ) {
@@ -225,26 +260,14 @@ function travellingBend(base: number, velocity: number) {
 }
 
 /**
- * The geometry of an item at a fractional index.
+ * A child's box, in the group's own coordinates.
  *
- * `at` runs past both ends while the spring overshoots, so the SEGMENT is
- * clamped and the fraction deliberately is not: the lens keeps going the way
- * it was going and eases back, instead of sticking flat against the last row.
+ * All four sides, not just the vertical pair. A column only ever needs `top`
+ * and `height` — every row starts at zero and runs the full width — but a grid
+ * needs the lens to travel sideways and to change width as it goes, and the
+ * measurement is the same either way.
  */
-function interpolate(spans: Span[], at: number): Span | null {
-  if (spans.length === 0) return null;
-  if (spans.length === 1) return spans[0];
-  const i = Math.min(spans.length - 2, Math.max(0, Math.floor(at)));
-  const f = at - i;
-  const a = spans[i];
-  const b = spans[i + 1];
-  return {
-    top: a.top + (b.top - a.top) * f,
-    height: a.height + (b.height - a.height) * f,
-  };
-}
-
-type Span = { top: number; height: number };
+type Span = { top: number; left: number; width: number; height: number };
 
 /**
  * Measure each child of a column, relative to the column.
@@ -255,19 +278,42 @@ type Span = { top: number; height: number };
  * height without the column doing so.
  */
 function useColumnSpans(count: number) {
-  const ref = useRef<HTMLDivElement>(null);
+  /*
+   * A callback ref, not a ref object.
+   *
+   * The group swaps its wrapper once it has measured — a bare div before the
+   * lens exists, the lens itself after — and that remounts the column onto a
+   * fresh DOM node. A `useRef` gives no signal when that happens, so the
+   * observer stays pointed at the detached node, which measures zero, and the
+   * lens collapses to nothing the instant it appears. Ref-as-state re-runs the
+   * effect on the node itself.
+   */
+  const [node, ref] = useState<HTMLDivElement | null>(null);
   const [spans, setSpans] = useState<Span[]>([]);
+  // The group's own size, for the refraction copy: its containing block is the
+  // LENS, so `100%` there means the lens rather than the group the moment the
+  // lens stops spanning the full width.
+  const [size, setSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
-    const node = ref.current;
     if (!node) return;
 
     const measure = () => {
-      const base = node.getBoundingClientRect().top;
+      const base = node.getBoundingClientRect();
+      setSize({ width: base.width, height: base.height });
       setSpans(
         Array.from(node.children).map((child) => {
-          const box = child.getBoundingClientRect();
-          return { top: box.top - base, height: box.height };
+          // `[data-lens]` lets a child say which part of itself the selection
+          // covers — a preset tile is a square of artwork with a caption under
+          // it, and the selection belongs to the square.
+          const covered = child.querySelector("[data-lens]") ?? child;
+          const box = covered.getBoundingClientRect();
+          return {
+            top: box.top - base.top,
+            left: box.left - base.left,
+            width: box.width,
+            height: box.height,
+          };
         }),
       );
     };
@@ -277,9 +323,9 @@ function useColumnSpans(count: number) {
     observer.observe(node);
     for (const child of Array.from(node.children)) observer.observe(child);
     return () => observer.disconnect();
-  }, [count]);
+  }, [node, count]);
 
-  return [ref, spans] as const;
+  return [ref, spans, size] as const;
 }
 
 /* ===========================================================================
@@ -291,6 +337,13 @@ export type RowProps = {
   children?: ReactNode;
   /** Chevron, close, plus — whatever sits at the right edge. */
   trailing?: ReactNode;
+  /**
+   * A readout between the label and the trailing glyph — "1920 X 1080" beside
+   * a ratio. Not a `Field`: that is a tinted plate for a number you edit, and
+   * this is text you read. It takes muted ink either way, since a value that
+   * competed with its own label would be the wrong way round.
+   */
+  value?: ReactNode;
   selected?: boolean;
   onClick?: () => void;
   title?: string;
@@ -342,13 +395,20 @@ function pressKeys(onClick?: () => void) {
  * used on its own wraps itself in a one-item group so there is exactly one
  * implementation of the selected look rather than two that can drift.
  */
-export function Row({ icon, children, trailing, selected, onClick, title }: RowProps) {
+export function Row({ icon, children, trailing, value, selected, onClick, title }: RowProps) {
   const { grouped, strong, interactive } = useRowState(selected, onClick);
 
   if (!grouped) {
     return (
       <RowGroup>
-        <Row icon={icon} trailing={trailing} selected={selected} onClick={onClick} title={title}>
+        <Row
+          icon={icon}
+          trailing={trailing}
+          value={value}
+          selected={selected}
+          onClick={onClick}
+          title={title}
+        >
           {children}
         </Row>
       </RowGroup>
@@ -384,12 +444,104 @@ export function Row({ icon, children, trailing, selected, onClick, title }: RowP
       >
         {children}
       </span>
+      {value ? (
+        <span
+          className="mo-code relative shrink-0 tabular-nums"
+          style={{
+            zIndex: 1,
+            color: "var(--mo-ink-muted)",
+            filter: "var(--mo-text-shadow)",
+          }}
+        >
+          {value}
+        </span>
+      ) : null}
       {trailing ? (
         <span className="relative" style={{ zIndex: 1 }}>
           <Glyph muted={!strong}>{trailing}</Glyph>
         </span>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * A colour chip, at icon size, for a row that names a finish.
+ *
+ * Its edge and shadow are `material.swatch` — the pair `ColorRow` already uses
+ * — rather than the frame's own 1px/6px/27px, which is that pair scaled up by
+ * a quarter. Two swatches at two sizes is how a system stops being one.
+ */
+export function Swatch({ color }: { color: string }) {
+  return (
+    <span
+      className="block shrink-0"
+      style={{
+        width: control.icon,
+        height: control.icon,
+        borderRadius: "var(--mo-r-swatch)",
+        background: color,
+        border: "var(--mo-swatch-edge)",
+        boxShadow: "var(--mo-swatch-shadow)",
+      }}
+    />
+  );
+}
+
+/**
+ * A pressable wearing the selected pill's material.
+ *
+ * The frame builds Upload and the delete key out of `Liquid Glass - Small` —
+ * the same component a selected row is — so this is that material on something
+ * you press, rather than a new surface invented for buttons. The rim and cast
+ * ride on the element itself, where a lens has to hand them to its chrome
+ * because it clips; nothing clips here, so they stay put.
+ */
+export function Button({
+  children,
+  onClick,
+  width,
+  height = control.rowH,
+  grow,
+  title,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  width?: number | string;
+  height?: number;
+  /**
+   * Take the remaining width of a flex row.
+   *
+   * Not `width: 100%`: in a row that also holds a fixed key, 100% is the whole
+   * row and the key is pushed out past the panel. This is the pair the frame
+   * draws — a button that fills what is left, beside one that does not move.
+   */
+  grow?: boolean;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={`mo-mat-selection mo-title relative grid cursor-pointer place-items-center ${
+        grow ? "min-w-0 flex-1" : "shrink-0"
+      }`}
+      style={{
+        width,
+        height,
+        borderRadius: "var(--mo-r-selected)",
+        background: "var(--mo-selected)",
+        boxShadow: "var(--mo-selected-shadow)",
+        color: "var(--mo-ink)",
+        filter: "var(--mo-text-shadow)",
+      }}
+    >
+      <Material />
+      <span className="relative grid place-items-center" style={{ zIndex: 1 }}>
+        {children}
+      </span>
+    </button>
   );
 }
 
@@ -442,10 +594,27 @@ export function RailItem({
 
 export type RowGroupProps = {
   children: ReactNode;
+  /**
+   * Space between rows.
+   *
+   * The lens measures each row's real box, so a gap needs no separate telling:
+   * it travels the extra distance and settles on the right one either way.
+   */
+  gap?: number;
   /** Overrides `motion.selection` — the tuning seam the system page drives. */
   spring?: Spring;
   /** Overrides `material.lens.row.bend`. */
   bend?: number;
+  /**
+   * Lay the children out as a wrapping grid instead of a column.
+   *
+   * The lens does not care: it travels to whatever box the selected child
+   * occupies, and in a grid that means sideways and to a different width as
+   * well as up and down.
+   */
+  wrap?: boolean;
+  /** The lens's corner. A row is a capsule; a tile is not. */
+  radius?: number;
   className?: string;
   style?: CSSProperties;
 };
@@ -470,7 +639,16 @@ export type RowGroupProps = {
  * velocity-to-bend curve; pixels would need a different `boost.perUnit` per
  * control and they would drift apart the first time a row changed height.
  */
-export function RowGroup({ children, spring, bend, className = "", style }: RowGroupProps) {
+export function RowGroup({
+  children,
+  gap,
+  spring,
+  bend,
+  wrap,
+  radius: corner = radius.selected,
+  className = "",
+  style,
+}: RowGroupProps) {
   const items = Children.toArray(children);
   const found = items.findIndex(
     (child) => isValidElement<{ selected?: boolean }>(child) && child.props.selected === true,
@@ -478,63 +656,152 @@ export function RowGroup({ children, spring, bend, className = "", style }: RowG
 
   // Park on the last selection rather than snapping home: a group that
   // momentarily has nothing selected should fade out where it was standing,
-  // not travel to row 0 on its way to becoming invisible. Adjusting state
-  // during render is the supported way to derive this — React re-runs the
-  // component before committing, so the lens never paints at the stale index.
+  // not travel to row 0 on its way to becoming invisible.
   const [parked, setParked] = useState(0);
   if (found >= 0 && found !== parked) setParked(found);
   const index = found >= 0 ? found : parked;
 
-  const [columnRef, spans] = useColumnSpans(items.length);
-  const { value: sprung, velocity } = useSpring(index, spring);
-  const lens = interpolate(spans, sprung);
+  const [columnRef, spans, size] = useColumnSpans(items.length);
+
+  const column = (
+    <div
+      ref={columnRef}
+      className={`flex w-full ${wrap ? "flex-wrap" : "flex-col"}`}
+      style={{ gap }}
+    >
+      <RowGroupCtx.Provider value={{ copy: false }}>{children}</RowGroupCtx.Provider>
+    </div>
+  );
+
+  /*
+   * No lens until there is a box to put it on.
+   *
+   * A spring takes its opening value from its target on the render it is first
+   * called, and on the very first render nothing has been measured — so a lens
+   * mounted then starts at zero and travels out of the corner to reach the
+   * selection. Nobody notices on a page that loads once; it is glaring when a
+   * tab switch unmounts one group and mounts another, because then the morph
+   * happens every time you look at it.
+   *
+   * Deferring the lens by one measurement means it is born where it belongs.
+   */
+  if (spans.length === 0) {
+    return (
+      <div className={`w-full ${className}`.trim()} style={style}>
+        {column}
+      </div>
+    );
+  }
+
+  return (
+    <SelectionLens
+      spans={spans}
+      size={size}
+      index={index}
+      visible={found >= 0}
+      gap={gap}
+      wrap={wrap}
+      corner={corner}
+      spring={spring}
+      bend={bend}
+      className={className}
+      style={style}
+      copy={<RowGroupCtx.Provider value={{ copy: true }}>{children}</RowGroupCtx.Provider>}
+    >
+      {column}
+    </SelectionLens>
+  );
+}
+
+/**
+ * The travelling lens itself, mounted once its geometry is known.
+ *
+ * Four springs on the box rather than one on an index: springing the index
+ * walks the lens along the chain — 0, 1, 2, 3 — which in a column is the
+ * straight line you want anyway, since every row shares a left edge. In a grid
+ * it is a zigzag: across the row, back to the left, down and across again.
+ * Springing the box's own numbers sends it straight there.
+ */
+function SelectionLens({
+  spans,
+  size,
+  index,
+  visible,
+  gap,
+  wrap,
+  corner,
+  spring,
+  bend,
+  className,
+  style,
+  copy,
+  children,
+}: {
+  spans: Span[];
+  size: { width: number; height: number };
+  index: number;
+  visible: boolean;
+  gap?: number;
+  wrap?: boolean;
+  corner: number;
+  spring?: Spring;
+  bend?: number;
+  className: string;
+  style?: CSSProperties;
+  copy: ReactNode;
+  children: ReactNode;
+}) {
+  const target = spans[index] ?? spans[0];
+  const top = useSpring(target.top, spring);
+  const left = useSpring(target.left, spring);
+  const width = useSpring(target.width, spring);
+  const height = useSpring(target.height, spring);
+
+  // Back into boxes-per-second, which is the unit `boost.perUnit` was tuned in
+  // when this sprang an index — pixels per second would pin the bend at `max`
+  // the instant anything moved.
+  const speed = Math.hypot(top.velocity, left.velocity) / Math.max(1, target.height);
 
   return (
     <AaveGlass
-      lens={{
-        width: "100%",
-        height: lens?.height ?? 0,
-        borderRadius: radius.selected,
-      }}
-      x={0}
-      y={lens?.top ?? 0}
-      scale={travellingBend(bend ?? material.lens.row.bend, velocity)}
+      lens={{ width: width.value, height: height.value, borderRadius: corner }}
+      x={left.value}
+      y={top.value}
+      scale={travellingBend(bend ?? material.lens.row.bend, speed)}
       bevel={material.lens.row.bevel}
       // The pill's own two plates: rim hairlines and a short drop below the
       // refraction, depth bands above it. Above matters — run the bands
       // through the displacement and the lens bends its own edge treatment.
       lensShadow="var(--mo-selected-shadow)"
-      // The panel's material, at the pill's scale — same seven layers, same
-      // blends, its own rim and bands. `specular` is off because the bands
-      // that used to live there are part of the material now.
-      chrome={<Material />}
-      chromeClassName="mo-mat-selection"
-      specular={null}
-      lensStyle={{ opacity: found >= 0 && lens ? 1 : 0 }}
+      specular="var(--mo-selected-inset)"
+      specularBlend="var(--mo-selected-depth-blend)"
+      lensStyle={{ opacity: visible ? 1 : 0 }}
       className={`w-full ${className}`.trim()}
       style={style}
       refractionTarget={
         <div
           aria-hidden
-          className="flex flex-col"
+          className={`flex ${wrap ? "flex-wrap" : "flex-col"}`}
           style={{
+            gap,
             position: "absolute",
             left: 0,
             top: 0,
-            // Counter-translated on the compositor rather than through `top`,
-            // which would relayout the whole copy on every frame of the travel.
-            transform: `translateY(${-(lens?.top ?? 0)}px)`,
-            width: "100%",
+            // Counter-translated on the compositor rather than through
+            // `left`/`top`, which would relayout the whole copy every frame.
+            transform: `translate(${-left.value}px, ${-top.value}px)`,
+            // The group's measured size, not `100%`: this sits inside the lens,
+            // so a percentage would resolve against the lens instead.
+            width: size.width || "100%",
+            height: size.height || undefined,
             background: "var(--mo-selected)",
           }}
         >
-          <RowGroupCtx.Provider value={{ copy: true }}>{children}</RowGroupCtx.Provider>
+          {copy}
         </div>
       }
     >
-      <div ref={columnRef} className="flex w-full flex-col">
-        <RowGroupCtx.Provider value={{ copy: false }}>{children}</RowGroupCtx.Provider>
-      </div>
+      {children}
     </AaveGlass>
   );
 }
@@ -572,11 +839,28 @@ export function Glyph({ children, muted }: { children: ReactNode; muted?: boolea
 export function Header({
   icon,
   children,
+  trailing,
   onClose,
+  closeIcon,
 }: {
   icon?: ReactNode;
   children: ReactNode;
+  /**
+   * Anything at the right edge that is not a close button — a status light.
+   *
+   * A row whose label stays at full strength and never takes a selection is
+   * this component, not `Row`: there, ink strength IS the selection, so a
+   * full-ink label would have to be drawn as selected and would arrive with a
+   * pill behind it.
+   */
+  trailing?: ReactNode;
   onClose?: () => void;
+  /**
+   * The glyph for the close button. The system draws its own by default; a
+   * caller with the real exported asset should pass it, because an
+   * approximated glyph is a different glyph.
+   */
+  closeIcon?: ReactNode;
 }) {
   return (
     <div
@@ -590,11 +874,10 @@ export function Header({
     >
       {icon ? <Glyph>{icon}</Glyph> : null}
       <span className="mo-title min-w-0 flex-1 truncate">{children}</span>
+      {trailing}
       {onClose ? (
         <button type="button" onClick={onClose} aria-label="Close" className="grid place-items-center">
-          <Glyph>
-            <CloseIcon />
-          </Glyph>
+          <Glyph>{closeIcon ?? <CloseIcon />}</Glyph>
         </button>
       ) : null}
     </div>
@@ -851,15 +1134,18 @@ export function Slider({
 export function Field({ children }: { children: ReactNode }) {
   return (
     <span
-      className="mo-value grid shrink-0 place-items-center tabular-nums"
+      className="mo-value grid shrink-0 place-items-center tabular-nums whitespace-nowrap"
       style={{
         width: control.fieldW,
         borderRadius: "var(--mo-r-field)",
         background: "var(--mo-field)",
-        padding: "0 var(--mo-space-2)",
+        // Centred, not padded. 8px either side of a 40px plate leaves 24 for
+        // the text, and "55 mm" does not fit in 24 — it wrapped onto two lines
+        // and pushed the row out of shape. The frame centres its readouts and
+        // lets the wider ones use the whole plate.
       }}
     >
-      {children}
+      {typeof children === "string" ? <MorphText>{children}</MorphText> : children}
     </span>
   );
 }
@@ -873,6 +1159,9 @@ export function Field({ children }: { children: ReactNode }) {
  */
 export function ParamRow({
   label,
+  icon,
+  trailing,
+  bare,
   value,
   min,
   max,
@@ -884,6 +1173,26 @@ export function ParamRow({
   press,
 }: {
   label: string;
+  /**
+   * Replaces the label column with a glyph box.
+   *
+   * An axis row names its slider with a letter in a 20px box rather than a
+   * 48px word — the slider gets the difference. `label` is still required and
+   * still reaches the control's accessible name, because "X" as an image is
+   * not something a screen reader can announce.
+   */
+  icon?: ReactNode;
+  /** A glyph after the readout — the frame puts a reset there. */
+  trailing?: ReactNode;
+  /**
+   * Drop the label column entirely, giving its width to the slider.
+   *
+   * For a group of one, the section title already names the control — the
+   * Camera popup's focal length is titled "Focal length" and then labelled
+   * "Focal length", which is the same word twice and wraps onto two lines in
+   * a 48px column. The label still reaches the slider's accessible name.
+   */
+  bare?: boolean;
   value: number;
   min?: number;
   max?: number;
@@ -902,12 +1211,16 @@ export function ParamRow({
       className="flex w-full items-center"
       style={{ height: control.paramH, gap: "var(--mo-space-2_5)", padding: "0 var(--mo-space-2)" }}
     >
-      <span
-        className="mo-label shrink-0"
-        style={{ width: control.labelW, filter: "var(--mo-text-shadow)" }}
-      >
-        {label}
-      </span>
+      {bare ? null : icon ? (
+        <Glyph>{icon}</Glyph>
+      ) : (
+        <span
+          className="mo-label shrink-0"
+          style={{ width: control.labelW, filter: "var(--mo-text-shadow)" }}
+        >
+          {label}
+        </span>
+      )}
       <Slider
         label={label}
         value={value}
@@ -920,7 +1233,152 @@ export function ParamRow({
         press={press}
       />
       <Field>{format(value)}</Field>
+      {trailing ? <Glyph muted>{trailing}</Glyph> : null}
     </div>
+  );
+}
+
+/**
+ * Springs its own height to whatever it is holding.
+ *
+ * A popup that swaps a five-slider effect for a one-colour one changes height
+ * by a hundred and sixty pixels, and doing that in a single frame reads as one
+ * panel being replaced by another rather than as the same panel changing its
+ * mind. Sprung, it is the same surface throughout.
+ *
+ * On `useSpring`, like every other motion in the system, so a popup resizes at
+ * the rate a selection travels. A CSS transition here would be a second timing
+ * model and the two would drift.
+ *
+ * The height is only measured, never set: the inner element is left at its
+ * natural size and the outer one follows. That way the content never has to
+ * know it is being animated, and nothing has to be told a number in advance.
+ */
+export function AutoHeight({
+  children,
+  token,
+}: {
+  children: ReactNode;
+  /**
+   * What the contents ARE. When it changes, the new contents fade in.
+   *
+   * The fade used to key off how far the height had left to travel, which is
+   * the wrong signal twice over: two panels of similar height crossfaded not
+   * at all and simply cut, while a large change dropped to nothing and flashed
+   * back. Neither had anything to do with whether the contents had changed —
+   * which is the only thing that decides whether a fade belongs.
+   */
+  token?: string | number;
+}) {
+  const [inner, setInner] = useState<HTMLDivElement | null>(null);
+  const [natural, setNatural] = useState(0);
+
+  useEffect(() => {
+    if (!inner) return;
+    // Only the observer measures. A synchronous read here would be a setState
+    // in an effect body, and the first callback lands on the next frame
+    // anyway — which is why `height` stays `auto` until there is a number.
+    const observer = new ResizeObserver(() => setNatural(inner.offsetHeight));
+    observer.observe(inner);
+    return () => observer.disconnect();
+  }, [inner]);
+
+  const { value } = useSpring(natural);
+
+  /*
+   * Clipped while moving, and faded by how far it has to go.
+   *
+   * The clip is unavoidable: mid-grow the content is already at full size and
+   * would spill past the panel. A previous attempt pushed the clip outward on
+   * negative margins so shadows had room — that gave the panel a layout height
+   * of `animated minus the margins`, so it was shorter than what it held and
+   * the content hung out of the bottom of it. Worse than the problem.
+   *
+   * The fix is not to hide the cut but to make it not worth seeing: the content
+   * dips in opacity in proportion to the distance still to travel, so it is at
+   * its faintest exactly when it is most cut, and back to full the moment the
+   * height agrees with it. `48` is roughly one row — a change smaller than that
+   * barely fades at all, which is right, because it barely clips either.
+   *
+   * At rest the height returns to `auto` and the clip goes entirely, so a
+   * sub-pixel spring value can never shave a hairline off the last row.
+   */
+  const measured = natural > 0;
+  const moving = measured && Math.abs(value - natural) > 0.5;
+
+  /*
+   * The height is ALWAYS the sprung value — never `auto`, at rest or otherwise.
+   *
+   * `auto` looks harmless when nothing is moving, and it is the reason a fast
+   * switch snapped: the content changes, `auto` reflows to the new size on
+   * that same frame, and only then does the observer fire and the spring —
+   * still holding the old value — drag it back to animate. The panel jumped to
+   * its destination, returned, and then travelled there. Pinned to the spring,
+   * a content change moves nothing until the spring moves it.
+   *
+   * Settled, the spring sits exactly on the measured integer, so pinning costs
+   * no accuracy — it cannot shave a hairline off the last row.
+   *
+   * Starting at zero rather than `auto` matters for the same reason at the
+   * other end: the first measurement becomes the first frame of the opening
+   * instead of a flash at full size followed by a grow.
+   */
+  return (
+    <div
+      style={{
+        height: measured ? value : 0,
+        overflow: moving || !measured ? "hidden" : undefined,
+      }}
+    >
+      <div ref={setInner}>
+        {/* Keyed, so a change in `token` genuinely replaces the contents and
+            the animation runs from the start rather than being skipped as an
+            update to what was already there. */}
+        <div key={token} className={token === undefined ? undefined : "mo-appear"}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A titled block of parameter rows.
+ *
+ * The popups that carry more than a handful of controls group them — location,
+ * rotation, scale — and the title is what makes three identical X/Y/Z triplets
+ * legible as three different things rather than nine sliders.
+ */
+export function ParamGroup({ title, children }: { title?: string; children: ReactNode }) {
+  return (
+    <div className="flex w-full flex-col" style={{ gap: "var(--mo-space-2)" }}>
+      {title ? (
+        <span
+          className="mo-title"
+          style={{ padding: "0 var(--mo-space-2)", filter: "var(--mo-text-shadow)" }}
+        >
+          {title}
+        </span>
+      ) : null}
+      {children}
+    </div>
+  );
+}
+
+/**
+ * The hairline between groups.
+ *
+ * Ink at a tenth, not a named grey: a rule on glass has to sit at the same
+ * strength whatever the panel happens to be over, and `--mo-field` is already
+ * that colour doing the same job behind a readout.
+ */
+export function Divider() {
+  return (
+    <span
+      aria-hidden
+      className="block w-full shrink-0"
+      style={{ height: 1, background: "var(--mo-field)" }}
+    />
   );
 }
 
@@ -940,7 +1398,9 @@ export function ColorRow({
       style={{ gap: "var(--mo-space-2)", padding: "0 var(--mo-space-2)", filter: "var(--mo-text-shadow)" }}
     >
       <span className="mo-title min-w-0 flex-1">{label}</span>
-      <span className="mo-code shrink-0 tabular-nums">{value.toUpperCase()}</span>
+      <span className="mo-code shrink-0 tabular-nums">
+        <MorphText>{value.toUpperCase()}</MorphText>
+      </span>
       <label
         className="relative shrink-0 cursor-pointer overflow-hidden"
         style={{
@@ -982,14 +1442,27 @@ export function Segmented<T extends string>({
   onChange,
   spring,
   bend,
+  width,
+  height = 36,
 }: {
-  options: { id: T; label: string }[];
+  /** `label` takes a node, not just a string: the history control is glyphs. */
+  options: { id: T; label: ReactNode }[];
   value: T;
   onChange: (id: T) => void;
   /** Overrides `motion.selection` — the tuning seam the system page drives. */
   spring?: Spring;
   /** Overrides `material.lens.segmented.bend`. */
   bend?: number;
+  /** Overrides the panel width — a three-glyph switch is not 250px wide. */
+  width?: number | string;
+  /**
+   * Overrides the indicator's height, and with it the whole control's.
+   *
+   * The default is the labelled switch. A glyph switch is shorter — and the
+   * inset around its symbol is not set anywhere, it is what is left over: a
+   * 16px glyph centred in a 32px cell leaves the 8 the frame annotates.
+   */
+  height?: number;
 }) {
   const index = Math.max(0, options.findIndex((o) => o.id === value));
   const { value: sprung, velocity } = useSpring(index, spring);
@@ -1001,7 +1474,7 @@ export function Segmented<T extends string>({
     // sitting in an 18px corner reads as two different radii arguing.
     // `mo-switch` is the corner scope — the track and the indicator take one
     // shape between them, rather than the indicator taking the pill's.
-    <Glass shape="pill" className="mo-switch" style={{ padding: "var(--mo-space-1)" }}>
+    <Glass shape="pill" className="mo-switch" width={width} style={{ padding: "var(--mo-space-1)" }}>
       <AaveGlass
         lens={{
           width: `${100 / n}%`,
@@ -1017,10 +1490,16 @@ export function Segmented<T extends string>({
         chromeClassName="mo-mat-selection"
         specular={null}
         className="flex"
-        style={{ height: 36 }}
+        style={{ height }}
         refractionTarget={
           // Full-width highlighted labels, counter-translated so they stay
           // registered with the sharp buttons while the lens window moves.
+          //
+          // The labels are ONLY here to be bent. Without a bend the copy lands
+          // exactly on the sharp original and is pure duplication — invisible
+          // under text, and a second symbol under a glyph. So when the bend is
+          // off the copy carries the fill and nothing else, and the fill is
+          // all the pill needed from it anyway.
           <div
             aria-hidden
             style={{
@@ -1034,15 +1513,17 @@ export function Segmented<T extends string>({
               background: "var(--mo-selected)",
             }}
           >
-            {options.map((o) => (
-              <span
-                key={o.id}
-                className="mo-title flex flex-1 items-center justify-center"
-                style={{ color: "var(--mo-ink)" }}
-              >
-                {o.label}
-              </span>
-            ))}
+            {bendScale > 0
+              ? options.map((o) => (
+                  <span
+                    key={o.id}
+                    className="mo-title flex flex-1 items-center justify-center"
+                    style={{ color: "var(--mo-ink)" }}
+                  >
+                    {o.label}
+                  </span>
+                ))
+              : null}
           </div>
         }
       >
@@ -1051,7 +1532,12 @@ export function Segmented<T extends string>({
             key={o.id}
             type="button"
             onClick={() => onChange(o.id)}
-            className="mo-title relative flex-1"
+            // A centring box, matching the refraction copy below exactly.
+            // As a plain `flex-1` this laid its child out inline, so a glyph
+            // sat on the BASELINE while its copy sat centred — a few pixels
+            // apart, which is why a selected symbol appeared twice. Text hid
+            // it: the line box put both in the same place regardless.
+            className="mo-title relative flex flex-1 items-center justify-center"
             style={{
               zIndex: 1,
               color: o.id === value ? "var(--mo-ink)" : "var(--mo-ink-muted)",
