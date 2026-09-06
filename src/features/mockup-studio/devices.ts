@@ -457,23 +457,55 @@ export interface Device {
 }
 
 /**
- * Polished metal, derived from the finish rather than pinned to a hex.
+ * The side rail: satin brushed aluminium, not a mirror.
  *
- * Apple authors a rail at metalness 1, roughness 0.01 -- a mirror -- and the
- * finish pass would otherwise overwrite that with the body's own values and
- * flatten it into painted trim. Stating the surface here keeps it a mirror.
+ * It was a mirror, taken from the Air, and against Apple's own crops of the 17
+ * that is plainly wrong -- theirs is a soft anodised sheen with a broad
+ * highlight, where ours threw a hard specular line and read as chrome trim. A
+ * polished rail also turned gold on the sage finish, which is how the antenna
+ * bands were finally tracked down.
  *
- * Saturated well up because polished metal returns a deeper version of the
- * body colour than matte glass does, and lifted slightly because a mirror
- * shows almost none of its albedo: what that number really sets is how dark
- * the reflections come back, and at a near-black finish the rig otherwise
- * reflects into it as a black band.
+ * Metalness stays high because it IS aluminium. Roughness is what changed.
  */
 const RAIL = {
+  lighten: 0.05,
+  saturate: 1.25,
+  metalness: 0.85,
+  roughness: 0.35,
+  envMapIntensity: 1,
+} as const;
+
+/**
+ * The camera rings: polished, and the only part of the trim that is.
+ *
+ * These were on the rail treatment because a rail and a ring are one material
+ * on the Air. On the 17 they are not, and keeping them together would be a
+ * loss either way: the rings are the brightest thing on the back, and matting
+ * them to match the rail flattens the lenses into the bump.
+ */
+const RING = {
   lighten: 0.06,
   saturate: 1.9,
   metalness: 1,
   roughness: 0.05,
+} as const;
+
+/**
+ * The back glass: glossy, where the finish leaves it half matte.
+ *
+ * A finish sets one roughness for the whole device, and a phone is two
+ * materials -- aluminium around glass -- so one number cannot serve both. The
+ * rail takes the finish's value; the back states its own.
+ *
+ * `lighten: 0` is not a no-op. It is what puts the finish COLOUR on a material
+ * whose surface is being stated: with no colour key the override sets gloss
+ * and leaves the authored white in place.
+ */
+const BACK_GLASS = {
+  lighten: 0,
+  metalness: 0,
+  roughness: 0.1,
+  envMapIntensity: 1.4,
 } as const;
 
 /**
@@ -524,12 +556,14 @@ const PLATEAU = {
  * because a 0.4mm strip is nearly all edge and an edge finds a highlight at
  * almost any angle.
  *
- * Near the body's own colour, because Apple matches these closely: the
- * difference the eye reads is in the finish, not the hue.
+ * Lighter than the rail, not matched to it. Apple's crops of the 17 show the
+ * band clearly paler than the aluminium either side -- it was set near the
+ * body colour on the assumption the difference was finish alone, and it is
+ * both.
  */
 const ANTENNA = {
-  lighten: 0.02,
-  saturate: 1,
+  lighten: 0.45,
+  saturate: 0.5,
   metalness: 0,
   roughness: 1,
   envMapIntensity: 0.25,
@@ -696,7 +730,23 @@ export const DEVICES: Device[] = [
        * so a dark finish gets a bigger absolute step than a light one from the
        * same number -- which is what lets one value work across all five.
        */
-      SSCOTROIPktOHPN: { lighten: 0.1 },
+      /*
+       * The back shell, and the reason the last two attempts at this changed
+       * nothing on screen.
+       *
+       * An override sets COLOUR and returns; the model's own metalness and
+       * roughness survive it. This mesh is authored metalness 1, roughness 1
+       * -- a dead-matte metal -- and it had only `{ lighten: 0.1 }`, so every
+       * gloss set on the panels around it landed behind a surface that
+       * scatters everything. The three back-facing panels sit at zmax 5.76,
+       * 3.84 and 3.62, and this is the middle one: outside the sheet I had
+       * been making glossy, and the one actually being looked at.
+       *
+       * The lift is kept; the surface is now stated with it.
+       */
+      SSCOTROIPktOHPN: { ...BACK_GLASS, lighten: 0.1 },
+      KChxKESNhKjaHJY: BACK_GLASS,
+      NWVRqxSZYCCnuGM: BACK_GLASS,
       /*
        * The camera plateau, a shade under the back.
        *
@@ -752,7 +802,7 @@ export const DEVICES: Device[] = [
       EbFQbFEYKgUZRPQ: { darken: 0.12 },
       // The rail, and the camera rings that match it on the real phone.
       sWPfdEwNBQxWmmj: RAIL,
-      GSJgRpZoabPIkha: RAIL,
+      GSJgRpZoabPIkha: RING,
       /*
        * The two antenna bands: 38.00 x 0.09mm and 15.32 x 0.40mm, both at
        * y = -74.8. A line four tenths of a millimetre across is a cut through
@@ -1856,6 +1906,20 @@ export const DEVICES: Device[] = [
       shbEUnsXpTPWhzR: { lighten: 0.3, saturate: 0.48 },
       EawlUsidsXxTKSk: { lighten: 0.3, saturate: 0.48 },
       TFWpUowOykkxbOj: { lighten: 0.28, saturate: 0.26 },
+      /*
+       * The woven power cord.
+       *
+       * Apple braids it in the machine's own colour -- it is the one cable
+       * they colour-match -- and it was in `keepMaterials`, so a pink iMac
+       * trailed a white lead. Kept because it is authored white and textured,
+       * which is exactly the shape of thing that rule was meant to protect.
+       *
+       * Lifted and desaturated off the finish rather than set to it: the braid
+       * is fabric, so it reads paler and softer than the anodised shell it
+       * plugs into. The weave survives -- it lives in the material's own map,
+       * and a stated colour multiplies that map rather than replacing it.
+       */
+      PeoHJzUfJXylKvT: { lighten: 0.34, saturate: 0.55 },
       // Recessed and shadowed: the port bay, the vent and the trim around it.
       BaYfiGSQafXWMJP: { darken: 0.32, saturate: 0.41 },
       HDhDeSCxdQAGYWj: { darken: 0.05, saturate: 0.53 },
@@ -1890,7 +1954,6 @@ export const DEVICES: Device[] = [
       "VNbdnbBXcjtnKdJ",
       "vprnhkKaWJfLVCe",
       "OtjAwuWiGXjZVfW",
-      "PeoHJzUfJXylKvT",
       "LyDqttVHFnVIjqu",
       "OnfBadaKkpAPVzM",
       "KCzcUVmPRfCcGrd",

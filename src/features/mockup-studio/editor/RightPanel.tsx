@@ -1121,6 +1121,7 @@ function GyroControl({
 }
 
 function BroadcastDiagnostics({ broadcast }: { broadcast: BroadcastLink }) {
+  const [showDetail, setShowDetail] = useState(false);
   const d = broadcast.diagnostics;
   const flowing = d.bytesReceived > 0;
 
@@ -1148,24 +1149,77 @@ function BroadcastDiagnostics({ broadcast }: { broadcast: BroadcastLink }) {
     },
   ];
 
+  /*
+   * One line for the person, seven for whoever is debugging it.
+   *
+   * The rows above are a handshake laid out end to end, and every one of them
+   * is a state nobody watching a phone screen has a use for. What a user needs
+   * is whether it is working, and if it is not, what to do -- so the detail
+   * goes behind a disclosure rather than out of the file.
+   *
+   * Out of the file was the tempting version and would have been a mistake:
+   * this link has failed twice for reasons only these rows could distinguish,
+   * and both times the failure looked identical from outside -- a QR that
+   * scans and nothing appearing.
+   *
+   * Read bottom-up, because the last stage to be reached is the true one:
+   * bytes arriving beats a track existing beats an answer beats an offer. The
+   * ICE and connection fields are deliberately NOT consulted -- they read
+   * "new" in the screenshot that prompted this while video was flowing at
+   * 660x1434, so a status driven off them would call a working link broken.
+   */
+  const status = flowing
+    ? { text: `Live · ${d.frameSize ?? "connected"}`, ok: true }
+    : d.trackReceived
+      ? { text: "Starting video…", ok: true }
+      : d.answerApplied
+        ? { text: "Connecting…", ok: true }
+        : { text: "Waiting for the phone…", ok: false };
+
   return (
     <div className="mt-[10px] flex w-full flex-col gap-[3px]">
-      {rows.map((row) => (
-        <div key={row.label} className="flex items-center justify-between gap-[8px]">
-          <span className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>
-            {row.label}
-          </span>
-          <span
-            className="ks-micro"
-            style={{
-              color: row.ok ? "var(--ks-accent)" : "var(--ks-text-faint)",
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {row.value}
-          </span>
-        </div>
-      ))}
+      <div className="flex items-center justify-between gap-[8px]">
+        <span className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>
+          Status
+        </span>
+        <span
+          className="ks-micro"
+          style={{
+            color: status.ok ? "var(--ks-accent)" : "var(--ks-text-faint)",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {status.text}
+        </span>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setShowDetail((v) => !v)}
+        className="ks-micro mt-[2px] self-start underline underline-offset-2"
+        style={{ color: "var(--ks-text-faint)" }}
+      >
+        {showDetail ? "Hide details" : "Details"}
+      </button>
+
+      {showDetail
+        ? rows.map((row) => (
+            <div key={row.label} className="flex items-center justify-between gap-[8px]">
+              <span className="ks-micro" style={{ color: "var(--ks-text-faint)" }}>
+                {row.label}
+              </span>
+              <span
+                className="ks-micro"
+                style={{
+                  color: row.ok ? "var(--ks-accent)" : "var(--ks-text-faint)",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {row.value}
+              </span>
+            </div>
+          ))
+        : null}
 
       {/* The one failure mode that looks like every other failure mode. */}
       {d.mdns && !flowing ? (
