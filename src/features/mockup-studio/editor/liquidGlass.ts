@@ -164,3 +164,16 @@ export function supportsBackdropDisplacement(): boolean {
     CSS.supports("-webkit-backdrop-filter", "url(#test)")
   );
 }
+
+/**
+ * Whether the browser will displace an element's own pixels via `filter: url()`.
+ *
+ * Unlike the backdrop check, a failed `filter` reference does not take a blur
+ * sibling down with it — unsupported functions are simply skipped. Still worth
+ * gating: applying a broken url(#…) leaves the surface looking unchanged for
+ * the wrong reason, and we would rather fall back to the plain fill explicitly.
+ */
+export function supportsElementFilter(): boolean {
+  if (typeof CSS === "undefined" || !CSS.supports) return false;
+  return CSS.supports("filter", "url(#test)");
+}

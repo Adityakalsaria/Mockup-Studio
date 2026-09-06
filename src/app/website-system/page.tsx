@@ -15,6 +15,7 @@
  */
 
 import { useState } from "react";
+import Image from "next/image";
 import {
   ChevronIcon,
   CloseIcon,
@@ -26,25 +27,58 @@ import {
   Header,
   ParamRow,
   PlusIcon,
+  RailItem,
   Row,
+  RowGroup,
   Segmented,
   Slider,
 } from "@/design/ui";
-import { color, control, font, radius, space } from "@/design/system";
+import { color, control, font, material, radius, space } from "@/design/system";
 
+/**
+ * The device list, with the glyph the design gives each row.
+ *
+ * The icons are the file's own exports, committed under `public/figma-assets`
+ * — including the four that came across as SF Symbol references and had to be
+ * pulled per node. None of them is drawn here: an approximated glyph is a
+ * different glyph, and these read at 20px where a near miss is obvious.
+ *
+ * Several devices share one glyph because the design shares it: every iPhone
+ * row and Flat Canvas are all the same `iphone` symbol.
+ */
 const DEVICES = [
-  "iMac",
-  "iPad Pro",
-  "MacBook Neo",
-  "MacBook Pro 14’",
-  "Studio Display XDR",
-  "iPhone 17",
-  "iPhone 17 Pro",
-  "iPhone 17 Pro Max",
-  "Flat Canvas",
+  { name: "iMac", icon: "imac" },
+  { name: "iPad Pro", icon: "ipad-pro" },
+  { name: "MacBook Neo", icon: "laptop" },
+  { name: "MacBook Pro 14’", icon: "macbook" },
+  { name: "Studio Display XDR", icon: "display-xdr" },
+  { name: "iPhone 17", icon: "iphone" },
+  { name: "iPhone 17 Pro", icon: "iphone" },
+  { name: "iPhone 17 Pro Max", icon: "iphone" },
+  { name: "Flat Canvas", icon: "iphone" },
 ];
 
 const LAYERS = ["Transform", "Effects", "Camera", "Background", "Drop shadow", "Gradient", "Dots", "Image"];
+
+/**
+ * One exported glyph, at icon size.
+ *
+ * `unoptimized` because these are SVGs: Next's optimiser refuses them unless
+ * the whole app opts into `dangerouslyAllowSVG`, and turning that on globally
+ * to serve seven of our own committed files is the wrong trade. `alt` is empty
+ * because the row's label already names the thing.
+ */
+function FigmaGlyph({ name }: { name: string }) {
+  return (
+    <Image
+      src={`/figma-assets/mockup-studio/icons/${name}.svg`}
+      alt=""
+      width={control.icon}
+      height={control.icon}
+      unoptimized
+    />
+  );
+}
 
 function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
@@ -75,6 +109,8 @@ export default function WebsiteSystem() {
   const [shadow, setShadow] = useState({ x: 2.4, y: 2.4, blur: 2.4, opacity: 2.4, spread: 2.4 });
   const [hex, setHex] = useState("#000000");
   const [open, setOpen] = useState<string[]>(["Background", "Drop shadow", "Gradient", "Dots", "Image"]);
+  const [layer, setLayer] = useState("Drop shadow");
+  const [tool, setTool] = useState(0);
 
   return (
     <>
@@ -161,30 +197,56 @@ export default function WebsiteSystem() {
             ))}
           </Section>
 
-          <Section title="Material" note="Blur, wash, rim and shadow. Only correct together — that is why it is one class.">
+          <Section
+            title="Material"
+            note="Two layers, as the file stacks them. Each panel below is the same component with the other layer's opacity at zero, so either can be judged on its own."
+          >
             <Glass width={220}>
-              <Header icon={<PlusIcon />}>Glass panel</Header>
+              <Header icon={<PlusIcon />}>Both layers</Header>
               <div style={{ padding: "0 var(--mo-space-2) var(--mo-space-2)" }}>
-                <span className="mo-code">backdrop-blur 98px</span>
+                <span className="mo-code">backdrop-blur {material.glass.blur}px</span>
+              </div>
+            </Glass>
+
+            {/* Isolating a layer needs no new API: the layer opacities are
+                already custom properties, so setting one to zero on the
+                instance leaves the other rendering exactly as it ships. */}
+            <Glass
+              width={220}
+              style={{ "--mo-glass-top-opacity": 0 } as React.CSSProperties}
+            >
+              <Header icon={<PlusIcon />}>Main base bottom</Header>
+              <div style={{ padding: "0 var(--mo-space-2) var(--mo-space-2)" }}>
+                <span className="mo-code">
+                  2 fills · rim {material.glass.base.rimBlend}
+                </span>
+              </div>
+            </Glass>
+
+            <Glass
+              width={220}
+              style={{ "--mo-glass-base-opacity": 0 } as React.CSSProperties}
+            >
+              <Header icon={<PlusIcon />}>Main base top</Header>
+              <div style={{ padding: "0 var(--mo-space-2) var(--mo-space-2)" }}>
+                <span className="mo-code">
+                  blur {material.glass.blur} · pane {material.glass.top.fillBlend} ·
+                  bands {material.glass.top.depthBlend}
+                </span>
               </div>
             </Glass>
             <Glass shape="rail">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  className="grid w-full place-items-center"
-                  style={{
-                    padding: "10px var(--mo-space-3)",
-                    borderRadius: i === 0 ? "var(--mo-r-selected)" : "var(--mo-r-row)",
-                    background: i === 0 ? "var(--mo-selected)" : undefined,
-                    boxShadow: i === 0 ? "var(--mo-selected-shadow)" : undefined,
-                  }}
-                >
-                  <Glyph muted={i !== 0}>
-                    <ChevronIcon />
-                  </Glyph>
-                </div>
-              ))}
+              <RowGroup>
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <RailItem
+                    key={i}
+                    icon={<ChevronIcon />}
+                    title={`Tool ${i + 1}`}
+                    selected={i === tool}
+                    onClick={() => setTool(i)}
+                  />
+                ))}
+              </RowGroup>
             </Glass>
           </Section>
 
@@ -199,43 +261,50 @@ export default function WebsiteSystem() {
             />
           </Section>
 
-          <Section title="Rows" note="Selection changes background, radius and ink at once — all three are the state.">
+          <Section title="Rows" note="One lens for the column, sprung between rows — the label under it bends while it travels.">
             <Glass>
-              {DEVICES.map((d) => (
-                <Row
-                  key={d}
-                  icon={<ChevronIcon />}
-                  trailing={<ChevronIcon />}
-                  selected={d === device}
-                  onClick={() => setDevice(d)}
-                >
-                  {d}
-                </Row>
-              ))}
+              <RowGroup>
+                {DEVICES.map((d) => (
+                  <Row
+                    key={d.name}
+                    icon={<FigmaGlyph name={d.icon} />}
+                    trailing={<FigmaGlyph name="chevron" />}
+                    selected={d.name === device}
+                    onClick={() => setDevice(d.name)}
+                  >
+                    {d.name}
+                  </Row>
+                ))}
+              </RowGroup>
             </Glass>
 
             <Glass>
-              {LAYERS.map((l) => {
-                const on = open.includes(l);
-                return (
-                  <Row
-                    key={l}
-                    icon={<ChevronIcon />}
-                    trailing={on ? <CloseIcon /> : <PlusIcon />}
-                    selected={l === "Drop shadow"}
-                    onClick={() => setOpen((v) => (on ? v.filter((x) => x !== l) : [...v, l]))}
-                  >
-                    {l}
-                  </Row>
-                );
-              })}
+              <RowGroup>
+                {LAYERS.map((l) => {
+                  const on = open.includes(l);
+                  return (
+                    <Row
+                      key={l}
+                      icon={<ChevronIcon />}
+                      trailing={on ? <CloseIcon /> : <PlusIcon />}
+                      selected={l === layer}
+                      onClick={() => {
+                        setLayer(l);
+                        setOpen((v) => (on ? v.filter((x) => x !== l) : [...v, l]));
+                      }}
+                    >
+                      {l}
+                    </Row>
+                  );
+                })}
+              </RowGroup>
             </Glass>
           </Section>
 
           <Section title="Popup" note="A header plus param rows. Every popup in the file is this shape.">
             <Glass style={{ gap: "var(--mo-space-4)" }}>
               <Header icon={<PlusIcon />} onClose={() => undefined}>
-                Drop shadow
+                {layer}
               </Header>
               <div className="flex flex-col" style={{ gap: "var(--mo-space-2)", paddingBottom: 10 }}>
                 <ColorRow label="Color" value={hex} onChange={setHex} />
@@ -266,7 +335,14 @@ export default function WebsiteSystem() {
             <div className="flex flex-col gap-[12px]">
               <Chip label="Slider" value={`track ${control.slider.trackH} · knob ${control.slider.knobW}x${control.slider.knobH}`} />
               <div style={{ width: 200 }}>
-                <Slider label="demo" value={shadow.x} min={0} max={10} step={0.1} onChange={(n) => setShadow((s) => ({ ...s, x: n }))} />
+                <Slider
+                  label="demo"
+                  value={shadow.x}
+                  min={0}
+                  max={10}
+                  step={0.1}
+                  onChange={(n) => setShadow((s) => ({ ...s, x: n }))}
+                />
               </div>
             </div>
             <div className="flex flex-col gap-[12px]">
