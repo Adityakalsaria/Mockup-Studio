@@ -355,13 +355,13 @@ export const LAYERS: Layer[] = [
         /*
          * Only for devices that fold.
          *
-         * `canFold` is the registry's own statement that a model can be shut,
-         * by either route: `iphone-fold.glb` carries a 5s clip and its entry
-         * names the seconds that are open and closed, while the MacBooks carry
-         * no clips at all and get a hinge inferred from their geometry
-         * instead. Everything else in the list has no lid, and the row stays
-         * away from it — a slider that moves a number no mesh reads is exactly
-         * the dead control this file exists to avoid.
+         * `canFold` is the registry's own statement that a model has a hinge
+         * clip to drive: `iphone-fold.glb` carries a 5s animation and its entry
+         * names the seconds that are open and shut. Nothing else does — the
+         * MacBooks were tried and their lids are modelled welded open, with no
+         * clips at all — so the row stays away from them. A slider that moves a
+         * number no mesh reads is the dead control this file exists to avoid.
+         * Rig those lids and add `fold`, and the row appears on its own.
          */
         title: "Lid",
         fields: [
