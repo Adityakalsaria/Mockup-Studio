@@ -52,6 +52,32 @@ export interface EditorState {
   fov: number;
   panX: number;
   panY: number;
+  /**
+   * The third translate axis — toward the camera and away from it.
+   *
+   * The rig had two. A studio's transform inspector has three, and the missing
+   * one is not decoration: with X and Y alone a phone can be moved anywhere in
+   * the picture plane and nowhere else, so nothing can be pushed behind
+   * anything or brought forward of it.
+   *
+   * Distinct from `zoom`, which is a SCALE. They look alike on a single object
+   * against a flat background and stop looking alike the moment there is a
+   * second one or a perspective lens: dollying changes what the lens does to
+   * the shape, scaling does not.
+   */
+  panZ: number;
+  /**
+   * Per-axis scale, multiplied onto `zoom`.
+   *
+   * `zoom` stays the one master size — it is what the presets animate, what the
+   * wheel drives, and what every existing shot was saved with. These three ride
+   * on top of it at 1, so a shot that never touches them renders exactly as it
+   * did before, and the Transform popup's Scale X/Y/Z have somewhere real to
+   * write.
+   */
+  scaleX: number;
+  scaleY: number;
+  scaleZ: number;
 
   /* BLUR */
   blur: BlurSettings;
@@ -105,6 +131,10 @@ export const DEFAULT_EDITOR_STATE: EditorState = {
   fov: 38,
   panX: 0,
   panY: 0,
+  panZ: 0,
+  scaleX: 1,
+  scaleY: 1,
+  scaleZ: 1,
 
   blur: DEFAULT_BLUR,
   overlay: DEFAULT_OVERLAY,
@@ -210,4 +240,20 @@ export const RANGES = {
    */
   panX: { min: -6, max: 6, step: 0.01 },
   panY: { min: -6, max: 6, step: 0.01 },
+  /*
+   * Narrower than X and Y, and not for symmetry's sake. Z runs along the line
+   * of sight from a camera 1.8 units out, so the same +/-6 would put the phone
+   * a long way through the lens in one direction and most of the way to
+   * vanishing in the other. This is the depth the shot has to move in.
+   */
+  panZ: { min: -1.2, max: 1.2, step: 0.01 },
+  /*
+   * Multipliers, so 1 is "as `zoom` says" and the track is centred on it. The
+   * floor is not 0: a zero scale collapses the body to a plane, which is not a
+   * composition anyone is reaching for and is indistinguishable from the model
+   * having failed to load.
+   */
+  scaleX: { min: 0.1, max: 3, step: 0.01 },
+  scaleY: { min: 0.1, max: 3, step: 0.01 },
+  scaleZ: { min: 0.1, max: 3, step: 0.01 },
 } as const;

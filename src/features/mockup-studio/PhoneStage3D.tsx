@@ -22,6 +22,7 @@ import { DEFAULT_SHADOW, type ShadowSettings } from "./shadow";
 import { useShadowFilter } from "./ShadowFilter";
 import { DEFAULT_LIGHTING, type LightingId } from "./lighting";
 import { isBlurActive, type BlurSettings } from "./blurStyles";
+import { TRANSFORM_OMEGA, springTo } from "./transformSpring";
 import type { Quat } from "./gyro/quaternion";
 
 // Lazy so `postprocessing` only reaches the browser when a blur is switched
@@ -2592,24 +2593,6 @@ function ProceduralPhoneScene({
 }
 
 /**
- * The phone's transform spring, in rad/s. Applied to every transform (scale,
- * position, rotation) so auto-driven step transitions, slider input and
- * cursor-drag rotation all move with the same weight.
- *
- * 14 is measured, not chosen: fitting a reference recording frame by frame
- * gives a critically damped spring at omega 14, zeta 1.01, and the panel
- * chrome runs the same number through --ks-spring. The phone and the controls
- * around it settle together as a result.
- *
- * What this replaced was `1 - exp(-dt / 0.18)`, which is a first-order lag,
- * not the critically damped spring its comment claimed. The difference is the
- * first frame: a lag filter's velocity is highest at t=0 and only decays, so
- * the phone left instantly and then crawled into place. A spring starts from
- * rest, which is what makes a heavy object look heavy.
- */
-const TRANSFORM_OMEGA = 14;
-
-/**
  * When a live pose counts as arrived, as a quaternion dot product.
  *
  * `dot` between two unit quaternions is cos(theta/2), so this threshold is an
@@ -2626,34 +2609,6 @@ const TRANSFORM_OMEGA = 14;
  * same fight `VideoFrameDriver` was written to end on the video side.
  */
 const LIVE_SETTLED_DOT = 1 - 1e-7;
-
-/**
- * One step of a critically damped spring towards `target`.
- *
- * The textbook integration (v += (-2*w*v - w*w*(x - target)) * dt) goes
- * unstable once w * dt approaches 1, and on a canvas that renders on demand
- * dt is whatever the gap since the last frame happened to be — a tab left in
- * the background hands back a dt of seconds. This is the stable closed form
- * (Game Programming Gems 4), which is exact for any dt and needs no exp():
- * `decay` is a Pade approximation of e^-x, well under a pixel of error across
- * the range and a good deal cheaper six times a frame.
- *
- * Velocity has to persist across frames, so it lives in `vel` under `key`.
- */
-function springTo(
-  current: number,
-  target: number,
-  vel: Record<string, number>,
-  key: string,
-  dt: number,
-): number {
-  const x = TRANSFORM_OMEGA * dt;
-  const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
-  const change = current - target;
-  const temp = (vel[key] + TRANSFORM_OMEGA * change) * dt;
-  vel[key] = (vel[key] - TRANSFORM_OMEGA * temp) * decay;
-  return target + (change + temp) * decay;
-}
 
 /** Scratch target for the live-pose slerp. Module scope so the frame loop
     does not allocate a quaternion sixty times a second. */
@@ -2702,6 +2657,10 @@ function PhoneScene({
   cardDepth,
   coverTexture,
   coverScreenFit,
+  offsetZ = 0,
+  scaleX = 1,
+  scaleY = 1,
+  scaleZ = 1,
 }: {
   rail: Phone3DRail | undefined;
   screenTexture: Texture | null;
@@ -2728,7 +2687,14 @@ function PhoneScene({
   rotateZ: number;
   offsetX: number;
   offsetY: number;
+  /** Along the line of sight, in world units. See `panZ` in editorState. */
+  offsetZ?: number;
   scale: number;
+  /** Per-axis multipliers on `scale`. 1 is uniform, which is what every caller
+      that does not ask for otherwise gets. */
+  scaleX?: number;
+  scaleY?: number;
+  scaleZ?: number;
   heightPct: number;
   fold?: number;
   coverTexture?: Texture | null;
@@ -2745,14 +2711,32 @@ function PhoneScene({
     sz: 0,
     ox: 0,
     oy: 0,
+    oz: 0,
+    kx: 0,
+    ky: 0,
+    kz: 0,
     rx: 0,
     ry: 0,
     rz: 0,
   });
 
+  /**
+   * The sprung scale, kept apart from the object's own.
+   *
+   * `g.scale` is now the PRODUCT of a uniform size and three per-axis
+   * multipliers, so it is no longer something a spring can read its own last
+   * value back out of — `g.scale.x` would answer with the product and the
+   * uniform would drift toward it. The four factors are tracked here and the
+   * object is composed from them each frame.
+   */
+  const springScale = useRef({ u: 1, x: 1, y: 1, z: 1 });
+
   const targetSizeScale = (heightPct / 100) * (scale / 100);
   const targetOffsetX = (offsetX / 500) * PHONE_HEIGHT;
   const targetOffsetY = -(offsetY / 500) * PHONE_HEIGHT;
+  // Already in world units — unlike X and Y, which arrive as percentages of
+  // the phone's height because that is what the panel and the presets speak.
+  const targetOffsetZ = offsetZ;
   const targetRX = rotateX * rad;
   const targetRY = rotateY * rad;
   const targetRZ = rotateZ * rad;
@@ -2760,8 +2744,9 @@ function PhoneScene({
   useEffect(() => {
     const g = groupRef.current;
     if (!g) return;
-    g.scale.setScalar(targetSizeScale);
-    g.position.set(targetOffsetX, targetOffsetY, 0);
+    springScale.current = { u: targetSizeScale, x: scaleX, y: scaleY, z: scaleZ };
+    g.scale.set(targetSizeScale * scaleX, targetSizeScale * scaleY, targetSizeScale * scaleZ);
+    g.position.set(targetOffsetX, targetOffsetY, targetOffsetZ);
     g.rotation.set(targetRX, targetRY, targetRZ);
     // Snap to current targets on mount so the first frame doesn't pop from
     // identity to the live values. Only runs once — subsequent prop changes
@@ -2809,18 +2794,28 @@ function PhoneScene({
     // that were keyed on purpose.
     const vel = springVel.current;
     const live = livePose?.current;
+    const k = springScale.current;
     if (immediate) {
-      g.scale.setScalar(sz);
+      k.u = sz;
+      k.x = scaleX;
+      k.y = scaleY;
+      k.z = scaleZ;
       g.position.x = ox;
       g.position.y = oy;
+      g.position.z = targetOffsetZ;
       // A spring carries velocity, so snapping has to clear it too or the next
       // interactive move starts mid-flight from wherever playback stopped.
       for (const key in vel) vel[key] = 0;
     } else {
-      g.scale.setScalar(springTo(g.scale.x, sz, vel, "sz", dt));
+      k.u = springTo(k.u, sz, vel, "sz", dt);
+      k.x = springTo(k.x, scaleX, vel, "kx", dt);
+      k.y = springTo(k.y, scaleY, vel, "ky", dt);
+      k.z = springTo(k.z, scaleZ, vel, "kz", dt);
       g.position.x = springTo(g.position.x, ox, vel, "ox", dt);
       g.position.y = springTo(g.position.y, oy, vel, "oy", dt);
+      g.position.z = springTo(g.position.z, targetOffsetZ, vel, "oz", dt);
     }
+    g.scale.set(k.u * k.x, k.u * k.y, k.u * k.z);
 
     if (live) {
       // The live feed keeps its lag filter rather than the spring. A spring is
@@ -2871,9 +2866,13 @@ function PhoneScene({
     const settled =
       !live &&
       !moving &&
-      Math.abs(sz - g.scale.x) < 1e-4 &&
+      Math.abs(sz - k.u) < 1e-4 &&
+      Math.abs(scaleX - k.x) < 1e-4 &&
+      Math.abs(scaleY - k.y) < 1e-4 &&
+      Math.abs(scaleZ - k.z) < 1e-4 &&
       Math.abs(ox - g.position.x) < 1e-4 &&
       Math.abs(oy - g.position.y) < 1e-4 &&
+      Math.abs(targetOffsetZ - g.position.z) < 1e-4 &&
       Math.abs(rx - g.rotation.x) < 1e-4 &&
       Math.abs(ry - g.rotation.y) < 1e-4 &&
       Math.abs(rz - g.rotation.z) < 1e-4;
@@ -2890,6 +2889,10 @@ function PhoneScene({
     targetSizeScale,
     targetOffsetX,
     targetOffsetY,
+    targetOffsetZ,
+    scaleX,
+    scaleY,
+    scaleZ,
     targetRX,
     targetRY,
     targetRZ,
@@ -2955,7 +2958,11 @@ export default function PhoneStage3D({
   rotateZ,
   offsetX,
   offsetY,
+  offsetZ,
   scale,
+  scaleX,
+  scaleY,
+  scaleZ,
   heightPct,
   finishId,
   immediate,
@@ -2989,7 +2996,13 @@ export default function PhoneStage3D({
   rotateZ: number;
   offsetX: number;
   offsetY: number;
+  /** Toward the camera and away from it, in world units. */
+  offsetZ?: number;
   scale: number;
+  /** Per-axis multipliers on `scale`; 1 each is the uniform default. */
+  scaleX?: number;
+  scaleY?: number;
+  scaleZ?: number;
   heightPct: number;
   /** Body finish id from `finishes.ts`; falls back to the first entry. */
   finishId?: string;
@@ -3090,7 +3103,11 @@ export default function PhoneStage3D({
           rotateZ={rotateZ}
           offsetX={offsetX}
           offsetY={offsetY}
+          offsetZ={offsetZ}
           scale={scale}
+          scaleX={scaleX}
+          scaleY={scaleY}
+          scaleZ={scaleZ}
           heightPct={heightPct}
           finishId={finishId}
           immediate={immediate}

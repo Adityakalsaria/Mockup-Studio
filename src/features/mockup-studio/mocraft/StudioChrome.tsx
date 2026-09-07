@@ -21,10 +21,9 @@
  * `right: 16` here rather than `left: 1196`.
  */
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Leva, useControls } from "leva";
 import { GIZMO_SHAPE } from "./GizmoCanvas";
 import {
   AutoHeight,
@@ -35,6 +34,7 @@ import {
   Glass,
   Glyph,
   Header,
+  HeaderButton,
   MorphText,
   ParamGroup,
   ParamRow,
@@ -46,6 +46,14 @@ import {
   useSpring,
 } from "@/design/ui";
 import { control, radius } from "@/design/system";
+import { Stage } from "./Stage";
+import { DEFAULT_RATIO_ID, useStudio, type Studio } from "./useStudio";
+import { LAYERS, layerIsDirty, resetLayer, resetTransform, type Layer } from "./bindings";
+import { DEVICES } from "../devices";
+import { getMotionPreset } from "../editor/motionPresets";
+import { DEFAULT_EDITOR_STATE } from "../editor/editorState";
+import { STORE_RATIOS } from "../editor/framing";
+import type { BroadcastState } from "../broadcast/useBroadcastLink";
 
 const ICONS = "/figma-assets/mockup-studio/icons";
 
@@ -83,16 +91,6 @@ const QR = {
 };
 
 /**
- * Stable, and that is load-bearing.
- *
- * Leva springs a panel toward `titleBar` from an effect keyed on that prop, and
- * this page re-renders on every frame of a selection spring. Built inline the
- * object is a new identity each time and the panel is dragged back to its start
- * continuously.
- */
-const GIZMO_BAR = { title: "Gizmo" } as const;
-
-/**
  * One exported glyph, at icon size.
  *
  * `unoptimized` because these are SVGs: Next's optimiser refuses them unless
@@ -117,25 +115,37 @@ const GIZMO_BAR = { title: "Gizmo" } as const;
  * two symbols the device list already ships, so they are drawn from `icons/`
  * with the frame's rotation rather than pulled again.
  */
+/*
+ * Eight tiles, eight real moves from `motionPresets`.
+ *
+ * The captions are the presets' own labels rather than the frame's. The file
+ * draws two tiles captioned "Swirl" and two "Pan left in", which are mock
+ * strings standing in for a gallery that did not exist yet — and a tile that
+ * says "Pan In" while playing a push would be worse than one whose caption
+ * moved. The artwork is kept exactly as exported; it is what distinguishes the
+ * tiles at a glance, and the pairing below is by what each drawing depicts.
+ */
 const PRESETS = [
-  { name: "Pan In", art: "pan-in", w: 387, h: 387 },
-  { name: "Pan Out", art: "pan-out", w: 200, h: 232 },
-  { name: "Pan left in", art: "pan-left", w: 200, h: 232 },
-  { name: "Swirl", icon: "macbook", rotate: -20.53 },
-  { name: "Pan left in ", icon: "laptop" },
-  { name: "Swirl ", art: "swirl", w: 194, h: 222 },
-  { name: "Top hero", art: "sweep", w: 200, h: 232 },
-  { name: "Sweep", art: "sweep", w: 200, h: 232 },
+  { id: "push-in", art: "pan-in", w: 387, h: 387 },
+  { id: "pull-back", art: "pan-out", w: 200, h: 232 },
+  { id: "slide-in", art: "pan-left", w: 200, h: 232 },
+  { id: "turntable", icon: "macbook", rotate: -20.53 },
+  { id: "pan-across", icon: "laptop" },
+  { id: "hero-orbit", art: "swirl", w: 194, h: 222 },
+  { id: "crane-down", art: "sweep", w: 200, h: 232 },
+  { id: "hero", art: "sweep", w: 200, h: 232 },
 ] as const;
 
 type Preset = (typeof PRESETS)[number];
 
 function PresetTile({
   preset,
+  label,
   selected,
   onClick,
 }: {
   preset: Preset;
+  label: string;
   selected: boolean;
   onClick: () => void;
 }) {
@@ -196,7 +206,7 @@ function PresetTile({
           filter: "var(--mo-text-shadow)",
         }}
       >
-        {preset.name.trim()}
+        {label}
       </span>
     </button>
   );
@@ -208,12 +218,29 @@ function PresetTile({
  * The same body in two places — the rail's screen-image tool and the Image
  * layer's popup — because the file draws them the same. What differs is only
  * what they are an image OF, which is the caller's business and is why the
- * empty state takes its wording from a prop.
+ * source, the wording and both actions arrive as props.
+ *
+ * The file input is the element's own rather than a shared one on the page:
+ * two wells can be mounted at once (the rail's panel beside the popup), and a
+ * single hidden input would hand a picked file to whichever of them wired it
+ * up last.
  *
  * No padding of its own: the frame runs this block at the panel's full 234,
  * the same inset the header already sits on.
  */
-function ImageWell({ empty }: { empty: string }) {
+function ImageWell({
+  src,
+  empty,
+  onPick,
+  onClear,
+}: {
+  src: string | null;
+  empty: string;
+  onPick: (file: File) => void;
+  onClear: () => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+
   return (
     <div className="flex flex-col" style={{ gap: 6 }}>
       {/* `--mo-field` is the system's tinted well — the same ground a numeric
@@ -226,18 +253,49 @@ function ImageWell({ empty }: { empty: string }) {
           background: "var(--mo-field)",
         }}
       >
-        <span className="mo-code" style={{ color: "var(--mo-ink-muted)" }}>
-          {empty}
-        </span>
+        {src ? (
+          /*
+           * A plain `img`, not `next/image`. The source is a data URL of a file
+           * the browser already holds — there is no origin to fetch it from and
+           * nothing for the optimiser to do but refuse it.
+           */
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt=""
+            className="h-full w-full object-contain"
+            style={{ pointerEvents: "none" }}
+          />
+        ) : (
+          <span className="mo-code" style={{ color: "var(--mo-ink-muted)" }}>
+            {empty}
+          </span>
+        )}
       </div>
       <div className="flex items-center" style={{ gap: 6 }}>
-        <Button grow>Upload</Button>
-        <Button width={44} height={44} title="Remove image">
+        <Button grow onClick={() => input.current?.click()}>
+          Upload
+        </Button>
+        <Button width={44} height={44} title="Remove image" onClick={onClear}>
           <Glyph>
             <Icon name="trash" />
           </Glyph>
         </Button>
       </div>
+      <input
+        ref={input}
+        type="file"
+        // Video as well as stills: `useScreenTexture` takes either, and a
+        // moving screen is the thing this studio is for.
+        accept="image/*,video/*"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          if (file) onPick(file);
+          // Cleared so picking the SAME file again still fires a change.
+          event.currentTarget.value = "";
+        }}
+      />
     </div>
   );
 }
@@ -301,6 +359,83 @@ function ToggleGlyph({ on }: { on: boolean }) {
 }
 
 /**
+ * The popup header's three acts, as the file draws them.
+ *
+ * Reset and delete were a drawn approximation until the designer exported this
+ * set — three 20x20 frames meant to sit in one header — and the set answers a
+ * question the approximation had got wrong. They are NOT the same size: the
+ * close's X spans 10.96 of its box, the reset's ring 12.8, the trash 14.6. A
+ * ring of thin strokes and a solid X carry different weight at equal size, so
+ * equal size is exactly what makes them look unequal; the file compensates by
+ * drawing the lighter marks bigger, and the three read as peers because of it.
+ *
+ * Which is why these are the exported assets and not geometry rebuilt here:
+ * that balance is a judgement per glyph, not a rule that can be derived.
+ *
+ * The set's Close is byte-identical to `close-rounded.svg`, already in the
+ * file and already this header's close — so there is no fourth asset, and
+ * nothing to reconcile.
+ */
+const HEADER_ICON = { reset: "header-reset", delete: "header-delete" } as const;
+
+/**
+ * What a crafting popup can do to itself, beside its close.
+ *
+ * Two verbs, and they are not the same one: reset puts every value back and
+ * leaves the effect IN the composition, delete takes the effect out and leaves
+ * the values alone. A drop shadow you have dialled in and want gone is the
+ * second; one you have dialled into a corner and want to start again on is the
+ * first. Collapsing them would lose whichever case the survivor was not.
+ *
+ * Delete closes the popup after it, because what the popup is a view of is no
+ * longer part of the shot — the rail row it came from is still there to put it
+ * back, lit as it was before.
+ */
+function LayerActions({
+  layer,
+  studio,
+  onDone,
+}: {
+  layer: Layer;
+  studio: Studio;
+  onDone: () => void;
+}) {
+  const { state, edit } = studio;
+  // The Image layer's body is an upload well rather than rows, so there is
+  // nothing for a reset to walk and dropping the file is the only act it has.
+  const hasFields = layer.sections.some((section) => section.fields.length > 0);
+
+  return (
+    <>
+      {hasFields ? (
+        <HeaderButton
+          label={`Reset ${layer.name}`}
+          disabled={!layerIsDirty(layer, state)}
+          onClick={() => edit((prev) => resetLayer(layer, prev))}
+        >
+          <Icon name={HEADER_ICON.reset} />
+        </HeaderButton>
+      ) : null}
+      {layer.removable === false ? null : (
+        <HeaderButton
+          label={`Delete ${layer.name}`}
+          disabled={!layer.isOn(state)}
+          onClick={() => {
+            // The Image layer deletes by dropping the file — `toggle` only
+            // changes which background is drawn and would leave the upload
+            // behind, ready to reappear.
+            edit((prev) => (hasFields ? layer.toggle(prev, false) : resetLayer(layer, prev)));
+            onDone();
+          }}
+        >
+          <Icon name={HEADER_ICON.delete} />
+        </HeaderButton>
+      )}
+    </>
+  );
+}
+
+/**
  * The gizmo's surface, and the canvas inside it.
  *
  * The canvas is three quarters of the surface — the ratio the 160 version had
@@ -310,15 +445,23 @@ function ToggleGlyph({ on }: { on: boolean }) {
 const GIZMO_SIZE = 112;
 const GIZMO_CANVAS = Math.round(GIZMO_SIZE * 0.75);
 
-function Gizmo() {
-  // Defaults are `GIZMO_SHAPE`, so the panel opens on what the gizmo ships as
-  // and every control reads as a delta. Nothing here writes back to the file.
-  const shape = useControls("Gizmo", {
-    thickness: { value: GIZMO_SHAPE.thickness, min: 0.01, max: 0.3, step: 0.005 },
-    tip: { value: GIZMO_SHAPE.tip, min: 0.02, max: 0.5, step: 0.005 },
-    arm: { value: GIZMO_SHAPE.arm, min: 0.2, max: 2, step: 0.05 },
-    scale: { value: GIZMO_SHAPE.scale, min: 0.3, max: 2.5, step: 0.05 },
-  });
+function Gizmo({ studio }: { studio: Studio }) {
+  /*
+   * The three angles the phone is actually at — the same fields the Transform
+   * popup's Rotation rows and the canvas drag write, read straight off the
+   * state rather than tracked beside it. There is one rotation in this studio
+   * and this is a view of it, so the gizmo cannot fall out of step with the
+   * shot however the shot was turned: slider, drag, preset or undo.
+   *
+   * Rebuilt only when an angle moves, because `GizmoCanvas` springs towards
+   * whatever object it is handed and a fresh one every render would be a new
+   * target sixty times a second.
+   */
+  const { xAxis, yAxis, zAxis } = studio.state;
+  const rotation = useMemo(
+    () => ({ x: xAxis, y: yAxis, z: zAxis }),
+    [xAxis, yAxis, zAxis],
+  );
 
   return (
     <div className="pointer-events-auto absolute" style={{ left: 16, bottom: 16 }}>
@@ -328,7 +471,20 @@ function Gizmo() {
         className="items-center justify-center"
         style={{ height: GIZMO_SIZE }}
       >
-        <GizmoCanvas size={GIZMO_CANVAS} shape={shape} />
+        <GizmoCanvas
+          size={GIZMO_CANVAS}
+          shape={GIZMO_SHAPE}
+          rotation={rotation}
+          onTurn={studio.turn}
+          /* Double tap. `resetTransform` is the Transform row's own idea of
+             neutral, so the gizmo and the stack cannot disagree about where
+             the model started. One `edit`, so one undo brings the pose back
+             if the tap was not meant. */
+          onReset={() => studio.edit(resetTransform)}
+          animation={studio.state.animation}
+          playing={studio.playing}
+          timeRef={studio.playheadRef}
+        />
       </Glass>
     </div>
   );
@@ -369,6 +525,21 @@ function useDismiss<T extends HTMLElement>(open: boolean, onDismiss: () => void)
  * off `color.accent`, and turning it green when a phone actually connects is
  * one token away rather than one hex away.
  */
+/**
+ * What the pairing link is doing, in the words the panel can show.
+ *
+ * Keyed by `BroadcastState` so adding a state to the hook is a type error here
+ * rather than a row that silently says nothing.
+ */
+const PAIRING_LABEL: Record<BroadcastState, string> = {
+  idle: "Status",
+  pairing: "Preparing",
+  waiting: "Waiting",
+  connecting: "Connecting",
+  live: "Connected",
+  failed: "Failed",
+};
+
 function StatusDot({ connected = false }: { connected?: boolean }) {
   return (
     <span
@@ -390,6 +561,7 @@ function Icon({ name, size = control.icon }: { name: string; size?: number }) {
   );
 }
 
+
 /**
  * The five tools down the left edge, named for the glyph each one draws.
  *
@@ -408,232 +580,80 @@ const TOOLS = [
 
 type Tool = (typeof TOOLS)[number]["id"];
 
-const DEVICES = [
-  { name: "iMac", icon: "imac" },
-  { name: "iPad Pro", icon: "ipad-pro" },
-  { name: "MacBook Neo", icon: "laptop" },
-  { name: "MacBook Pro 14’", icon: "macbook" },
-  { name: "Studio Display XDR", icon: "display-xdr" },
-  { name: "iPhone 17", icon: "iphone" },
-  { name: "iPhone 17 Pro", icon: "iphone" },
-  { name: "iPhone 17 Pro Max", icon: "iphone" },
-  { name: "Flat Canvas", icon: "iphone" },
-];
+/**
+ * A glyph for each device in the registry.
+ *
+ * The registry is the list — nine mock names have been replaced by the eleven
+ * devices that actually load — so this only has to say which of the frame's
+ * exported symbols each one wears. Keyed by id rather than by label, since the
+ * label is what changes when a product is renamed.
+ *
+ * `image` for the flat card, which is not a device: it is an upload standing on
+ * its own, and the frame's picture glyph is what it is.
+ */
+const DEVICE_ICONS: Record<string, string> = {
+  "apple-iphone-17": "iphone",
+  "apple-iphone-17-pro": "iphone",
+  "apple-iphone-17-pro-max": "iphone",
+  "apple-iphone-air": "iphone",
+  "iphone-fold": "iphone",
+  "apple-ipad-pro": "ipad-pro",
+  "apple-macbook-neo": "laptop",
+  "apple-macbook-pro-14": "macbook",
+  "apple-imac-24": "imac",
+  "apple-studio-display": "display-xdr",
+  "image-card": "image",
+};
 
 /**
- * The crafting stack.
+ * The finishes offered are the DEVICE'S, not a fixed three.
  *
- * Two states per row, and they are NOT the same thing:
+ * The frame draws Cosmic Orange, Deep Blue and Silver, which is the iPhone 17
+ * Pro's lineup and correct only while that phone is selected — an iMac comes in
+ * seven other colours and no orange at all. `finishesFor` already resolves this
+ * per device, so the panel asks the registry rather than holding a copy.
  *
- *   on    the effect is part of the composition. Shown by the trailing glyph —
- *         `+` to add it, `×` to take it away — so several rows can be on at
- *         once, which is the state the system page's stack was drawn in.
- *   open  its popup is showing. Exactly one row at a time, and the one that
- *         wears the travelling pill and full ink.
- *
- * Folding them together is tempting because the studio frame happens to show a
- * composition with a single effect in it, where on and open coincide. They
- * come apart the moment a second effect is added.
+ * The crafting stack and every popup in it now live in `bindings.ts`, beside
+ * the state each row writes to. What was a `POPUPS` table of labels and mock
+ * initial values is the same description with the other half filled in.
  */
-const LAYERS = [
-  { id: "transform", name: "Transform", icon: "transform" },
-  { id: "effects", name: "Effects", icon: "effects" },
-  { id: "camera", name: "Camera", icon: "camera" },
-  { id: "background", name: "Background", icon: "background" },
-  { id: "drop-shadow", name: "Drop Shadow", icon: "drop-shadow" },
-  { id: "gradient", name: "Gradient", icon: "gradient" },
-  { id: "dots", name: "Dots", icon: "dots" },
-  { id: "image", name: "Image", icon: "image" },
-] as const;
 
-type LayerId = (typeof LAYERS)[number]["id"];
-
-/** Measured off node 66:1787. The swatch geometry is the system's, not the frame's. */
-const FINISHES = [
-  { name: "Cosmic Orange", color: "#ff6800" },
-  { name: "Deep Blue", color: "#2a3148" },
-  { name: "Silver", color: "#595959" },
-];
-
-/** Node 66:1869. `Fill` and `Custom` carry no pixel readout in the frame. */
+/**
+ * Node 66:1869, against the frame registry.
+ *
+ * Six of the seven rows name a ratio the editor already knows — the ids here
+ * are `framing.RATIOS`'s own. The seventh is Custom, which the frame draws with
+ * a chevron: it drills into the store presets, which are the sizes that come
+ * with a pixel readout rather than a ratio, and are exactly what a chevron on a
+ * ratio row promises.
+ *
+ * The pixel values are the frame's own, and they are what that ratio means at
+ * 1080-class output.
+ */
 const CANVAS_SIZES = [
-  { name: "16:9", icon: "ratio-16-9", value: "1920 X 1080" },
-  { name: "9:16", icon: "ratio-9-16", value: "1080 X 1920" },
-  { name: "3:4", icon: "ratio-3-4", value: "1080 X 1440" },
-  { name: "4:3", icon: "ratio-4-3", value: "1440 X 1080" },
-  { name: "1:1", icon: "ratio-1-1", value: "1080 X 1080" },
-  { name: "Fill", icon: "ratio-fill" },
-  { name: "Custom", icon: "ratio-custom", drill: true },
+  { id: "16:9", name: "16:9", icon: "ratio-16-9", value: "1920 X 1080" },
+  { id: "9:16", name: "9:16", icon: "ratio-9-16", value: "1080 X 1920" },
+  { id: "3:4", name: "3:4", icon: "ratio-3-4", value: "1080 X 1440" },
+  { id: "4:3", name: "4:3", icon: "ratio-4-3", value: "1440 X 1080" },
+  { id: "1:1", name: "1:1", icon: "ratio-1-1", value: "1080 X 1080" },
+  { id: "fill", name: "Fill", icon: "ratio-fill" },
+  { id: "custom", name: "Custom", icon: "ratio-custom", drill: true },
 ];
 
-/**
- * What each effect's popup contains, straight off the file's nine frames.
- *
- * A description rather than nine hand-built panels: they are the same three
- * pieces — a colour row, a slider row, a titled group — in different orders,
- * and written out longhand the ninth would drift from the first. One renderer
- * below reads this.
- *
- * `Rotation` is spelled correctly here; the file says "Roatation" in three
- * places, which is a typo rather than a name.
- */
-type Field =
-  | { kind: "color"; label: string; key: string; initial: string }
-  | {
-      kind: "param";
-      label: string;
-      key: string;
-      /** Shown in a glyph box instead of the label column — X, Y, Z. */
-      axis?: string;
-      unit?: Unit;
-      initial: number;
-      /** The frame puts a reset glyph after the readout on these. */
-      reset?: boolean;
-      /** No label column: the section title already names it. */
-      bare?: boolean;
-    };
-
-type Section = { title?: string; fields: Field[] };
-
-type Unit = "" | "deg" | "mm" | "px" | "m";
-
-const XYZ = (prefix: string, unit: Unit, initial: number) =>
-  (["X", "Y", "Z"] as const).map<Field>((axis) => ({
-    kind: "param",
-    label: `${prefix} ${axis}`,
-    key: `${prefix}.${axis}`,
-    axis,
-    unit,
-    initial,
-    reset: true,
-  }));
-
-const POPUPS: Partial<Record<LayerId, Section[]>> = {
-  transform: [
-    { title: "Location", fields: XYZ("location", "", 2.4) },
-    { title: "Rotation", fields: XYZ("rotation", "deg", 45) },
-    { title: "Scale", fields: XYZ("scale", "", 2.4) },
-  ],
-  camera: [
-    {
-      title: "Focal length",
-      fields: [
-        {
-          kind: "param",
-          label: "Focal length",
-          key: "focal",
-          unit: "mm",
-          initial: 55,
-          reset: true,
-          // Titled "Focal length" and then labelled "Focal length" is the same
-          // word twice, and it wrapped onto two lines in a 48px column.
-          bare: true,
-        },
-      ],
-    },
-    {
-      title: "Rotation",
-      fields: (["X", "Y"] as const).map<Field>((axis) => ({
-        kind: "param",
-        label: `Rotation ${axis}`,
-        key: `rotation.${axis}`,
-        axis,
-        initial: 2.4,
-        reset: true,
-      })),
-    },
-  ],
-  // The file calls this one "Overlay popup"; it is the Effects row's panel.
-  effects: [
-    {
-      fields: [
-        { kind: "color", label: "Color", key: "color", initial: "#FF6800" },
-        { kind: "param", label: "X", key: "x", initial: 2.4 },
-        { kind: "param", label: "Y", key: "y", initial: 2.4 },
-        { kind: "param", label: "Blur", key: "blur", initial: 2.4 },
-        { kind: "param", label: "Opacity", key: "opacity", initial: 2.4 },
-        { kind: "param", label: "Width", key: "width", initial: 2.4 },
-        { kind: "param", label: "Height", key: "height", unit: "m", initial: 2.4 },
-      ],
-    },
-  ],
-  background: [
-    { fields: [{ kind: "color", label: "Color", key: "color", initial: "#C9C9C9" }] },
-  ],
-  "drop-shadow": [
-    {
-      fields: [
-        { kind: "color", label: "Color", key: "color", initial: "#000000" },
-        { kind: "param", label: "X", key: "x", initial: 2.4 },
-        { kind: "param", label: "Y", key: "y", initial: 2.4 },
-        { kind: "param", label: "Blur", key: "blur", initial: 2.4 },
-        { kind: "param", label: "Opacity", key: "opacity", initial: 2.4 },
-        { kind: "param", label: "Spread", key: "spread", initial: 2.4 },
-      ],
-    },
-  ],
-  gradient: [
-    {
-      fields: [
-        { kind: "color", label: "Top", key: "top", initial: "#000000" },
-        { kind: "color", label: "Bottom", key: "bottom", initial: "#00FFD9" },
-        { kind: "param", label: "Angle", key: "angle", unit: "deg", initial: 45 },
-      ],
-    },
-  ],
-  dots: [
-    {
-      fields: [
-        { kind: "color", label: "Base", key: "base", initial: "#FF6800" },
-        { kind: "color", label: "Dots", key: "dots", initial: "#FF6800" },
-        { kind: "param", label: "Space", key: "space", unit: "px", initial: 45 },
-      ],
-    },
-  ],
-};
-
-/**
- * What each unit's slider spans: min, max, step.
- *
- * A 2.4 on a 0-100 scale puts the knob two percent along and the row reads as
- * broken. These are ranges the values actually live in — the file's knob
- * positions are mock and cannot be measured back into a scale.
- */
-const RANGES: Record<string, [number, number, number]> = {
-  "": [0, 10, 0.1],
-  deg: [0, 360, 1],
-  mm: [10, 200, 1],
-  px: [0, 100, 1],
-  m: [0, 10, 0.1],
-};
-
-/** The readout's suffix. The number is the value; this is what it is measured in. */
-const UNITS: Record<string, (n: number) => string> = {
-  "": (n) => n.toFixed(1),
-  deg: (n) => `${Math.round(n)}°`,
-  mm: (n) => `${Math.round(n)} mm`,
-  px: (n) => `${Math.round(n)}px`,
-  m: (n) => `${n.toFixed(1)} m`,
-};
-
-/** Every field in every popup, flattened — the composition's opening state. */
-function initialValues() {
-  const numbers: Record<string, number> = {};
-  const colors: Record<string, string> = {};
-  for (const [id, sections] of Object.entries(POPUPS)) {
-    for (const section of sections ?? []) {
-      for (const f of section.fields) {
-        if (f.kind === "color") colors[`${id}.${f.key}`] = f.initial;
-        else numbers[`${id}.${f.key}`] = f.initial;
-      }
-    }
-  }
-  return { numbers, colors };
-}
-
+/** Every ratio the store list offers, for the row that drills into them. */
+const CUSTOM_IDS = new Set(STORE_RATIOS.map((r) => r.id));
 
 export default function StudioChrome() {
-  const [device, setDevice] = useState("iPhone 17 Pro");
+  /*
+   * The composition, and everything that acts on it. See `useStudio`.
+   *
+   * Every list below now comes from a registry and every slider writes into
+   * this — the chrome holds no copy of the shot, only of which parts of it are
+   * on screen.
+   */
+  const studio = useStudio();
+  const { state, edit } = studio;
+
   /*
    * Which tab, and whether its panel is showing, are two different things.
    *
@@ -644,7 +664,10 @@ export default function StudioChrome() {
    */
   const [tool, setTool] = useState<Tool>("devices");
   const [panelOpen, setPanelOpen] = useState(true);
-  const [menuOpen, setMenuOpen] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
+  /** Whether the canvas panel is showing its Custom page. Resets whenever the
+      panel is put away, so it never reopens two levels deep. */
+  const [customOpen, setCustomOpen] = useState(false);
 
   const closePanel = useCallback(() => setPanelOpen(false), []);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -664,19 +687,59 @@ export default function StudioChrome() {
     (id: Tool) => {
       setPanelOpen(id === tool ? !panelOpen : true);
       setTool(id);
+      setCustomOpen(false);
     },
     [tool, panelOpen],
   );
-  const [finish, setFinish] = useState("Cosmic Orange");
-  const [size, setSize] = useState("1:1");
+
+  /*
+   * Pairing runs only while its panel is up.
+   *
+   * `useBroadcastLink` opens a session and fetches a QR the moment it starts,
+   * and a studio that never pairs should pay for neither. Stopping on the way
+   * out releases the peer connection rather than leaving one open for the life
+   * of the tab.
+   *
+   * `stop` is latched in a ref, and that is load-bearing rather than tidiness.
+   * The hook rebuilds it whenever the session id changes — which is precisely
+   * what STARTING a session does — so an effect that depended on it directly
+   * would tear itself down the moment it succeeded, call `stop`, and start
+   * again: an endless pair-and-hang-up loop for as long as the panel was open.
+   * Depending on the one boolean that actually says whether pairing should be
+   * running is the whole of the fix.
+   */
+  const { start: startPairing } = studio.broadcast;
+  const stopPairing = useRef(studio.broadcast.stop);
+  useEffect(() => {
+    stopPairing.current = studio.broadcast.stop;
+  });
+
+  const pairing = panelOpen && tool === "remote";
+  useEffect(() => {
+    if (!pairing) return;
+    startPairing();
+    return () => stopPairing.current();
+  }, [pairing, startPairing]);
+
   const [tab, setTab] = useState<"crafting" | "presets">("crafting");
   const [history, setHistory] = useState<"undo" | "reset" | "redo">("reset");
+
   /*
-   * The composition. This is the object a stage would read: which effects are
-   * in play and what each is set to. Everything else on the right is a view of
-   * it — the stack lists it, the popup edits one entry of it.
+   * The three history glyphs are one control, so they are a `Segmented` — but
+   * unlike every other switch in the interface, choosing one performs an action
+   * rather than entering a state. The pill travels to whichever was pressed and
+   * stays, which is what the frame draws; what changes is that pressing it now
+   * steps the shot.
    */
-  const [active, setActive] = useState<LayerId[]>(["drop-shadow"]);
+  const runHistory = useCallback(
+    (id: "undo" | "reset" | "redo") => {
+      setHistory(id);
+      if (id === "undo") studio.undo();
+      else if (id === "redo") studio.redo();
+      else studio.reset();
+    },
+    [studio],
+  );
 
   /*
    * Which row is lit, and whether its popup is showing — the same split the
@@ -684,20 +747,27 @@ export default function StudioChrome() {
    * not forgetting which effect you were working on: the stack keeps your
    * place, and reopening it is one press on the row that is already selected.
    */
-  const [selectedLayer, setSelectedLayer] = useState<LayerId>("drop-shadow");
+  const [selectedLayer, setSelectedLayer] = useState<string>("drop-shadow");
   const [popupOpen, setPopupOpen] = useState(true);
 
-  /** Add an effect or take it away. Either way it becomes the selected row. */
+  /**
+   * Add an effect or take it away — for real, now.
+   *
+   * Membership is not a list the chrome keeps any more; it is whatever the
+   * composition says. `Layer.isOn` reads it out of the state and `Layer.toggle`
+   * writes it back, so the stack cannot drift from what the stage is drawing,
+   * and a shot restored from storage opens with the right rows already on.
+   */
   const toggleLayer = useCallback(
-    (id: LayerId) => {
-      const on = active.includes(id);
-      setActive(on ? active.filter((x) => x !== id) : [...active, id]);
+    (layer: Layer) => {
+      const on = layer.isOn(state);
+      edit((prev) => layer.toggle(prev, !on));
       // Removing an effect puts its popup away — there is nothing left to edit
       // — but the row stays selected, because that is still where you were.
       setPopupOpen(!on);
-      setSelectedLayer(id);
+      setSelectedLayer(layer.id);
     },
-    [active],
+    [state, edit],
   );
 
   const closePopup = useCallback(() => setPopupOpen(false), []);
@@ -711,29 +781,17 @@ export default function StudioChrome() {
     closePopup,
   );
 
-  /** Select a row, adding its effect if it is not in the composition yet. */
+  /** Select a row, switching its effect on if it is not in the shot yet. */
   const openOrAdd = useCallback(
-    (id: LayerId) => {
-      setActive((current) => (current.includes(id) ? current : [...current, id]));
-      setPopupOpen(id === selectedLayer ? !popupOpen : true);
-      setSelectedLayer(id);
+    (layer: Layer) => {
+      if (!layer.isOn(state)) edit((prev) => layer.toggle(prev, true));
+      setPopupOpen(layer.id === selectedLayer ? !popupOpen : true);
+      setSelectedLayer(layer.id);
     },
-    [selectedLayer, popupOpen],
+    [state, edit, selectedLayer, popupOpen],
   );
-  const [account, setAccount] = useState<"settings" | "sign-out">("settings");
-  const [motionPreset, setMotionPreset] = useState<string>("Pan In");
-  const [values, setValues] = useState(initialValues);
 
-  const setNumber = useCallback(
-    (key: string, n: number) =>
-      setValues((v) => ({ ...v, numbers: { ...v.numbers, [key]: n } })),
-    [],
-  );
-  const setColor = useCallback(
-    (key: string, hex: string) =>
-      setValues((v) => ({ ...v, colors: { ...v.colors, [key]: hex } })),
-    [],
-  );
+  const [account, setAccount] = useState<"settings" | "sign-out">("settings");
   const selected = LAYERS.find((l) => l.id === selectedLayer) ?? null;
   /*
    * The popup belongs to the crafting tab, and `popupOpen` outlives the switch.
@@ -749,10 +807,6 @@ export default function StudioChrome() {
   return (
     <>
       <DesignSystem />
-      {/* Hidden rather than deleted: the values are settled and written into
-          `GIZMO_SHAPE`, so the gizmo renders on them either way, and `hidden`
-          is one word to flip when the next one needs judging in place. */}
-      <Leva hidden collapsed titleBar={GIZMO_BAR} />
       <div
         className="relative h-dvh w-full overflow-hidden"
         style={{
@@ -766,10 +820,8 @@ export default function StudioChrome() {
           backgroundSize: "var(--mo-dots-pitch), auto",
         }}
       >
-        {/*
-          The stage goes here. Left empty on purpose: this file is the chrome,
-          and the canvas is a different problem with a different owner.
-        */}
+        {/* The shot itself, under everything. See `Stage`. */}
+        <Stage studio={studio} />
 
         <div className="pointer-events-none absolute inset-0">
           {/*
@@ -780,7 +832,7 @@ export default function StudioChrome() {
             decides which survives — and a list you are reading beats a
             readout you glance at.
           */}
-          <Gizmo />
+          <Gizmo studio={studio} />
 
           {/*
             The wordmark is an alpha MASK in the frame, filled with #595959 —
@@ -812,7 +864,7 @@ export default function StudioChrome() {
           <div className="pointer-events-auto absolute left-1/2 -translate-x-1/2" style={{ top: 16 }}>
             <Segmented
               value={history}
-              onChange={setHistory}
+              onChange={runHistory}
               width={102}
               // 102x40 with 4 of padding leaves 94x32 — three 31/32/31 cells,
               // no gaps. The 16px glyph centred in the 32 gives the 8 the
@@ -929,17 +981,17 @@ export default function StudioChrome() {
             {panelOpen ? (
               <div className="flex flex-col items-center" style={{ gap: 8 }}>
                 <Glass width={control.panelW}>
-                  <AutoHeight token={tool}>
+                  <AutoHeight token={customOpen ? `${tool}:custom` : tool}>
                     {tool === "devices" ? (
                       <RowGroup>
                         {DEVICES.map((d) => (
                           <Row
-                            key={d.name}
-                            icon={<Icon name={d.icon} />}
-                            selected={d.name === device}
-                            onClick={() => setDevice(d.name)}
+                            key={d.id}
+                            icon={<Icon name={DEVICE_ICONS[d.id] ?? "iphone"} />}
+                            selected={d.id === state.deviceId}
+                            onClick={() => studio.pickDevice(d.id)}
                           >
-                            {d.name}
+                            {d.label}
                           </Row>
                         ))}
                       </RowGroup>
@@ -947,14 +999,14 @@ export default function StudioChrome() {
 
                     {tool === "finish" ? (
                       <RowGroup>
-                        {FINISHES.map((f) => (
+                        {studio.finishes.map((f) => (
                           <Row
-                            key={f.name}
+                            key={f.id}
                             icon={<Swatch color={f.color} />}
-                            selected={f.name === finish}
-                            onClick={() => setFinish(f.name)}
+                            selected={f.id === state.finishId}
+                            onClick={() => studio.pickFinish(f.id)}
                           >
-                            {f.name}
+                            {f.label}
                           </Row>
                         ))}
                       </RowGroup>
@@ -964,12 +1016,34 @@ export default function StudioChrome() {
                       <div className="flex flex-col">
                         <Header
                           icon={<Icon name="image" />}
+                          /* Delete, not reset: this panel IS the upload, so
+                             the only thing to put back is nothing, and that is
+                             a deletion however it is labelled. The well below
+                             has the same act as a full-width button; this is
+                             it in the header, where every other popup keeps
+                             what it can do to itself. */
+                          trailing={
+                            <HeaderButton
+                              label="Delete image"
+                              disabled={!studio.screenSrc}
+                              onClick={studio.clearScreen}
+                            >
+                              <Icon name={HEADER_ICON.delete} />
+                            </HeaderButton>
+                          }
                           closeIcon={<Icon name="close-rounded" />}
                           onClose={closePanel}
                         >
-                          Image
+                          {/* The file's name once there is one: it is the only
+                              thing that tells two screenshots apart. */}
+                          <MorphText>{studio.screenName ?? "Image"}</MorphText>
                         </Header>
-                        <ImageWell empty="No screen yet" />
+                        <ImageWell
+                          src={studio.screenSrc}
+                          empty="No screen yet"
+                          onPick={studio.uploadScreen}
+                          onClear={studio.clearScreen}
+                        />
                       </div>
                     ) : null}
 
@@ -984,38 +1058,113 @@ export default function StudioChrome() {
                           className="relative shrink-0 overflow-hidden"
                           style={{ width: QR.window, height: QR.window }}
                         >
-                          <Image
-                            src="/figma-assets/mockup-studio/qr.svg"
-                            alt="Pairing code"
-                            width={QR.size}
-                            height={QR.size}
-                            unoptimized
-                            className="pointer-events-none absolute max-w-none"
-                            style={{ left: QR.x, top: QR.y }}
-                          />
+                          {studio.broadcast.qr ? (
+                            /*
+                              The real pairing code, as the SVG the session
+                              returns. `dangerouslySetInnerHTML` because it IS
+                              markup — our own, built from our own session id,
+                              never anything a user typed.
+
+                              The frame's exported QR stays as the state before
+                              this arrives, so the panel is never a blank square
+                              while the session is being set up.
+                            */
+                            <div
+                              className="grid h-full w-full place-items-center [&>svg]:h-full [&>svg]:w-full"
+                              aria-label="Pairing code"
+                              role="img"
+                              dangerouslySetInnerHTML={{ __html: studio.broadcast.qr }}
+                            />
+                          ) : (
+                            <Image
+                              src="/figma-assets/mockup-studio/qr.svg"
+                              alt="Pairing code"
+                              width={QR.size}
+                              height={QR.size}
+                              unoptimized
+                              className="pointer-events-none absolute max-w-none"
+                              style={{ left: QR.x, top: QR.y }}
+                            />
+                          )}
                         </div>
                         {/* `Header`, not `Row`: the frame draws Status at full
                             ink with nothing selected, and in a Row full ink IS
                             the selection — it would arrive with a pill. */}
-                        <Header trailing={<StatusDot />}>Status</Header>
+                        <Header
+                          trailing={<StatusDot connected={studio.broadcast.state === "live"} />}
+                        >
+                          {/* The frame says "Status", which is a heading rather
+                              than an answer. The link knows which of six things
+                              is true, and morphing between them is the same
+                              move the popup title makes. */}
+                          <MorphText>{PAIRING_LABEL[studio.broadcast.state]}</MorphText>
+                        </Header>
                       </div>
                     ) : null}
 
-                    {tool === "canvas" ? (
+                    {tool === "canvas" && !customOpen ? (
                       <RowGroup>
                         {CANVAS_SIZES.map((c) => (
                           <Row
-                            key={c.name}
+                            key={c.id}
                             icon={<Icon name={c.icon} />}
                             value={c.value}
                             trailing={c.drill ? <Icon name="chevron" /> : undefined}
-                            selected={c.name === size}
-                            onClick={() => setSize(c.name)}
+                            selected={
+                              c.drill
+                                ? CUSTOM_IDS.has(studio.ratioId)
+                                : c.id === studio.ratioId
+                            }
+                            onClick={() =>
+                              c.drill ? setCustomOpen(true) : studio.setRatioId(c.id)
+                            }
                           >
                             {c.name}
                           </Row>
                         ))}
                       </RowGroup>
+                    ) : null}
+
+                    {tool === "canvas" && customOpen ? (
+                      /* The frame's chevron promised somewhere to go. These are
+                         the store sizes — the ones that come with a pixel count
+                         rather than a bare ratio, which is what "custom" means
+                         on a row that already lists every plain one above it. */
+                      <div className="flex flex-col">
+                        <Header
+                          icon={<Icon name="ratio-custom" />}
+                          /* Back to the frame the studio opens on. The
+                             trailing glyph here is a chevron that goes UP a
+                             level rather than a close, and reset is still the
+                             other thing you can do to a panel — so it keeps
+                             its place beside it. */
+                          trailing={
+                            <HeaderButton
+                              label="Reset canvas size"
+                              disabled={studio.ratioId === DEFAULT_RATIO_ID}
+                              onClick={() => studio.setRatioId(DEFAULT_RATIO_ID)}
+                            >
+                              <Icon name={HEADER_ICON.reset} />
+                            </HeaderButton>
+                          }
+                          closeIcon={<Icon name="chevron" />}
+                          onClose={() => setCustomOpen(false)}
+                        >
+                          Custom
+                        </Header>
+                        <RowGroup>
+                          {STORE_RATIOS.map((r) => (
+                            <Row
+                              key={r.id}
+                              value={r.size}
+                              selected={r.id === studio.ratioId}
+                              onClick={() => studio.setRatioId(r.id)}
+                            >
+                              {r.label}
+                            </Row>
+                          ))}
+                        </RowGroup>
+                      </div>
                     ) : null}
                   </AutoHeight>
                 </Glass>
@@ -1024,7 +1173,11 @@ export default function StudioChrome() {
                     last row — and it belongs to one tool, not to the surface. */}
                 {tool === "remote" ? (
                   <span className="mo-code" style={{ color: "var(--mo-ink-muted)" }}>
-                    Scan in the Mocraft app
+                    <MorphText>
+                      {studio.broadcast.state === "live"
+                        ? "Mirroring this phone"
+                        : "Scan in the Mocraft app"}
+                    </MorphText>
                   </span>
                 ) : null}
               </div>
@@ -1075,6 +1228,7 @@ export default function StudioChrome() {
                     >
                   <Header
                     icon={<Icon name={open.icon} />}
+                    trailing={<LayerActions layer={open} studio={studio} onDone={closePopup} />}
                     closeIcon={<Icon name="close-rounded" />}
                     onClose={() => setPopupOpen(false)}
                   >
@@ -1090,22 +1244,18 @@ export default function StudioChrome() {
                   {open.id === "image" ? (
                     /* `Background image` in the file — the same well as the
                        rail's tool, over the composition rather than the screen. */
-                    <ImageWell empty="No background image" />
-                  ) : (POPUPS[open.id] ?? []).length === 0 ? (
-                    <div
-                      className="grid place-items-center"
-                      style={{ height: 72, paddingBottom: 10 }}
-                    >
-                      <span className="mo-code" style={{ color: "var(--mo-ink-muted)" }}>
-                        No controls designed yet
-                      </span>
-                    </div>
+                    <ImageWell
+                      src={state.background.imageSrc}
+                      empty="No background image"
+                      onPick={studio.uploadBackground}
+                      onClear={studio.clearBackground}
+                    />
                   ) : (
                     <div
                       className="flex flex-col"
                       style={{ gap: "var(--mo-space-2)", paddingBottom: 10 }}
                     >
-                      {(POPUPS[open.id] ?? []).map((section, i) => (
+                      {open.sections.map((section, i) => (
                         <Fragment key={section.title ?? i}>
                           {i > 0 ? <Divider /> : null}
                           <ParamGroup title={section.title}>
@@ -1114,8 +1264,8 @@ export default function StudioChrome() {
                                 <ColorRow
                                   key={f.key}
                                   label={f.label}
-                                  value={values.colors[`${open.id}.${f.key}`]}
-                                  onChange={(hex) => setColor(`${open.id}.${f.key}`, hex)}
+                                  value={f.get(state)}
+                                  onChange={(hex) => edit((prev) => f.set(prev, hex))}
                                 />
                               ) : (
                                 <ParamRow
@@ -1126,16 +1276,31 @@ export default function StudioChrome() {
                                       <span className="mo-label">{f.axis}</span>
                                     ) : undefined
                                   }
+                                  /* The frame's reset glyph, and it resets:
+                                     back to whatever `DEFAULT_EDITOR_STATE`
+                                     says this field is, which is the only
+                                     definition of neutral there is. */
                                   trailing={
-                                    f.reset ? <Icon name="reset-value" size={12} /> : undefined
+                                    f.reset ? (
+                                      <button
+                                        type="button"
+                                        aria-label={`Reset ${f.label}`}
+                                        className="grid cursor-pointer place-items-center"
+                                        onClick={() =>
+                                          edit((prev) => f.set(prev, f.get(DEFAULT_EDITOR_STATE)))
+                                        }
+                                      >
+                                        <Icon name="reset-value" size={12} />
+                                      </button>
+                                    ) : undefined
                                   }
-                                  value={values.numbers[`${open.id}.${f.key}`]}
-                                  min={RANGES[f.unit ?? ""][0]}
-                                  max={RANGES[f.unit ?? ""][1]}
-                                  step={RANGES[f.unit ?? ""][2]}
+                                  value={f.get(state)}
+                                  min={f.min}
+                                  max={f.max}
+                                  step={f.step}
                                   bare={f.bare}
-                                  format={UNITS[f.unit ?? ""]}
-                                  onChange={(n) => setNumber(`${open.id}.${f.key}`, n)}
+                                  format={f.format}
+                                  onChange={(n) => edit((prev) => f.set(prev, n))}
                                 />
                               ),
                             )}
@@ -1164,7 +1329,7 @@ export default function StudioChrome() {
                 <Glass key="crafting" style={{ height: STACK_HEIGHT }}>
                   <RowGroup>
                     {LAYERS.map((l) => {
-                      const on = active.includes(l.id);
+                      const on = l.isOn(state);
                       return (
                         <Row
                           key={l.id}
@@ -1183,7 +1348,7 @@ export default function StudioChrome() {
 
                               onClick={(event) => {
                                 event.stopPropagation();
-                                toggleLayer(l.id);
+                                toggleLayer(l);
                               }}
                               className="grid cursor-pointer place-items-center"
                             >
@@ -1191,7 +1356,7 @@ export default function StudioChrome() {
                             </button>
                           }
                           selected={l.id === selectedLayer}
-                          onClick={() => openOrAdd(l.id)}
+                          onClick={() => openOrAdd(l)}
                         >
                           {l.name}
                         </Row>
@@ -1214,10 +1379,14 @@ export default function StudioChrome() {
                   <RowGroup wrap gap={16} radius={radius.well}>
                     {PRESETS.map((preset) => (
                       <PresetTile
-                        key={preset.name}
+                        key={preset.id}
                         preset={preset}
-                        selected={preset.name === motionPreset}
-                        onClick={() => setMotionPreset(preset.name)}
+                        label={getMotionPreset(preset.id)?.label ?? preset.id}
+                        selected={preset.id === studio.presetId}
+                        // Applies the move AND plays it once. This shell has no
+                        // transport, so a preset that only loaded keyframes
+                        // would look like a tile that does nothing.
+                        onClick={() => studio.pickPreset(preset.id)}
                       />
                     ))}
                   </RowGroup>

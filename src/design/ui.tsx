@@ -846,7 +846,14 @@ export function Header({
   icon?: ReactNode;
   children: ReactNode;
   /**
-   * Anything at the right edge that is not a close button — a status light.
+   * Anything at the right edge that is not the close — a status light, or the
+   * popup's own actions as `HeaderButton`s.
+   *
+   * One slot rather than a named prop per act. Reset and delete arrived a week
+   * apart and a third would arrive the same way; three props each is a header
+   * that grows a pair of glyph props every time a popup learns a verb, and
+   * none of them are the system's business. What IS its business is that they
+   * are drawn and spaced like the close beside them, which is `HeaderButton`.
    *
    * A row whose label stays at full strength and never takes a selection is
    * this component, not `Row`: there, ink strength IS the selection, so a
@@ -881,6 +888,44 @@ export function Header({
         </button>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * One act in a popup's header — reset, delete, whatever the panel can do to
+ * itself. Goes in `Header`'s `trailing`, where it lands on the row's own gap
+ * and needs no spacing of its own.
+ *
+ * `disabled` draws it muted and inert rather than removing it. A control that
+ * vanishes when it has no work leaves a gap that everything to its right
+ * slides across — the close button moving under the cursor because the last
+ * value came back to neutral — and a header that reflows while you drag a
+ * slider is worse than a glyph that goes quiet.
+ */
+export function HeaderButton({
+  label,
+  onClick,
+  disabled,
+  children,
+}: {
+  /** Spoken name. The button is a glyph, so this is the only name it has. */
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="grid place-items-center"
+      style={{ cursor: disabled ? "default" : "pointer" }}
+    >
+      <Glyph muted={disabled}>{children}</Glyph>
+    </button>
   );
 }
 
@@ -1588,6 +1633,39 @@ export function CloseIcon() {
   return (
     <svg viewBox="0 0 20 20" width={20} height={20} aria-hidden {...stroke}>
       <path d="M5.5 5.5l9 9M14.5 5.5l-9 9" />
+    </svg>
+  );
+}
+
+/**
+ * The system's own reset mark: an arrow that comes back round to where it
+ * started. Same 20-unit box and the same stroke as the rest, so a popup that
+ * has no exported asset to pass still gets a glyph that belongs here.
+ */
+export function ResetIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width={20} height={20} aria-hidden {...stroke}>
+      {/*
+        Drawn to the same extents as `CloseIcon`: its X spans 5.5 to 14.5
+        inside the same 20 box, and a glyph that filled more of its box would
+        sit beside the close reading as the louder of the two — which is
+        backwards, since closing is the commoner act.
+
+        Open at the top right, which is where the head goes — a closed ring
+        reads as a circle rather than as a return. The head's corner is the
+        arc's own end point, so the mark is continuous.
+      */}
+      <path d="M14.5 10a4.5 4.5 0 1 1-1.32-3.18" />
+      <path d="M13.18 4.2v2.62h-2.62" />
+    </svg>
+  );
+}
+
+/** The system's own delete mark, in the same stroke family as the rest. */
+export function TrashIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width={20} height={20} aria-hidden {...stroke}>
+      <path d="M4.5 6h11M8 6V4.5h4V6M6 6l.7 9.5h6.6L14 6" />
     </svg>
   );
 }

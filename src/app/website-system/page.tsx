@@ -25,6 +25,9 @@ import {
   Glass,
   Glyph,
   Header,
+  HeaderButton,
+  ResetIcon,
+  TrashIcon,
   ParamRow,
   PlusIcon,
   RailItem,
@@ -103,11 +106,14 @@ function Chip({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** What the popup demo's colour resets to — see its `Header`. */
+const DEMO_HEX = "#000000";
+
 export default function WebsiteSystem() {
   const [device, setDevice] = useState("iPhone 17 Pro");
   const [tab, setTab] = useState<"crafting" | "presets">("crafting");
   const [shadow, setShadow] = useState({ x: 2.4, y: 2.4, blur: 2.4, opacity: 2.4, spread: 2.4 });
-  const [hex, setHex] = useState("#000000");
+  const [hex, setHex] = useState(DEMO_HEX);
   const [open, setOpen] = useState<string[]>(["Background", "Drop shadow", "Gradient", "Dots", "Image"]);
   const [layer, setLayer] = useState("Drop shadow");
   const [tool, setTool] = useState(0);
@@ -304,7 +310,28 @@ export default function WebsiteSystem() {
 
           <Section title="Popup" note="A header plus param rows. Every popup in the file is this shape.">
             <Glass style={{ gap: "var(--mo-space-4)" }}>
-              <Header icon={<PlusIcon />} onClose={() => undefined}>
+              {/* A popup's own acts go in `trailing` as `HeaderButton`s, in
+                  front of the close. Reset here goes muted and inert once the
+                  colour is back at its default — a header that reflowed
+                  instead would move the close under the cursor. */}
+              <Header
+                icon={<PlusIcon />}
+                trailing={
+                  <>
+                    <HeaderButton
+                      label="Reset"
+                      disabled={hex.toLowerCase() === DEMO_HEX}
+                      onClick={() => setHex(DEMO_HEX)}
+                    >
+                      <ResetIcon />
+                    </HeaderButton>
+                    <HeaderButton label="Delete" onClick={() => undefined}>
+                      <TrashIcon />
+                    </HeaderButton>
+                  </>
+                }
+                onClose={() => undefined}
+              >
                 {layer}
               </Header>
               <div className="flex flex-col" style={{ gap: "var(--mo-space-2)", paddingBottom: 10 }}>

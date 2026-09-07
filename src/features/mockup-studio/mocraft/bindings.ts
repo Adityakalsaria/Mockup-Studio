@@ -1,0 +1,612 @@
+/**
+ * What every control in the Mocraft chrome is actually connected to.
+ *
+ * `StudioChrome` used to carry a `POPUPS` table of labels and mock initial
+ * values — a description of the Figma frames, with a `values` bag behind it
+ * that nothing read. This is the same description with the other half filled
+ * in: each field now says which part of `EditorState` it is a view of, and how
+ * to read and write it.
+ *
+ * Written as `get`/`set` pairs rather than dotted string paths. A path has to
+ * be parsed at runtime and cannot be checked at all — `"shadow.offsetX"` and
+ * `"shadow.offestX"` are the same kind of string — where a closure is ordinary
+ * typed code and a wrong field name is a build error.
+ *
+ * Two rules run through the whole file:
+ *
+ *  1. RANGES COME FROM THE DOMAIN. `editorState.RANGES`, `SHADOW_RANGES` and
+ *     `OVERLAY_RANGES` already state what each value's limits are, and they are
+ *     the numbers the old editor's sliders and the preset lerps agree on.
+ *     Restating them here would be a second set that drifts.
+ *  2. NO DEAD CONTROLS. Every row below moves something on the stage. That is
+ *     the standard `editorState.ts` already sets for itself, in its own words:
+ *     rows whose value nothing rendered "were removed rather than left as
+ *     sliders that move a number and change nothing on screen". Where the frame
+ *     asked for an axis the rig did not have — a Z translate, per-axis scale —
+ *     the rig grew it, rather than the row being dropped or faked.
+ */
+
+import { DEFAULT_EDITOR_STATE, RANGES, type EditorState } from "../editor/editorState";
+import { OVERLAY_RANGES } from "../overlay";
+import { SHADOW_RANGES } from "../shadow";
+
+/* ===========================================================================
+   Formatting
+   =========================================================================== */
+
+/**
+ * The readout's suffix. The number is the value; this says what it is in.
+ *
+ * Fractions are shown as percentages throughout. The overlay's width, height,
+ * position and blur are all stored 0..1 of the frame, and "0.45" tells you
+ * nothing about a picture where "45%" tells you most of it.
+ */
+const fmt = {
+  plain: (n: number) => n.toFixed(2),
+  deg: (n: number) => `${Math.round(n)}°`,
+  px: (n: number) => `${Math.round(n)}px`,
+  mm: (n: number) => `${Math.round(n)} mm`,
+  pct: (n: number) => `${Math.round(n * 100)}%`,
+  times: (n: number) => `${n.toFixed(2)}×`,
+} as const;
+
+/* ===========================================================================
+   Focal length
+   =========================================================================== */
+
+/**
+ * The frame's Camera popup asks for millimetres; the stage speaks degrees.
+ *
+ * Both describe the same lens, and the conversion is the standard one against
+ * a full-frame sensor's 24mm height — the height, because `fov` here is the
+ * VERTICAL angle. So "55 mm" on the panel is a real 55mm lens and not a number
+ * scaled to look plausible, and the two ends of the slider are wherever the
+ * stage's own 14°-90° range actually lands.
+ */
+const SENSOR_MM = 24;
+const degFromMm = (mm: number) => (2 * Math.atan(SENSOR_MM / 2 / mm) * 180) / Math.PI;
+const mmFromDeg = (deg: number) => SENSOR_MM / 2 / Math.tan((deg * Math.PI) / 360);
+
+/** Widest lens first: a bigger fov is a shorter lens, so the range inverts. */
+const FOCAL = {
+  min: Math.ceil(mmFromDeg(RANGES.fov.max)),
+  max: Math.floor(mmFromDeg(RANGES.fov.min)),
+};
+
+/* ===========================================================================
+   Fields
+   =========================================================================== */
+
+export type NumberField = {
+  kind: "number";
+  /** Reaches the slider's accessible name even when the row shows a glyph. */
+  label: string;
+  /** Unique within its popup — React's key, and nothing else. */
+  key: string;
+  /** Shown in a glyph box instead of the label column — X, Y, Z. */
+  axis?: string;
+  /** No label column at all: the section title already names the control. */
+  bare?: boolean;
+  /** The frame puts a reset glyph after the readout on these. */
+  reset?: boolean;
+  min: number;
+  max: number;
+  step: number;
+  format: (n: number) => string;
+  get: (s: EditorState) => number;
+  set: (s: EditorState, n: number) => EditorState;
+};
+
+export type ColorField = {
+  kind: "color";
+  label: string;
+  key: string;
+  get: (s: EditorState) => string;
+  set: (s: EditorState, hex: string) => EditorState;
+};
+
+export type Field = NumberField | ColorField;
+
+export type Section = { title?: string; fields: Field[] };
+
+type Range = { min: number; max: number; step: number };
+
+/** A row on a top-level number — the nine transform axes and the lens. */
+function scalar(
+  label: string,
+  key: keyof EditorState & string,
+  range: Range,
+  format: (n: number) => string,
+  extra: Partial<NumberField> = {},
+): NumberField {
+  return {
+    kind: "number",
+    label,
+    key,
+    ...range,
+    format,
+    get: (s) => s[key] as number,
+    set: (s, n) => ({ ...s, [key]: n }),
+    reset: true,
+    ...extra,
+  };
+}
+
+/** A row on one field of `state.overlay`. */
+function overlayNum(
+  label: string,
+  key: keyof EditorState["overlay"] & string,
+  range: Range,
+  format: (n: number) => string,
+): NumberField {
+  return {
+    kind: "number",
+    label,
+    key,
+    ...range,
+    format,
+    get: (s) => s.overlay[key] as number,
+    set: (s, n) => ({ ...s, overlay: { ...s.overlay, [key]: n } }),
+  };
+}
+
+/** A row on one field of `state.shadow`. */
+function shadowNum(
+  label: string,
+  key: keyof EditorState["shadow"] & string,
+  range: Range,
+  format: (n: number) => string,
+): NumberField {
+  return {
+    kind: "number",
+    label,
+    key,
+    ...range,
+    format,
+    get: (s) => s.shadow[key] as number,
+    set: (s, n) => ({ ...s, shadow: { ...s.shadow, [key]: n } }),
+  };
+}
+
+function bgColor(
+  label: string,
+  key: "color" | "gradientFrom" | "gradientTo" | "dotColor",
+): ColorField {
+  return {
+    kind: "color",
+    label,
+    key,
+    get: (s) => s.background[key],
+    set: (s, hex) => ({ ...s, background: { ...s.background, [key]: hex } }),
+  };
+}
+
+/**
+ * The frame's three-axis groups, as three rows on three real fields.
+ *
+ * The axis letter goes in the glyph box and the spoken label stays a full
+ * phrase, because "X" as an image is not something a screen reader can
+ * announce.
+ */
+const triple = (
+  prefix: string,
+  keys: readonly [keyof EditorState & string, keyof EditorState & string, keyof EditorState & string],
+  ranges: readonly [Range, Range, Range],
+  format: (n: number) => string,
+): Field[] =>
+  (["X", "Y", "Z"] as const).map((axis, i) =>
+    scalar(`${prefix} ${axis}`, keys[i], ranges[i], format, { axis }),
+  );
+
+/* ===========================================================================
+   Layers
+   =========================================================================== */
+
+export type Layer = {
+  id: string;
+  /** As the frame names it. */
+  name: string;
+  /** File in `public/figma-assets/mockup-studio/icons`. */
+  icon: string;
+  sections: Section[];
+  /**
+   * Is this effect part of the composition?
+   *
+   * Derived from the state rather than held beside it, so a shot restored from
+   * storage opens with the same rows lit that it was saved with — and so the
+   * stack cannot disagree with what the stage is drawing.
+   */
+  isOn: (s: EditorState) => boolean;
+  /**
+   * Can this effect be taken OUT of the shot, as opposed to returned to
+   * neutral?
+   *
+   * False for Transform and Camera, and the file already says why: "there is
+   * no transform to delete, only one to return to neutral" — the phone is
+   * always somewhere, at some angle, at some size. Their `toggle(false)` and
+   * their reset are the same nine assignments, so a delete beside the reset in
+   * their headers would be a second glyph for an act the first one already
+   * did. Every other layer is genuinely absent when it is off.
+   */
+  removable?: boolean;
+  /**
+   * What this popup's reset means, where walking its fields is not it.
+   *
+   * Only the Image layer needs one: its body is an upload well rather than a
+   * list of fields, so there is nothing for the walk below to find and reset
+   * would be a glyph that does nothing. Everything else is its fields.
+   */
+  reset?: (s: EditorState) => EditorState;
+  /** And whether there is anything to put back. Same reason. */
+  dirty?: (s: EditorState) => boolean;
+  /**
+   * Put it in or take it out.
+   *
+   * The four background layers share one `kind`, so switching one on switches
+   * the others off — they are one choice wearing four rows, and that falls out
+   * of this rather than needing the chrome to know about it.
+   */
+  toggle: (s: EditorState, on: boolean) => EditorState;
+};
+
+const D = DEFAULT_EDITOR_STATE;
+
+/** True when any of these has been moved off its default. */
+const moved = (s: EditorState, keys: readonly (keyof EditorState)[]) =>
+  keys.some((k) => s[k] !== D[k]);
+
+/** Put them all back. What "remove" means for a transform: there is no
+    transform to delete, only one to return to neutral. */
+const restore = (s: EditorState, keys: readonly (keyof EditorState)[]): EditorState => {
+  const next = { ...s };
+  for (const k of keys) (next[k] as EditorState[typeof k]) = D[k];
+  return next;
+};
+
+const TRANSFORM_KEYS = [
+  "panX", "panY", "panZ",
+  "xAxis", "yAxis", "zAxis",
+  "scaleX", "scaleY", "scaleZ",
+] as const;
+
+const CAMERA_KEYS = ["fov", "xAxis", "yAxis"] as const;
+
+/**
+ * The nine axes that say where the model is, back to neutral.
+ *
+ * The gizmo's double-tap, and the Transform row's own remove, are the same
+ * act — so they are the same function rather than two lists of axes that have
+ * to be kept identical. Location, rotation AND scale: the popup calls those
+ * three groups one transform, and a reset that left the phone stretched or a
+ * quarter-turn off would be resetting some of where it is.
+ */
+export const resetTransform = (s: EditorState): EditorState => restore(s, TRANSFORM_KEYS);
+
+/**
+ * The crafting stack, straight off the file's nine frames — with the other
+ * half of each row filled in.
+ *
+ * Order is the frame's. The "Overlay popup" the file draws for the Effects row
+ * is `state.overlay` exactly, field for field, which is why that section reads
+ * as a straight list: it was already a description of this.
+ */
+export const LAYERS: Layer[] = [
+  {
+    id: "transform",
+    removable: false,
+    name: "Transform",
+    icon: "transform",
+    sections: [
+      {
+        title: "Location",
+        fields: triple(
+          "Location",
+          ["panX", "panY", "panZ"],
+          [RANGES.panX, RANGES.panY, RANGES.panZ],
+          fmt.plain,
+        ),
+      },
+      {
+        // "Roatation" in three places in the file. A typo rather than a name.
+        title: "Rotation",
+        fields: triple(
+          "Rotation",
+          ["xAxis", "yAxis", "zAxis"],
+          [RANGES.xAxis, RANGES.yAxis, RANGES.zAxis],
+          fmt.deg,
+        ),
+      },
+      {
+        title: "Scale",
+        fields: triple(
+          "Scale",
+          ["scaleX", "scaleY", "scaleZ"],
+          [RANGES.scaleX, RANGES.scaleY, RANGES.scaleZ],
+          fmt.times,
+        ),
+      },
+    ],
+    // A transform is never absent — the phone is always somewhere, at some
+    // angle, at some size. So "on" means moved, and taking it out is putting
+    // it back to neutral, which is the only sense in which a transform can be
+    // removed from a composition.
+    isOn: (s) => moved(s, TRANSFORM_KEYS),
+    toggle: (s, on) => (on ? s : restore(s, TRANSFORM_KEYS)),
+  },
+  {
+    id: "effects",
+    name: "Effects",
+    icon: "effects",
+    sections: [
+      {
+        fields: [
+          {
+            kind: "color",
+            label: "Color",
+            key: "color",
+            get: (s) => s.overlay.color,
+            set: (s, hex) => ({ ...s, overlay: { ...s.overlay, color: hex } }),
+          },
+          overlayNum("X", "x", OVERLAY_RANGES.x, fmt.pct),
+          overlayNum("Y", "y", OVERLAY_RANGES.y, fmt.pct),
+          overlayNum("Blur", "blur", OVERLAY_RANGES.blur, fmt.pct),
+          overlayNum("Opacity", "opacity", OVERLAY_RANGES.opacity, fmt.pct),
+          overlayNum("Width", "width", OVERLAY_RANGES.width, fmt.pct),
+          overlayNum("Height", "height", OVERLAY_RANGES.height, fmt.pct),
+        ],
+      },
+    ],
+    isOn: (s) => s.overlay.enabled,
+    toggle: (s, on) => ({ ...s, overlay: { ...s.overlay, enabled: on } }),
+  },
+  {
+    id: "camera",
+    removable: false,
+    name: "Camera",
+    icon: "camera",
+    sections: [
+      {
+        title: "Focal length",
+        fields: [
+          {
+            kind: "number",
+            label: "Focal length",
+            key: "focal",
+            // Titled "Focal length" and then labelled "Focal length" is the
+            // same word twice, and it wraps onto two lines in a 48px column.
+            bare: true,
+            reset: true,
+            min: FOCAL.min,
+            max: FOCAL.max,
+            step: 1,
+            format: fmt.mm,
+            get: (s) => mmFromDeg(s.fov),
+            set: (s, mm) => ({ ...s, fov: degFromMm(mm) }),
+          },
+        ],
+      },
+      {
+        /*
+         * The same two angles the Transform popup's Rotation X and Y write to,
+         * and deliberately so.
+         *
+         * This rig has one rotation. The camera sits still and the model turns
+         * in front of it — which is what a product shot is, and why there is no
+         * separate camera-rig rotation in `EditorState`; `editorState.ts` notes
+         * that one existed and was removed for driving nothing.
+         *
+         * So these rows are a second view of one truth rather than a second
+         * truth. Move either popup's X and the other's follows, because there
+         * is only the one angle between the lens and the phone. The alternative
+         * was two sliders that look independent and quietly fight.
+         */
+        title: "Rotation",
+        fields: (["X", "Y"] as const).map((axis, i) =>
+          scalar(
+            `Rotation ${axis}`,
+            (["xAxis", "yAxis"] as const)[i],
+            [RANGES.xAxis, RANGES.yAxis][i],
+            fmt.deg,
+            { axis, key: `camera.${axis}` },
+          ),
+        ),
+      },
+    ],
+    isOn: (s) => moved(s, CAMERA_KEYS),
+    toggle: (s, on) => (on ? s : restore(s, CAMERA_KEYS)),
+  },
+  {
+    id: "background",
+    name: "Background",
+    icon: "background",
+    sections: [{ fields: [bgColor("Color", "color")] }],
+    isOn: (s) => s.background.kind === "solid",
+    toggle: (s, on) => ({
+      ...s,
+      // Off is not "no background" as a missing thing — it is the transparent
+      // one, which is a real choice in the registry and the one an export with
+      // an alpha channel wants.
+      background: { ...s.background, kind: on ? "solid" : "transparent" },
+    }),
+  },
+  {
+    id: "drop-shadow",
+    name: "Drop Shadow",
+    icon: "drop-shadow",
+    sections: [
+      {
+        fields: [
+          {
+            kind: "color",
+            label: "Color",
+            key: "color",
+            get: (s) => s.shadow.color,
+            set: (s, hex) => ({ ...s, shadow: { ...s.shadow, color: hex } }),
+          },
+          shadowNum("X", "offsetX", SHADOW_RANGES.offsetX, fmt.px),
+          shadowNum("Y", "offsetY", SHADOW_RANGES.offsetY, fmt.px),
+          shadowNum("Blur", "blur", SHADOW_RANGES.blur, fmt.px),
+          shadowNum("Opacity", "opacity", SHADOW_RANGES.opacity, fmt.pct),
+          shadowNum("Spread", "spread", SHADOW_RANGES.spread, fmt.px),
+        ],
+      },
+    ],
+    isOn: (s) => s.shadow.enabled,
+    toggle: (s, on) => ({ ...s, shadow: { ...s.shadow, enabled: on } }),
+  },
+  {
+    id: "gradient",
+    name: "Gradient",
+    icon: "gradient",
+    sections: [
+      {
+        fields: [
+          bgColor("Top", "gradientFrom"),
+          bgColor("Bottom", "gradientTo"),
+          {
+            kind: "number",
+            label: "Angle",
+            key: "angle",
+            min: 0,
+            max: 360,
+            step: 1,
+            format: fmt.deg,
+            get: (s) => s.background.gradientAngle,
+            set: (s, n) => ({ ...s, background: { ...s.background, gradientAngle: n } }),
+          },
+        ],
+      },
+    ],
+    isOn: (s) => s.background.kind === "gradient",
+    toggle: (s, on) => ({
+      ...s,
+      background: { ...s.background, kind: on ? "gradient" : "solid" },
+    }),
+  },
+  {
+    id: "dots",
+    name: "Dots",
+    icon: "dots",
+    sections: [
+      {
+        fields: [
+          // The frame's "Base" is the ground the dots are drawn on, which is
+          // the same `color` the solid background uses — one field, two rows
+          // that reach it, because that is what the file draws.
+          bgColor("Base", "color"),
+          bgColor("Dots", "dotColor"),
+          {
+            kind: "number",
+            label: "Space",
+            key: "space",
+            // The pitch, in CSS pixels. Below about 2 the grid is a flat wash
+            // and above 80 there is roughly one dot in frame.
+            min: 2,
+            max: 80,
+            step: 1,
+            format: fmt.px,
+            get: (s) => s.background.dotSize,
+            set: (s, n) => ({ ...s, background: { ...s.background, dotSize: n } }),
+          },
+        ],
+      },
+    ],
+    isOn: (s) => s.background.kind === "dots",
+    toggle: (s, on) => ({
+      ...s,
+      background: { ...s.background, kind: on ? "dots" : "solid" },
+    }),
+  },
+  {
+    id: "image",
+    name: "Image",
+    icon: "image",
+    // No sections: this one's body is the image well, which is a component
+    // rather than a list of fields. The chrome special-cases it by id.
+    sections: [],
+    isOn: (s) => s.background.kind === "image" && Boolean(s.background.imageSrc),
+    // Reset is the upload, because the upload is the whole layer. The kind
+    // goes back with it: leaving `image` selected with nothing to draw would
+    // paint an empty frame, which is the same trap `toggle` steps around.
+    reset: (s) => ({
+      ...s,
+      background: { ...s.background, kind: "solid", imageSrc: null },
+    }),
+    dirty: (s) => Boolean(s.background.imageSrc),
+    toggle: (s, on) => ({
+      ...s,
+      background: {
+        ...s.background,
+        // Switching it on with nothing uploaded would paint an empty frame, so
+        // the kind only moves once there is an image to show. The popup opens
+        // either way — that is where the upload button is.
+        kind: on && s.background.imageSrc ? "image" : on ? s.background.kind : "solid",
+      },
+    }),
+  },
+];
+
+/* ===========================================================================
+   Reset
+   =========================================================================== */
+
+/**
+ * Every value this popup shows, back to what `DEFAULT_EDITOR_STATE` says.
+ *
+ * Walked from the fields rather than listed per layer, so a row added to a
+ * popup is reset by the header for free and cannot be forgotten — the same
+ * reason the fields carry their own `get`/`set` instead of a table of paths.
+ *
+ * `f.get(DEFAULT_EDITOR_STATE)` rather than a stored default: a field's value
+ * is not always a field of the state — Camera's focal length is millimetres
+ * over a state that holds degrees — and asking the getter for the default's
+ * reading is right whatever conversion sits in between.
+ *
+ * What it deliberately leaves alone is whether the effect is IN the shot.
+ * `enabled` and `background.kind` are not fields of any popup, so a reset
+ * returns a drop shadow to its default offsets and keeps the shadow; removing
+ * it is what the stack's toggle is for, one click away.
+ */
+export function resetLayer(layer: Layer, s: EditorState): EditorState {
+  if (layer.reset) return layer.reset(s);
+  return layer.sections.reduce(
+    (state, section) =>
+      section.fields.reduce(
+        // The two arms are the same line and have to be written twice: `Field`
+        // is a union, and until the `kind` is checked `set` is a signature
+        // taking string OR number while `get` returns string AND number, which
+        // no call can satisfy. The check is what pairs them up.
+        (acc, f) =>
+          f.kind === "color"
+            ? f.set(acc, f.get(DEFAULT_EDITOR_STATE))
+            : f.set(acc, f.get(DEFAULT_EDITOR_STATE)),
+        state,
+      ),
+    s,
+  );
+}
+
+/**
+ * Is anything in this popup off its default?
+ *
+ * Numbers compare with a tolerance, because a field can round-trip through a
+ * conversion and land a hair off where it started — Camera's focal length is
+ * degrees read as millimetres and written back — and a reset button lit
+ * forever by a millionth of a degree is a lie about there being work to do.
+ */
+export function layerIsDirty(layer: Layer, s: EditorState): boolean {
+  if (layer.dirty) return layer.dirty(s);
+  return layer.sections.some((section) =>
+    section.fields.some((f) =>
+      f.kind === "color"
+        ? f.get(s).toLowerCase() !== f.get(DEFAULT_EDITOR_STATE).toLowerCase()
+        : Math.abs(f.get(s) - f.get(DEFAULT_EDITOR_STATE)) > 1e-6,
+    ),
+  );
+}
+
+export type LayerId = string;
+
+export function getLayer(id: LayerId): Layer | undefined {
+  return LAYERS.find((l) => l.id === id);
+}
