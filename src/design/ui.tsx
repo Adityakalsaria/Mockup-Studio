@@ -29,7 +29,7 @@ import {
 } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { TextMorph } from "torph/react";
-import { control, material, motion, radius, SYSTEM_CSS } from "./system";
+import { control, material, motion, radius, SYSTEM_CSS, type ButtonTone } from "./system";
 import { AaveGlass } from "./useContentLens";
 
 /**
@@ -840,6 +840,7 @@ export function Header({
   icon,
   children,
   trailing,
+  handleProps,
   onClose,
   closeIcon,
 }: {
@@ -861,6 +862,16 @@ export function Header({
    * pill behind it.
    */
   trailing?: ReactNode;
+  /**
+   * Makes the title bar a drag handle — pass `useDrag().handleProps`.
+   *
+   * A title bar is the one part of a popup guaranteed not to be a control,
+   * which is exactly what makes it the thing to grab, and it is the right
+   * handle for a panel whose body is sliders: a drag that started on one would
+   * move the panel and the value at once. Its own buttons keep their presses —
+   * the hook ignores a press that landed on a control.
+   */
+  handleProps?: Record<string, unknown>;
   onClose?: () => void;
   /**
    * The glyph for the close button. The system draws its own by default; a
@@ -871,8 +882,10 @@ export function Header({
 }) {
   return (
     <div
+      {...handleProps}
       className="flex w-full items-center"
       style={{
+        ...(handleProps?.style as CSSProperties | undefined),
         gap: "var(--mo-space-1_5)",
         padding: "10px var(--mo-space-2)",
         borderRadius: "var(--mo-r-row)",
@@ -925,6 +938,86 @@ export function HeaderButton({
       style={{ cursor: disabled ? "default" : "pointer" }}
     >
       <Glyph muted={disabled}>{children}</Glyph>
+    </button>
+  );
+}
+
+/**
+ * Koshmoney's glass button, rebuilt from the site this repo was copied from.
+ *
+ * Not a variant of `Button` above, which is the studio's in-panel control and
+ * wears `mo-mat-selection`. This is the marketing site's material, and it is
+ * here to be COMPARED with the panel glass: same page, same ground, one of
+ * them holding up over a dark backdrop and one of them not.
+ *
+ * What it does differently is the whole lesson — see `material.button`. The
+ * body is `surface`, an ordinary translucent fill on normal blend, and the
+ * blur behind it is 7.5px. Paint first, blur second.
+ *
+ * The glow is written to the overlay's `style` from the pointer handler rather
+ * than kept in state: it changes on every pointermove, and a re-render per
+ * move to reposition a gradient is a re-render of whatever the button is
+ * inside. The original did the same thing through a `querySelector`; a ref is
+ * the same technique with the lookup done once.
+ */
+export function GlassButton({
+  children,
+  variant = "primary",
+  size = "md",
+  onClick,
+  disabled,
+  title,
+}: {
+  children: ReactNode;
+  variant?: ButtonTone;
+  size?: "md" | "icon";
+  onClick?: () => void;
+  disabled?: boolean;
+  title?: string;
+}) {
+  const tone = material.button.tones[variant];
+  const glow = useRef<HTMLSpanElement>(null);
+
+  const lightGlow = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    const node = glow.current;
+    if (!node || disabled) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
+    const spread =
+      Math.max(rect.width, rect.height) *
+      (e.pointerType === "touch" ? material.button.glow.sizeTouch : material.button.glow.sizeMouse);
+    node.style.background = `radial-gradient(circle ${Math.round(spread)}px at ${x}% ${y}%, var(--mo-btn-glow-core) 0%, var(--mo-btn-glow-edge) 34%, rgb(255 255 255 / 0) 72%)`;
+    node.style.opacity = String(tone.glow);
+  };
+
+  const dimGlow = () => {
+    if (glow.current) glow.current.style.opacity = "0";
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`mo-btn type-action ${size === "icon" ? "mo-btn-icon" : ""}`}
+      onPointerEnter={lightGlow}
+      onPointerMove={lightGlow}
+      onPointerLeave={dimGlow}
+      onPointerCancel={dimGlow}
+      style={{
+        background: tone.surface,
+        color: tone.ink,
+        ...(size === "icon"
+          ? { width: 48, height: 48, padding: 0 }
+          : { minHeight: 44, padding: "8px 16px" }),
+      }}
+    >
+      <span aria-hidden className="mo-btn-rim" style={{ opacity: tone.rim }} />
+      <span aria-hidden ref={glow} className="mo-btn-glow" />
+      <span className="relative z-10 inline-flex items-center gap-[6px]">{children}</span>
     </button>
   );
 }

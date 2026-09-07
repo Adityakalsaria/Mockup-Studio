@@ -46,6 +46,7 @@ import {
   useSpring,
 } from "@/design/ui";
 import { control, radius } from "@/design/system";
+import { DRAG_SURFACE, useDrag } from "@/design/useDrag";
 import { Stage } from "./Stage";
 import { DEFAULT_RATIO_ID, useStudio, type Studio } from "./useStudio";
 import { LAYERS, layerIsDirty, resetLayer, resetTransform, type Layer } from "./bindings";
@@ -326,34 +327,61 @@ const GizmoCanvas = dynamic(() => import("./GizmoCanvas").then((m) => m.default)
 });
 
 /**
- * The add / remove glyph, which rotates rather than swaps.
+ * The add / remove glyph: a plus whose upright retracts into a minus.
  *
- * A plus and a cross are the same shape at 45 degrees — the same three strokes
- * through the same centre — so there is nothing to interpolate between them.
- * Cross-fading two separate exports throws that away: for a moment there are
- * two glyphs at different angles on top of each other, and the eye reads it as
- * a flicker rather than as one mark turning.
+ * It used to be a plus rotated 45 degrees into a cross, on the reasoning that
+ * the two are the same three strokes at a different angle and so can actually
+ * interpolate. True, and the wrong pair: a cross beside a row means "close
+ * this", and the row is not a thing to be closed — it is an effect that is in
+ * the composition or is not. Plus and minus are that pair, and they turn out to
+ * interpolate even more directly: they ARE the same mark, one with its upright
+ * and one without, so the change is a single stroke retracting into the other.
  *
- * So one asset, rotated. The exported cross is 4% longer in the arm than the
- * plus — half a pixel at icon size — which is the price of the geometry being
- * continuous, and cheap at that.
+ * Which is why the plus is drawn here rather than taken from `expand.svg`. An
+ * image cannot animate half of itself. The geometry is that file's, read off
+ * it and not approximated — a 20 box, arms 4 to 16, a 1.333 stroke, and the
+ * 0.667 radius that rounds its ends. Rendered at rest the two are the same
+ * pixels.
  *
- * The rotation rides `useSpring`, so it turns at the rate everything else in
- * the interface moves rather than on a transition of its own.
+ * The upright animates by its `y` and `height` rather than a transform: an SVG
+ * child needs `transform-box` set before a percentage origin means anything,
+ * and two numbers that meet at the centre need no origin at all.
  */
+const PLUS = { min: 4, max: 16, thickness: 4 / 3, radius: 2 / 3 } as const;
+
 function ToggleGlyph({ on }: { on: boolean }) {
-  const { value: angle } = useSpring(on ? 45 : 0);
+  // 1 is the full upright, 0 is none of it.
+  const { value: upright } = useSpring(on ? 0 : 1);
+  const span = PLUS.max - PLUS.min;
+  const centre = (PLUS.min + PLUS.max) / 2;
 
   return (
     <span
       className="grid place-items-center"
-      style={{
-        width: control.icon,
-        height: control.icon,
-        transform: `rotate(${angle}deg)`,
-      }}
+      style={{ width: control.icon, height: control.icon }}
     >
-      <Icon name="expand" />
+      <svg
+        viewBox="0 0 20 20"
+        width={control.icon}
+        height={control.icon}
+        aria-hidden
+        fill="currentColor"
+      >
+        <rect
+          x={PLUS.min}
+          y={centre - PLUS.thickness / 2}
+          width={span}
+          height={PLUS.thickness}
+          rx={PLUS.radius}
+        />
+        <rect
+          x={centre - PLUS.thickness / 2}
+          y={centre - (span / 2) * upright}
+          width={PLUS.thickness}
+          height={span * upright}
+          rx={PLUS.radius}
+        />
+      </svg>
     </span>
   );
 }
@@ -791,6 +819,18 @@ export default function StudioChrome() {
     [state, edit, selectedLayer, popupOpen],
   );
 
+  /*
+   * Every floating surface can be put somewhere else.
+   *
+   * One hook each rather than one shared position: two popups can be open at
+   * once — a tool panel on the left and an effect on the right — and they are
+   * moved for different reasons. Double-tap a header to send one back to where
+   * the layout had it.
+   */
+  const craftDrag = useDrag();
+  const toolDrag = useDrag();
+  const menuDrag = useDrag();
+
   const [account, setAccount] = useState<"settings" | "sign-out">("settings");
   const selected = LAYERS.find((l) => l.id === selectedLayer) ?? null;
   /*
@@ -823,7 +863,22 @@ export default function StudioChrome() {
         {/* The shot itself, under everything. See `Stage`. */}
         <Stage studio={studio} />
 
-        <div className="pointer-events-none absolute inset-0">
+        {/*
+          The chrome's layer, stated once here.
+
+          `OverlayLayer` sits at `z-10` so a layer blur can get above the phone,
+          and a positive z-index beats every `z-index: auto` element in its
+          context however they are ordered — so the shot's overlay was painting
+          over the popups, the rail and the stack.
+
+          The obvious fix was to make the stage a stacking context and keep its
+          numbers inside it. That worked, and cost the thing this UI is for: an
+          isolated group is composited on its own, and a `backdrop-filter`
+          above it stops sampling it, so every popup lost its frost the moment
+          the overlay was contained. A layer number on the chrome fixes the
+          order without changing what the stage is made of.
+        */}
+        <div className="pointer-events-none absolute inset-0" style={{ zIndex: 20 }}>
           {/*
             The gizmo. FIRST in this stack so every panel paints above it:
             it is pinned to the corner while the device list is vertically
@@ -861,7 +916,31 @@ export default function StudioChrome() {
 
           {/* History. Three glyphs, one selected — which is a switch, so it is
               `Segmented` rather than three buttons that behave like one. */}
-          <div className="pointer-events-auto absolute left-1/2 -translate-x-1/2" style={{ top: 16 }}>
+          {/*
+            Centred by inset and flex, never by `transform`.
+
+            A transform on an ancestor makes that ancestor a BACKDROP ROOT: a
+            `backdrop-filter` inside it can only sample what is painted within
+            it, and what is painted within this one is the panel itself. So
+            every glass surface in this cluster was frosting a transparent
+            backdrop -- the blur landed on nothing, and the panel was reduced
+            to its own fills over whatever showed through.
+
+            That is why the gizmo, pinned to the corner with plain offsets and
+            no transform, has always frosted correctly while the popups next to
+            the composition never did, and why raising the radius kept changing
+            nothing. `inset-y-0` plus `justify-center` puts the cluster in the
+            same place with no transform to group the backdrop away.
+
+            `pointer-events-none` on the full-height wrapper, `auto` on the
+            content: the box now spans the viewport, and a transparent column
+            down the side of the workspace would eat every drag on the shot.
+          */}
+          <div
+            className="pointer-events-none absolute inset-x-0 flex justify-center"
+            style={{ top: 16 }}
+          >
+            <div className="pointer-events-auto">
             <Segmented
               value={history}
               onChange={runHistory}
@@ -892,6 +971,7 @@ export default function StudioChrome() {
                 { id: "redo", label: <Icon name="redo" size={16} /> },
               ]}
             />
+            </div>
           </div>
 
           <div
@@ -900,6 +980,11 @@ export default function StudioChrome() {
             style={{ right: 16, top: 16, gap: 16 }}
           >
             {menuOpen ? (
+            <div
+              {...{ [DRAG_SURFACE]: "" }}
+              {...menuDrag.handleProps}
+              style={{ ...menuDrag.handleProps.style, ...menuDrag.style }}
+            >
             <Glass width={200}>
               <RowGroup>
                 <Row
@@ -918,6 +1003,7 @@ export default function StudioChrome() {
                 </Row>
               </RowGroup>
             </Glass>
+            </div>
             ) : null}
 
             {/* The account chip. A round glass surface is `Glass shape="pill"`;
@@ -945,10 +1031,10 @@ export default function StudioChrome() {
           {/* Left cluster: the tool rail and the device list. */}
           <div
             ref={toolRef}
-            className="pointer-events-auto absolute top-1/2 flex -translate-y-1/2 items-center"
+            className="pointer-events-none absolute inset-y-0 flex items-center"
             style={{ left: 16, gap: 16 }}
           >
-            <Glass shape="rail">
+            <Glass shape="rail" className="pointer-events-auto">
               {/* The rail breathes: 8px between tools, where a list of labels
                   reads fine packed. The lens measures real boxes, so it simply
                   travels further. */}
@@ -979,7 +1065,16 @@ export default function StudioChrome() {
               in it.
             */}
             {panelOpen ? (
-              <div className="flex flex-col items-center" style={{ gap: 8 }}>
+              /* The whole panel is the handle. `useDrag` ignores a press that
+                 landed on a control, so the rows keep their clicks and every
+                 empty part of the surface picks it up — which is what anyone
+                 tries first. */
+              <div
+                {...{ [DRAG_SURFACE]: "" }}
+                {...toolDrag.handleProps}
+                className="pointer-events-auto flex flex-col items-center"
+                style={{ gap: 8, ...toolDrag.handleProps.style, ...toolDrag.style }}
+              >
                 <Glass width={control.panelW}>
                   <AutoHeight token={customOpen ? `${tool}:custom` : tool}>
                     {tool === "devices" ? (
@@ -1186,7 +1281,7 @@ export default function StudioChrome() {
 
           {/* Right cluster: the mode switch over the open popup and the stack. */}
           <div
-            className="pointer-events-auto absolute top-1/2 flex -translate-y-1/2 flex-col items-end"
+            className="pointer-events-none absolute inset-y-0 flex flex-col items-end justify-center [&>*]:pointer-events-auto"
             style={{ right: 16, gap: 16 }}
           >
             <Segmented
@@ -1209,6 +1304,7 @@ export default function StudioChrome() {
                    panel width whatever it holds, so a one-colour Background
                    and a three-group Transform are the same object resizing
                    vertically rather than two panels of different shapes. */
+                <div {...{ [DRAG_SURFACE]: "" }} style={craftDrag.style}>
                 <Glass width={control.panelW}>
                   {/*
                     Header and body together inside the spring, not just the
@@ -1228,6 +1324,10 @@ export default function StudioChrome() {
                     >
                   <Header
                     icon={<Icon name={open.icon} />}
+                    /* The header is the handle. Not the whole surface: the body
+                       is sliders, and a drag that started on one would be
+                       moving the panel and the value at once. */
+                    handleProps={craftDrag.handleProps}
                     trailing={<LayerActions layer={open} studio={studio} onDone={closePopup} />}
                     closeIcon={<Icon name="close-rounded" />}
                     onClose={() => setPopupOpen(false)}
@@ -1312,6 +1412,7 @@ export default function StudioChrome() {
                     </div>
                   </AutoHeight>
                 </Glass>
+                </div>
               ) : null}
 
               {tab === "crafting" ? (

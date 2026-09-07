@@ -233,7 +233,68 @@ export const color = {
 const PILL_RIM = { color: "#939393", offset: 1.73, spread: -0.8, ring: 0.35 } as const;
 const PILL_DROP = { y: 13.4, blur: 18.5, alpha: 0.06 } as const;
 
+/**
+ * Koshmoney's button material, as the site actually built it.
+ *
+ * Recovered from `src/components/ui/Button.tsx` at 2e10646^, before the
+ * marketing site this repo was copied from was stripped out. Worth having on
+ * the system page for one reason above all: it is a glass that stays legible
+ * over anything, and reading it says why.
+ *
+ * ITS BODY IS PAINT, NOT BLUR. `surface` is an ordinary translucent fill on
+ * normal blend at 75% — three quarters of what you see is the button — and
+ * the blur behind it is 7.5px, less than half of `glass.blur`. The panel
+ * material next door has no equivalent layer: its only near-white fill is on
+ * `multiply`, which for white is the identity, so its body is whatever happens
+ * to be behind it. That is the whole difference between a glass that holds up
+ * over a dark composition and one that disappears into it.
+ *
+ * Two tones for two grounds, and that is the other lesson: a single surface
+ * cannot serve both. Light content gets the dark fill, dark content the white
+ * one, and the ink flips with it.
+ */
+const BUTTON_TONES = {
+  primary: { surface: "rgb(255 255 255 / 0.75)", ink: "#000", glow: 1, rim: 1 },
+  secondary: { surface: "rgb(39 39 39 / 0.52)", ink: "#fff", glow: 0.35, rim: 0.3 },
+  prominent: {
+    // `color-mix` against the site's accent in the original; the studio has no
+    // accent token, so the same 75% is written out against ours.
+    surface: "rgb(0 136 255 / 0.75)",
+    ink: "#fff",
+    glow: 0.5,
+    rim: 0.8,
+  },
+  highlighted: { surface: "rgb(39 39 39 / 0.52)", ink: "#fff", glow: 0.35, rim: 1 },
+} as const;
+
+export type ButtonTone = keyof typeof BUTTON_TONES;
+
 export const material = {
+  /**
+   * The button, as above. Kept beside `glass` rather than inside it because
+   * the two are different materials that happen to share a vocabulary — and
+   * the point of having both on one page is the comparison.
+   */
+  button: {
+    blur: 7.5,
+    tones: BUTTON_TONES,
+    /** A 1px gradient edge, drawn as a padded background through a mask —
+        light at both ends and dark through the middle, so the rim reads as a
+        bevel catching light rather than as a border. */
+    rim: "linear-gradient(170deg, #fff 10%, rgb(0 0 0 / 0.11) 50%, #fff 90%)",
+    /** The same rim at the icon size, where 170deg across a square reads as
+        almost vertical. */
+    rimIcon: "linear-gradient(150deg, #fff 10%, rgb(0 0 0 / 0.11) 50%, #fff 90%)",
+    /** The cursor-tracking glow: core, edge, and where it fades out. */
+    glow: {
+      core: "rgb(255 255 255 / 0.88)",
+      edge: "rgb(255 255 255 / 0.52)",
+      /** Of the button's longest side. Touch spreads wider than a cursor. */
+      sizeMouse: 0.92,
+      sizeTouch: 1.18,
+    },
+  },
+
   /**
    * The panel, named and ordered as the file's anatomy does: two layers,
    * `Main base bottom` under `Main base top (glass)`.
@@ -264,8 +325,50 @@ export const material = {
    * The cast shadow stays out of it — black at 15%, and it composites normally.
    */
   glass: {
-    /** 8, where the file says 16: Figma measures a blur at twice the CSS radius. */
-    blur: 8,
+    /**
+     * 7.5, taken from `material.button` rather than from the file.
+     *
+     * The file says 16, which converts to 8 by Figma's double-radius rule, and
+     * that was this value for a long time. Then the panel looked unfrosted
+     * over a composition and the radius was the obvious thing to blame, so it
+     * went to 16 — which changed nothing, because the radius was never the
+     * problem.
+     *
+     * The button material settles it: Koshmoney's glass ran at 7.5 and held
+     * up over anything, on a quarter of the blur this was reaching for. What
+     * carried it was `surface`, a real fill. So the blur comes back down to
+     * theirs and `veil` does the work it was always doing on their side.
+     */
+    blur: 7.5,
+    /**
+     * How much of the panel is panel, rather than what is behind it.
+     *
+     * A backdrop blur does not make a surface less see-through — it moves
+     * detail around and leaves every bit of the backdrop's light exactly where
+     * it was. Obscuration comes from a FILL, and read down this material there
+     * is none: both base fills are 13% and 10% at `plus-darker`, the rim and
+     * the three bands are `plus-darker`, and the only near-white layer is the
+     * pane, which is white on `multiply` and therefore the identity. Blur at
+     * any radius over that stack is a clear pane with the view slightly
+     * softened and slightly darkened — which is what "I can still see the
+     * background" is.
+     *
+     * So this is the body the glass never had: a plain white layer on NORMAL
+     * blend over the frost, under the pane and the bands, so the ink and the
+     * lighting still sit on top of it. It is the same thing every real frosted
+     * material pairs its blur with.
+     *
+     * 0.75 is `material.button`'s `primary` surface exactly — the number the
+     * site shipped, now that the bench has both materials on one ground and
+     * the button is the one that reads. Not a coincidence to be re-derived:
+     * the same fill at the same strength, so the two glasses in this system
+     * are the same glass.
+     *
+     * It is deliberately NOT mapped into `.mo-mat-selection`: the travelling
+     * pill is tuned, sits ON a panel rather than on the composition, and its
+     * complaint was never this one.
+     */
+    veil: 0.75,
     /** `Main base bottom` — two fills, the rim, and the cast. */
     base: {
       /** The layer's own opacity, above whatever its fills carry. */
@@ -647,7 +750,14 @@ ${(
   --mo-corner-selection: ${corner.selection};
   --mo-corner-switch: ${corner.switch};
 
+  --mo-btn-blur: ${px(material.button.blur)};
+  --mo-btn-rim: ${material.button.rim};
+  --mo-btn-rim-icon: ${material.button.rimIcon};
+  --mo-btn-glow-core: ${material.button.glow.core};
+  --mo-btn-glow-edge: ${material.button.glow.edge};
+
   --mo-glass-blur: ${px(material.glass.blur)};
+  --mo-glass-veil: ${material.glass.veil};
   --mo-glass-base-opacity: ${material.glass.base.opacity};
   --mo-glass-top-opacity: ${material.glass.top.opacity};
   --mo-glass-lighten: ${material.glass.base.lighten};
@@ -688,6 +798,66 @@ ${material.selected.depth
   --mo-knob-w: ${px(control.slider.knobW)};
   --mo-knob-h: ${px(control.slider.knobH)};
   --mo-field-w: ${px(control.fieldW)};
+}
+
+/*
+ * The button material: a painted surface over a light blur, a masked gradient
+ * rim, and a glow that follows the cursor.
+ *
+ * \`surface\` and the two opacities come in as inline style from the tone table
+ * rather than as variables, which is how the original wrote it too — a tone is
+ * four values chosen together, and splitting them across four custom
+ * properties makes it possible to set three of them.
+ */
+.mo-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: var(--mo-r-selected);
+  backdrop-filter: blur(var(--mo-btn-blur));
+  -webkit-backdrop-filter: blur(var(--mo-btn-blur));
+}
+.mo-btn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+/*
+ * Padding plus two masks is how a gradient becomes a 1px edge: the element is
+ * filled with the gradient, then the mask keeps only what falls OUTSIDE the
+ * content box. A border cannot take a gradient, and a pseudo-element ring
+ * would need its own radius kept in step with the button's.
+ */
+.mo-btn-rim {
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--mo-btn-rim);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.mo-btn-icon .mo-btn-rim { background: var(--mo-btn-rim-icon); }
+/*
+ * \`overlay\` blend: it lightens where the surface is dark and darkens where it
+ * is light, so one white glow serves both tones instead of a second asset for
+ * the dark one. Opacity is the tone's, and the gradient itself is written by
+ * the pointer handler.
+ */
+.mo-btn-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: overlay;
+  transition: opacity 200ms;
 }
 
 /*
@@ -743,10 +913,27 @@ ${material.selected.depth
  * than on a wrapper, since a wrapper below 1 would isolate exactly the
  * blending this arrangement exists to preserve.
  */
+/*
+ * The surface and the blur on ONE element, which is the whole of what the
+ * button material does — see \`material.button\`.
+ *
+ * They were two layers, and the difference is not academic. A fill on its own
+ * layer above the frost is composited AFTER the frost has been faded by its
+ * own opacity, so the blur arrived at 62% with better than a third of the
+ * backdrop still sharp underneath, and then the fill, the pane and three
+ * bands each added coverage on top of that. Same 0.75 as the button, a far
+ * more opaque panel, and too little backdrop left to read as a blur at all.
+ *
+ * Together, they behave the way the button does: blur what is behind, paint
+ * three quarters of a white surface over it, let the last quarter through.
+ * Full opacity here, because the softening the layer opacity used to provide
+ * is now the surface's job — which is where the button always had it.
+ */
 .mo-mat-frost {
   backdrop-filter: blur(var(--mo-mat-blur));
   -webkit-backdrop-filter: blur(var(--mo-mat-blur));
-  opacity: var(--mo-mat-top-opacity, 1);
+  background: rgb(255 255 255 / var(--mo-mat-veil, 0));
+  opacity: var(--mo-mat-frost-opacity, var(--mo-mat-top-opacity, 1));
 }
 .mo-mat-pane {
   background: var(--mo-mat-fill);
@@ -764,6 +951,8 @@ ${material.selected.depth
 /* The panel's configuration. */
 .mo-glass {
   position: relative;
+  --mo-mat-veil: var(--mo-glass-veil);
+  --mo-mat-frost-opacity: 1;
   --mo-mat-base-opacity: var(--mo-glass-base-opacity);
   --mo-mat-top-opacity: var(--mo-glass-top-opacity);
   --mo-mat-lighten: var(--mo-glass-lighten);

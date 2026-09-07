@@ -14,7 +14,7 @@
  * the test surface.
  */
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import Image from "next/image";
 import {
   ChevronIcon,
@@ -23,6 +23,7 @@ import {
   DesignSystem,
   Field,
   Glass,
+  GlassButton,
   Glyph,
   Header,
   HeaderButton,
@@ -36,7 +37,7 @@ import {
   Segmented,
   Slider,
 } from "@/design/ui";
-import { color, control, font, material, radius, space } from "@/design/system";
+import { color, control, font, material, radius, space, type ButtonTone } from "@/design/system";
 
 /**
  * The device list, with the glyph the design gives each row.
@@ -108,6 +109,190 @@ function Chip({ label, value }: { label: string; value: string }) {
 
 /** What the popup demo's colour resets to — see its `Header`. */
 const DEMO_HEX = "#000000";
+
+/**
+ * The backdrop this page was missing.
+ *
+ * Everything above sits on `linear-gradient(160deg, #f2f2f4, #e6e6e9)` — a
+ * flat pale ground — and that is exactly why the panel material could be
+ * tuned to look right and still vanish over a composition. A glass has two
+ * jobs, softening what is behind it and staying legible in front of it, and a
+ * pale ground tests neither: there is no detail to soften and nothing dark to
+ * lose the ink in.
+ *
+ * So: saturated, dark, and full of fine high-contrast lines, which is the
+ * hardest case a blur can be given. A blueprint grid drawn in CSS rather than
+ * an exported image, because the lines have to stay 1px whatever the bench is
+ * resized to — a scaled screenshot would soften them itself and quietly do the
+ * blur's job for it.
+ */
+const BENCH_GROUND = {
+  backgroundColor: "#0d5b63",
+  backgroundImage: [
+    "linear-gradient(rgb(94 234 234 / 0.55) 1px, transparent 1px)",
+    "linear-gradient(90deg, rgb(94 234 234 / 0.55) 1px, transparent 1px)",
+    "linear-gradient(rgb(94 234 234 / 0.22) 1px, transparent 1px)",
+    "linear-gradient(90deg, rgb(94 234 234 / 0.22) 1px, transparent 1px)",
+    "radial-gradient(120% 90% at 25% 15%, #14808a 0%, #06363c 100%)",
+  ].join(", "),
+  backgroundSize: "96px 96px, 96px 96px, 16px 16px, 16px 16px, auto",
+} satisfies React.CSSProperties;
+
+/**
+ * Drag the panel around the bench.
+ *
+ * The point of a bench is judging the material against what is behind it, and
+ * what is behind it changes across this one: pale ground, the seam, dense grid,
+ * the dark corner where the vignette lands. A panel pinned to one spot answers
+ * for one of those. Moving it is the difference between a screenshot and an
+ * instrument.
+ *
+ * Position is committed to state per move — a panel is not the studio's phone
+ * and a re-render of this section costs nothing — but the DRAG ORIGIN is a
+ * ref: it is read inside the move handler and must not make the handler a new
+ * function on every frame.
+ */
+function useDrag(bounds: React.RefObject<HTMLElement | null>) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  /** Where in the panel the grab landed, so it does not jump to its corner. */
+  const grab = useRef({ x: 0, y: 0 });
+
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    grab.current = { x: e.clientX - box.left, y: e.clientY - box.top };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragging(true);
+  }, []);
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragging) return;
+      const field = bounds.current?.getBoundingClientRect();
+      const box = e.currentTarget.getBoundingClientRect();
+      if (!field) return;
+      // Clamped to the bench, or the panel can be dragged out of the one place
+      // it is meant to be looked at.
+      const x = Math.min(
+        Math.max(e.clientX - field.left - grab.current.x, 0),
+        Math.max(field.width - box.width, 0),
+      );
+      const y = Math.min(
+        Math.max(e.clientY - field.top - grab.current.y, 0),
+        Math.max(field.height - box.height, 0),
+      );
+      setPos({ x, y });
+    },
+    [dragging, bounds],
+  );
+
+  const end = useCallback(() => setDragging(false), []);
+
+  return { pos, dragging, handlers: { onPointerDown, onPointerMove, onPointerUp: end, onPointerCancel: end } };
+}
+
+function Bench() {
+  const [tone, setTone] = useState<ButtonTone>("primary");
+  const field = useRef<HTMLDivElement>(null);
+  const panel = useDrag(field);
+  const buttons = useDrag(field);
+
+  return (
+    <div className="flex w-full flex-col gap-[16px]">
+      <div
+        ref={field}
+        className="relative w-full overflow-hidden"
+        style={{
+          height: 420,
+          borderRadius: "var(--mo-r-panel)",
+          // Or the drag selects the panel's labels on the way past.
+          userSelect: panel.dragging || buttons.dragging ? "none" : undefined,
+          ...BENCH_GROUND,
+        }}
+      >
+        {/*
+          Half the bench only. The right edge of this block is the seam that
+          matters: a panel straddling it shows, in one view, whether the blur
+          reaches the backdrop and whether the surface holds its own light --
+          which two panels on two grounds never can.
+        */}
+        <div
+          aria-hidden
+          className="absolute inset-y-0 left-0"
+          style={{ width: "58%", background: "linear-gradient(160deg, #f2f2f4, #cfd2d8)" }}
+        />
+
+        <div
+          {...panel.handlers}
+          className="absolute flex flex-col gap-[16px]"
+          style={{
+            left: panel.pos ? panel.pos.x : "38%",
+            top: panel.pos ? panel.pos.y : 32,
+            touchAction: "none",
+            cursor: panel.dragging ? "grabbing" : "grab",
+          }}
+        >
+          <Glass style={{ gap: "var(--mo-space-4)" }}>
+            <Header icon={<PlusIcon />} onClose={() => undefined}>
+              Straddling the seam
+            </Header>
+            <div className="flex flex-col gap-[8px] pb-[10px]">
+              <Row selected>Ink over both halves</Row>
+              <Row>Ink over both halves</Row>
+            </div>
+          </Glass>
+        </div>
+
+        {/* The button material, on the dark half where it has to work. */}
+        <div
+          {...buttons.handlers}
+          className="absolute flex flex-col items-end gap-[12px]"
+          style={{
+            // Bottom-right until it is picked up, then wherever it is put. Two
+            // draggables rather than one group: the whole question is how the
+            // two materials read against the SAME patch of backdrop, and that
+            // means being able to park them side by side anywhere.
+            left: buttons.pos ? buttons.pos.x : undefined,
+            top: buttons.pos ? buttons.pos.y : undefined,
+            right: buttons.pos ? undefined : 32,
+            bottom: buttons.pos ? undefined : 32,
+            touchAction: "none",
+            cursor: buttons.dragging ? "grabbing" : "grab",
+          }}
+        >
+          <GlassButton variant={tone} onClick={() => undefined}>
+            {tone}
+          </GlassButton>
+          <GlassButton variant={tone} size="icon" title={tone}>
+            <PlusIcon />
+          </GlassButton>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-[8px]">
+        {(["primary", "secondary", "prominent", "highlighted"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTone(t)}
+            className="mo-code cursor-pointer"
+            style={{
+              padding: "4px 10px",
+              borderRadius: "var(--mo-r-selected)",
+              background: t === tone ? "var(--mo-selected)" : "transparent",
+              color: t === tone ? "var(--mo-ink)" : "var(--mo-ink-muted)",
+            }}
+          >
+            {t}
+          </button>
+        ))}
+        <span className="mo-code" style={{ color: "#8a8a8a", marginLeft: 8 }}>
+          {material.button.tones[tone].surface} · blur {material.button.blur}px
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function WebsiteSystem() {
   const [device, setDevice] = useState("iPhone 17 Pro");
@@ -357,6 +542,13 @@ export default function WebsiteSystem() {
                 ))}
               </div>
             </Glass>
+          </Section>
+
+          <Section
+            title="Material bench"
+            note="The one ground this page never had. Both materials over the same hard backdrop — the panel glass and Koshmoney's button, judged against each other rather than against a pale gradient."
+          >
+            <Bench />
           </Section>
 
           <Section title="Parts">
