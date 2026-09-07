@@ -26,6 +26,7 @@
  *     the rig grew it, rather than the row being dropped or faked.
  */
 
+import { canFold, getDevice } from "../devices";
 import { DEFAULT_EDITOR_STATE, RANGES, type EditorState } from "../editor/editorState";
 import { OVERLAY_RANGES } from "../overlay";
 import { SHADOW_RANGES } from "../shadow";
@@ -77,7 +78,7 @@ const FOCAL = {
    Fields
    =========================================================================== */
 
-export type NumberField = {
+export type NumberField = Conditional & {
   kind: "number";
   /** Reaches the slider's accessible name even when the row shows a glyph. */
   label: string;
@@ -97,7 +98,7 @@ export type NumberField = {
   set: (s: EditorState, n: number) => EditorState;
 };
 
-export type ColorField = {
+export type ColorField = Conditional & {
   kind: "color";
   label: string;
   key: string;
@@ -106,6 +107,16 @@ export type ColorField = {
 };
 
 export type Field = NumberField | ColorField;
+
+/**
+ * Is this row worth drawing for the shot as it stands?
+ *
+ * The one escape from "every row moves something": a rig capability that only
+ * some devices have. A lid slider in front of an iMac is the dead control this
+ * file refuses to ship — so rather than drop the row or fake it, the row states
+ * what it needs and the chrome leaves it out when the need is not met.
+ */
+export type Conditional = { when?: (s: EditorState) => boolean };
 
 export type Section = { title?: string; fields: Field[] };
 
@@ -218,6 +229,24 @@ export type Layer = {
    */
   isOn: (s: EditorState) => boolean;
   /**
+   * Which half of the stack it belongs to.
+   *
+   * `stage` is the model and how it sits: where it is, the lens it is seen
+   * through, and the shadow it casts. `effect` is what is layered onto the
+   * composition around it — the overlay and the four backgrounds. The stack
+   * draws a divider where the two meet, and reads as two short lists rather
+   * than one of eight, which is worth more than the rule it costs.
+   *
+   * The shadow is the model's, not the composition's: it is thrown BY the
+   * phone and moves when the phone does, which is why it sits above the line
+   * with the transform and the lens rather than among the things painted
+   * behind it.
+   *
+   * Carried here rather than as an index the chrome counts to, so the split
+   * survives a reorder: move a row and its side moves with it.
+   */
+  group: "stage" | "effect";
+  /**
    * Can this effect be taken OUT of the shot, as opposed to returned to
    * neutral?
    *
@@ -266,7 +295,12 @@ const restore = (s: EditorState, keys: readonly (keyof EditorState)[]): EditorSt
 const TRANSFORM_KEYS = [
   "panX", "panY", "panZ",
   "xAxis", "yAxis", "zAxis",
-  "scaleX", "scaleY", "scaleZ",
+  // `zoom` is the row the Scale group draws; the three axis scales are the
+  // stretch behind it, which a preset can still have moved. Reset means all of
+  // them, or a shot could return to neutral and stay stretched.
+  "zoom", "scaleX", "scaleY", "scaleZ",
+  // Only some devices can be folded, but neutral is open for all of them.
+  "fold",
 ] as const;
 
 const CAMERA_KEYS = ["fov", "xAxis", "yAxis"] as const;
@@ -293,6 +327,7 @@ export const resetTransform = (s: EditorState): EditorState => restore(s, TRANSF
 export const LAYERS: Layer[] = [
   {
     id: "transform",
+    group: "stage",
     removable: false,
     name: "Transform",
     icon: "transform",
@@ -317,13 +352,74 @@ export const LAYERS: Layer[] = [
         ),
       },
       {
+        /*
+         * Only for devices that fold.
+         *
+         * `canFold` is the registry's own statement that a model can be shut,
+         * by either route: `iphone-fold.glb` carries a 5s clip and its entry
+         * names the seconds that are open and closed, while the MacBooks carry
+         * no clips at all and get a hinge inferred from their geometry
+         * instead. Everything else in the list has no lid, and the row stays
+         * away from it — a slider that moves a number no mesh reads is exactly
+         * the dead control this file exists to avoid.
+         */
+        title: "Lid",
+        fields: [
+          {
+            kind: "number",
+            label: "Lid",
+            key: "fold",
+            bare: true,
+            reset: true,
+            when: (s) => canFold(getDevice(s.deviceId)),
+            min: 0,
+            max: 1,
+            step: RANGES.fold.step / 100,
+            format: fmt.pct,
+            /*
+             * Shown as how far it is OPEN, stored as how far it is CLOSED.
+             *
+             * `state.fold` is 0 at rest because a fold's whole point is the
+             * big inner screen and a mockup that opens shut is no use. But a
+             * control labelled Lid that reads 0% on an open laptop is a
+             * control read backwards, so the row inverts what the state says.
+             */
+            get: (s) => (100 - s.fold) / 100,
+            set: (s, n) => ({ ...s, fold: 100 - n * 100 }),
+          },
+        ],
+      },
+      {
+        /*
+         * One scale, not three.
+         *
+         * The three axis rows wrote `scaleX/Y/Z`, which STRETCH the phone —
+         * useful to a rig, and almost never what anyone opening a Scale group
+         * wants. What they want is the size of the thing in frame, and the
+         * studio already has that in `zoom`: it is what the wheel over the
+         * canvas moves and what the stage reads as its overall scale.
+         *
+         * So this row and the wheel are two views of one value, the same way
+         * the Camera popup's rotation rows are a second view of the model's
+         * angle. The per-axis fields stay in the state and the rig still
+         * applies them — presets author with them — they just no longer have
+         * three sliders in front of a group whose title promises one number.
+         */
         title: "Scale",
-        fields: triple(
-          "Scale",
-          ["scaleX", "scaleY", "scaleZ"],
-          [RANGES.scaleX, RANGES.scaleY, RANGES.scaleZ],
-          fmt.times,
-        ),
+        fields: [
+          {
+            kind: "number",
+            label: "Scale",
+            key: "zoom",
+            // Titled and labelled the same word twice, in a 48px column.
+            bare: true,
+            reset: true,
+            ...RANGES.zoom,
+            format: fmt.times,
+            get: (s) => s.zoom,
+            set: (s, n) => ({ ...s, zoom: n }),
+          },
+        ],
       },
     ],
     // A transform is never absent — the phone is always somewhere, at some
@@ -334,33 +430,8 @@ export const LAYERS: Layer[] = [
     toggle: (s, on) => (on ? s : restore(s, TRANSFORM_KEYS)),
   },
   {
-    id: "effects",
-    name: "Effects",
-    icon: "effects",
-    sections: [
-      {
-        fields: [
-          {
-            kind: "color",
-            label: "Color",
-            key: "color",
-            get: (s) => s.overlay.color,
-            set: (s, hex) => ({ ...s, overlay: { ...s.overlay, color: hex } }),
-          },
-          overlayNum("X", "x", OVERLAY_RANGES.x, fmt.pct),
-          overlayNum("Y", "y", OVERLAY_RANGES.y, fmt.pct),
-          overlayNum("Blur", "blur", OVERLAY_RANGES.blur, fmt.pct),
-          overlayNum("Opacity", "opacity", OVERLAY_RANGES.opacity, fmt.pct),
-          overlayNum("Width", "width", OVERLAY_RANGES.width, fmt.pct),
-          overlayNum("Height", "height", OVERLAY_RANGES.height, fmt.pct),
-        ],
-      },
-    ],
-    isOn: (s) => s.overlay.enabled,
-    toggle: (s, on) => ({ ...s, overlay: { ...s.overlay, enabled: on } }),
-  },
-  {
     id: "camera",
+    group: "stage",
     removable: false,
     name: "Camera",
     icon: "camera",
@@ -416,21 +487,8 @@ export const LAYERS: Layer[] = [
     toggle: (s, on) => (on ? s : restore(s, CAMERA_KEYS)),
   },
   {
-    id: "background",
-    name: "Background",
-    icon: "background",
-    sections: [{ fields: [bgColor("Color", "color")] }],
-    isOn: (s) => s.background.kind === "solid",
-    toggle: (s, on) => ({
-      ...s,
-      // Off is not "no background" as a missing thing — it is the transparent
-      // one, which is a real choice in the registry and the one an export with
-      // an alpha channel wants.
-      background: { ...s.background, kind: on ? "solid" : "transparent" },
-    }),
-  },
-  {
     id: "drop-shadow",
+    group: "stage",
     name: "Drop Shadow",
     icon: "drop-shadow",
     sections: [
@@ -455,7 +513,57 @@ export const LAYERS: Layer[] = [
     toggle: (s, on) => ({ ...s, shadow: { ...s.shadow, enabled: on } }),
   },
   {
+    id: "effects",
+    group: "effect",
+    // The file called this row Effects and its popup "Overlay popup", which is
+    // what the row actually is: `state.overlay`, field for field. The id stays
+    // `effects` — nothing outside this file reads it, and renaming it would
+    // churn the popup's key for a label change.
+    name: "Overlay",
+    icon: "effects",
+    sections: [
+      {
+        fields: [
+          {
+            kind: "color",
+            label: "Color",
+            key: "color",
+            get: (s) => s.overlay.color,
+            set: (s, hex) => ({ ...s, overlay: { ...s.overlay, color: hex } }),
+          },
+          overlayNum("X", "x", OVERLAY_RANGES.x, fmt.pct),
+          overlayNum("Y", "y", OVERLAY_RANGES.y, fmt.pct),
+          overlayNum("Blur", "blur", OVERLAY_RANGES.blur, fmt.pct),
+          overlayNum("Opacity", "opacity", OVERLAY_RANGES.opacity, fmt.pct),
+          overlayNum("Width", "width", OVERLAY_RANGES.width, fmt.pct),
+          overlayNum("Height", "height", OVERLAY_RANGES.height, fmt.pct),
+        ],
+      },
+    ],
+    isOn: (s) => s.overlay.enabled,
+    toggle: (s, on) => ({ ...s, overlay: { ...s.overlay, enabled: on } }),
+  },
+  {
+    id: "background",
+    group: "effect",
+    // Named for what it holds. Four rows in this stack paint a background —
+    // this one, Gradient, Dots and Image — so "Background" alone said the
+    // category rather than which of the four you were opening.
+    name: "Background Color",
+    icon: "background",
+    sections: [{ fields: [bgColor("Color", "color")] }],
+    isOn: (s) => s.background.kind === "solid",
+    toggle: (s, on) => ({
+      ...s,
+      // Off is not "no background" as a missing thing — it is the transparent
+      // one, which is a real choice in the registry and the one an export with
+      // an alpha channel wants.
+      background: { ...s.background, kind: on ? "solid" : "transparent" },
+    }),
+  },
+  {
     id: "gradient",
+    group: "effect",
     name: "Gradient",
     icon: "gradient",
     sections: [
@@ -485,6 +593,7 @@ export const LAYERS: Layer[] = [
   },
   {
     id: "dots",
+    group: "effect",
     name: "Dots",
     icon: "dots",
     sections: [
@@ -519,6 +628,7 @@ export const LAYERS: Layer[] = [
   },
   {
     id: "image",
+    group: "effect",
     name: "Image",
     icon: "image",
     // No sections: this one's body is the image well, which is a component

@@ -546,7 +546,7 @@ export default function WebsiteSystem() {
 
           <Section
             title="Material bench"
-            note="The one ground this page never had. Both materials over the same hard backdrop — the panel glass and Koshmoney's button, judged against each other rather than against a pale gradient."
+            note="The one ground this page never had. Both materials over the same hard backdrop, judged against each other rather than against a pale gradient."
           >
             <Bench />
           </Section>

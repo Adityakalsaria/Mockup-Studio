@@ -46,7 +46,6 @@ import {
   useSpring,
 } from "@/design/ui";
 import { control, radius } from "@/design/system";
-import { DRAG_SURFACE, useDrag } from "@/design/useDrag";
 import { Stage } from "./Stage";
 import { DEFAULT_RATIO_ID, useStudio, type Studio } from "./useStudio";
 import { LAYERS, layerIsDirty, resetLayer, resetTransform, type Layer } from "./bindings";
@@ -819,18 +818,6 @@ export default function StudioChrome() {
     [state, edit, selectedLayer, popupOpen],
   );
 
-  /*
-   * Every floating surface can be put somewhere else.
-   *
-   * One hook each rather than one shared position: two popups can be open at
-   * once — a tool panel on the left and an effect on the right — and they are
-   * moved for different reasons. Double-tap a header to send one back to where
-   * the layout had it.
-   */
-  const craftDrag = useDrag();
-  const toolDrag = useDrag();
-  const menuDrag = useDrag();
-
   const [account, setAccount] = useState<"settings" | "sign-out">("settings");
   const selected = LAYERS.find((l) => l.id === selectedLayer) ?? null;
   /*
@@ -863,22 +850,7 @@ export default function StudioChrome() {
         {/* The shot itself, under everything. See `Stage`. */}
         <Stage studio={studio} />
 
-        {/*
-          The chrome's layer, stated once here.
-
-          `OverlayLayer` sits at `z-10` so a layer blur can get above the phone,
-          and a positive z-index beats every `z-index: auto` element in its
-          context however they are ordered — so the shot's overlay was painting
-          over the popups, the rail and the stack.
-
-          The obvious fix was to make the stage a stacking context and keep its
-          numbers inside it. That worked, and cost the thing this UI is for: an
-          isolated group is composited on its own, and a `backdrop-filter`
-          above it stops sampling it, so every popup lost its frost the moment
-          the overlay was contained. A layer number on the chrome fixes the
-          order without changing what the stage is made of.
-        */}
-        <div className="pointer-events-none absolute inset-0" style={{ zIndex: 20 }}>
+        <div className="pointer-events-none absolute inset-0">
           {/*
             The gizmo. FIRST in this stack so every panel paints above it:
             it is pinned to the corner while the device list is vertically
@@ -980,11 +952,6 @@ export default function StudioChrome() {
             style={{ right: 16, top: 16, gap: 16 }}
           >
             {menuOpen ? (
-            <div
-              {...{ [DRAG_SURFACE]: "" }}
-              {...menuDrag.handleProps}
-              style={{ ...menuDrag.handleProps.style, ...menuDrag.style }}
-            >
             <Glass width={200}>
               <RowGroup>
                 <Row
@@ -1003,7 +970,6 @@ export default function StudioChrome() {
                 </Row>
               </RowGroup>
             </Glass>
-            </div>
             ) : null}
 
             {/* The account chip. A round glass surface is `Glass shape="pill"`;
@@ -1065,16 +1031,7 @@ export default function StudioChrome() {
               in it.
             */}
             {panelOpen ? (
-              /* The whole panel is the handle. `useDrag` ignores a press that
-                 landed on a control, so the rows keep their clicks and every
-                 empty part of the surface picks it up — which is what anyone
-                 tries first. */
-              <div
-                {...{ [DRAG_SURFACE]: "" }}
-                {...toolDrag.handleProps}
-                className="pointer-events-auto flex flex-col items-center"
-                style={{ gap: 8, ...toolDrag.handleProps.style, ...toolDrag.style }}
-              >
+              <div className="pointer-events-auto flex flex-col items-center" style={{ gap: 8 }}>
                 <Glass width={control.panelW}>
                   <AutoHeight token={customOpen ? `${tool}:custom` : tool}>
                     {tool === "devices" ? (
@@ -1242,7 +1199,18 @@ export default function StudioChrome() {
                               <Icon name={HEADER_ICON.reset} />
                             </HeaderButton>
                           }
-                          closeIcon={<Icon name="chevron" />}
+                          /* Turned, not a second export. The rail's chevron
+                             points the way a row drills IN, and this one is the
+                             way back out — the same mark reversed, which is
+                             what a back affordance is. */
+                          closeIcon={
+                            <span
+                              className="grid place-items-center"
+                              style={{ transform: "rotate(180deg)" }}
+                            >
+                              <Icon name="chevron" />
+                            </span>
+                          }
                           onClose={() => setCustomOpen(false)}
                         >
                           Custom
@@ -1304,7 +1272,6 @@ export default function StudioChrome() {
                    panel width whatever it holds, so a one-colour Background
                    and a three-group Transform are the same object resizing
                    vertically rather than two panels of different shapes. */
-                <div {...{ [DRAG_SURFACE]: "" }} style={craftDrag.style}>
                 <Glass width={control.panelW}>
                   {/*
                     Header and body together inside the spring, not just the
@@ -1324,10 +1291,6 @@ export default function StudioChrome() {
                     >
                   <Header
                     icon={<Icon name={open.icon} />}
-                    /* The header is the handle. Not the whole surface: the body
-                       is sliders, and a drag that started on one would be
-                       moving the panel and the value at once. */
-                    handleProps={craftDrag.handleProps}
                     trailing={<LayerActions layer={open} studio={studio} onDone={closePopup} />}
                     closeIcon={<Icon name="close-rounded" />}
                     onClose={() => setPopupOpen(false)}
@@ -1355,7 +1318,16 @@ export default function StudioChrome() {
                       className="flex flex-col"
                       style={{ gap: "var(--mo-space-2)", paddingBottom: 10 }}
                     >
-                      {open.sections.map((section, i) => (
+                      {open.sections
+                        // A section whose every row is out — the Lid on a
+                        // device with no hinge — takes its title and its rule
+                        // with it, rather than leaving a heading over nothing.
+                        .map((section) => ({
+                          ...section,
+                          fields: section.fields.filter((f) => f.when?.(state) ?? true),
+                        }))
+                        .filter((section) => section.fields.length > 0)
+                        .map((section, i) => (
                         <Fragment key={section.title ?? i}>
                           {i > 0 ? <Divider /> : null}
                           <ParamGroup title={section.title}>
@@ -1412,7 +1384,6 @@ export default function StudioChrome() {
                     </div>
                   </AutoHeight>
                 </Glass>
-                </div>
               ) : null}
 
               {tab === "crafting" ? (
@@ -1429,9 +1400,25 @@ export default function StudioChrome() {
                 */
                 <Glass key="crafting" style={{ height: STACK_HEIGHT }}>
                   <RowGroup>
-                    {LAYERS.map((l) => {
+                    {/*
+                      FLAT, not rows wrapped with their rule.
+
+                      `RowGroup` finds the selection by looking for the child
+                      whose `selected` is true and measures the column's boxes
+                      by the same index. A `Fragment` around each row hides that
+                      prop one level down, so nothing is ever found and the
+                      travelling pill parks at zero — which is the selection
+                      disappearing. A divider emitted as its own sibling counts
+                      in both places and stays in step.
+                    */}
+                    {LAYERS.flatMap((l, i) => {
                       const on = l.isOn(state);
-                      return (
+                      // Where the two halves meet — see `Layer.group`. Read off
+                      // the rows rather than a counted index, so the rule lands
+                      // in the right place whatever the order becomes.
+                      const opensEffects =
+                        i > 0 && l.group === "effect" && LAYERS[i - 1].group === "stage";
+                      const row = (
                         <Row
                           key={l.id}
                           icon={<Icon name={l.icon} />}
@@ -1462,6 +1449,12 @@ export default function StudioChrome() {
                           {l.name}
                         </Row>
                       );
+                      return opensEffects
+                        // 8 either side: a selected row's pill runs to the
+                        // edge of its box, so a rule with no air reads as
+                        // touching whichever row is lit next to it.
+                        ? [<Divider key={`${l.id}-rule`} inset={8} />, row]
+                        : [row];
                     })}
                   </RowGroup>
                 </Glass>

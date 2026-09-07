@@ -25,10 +25,10 @@
  * be rather than by which way they point.
  */
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import Image from "next/image";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type { Group } from "three";
 import { color } from "@/design/system";
 import { DEFAULT_EDITOR_STATE } from "../editor/editorState";
@@ -192,6 +192,7 @@ function Rig({
   timeRef?: { current: number };
 }) {
   const group = useRef<Group>(null);
+  const invalidate = useThree((s) => s.invalidate);
   /* Seeded, not empty. `springTo` reads `vel[key]` before it writes it, so a
      missing key is `undefined` in the arithmetic and the first frame returns
      NaN — which lands in the group's matrix and takes the whole gizmo off
@@ -237,6 +238,8 @@ function Rig({
      * round off the extremes a preset was authored around.
      */
     if (playing && animation && timeRef) {
+      // Playback never settles on its own: every frame is a new sample.
+      invalidate();
       const pose = sampleAnimation(animation, timeRef.current);
       g.rotation.set(
         pose.xAxis === undefined ? target.x : pose.xAxis * DEG,
@@ -253,7 +256,22 @@ function Rig({
     g.rotation.x = springTo(g.rotation.x, nearest(g.rotation.x, target.x), vel.current, "x", dt);
     g.rotation.y = springTo(g.rotation.y, nearest(g.rotation.y, target.y), vel.current, "y", dt);
     g.rotation.z = springTo(g.rotation.z, nearest(g.rotation.z, target.z), vel.current, "z", dt);
+
+    // Another frame only while something is still travelling. Velocity as well
+    // as distance: a spring passes close to its target still carrying speed,
+    // and parking on position alone freezes the arms a fraction short.
+    const moving =
+      Object.values(vel.current).some((v) => Math.abs(v) > 1e-3) ||
+      Math.abs(g.rotation.x - target.x) > 1e-4 ||
+      Math.abs(g.rotation.y - target.y) > 1e-4 ||
+      Math.abs(g.rotation.z - target.z) > 1e-4;
+    if (moving) invalidate();
   });
+
+  // A new pose arrives as a prop, and a parked loop has no way to notice.
+  useEffect(() => {
+    invalidate();
+  }, [target.x, target.y, target.z, invalidate]);
 
   return (
     <group ref={group} scale={shape.scale}>
@@ -463,18 +481,38 @@ export default function GizmoCanvas({
         // make the near arm longer than the far one for reasons of distance
         // rather than of orientation.
         orthographic
+        /*
+         * On demand. The gizmo is six meshes that are still most of the time,
+         * and a canvas drawing anyway is a canvas holding a GPU context busy
+         * beside the phone's — which is the pressure that gets one of them
+         * dropped to begin with. `Rig` asks for a frame while it is moving.
+         */
+        frameloop="demand"
         camera={{ position: [2.2, 1.8, 2.6], zoom: size / 3.4 }}
         gl={{ alpha: true, antialias: true }}
         style={{ width: size, height: size, background: "transparent" }}
         dpr={[1, 2]}
-        // A context can also be taken away after it is granted — another tab
-        // asking for one is enough. Falling back on the way out matters as much
-        // as checking on the way in.
-        onCreated={({ gl }) =>
-          gl.domElement.addEventListener("webglcontextlost", () => setLive(false), {
-            once: true,
-          })
-        }
+        /*
+         * A context can be taken away after it is granted, and given back.
+         *
+         * Falling back on the way out was only half of it: the listener fired
+         * once, flipped to the flat artwork and stayed there — so a gizmo that
+         * lost its context to a hot reload or to another tab never came back
+         * without a full page load. That is the "it keeps stopping".
+         *
+         * `preventDefault` is what makes the difference. The default action for
+         * `webglcontextlost` is to abandon the context for good; a cancelled
+         * event asks the browser to restore it, and `webglcontextrestored`
+         * then arrives on its own.
+         */
+        onCreated={({ gl }) => {
+          const canvas = gl.domElement;
+          canvas.addEventListener("webglcontextlost", (event) => {
+            event.preventDefault();
+            setLive(false);
+          });
+          canvas.addEventListener("webglcontextrestored", () => setLive(true));
+        }}
       >
         {/*
           No OrbitControls. They moved the CAMERA, which is the one thing in

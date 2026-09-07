@@ -211,6 +211,19 @@ export interface Device {
    */
   fold?: { openSec: number; closedSec: number };
   /**
+   * A lid with no animation to drive it — build the hinge from the geometry.
+   *
+   * `fold` needs a clip, and the MacBook models carry none: their lids are
+   * modelled open and welded there. But a laptop lid is one rigid body turning
+   * about one straight edge, which is the easiest joint there is to infer.
+   * Everything above `splitY` of the model's height is the lid, the top back
+   * edge of what remains is the hinge, and the angle to close is read off the
+   * lid's own tilt rather than typed in per device.
+   *
+   * Both devices, one line each, and no re-export: see `buildLidHinge`.
+   */
+  lidHinge?: { splitY: number };
+  /**
    * A second screen on the same body, with its own source.
    *
    * A fold has two: the big inner panel you open it for, and the cover panel
@@ -1546,6 +1559,8 @@ export const DEVICES: Device[] = [
   },
   {
     id: "apple-macbook-neo",
+    // 0.25 of 188mm is 47mm: clear of the 12mm base deck and far under the 98mm the lid's lowest mesh centres at.
+    lidHinge: { splitY: 0.25 },
     label: "Apple MacBook",
     modelPath: `${MODELS}/apple-macbook-neo.glb`,
     hideHints: [],
@@ -1650,6 +1665,8 @@ export const DEVICES: Device[] = [
   },
   {
     id: "apple-macbook-pro-14",
+    // 0.25 of 202mm is 50mm, against a 12mm base and a lid whose lowest mesh centres at 98mm.
+    lidHinge: { splitY: 0.25 },
     label: "Apple MacBook Pro 14\"",
     modelPath: `${MODELS}/apple-macbook-pro-14.glb`,
     hideHints: [],
@@ -2101,6 +2118,11 @@ export const DEVICES: Device[] = [
  * is the most worked-over model here, so it is the one to land on.
  */
 export const DEFAULT_DEVICE_ID = "apple-iphone-17-pro";
+
+/** Can this device be opened and shut, by clip or by hinge? */
+export function canFold(device: Device): boolean {
+  return Boolean(device.fold || device.lidHinge);
+}
 
 export function getDevice(id: string | undefined): Device {
   return DEVICES.find((d) => d.id === id) ?? DEVICES[0];

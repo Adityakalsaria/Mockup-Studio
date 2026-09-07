@@ -468,9 +468,15 @@ export function Row({ icon, children, trailing, value, selected, onClick, title 
 /**
  * A colour chip, at icon size, for a row that names a finish.
  *
- * Its edge and shadow are `material.swatch` — the pair `ColorRow` already uses
- * — rather than the frame's own 1px/6px/27px, which is that pair scaled up by
- * a quarter. Two swatches at two sizes is how a system stops being one.
+ * Its edge is `material.swatch`'s — the same hairline `ColorRow` uses, rather
+ * than the frame's own 1px, which is that value scaled up by a quarter. Two
+ * swatches at two sizes is how a system stops being one.
+ *
+ * The CAST is where the two part company, and deliberately. A colour picker's
+ * chip is a control you press, and the shadow says so; this one is a row's
+ * icon, sitting in a list beside a label, and the same 21.6px cast under it
+ * reads as the row lifting off the panel rather than as a chip with depth.
+ * Nine of them down a device list is nine rows apparently floating.
  */
 export function Swatch({ color }: { color: string }) {
   return (
@@ -482,7 +488,6 @@ export function Swatch({ color }: { color: string }) {
         borderRadius: "var(--mo-r-swatch)",
         background: color,
         border: "var(--mo-swatch-edge)",
-        boxShadow: "var(--mo-swatch-shadow)",
       }}
     />
   );
@@ -840,7 +845,6 @@ export function Header({
   icon,
   children,
   trailing,
-  handleProps,
   onClose,
   closeIcon,
 }: {
@@ -862,16 +866,6 @@ export function Header({
    * pill behind it.
    */
   trailing?: ReactNode;
-  /**
-   * Makes the title bar a drag handle — pass `useDrag().handleProps`.
-   *
-   * A title bar is the one part of a popup guaranteed not to be a control,
-   * which is exactly what makes it the thing to grab, and it is the right
-   * handle for a panel whose body is sliders: a drag that started on one would
-   * move the panel and the value at once. Its own buttons keep their presses —
-   * the hook ignores a press that landed on a control.
-   */
-  handleProps?: Record<string, unknown>;
   onClose?: () => void;
   /**
    * The glyph for the close button. The system draws its own by default; a
@@ -882,10 +876,8 @@ export function Header({
 }) {
   return (
     <div
-      {...handleProps}
       className="flex w-full items-center"
       style={{
-        ...(handleProps?.style as CSSProperties | undefined),
         gap: "var(--mo-space-1_5)",
         padding: "10px var(--mo-space-2)",
         borderRadius: "var(--mo-r-row)",
@@ -1510,12 +1502,16 @@ export function ParamGroup({ title, children }: { title?: string; children: Reac
  * strength whatever the panel happens to be over, and `--mo-field` is already
  * that colour doing the same job behind a readout.
  */
-export function Divider() {
+export function Divider({ inset }: { inset?: number }) {
   return (
     <span
       aria-hidden
       className="block w-full shrink-0"
-      style={{ height: 1, background: "var(--mo-field)" }}
+      // Margin rather than a taller box: in a `RowGroup` the rule is a
+      // measured child like any other, and giving it height would hand the
+      // travelling pill a box to stop at. Margin keeps the line 1px and puts
+      // the air outside it.
+      style={{ height: 1, background: "var(--mo-field)", margin: inset ? `${inset}px 0` : undefined }}
     />
   );
 }

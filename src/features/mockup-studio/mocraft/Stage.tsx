@@ -58,11 +58,6 @@ function StageInner({ studio }: { studio: Studio }) {
               }),
         }}
       >
-        {/* Over the phone by definition — a layer blur is composited on top of
-            the shot, and putting it under the canvas would make it a
-            background, which the Background layer already is. */}
-        {isOverlayActive(state.overlay) ? <OverlayLayer overlay={state.overlay} /> : null}
-
         <PhoneStage3D
           rail={undefined}
           screenTexture={screenTexture}
@@ -108,6 +103,22 @@ function StageInner({ studio }: { studio: Studio }) {
           onRotateDrag={studio.nudgeRotation}
           onScaleWheel={studio.nudgeZoom}
         />
+
+        {/*
+          Over the phone by definition — a layer blur is composited on top of
+          the shot, and putting it under the canvas would make it a background,
+          which the Background layer already is.
+
+          AFTER the phone, and with no z-index: paint order is what lifts it
+          now. `raise` exists because the alternative was containing a stray
+          `z-10`, and the only way to contain one is a stacking context on this
+          frame — which composites the stage as its own group and stops the
+          chrome's `backdrop-filter` from sampling it. The popups lost their
+          frost every time that was tried.
+        */}
+        {isOverlayActive(state.overlay) ? (
+          <OverlayLayer overlay={state.overlay} raise={false} />
+        ) : null}
       </div>
     </div>
   );

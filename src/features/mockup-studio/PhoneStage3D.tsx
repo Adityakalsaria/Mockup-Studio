@@ -1314,7 +1314,7 @@ function GLBPhoneScene({
   const gltf = useGLTF(device.modelPath as string);
   const {
     scene, width, height, depth, screen, screenMaterials, coverMaterials, mixer,
-    leafRest, hinge, foldRoot,
+    leafRest, hinge, lidHinge, foldRoot,
   } = useMemo(() => {
     const cloned = cloneSkinned(gltf.scene) as Group;
 
@@ -1343,6 +1343,11 @@ function GLBPhoneScene({
     let mixer: AnimationMixer | null = null;
     const leafRest: { leaf: Object3D; rest: Quaternion }[] = [];
     let hinge: Object3D | null = null;
+    /* A geometric lid, for the models with no clip. Built before the pose is
+       measured, so the silhouette is taken with the lid where it belongs. */
+    const lidHinge = device.lidHinge && !clip
+      ? buildLidHinge(cloned, device.lidHinge.splitY)
+      : null;
     if (device.fold && clip) {
       mixer = new AnimationMixer(cloned);
       mixer.clipAction(clip).play();
@@ -2097,6 +2102,7 @@ function GLBPhoneScene({
       mixer,
       leafRest,
       hinge,
+      lidHinge,
       foldRoot: cloned,
     };
     // Grain is in here because the tint pass is where it is applied: the
@@ -2138,7 +2144,8 @@ function GLBPhoneScene({
   const foldVel = useRef<Record<string, number>>({ f: 0 });
   const foldNow = useRef<number | null>(null);
   useFrame((state, dt) => {
-    if (!mixer || !foldRange) return;
+    // Either driver will do: a clip to scrub, or a hinge built from the shape.
+    if (!(mixer && foldRange) && !lidHinge) return;
     let target = fold ?? 0;
     if (animation && timeRef) {
       const pose = sampleAnimation(animation, timeRef.current);
@@ -2155,9 +2162,24 @@ function GLBPhoneScene({
       foldNow.current = springTo(foldNow.current, target, foldVel.current, "f", dt);
     }
     const t = foldNow.current / 100;
-    mixer.setTime(
-      foldRange.openSec + (foldRange.closedSec - foldRange.openSec) * t,
-    );
+    if (mixer && foldRange) {
+      mixer.setTime(
+        foldRange.openSec + (foldRange.closedSec - foldRange.openSec) * t,
+      );
+    }
+    /*
+     * One rotation about one edge, which is all a laptop lid is.
+     *
+     * No re-anchoring of the kind the clip path needs below: this pivot IS the
+     * hinge, so the lid turns about the line it is hinged on and the deck
+     * never moves. The angle came off the model — see `buildLidHinge` — so t=1
+     * lays the lid on the keyboard rather than through it.
+     */
+    // `set`, not an assignment to `.x`: the pivot comes out of the memo above,
+    // and the React Compiler reads a property write on a memoised value as a
+    // mutation it cannot account for. The same reason `foldRoot.position.set`
+    // is written that way below.
+    if (lidHinge) lidHinge.pivot.rotation.set(t * lidHinge.openRad, 0, 0);
 
     /*
      * Lock the hinge, and let the leaves swing.
@@ -2621,6 +2643,69 @@ const FOLD_HALF = new Quaternion();
 const FOLD_HALF_INV = new Quaternion();
 const FOLD_ANCHOR = new Vector3();
 const FOLD_ANCHOR_REST = new Vector3();
+
+/**
+ * A hinge inferred from the geometry, for a lid with no clip to swing it.
+ *
+ * The MacBook models are modelled open and carry no animations at all, so
+ * there is nothing to scrub. What there is, is a shape that states the joint
+ * plainly: a flat deck at the bottom, a panel standing up and leaning back,
+ * and one straight edge where they meet. That is enough to build the hinge
+ * the exporter did not.
+ *
+ * Three things are read, none of them typed in per device:
+ *
+ *  - WHICH MESHES ARE THE LID. Everything whose centre sits above `splitY` of
+ *    the model's height. On both MacBooks the deck's meshes centre within 4mm
+ *    of the floor and the lid's no lower than 98mm, so the split is not a fine
+ *    judgement — it is a gap with nothing in it.
+ *  - WHERE THE HINGE IS. The top back edge of what is left: the highest point
+ *    of the deck, at its rearmost. A laptop turns about exactly that line.
+ *  - HOW FAR IT IS OPEN. The angle between the lid's own axis — hinge to lid
+ *    centre — and where that axis points when the lid is shut, which is
+ *    forward along +Z, lying on the deck. Reading it off the model means a
+ *    lid modelled at 105 degrees and one at 115 both close, rather than one of
+ *    them closing through the keyboard.
+ *
+ * The lid meshes are then `attach`ed to a group at the hinge — `attach`, not
+ * `add`, because it preserves world transforms, so nothing moves until the
+ * group is rotated.
+ */
+function buildLidHinge(root: Group, splitY: number) {
+  const whole = new Box3().setFromObject(root);
+  const cut = whole.min.y + (whole.max.y - whole.min.y) * splitY;
+
+  const lid: Object3D[] = [];
+  const base = new Box3().makeEmpty();
+  const lidBox = new Box3().makeEmpty();
+  root.traverse((o) => {
+    if (!(o as Mesh).isMesh) return;
+    const box = new Box3().setFromObject(o);
+    if (box.getCenter(new Vector3()).y > cut) {
+      lid.push(o);
+      lidBox.union(box);
+    } else {
+      base.union(box);
+    }
+  });
+  if (!lid.length || base.isEmpty()) return null;
+
+  const hingeY = base.max.y;
+  const hingeZ = base.min.z;
+  const pivot = new Group();
+  pivot.position.set(0, hingeY, hingeZ);
+  root.add(pivot);
+  // `attach` keeps each mesh exactly where it is; only the parent changes.
+  for (const mesh of lid) pivot.attach(mesh);
+
+  // The lid's axis as modelled, against the same axis lying shut.
+  const centre = lidBox.getCenter(new Vector3());
+  const open = new Vector3(0, centre.y - hingeY, centre.z - hingeZ).normalize();
+  const shut = new Vector3(0, 0, 1);
+  const openRad = Math.acos(Math.max(-1, Math.min(1, open.dot(shut))));
+
+  return { pivot, openRad };
+}
 
 /**
  * The GLB is authored facing away from the camera, so something has to turn it
