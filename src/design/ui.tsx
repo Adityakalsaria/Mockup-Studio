@@ -1228,6 +1228,7 @@ export function Slider({
   step = 0.01,
   onChange,
   label,
+  track,
   glass,
   spring,
   press,
@@ -1238,6 +1239,16 @@ export function Slider({
   step?: number;
   onChange: (n: number) => void;
   label: string;
+  /**
+   * What the track is made of, for a slider whose value is not an amount.
+   *
+   * A hue runs through every colour there is: the track IS the scale, so there
+   * is no "so far" to fill in and `fill` goes transparent. Everything else —
+   * the knob, its refraction of whatever is underneath it, the press swell,
+   * the spring — is the slider's own, which is the point of putting this here
+   * rather than rebuilding a knob that only resembles the others.
+   */
+  track?: { background?: string; fill?: string };
   /**
    * Overrides `material.lens.knob`, `material.knob.blur` and the knob's
    * corner. The knob is the one lens small enough that a pixel of bevel or
@@ -1368,7 +1379,7 @@ export function Slider({
                 width: trackW || "100%",
                 height: control.slider.trackH,
                 borderRadius: "var(--mo-r-pill)",
-                background: "var(--mo-field)",
+                background: track?.background ?? "var(--mo-field)",
                 overflow: "hidden",
                 opacity: glassiness,
                 // Frost, and deliberately NOT `backdrop-filter`. The knob
@@ -1387,7 +1398,7 @@ export function Slider({
                   width: fill,
                   height: "100%",
                   borderRadius: "var(--mo-r-pill)",
-                  background: "var(--mo-ink-muted)",
+                  background: track?.fill ?? "var(--mo-ink-muted)",
                 }}
               />
             </div>
@@ -1417,7 +1428,7 @@ export function Slider({
           style={{
             height: control.slider.trackH,
             borderRadius: "var(--mo-r-pill)",
-            background: "var(--mo-field)",
+            background: track?.background ?? "var(--mo-field)",
           }}
         >
           <div
@@ -1429,7 +1440,7 @@ export function Slider({
               // leading edge — the one that travels with the knob — came out
               // as a hard cut against the empty track behind it.
               borderRadius: "var(--mo-r-pill)",
-              background: "var(--mo-ink-muted)",
+              background: track?.fill ?? "var(--mo-ink-muted)",
             }}
           />
         </div>

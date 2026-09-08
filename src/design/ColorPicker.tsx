@@ -22,28 +22,63 @@
  * system's.
  */
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Image from "next/image";
 import { hexToHsv, hsvToHex, isLight, parseHex, type Hsv } from "./color";
 import { control, radius } from "./system";
-import { Glass } from "./ui";
+import { Glass, Slider } from "./ui";
 
+/** The frame's own numbers: a 132 square, 6 between the rows. The hue's own
+    height is `control.paramH`, which is the frame's 24. */
 const SQUARE_H = 132;
 /**
- * The square's corner, and the recents' — the panel's own, less the padding
- * between them.
+ * Concentric with THIS panel, which is not the frame's panel.
  *
- * Concentric: two curves separated by a constant gap are only parallel if the
- * inner one is tighter by exactly that gap. At the panel's 20 the square read
- * as a second panel rattling inside the first.
+ * The frame draws the square at 16 inside a popup cornered at 24, with 8
+ * between them — 24 less 8 is 16, so the frame is concentric with itself. Ours
+ * is `--mo-r-panel`, which is 20, so the same rule gives 12. Taking the 16
+ * across literally imported the frame's outer corner without it, and the
+ * square read as a second panel rattling inside the first.
  */
 const SQUARE_R = radius.panel - 8;
-/** The hue knob, which is the slider's own knob at the system's size. */
-const KNOB_W = control.slider.knobW;
-const KNOB_H = control.slider.knobH;
+
+/** The marker's radius, including its ring. */
+const MARK_R = 7;
+
+/**
+ * The two rows under the square are PILLS, as the frame draws them: a 12px
+ * inset, a capsule corner, a fifth of white, and a hairline ring under a very
+ * wide soft drop. One shape, twice — the hex and the recents are the same kind
+ * of thing, a strip of colour you can act on.
+ */
+const PILL = {
+  padding: 12,
+  borderRadius: "var(--mo-r-selected)",
+  background: "rgb(255 255 255 / 0.2)",
+  boxShadow: "0 0 0 1px rgb(0 0 0 / 0.05), 0 0 137.391px 0 rgb(0 0 0 / 0.2)",
+} as const;
+/** Every hue, in the order a wheel runs through them. */
+const SPECTRUM =
+  "linear-gradient(to right, #f00, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00)";
 const RECENTS_KEY = "mo-recent-colors";
-const RECENTS_MAX = 8;
-const GAP = 10;
+const RECENTS_MAX = 10;
+/*
+ * The frame's spacings, read off its redline.
+ *
+ * The 10s in it are measured to the KNOB, not to the slider's box — and the
+ * knob is 16 tall, centred in a 24 row, so it starts 4 in. Square to knob 10
+ * is therefore square to row 6, and knob to hex 10 is row to hex 6. `GAP` is
+ * that 6.
+ *
+ * The recents are set apart: 18 below the hex rather than 6, and 20 from the
+ * panel's own edges on both sides and underneath. They are not another row of
+ * the control — they are what you used before, kept nearby.
+ */
+const GAP = 6;
+const RECENTS_GAP = 18;
+/** 20 from the panel edge, of which the surface already gives 8. */
+const RECENTS_INSET = 20 - 8;
 
 /** Chromium only, and absent on any insecure origin. */
 type EyeDropperCtor = new () => { open: () => Promise<{ sRGBHex: string }> };
@@ -75,14 +110,28 @@ function pushRecent(hex: string) {
   }
 }
 
-/** A pipette, drawn: the system has no exported one, and this is the only
-    place that wants it. Same stroke family as its other glyphs. */
+/**
+ * The eyedropper, as the file draws it.
+ *
+ * It replaces a pipette I drew while the frame had none — a stroked
+ * approximation in the system's own hand, which is the right stopgap and the
+ * wrong answer once there is an export. This one is filled, spans 2.57 to
+ * 17.64 of its 20 box, and is #5A5A5A like the rest of the set.
+ *
+ * Referenced by URL rather than imported, because the design system has no
+ * asset pipeline of its own and this is the one glyph in it that comes from
+ * the file. `unoptimized` for the same reason every other icon here is: Next's
+ * optimiser refuses SVGs unless the whole app opts into `dangerouslyAllowSVG`.
+ */
 function DropperIcon() {
   return (
-    <svg viewBox="0 0 20 20" width={16} height={16} aria-hidden fill="none"
-      stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M13.2 3.6a2 2 0 0 1 2.8 2.8l-1.1 1.1 1 1-1.4 1.4-1-1-5.3 5.3-2.8.6.6-2.8 5.3-5.3-1-1 1.4-1.4 1 1z" />
-    </svg>
+    <Image
+      src="/figma-assets/mockup-studio/icons/eyedropper.svg"
+      alt=""
+      width={16}
+      height={16}
+      unoptimized
+    />
   );
 }
 
@@ -143,7 +192,6 @@ function Popover({
   onClose: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const titleId = useId();
 
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   // Read once, on the render that follows the click that opened this. The
@@ -160,9 +208,24 @@ function Popover({
    */
   const [hue, setHue] = useState(() => hexToHsv(value)?.h ?? 0);
 
+  /*
+   * Saturation and value come from the colour; the hue comes from the knob.
+   *
+   * It used to read the hue back out of the hex whenever the colour had one,
+   * and that is a round trip through a wrap: 360 and 0 are the same red, so
+   * dragging into the far right end produced a hex that reads as hue 0 and the
+   * knob jumped the whole width of the track back to the left. Between those
+   * ends it was quietly lossy too — eight bits per channel cannot hold 360
+   * distinct hues, so the knob crept against the drag.
+   *
+   * The knob's position is a thing this component owns and nothing else can
+   * tell it. What arrives from outside — a pasted hex, a recent swatch — goes
+   * through `commitHex`, which sets the hue explicitly, so the one case that
+   * genuinely knows better still wins.
+   */
   const hsv = useMemo<Hsv>(() => {
     const parsed = hexToHsv(value) ?? { h: hue, s: 0, v: 0 };
-    return { h: parsed.s === 0 || parsed.v === 0 ? hue : parsed.h, s: parsed.s, v: parsed.v };
+    return { h: hue, s: parsed.s, v: parsed.v };
   }, [value, hue]);
 
   // Recorded on close, not on every change: dragging across the square would
@@ -296,12 +359,6 @@ function Popover({
     });
   });
 
-  const onHue = drag((x, _y, rect) => {
-    const usable = rect.width - KNOB_W;
-    const t = Math.max(0, Math.min(1, (x - rect.left - KNOB_W / 2) / usable));
-    set({ h: t * 360 });
-  });
-
   const commitHex = (raw: string) => {
     const parsed = parseHex(raw);
     if (parsed) {
@@ -332,7 +389,7 @@ function Popover({
       ref={rootRef}
       role="dialog"
       aria-modal={false}
-      aria-labelledby={titleId}
+      aria-label="Colour picker"
       /*
        * ABSOLUTE, in page coordinates — not fixed, and with no z-index.
        *
@@ -357,10 +414,6 @@ function Popover({
       onPointerDown={(event) => event.stopPropagation()}
     >
       <Glass style={{ gap: GAP }}>
-        <span id={titleId} className="sr-only">
-          {`Colour picker`}
-        </span>
-
         {/* Saturation across, value down, over the current hue. Two CSS
             gradients do what a canvas would and stay sharp at any zoom. */}
         <div
@@ -369,20 +422,30 @@ function Popover({
           style={{
             height: SQUARE_H,
             borderRadius: SQUARE_R,
-            border: "var(--mo-swatch-edge)",
             background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${hsv.h} 100% 50%))`,
           }}
         >
+          {/*
+            Kept inside its own square.
+            
+            The marker sits ON the value, so at full white or pure black it is
+            centred on a corner with half of it outside — and the square clips,
+            so half a ring is what you see. Clamped by its own radius, the whole
+            ring stays visible and the reading is off by at most seven pixels
+            at the very extremes, which is a better trade than a mark that
+            disappears exactly when you have driven the colour somewhere
+            deliberate.
+          */}
           <span
             aria-hidden
             className="pointer-events-none absolute"
             style={{
-              left: `${hsv.s * 100}%`,
-              top: `${(1 - hsv.v) * 100}%`,
-              width: 14,
-              height: 14,
-              marginLeft: -7,
-              marginTop: -7,
+              left: `calc(${hsv.s * 100}% + ${(0.5 - hsv.s) * MARK_R * 2}px)`,
+              top: `calc(${(1 - hsv.v) * 100}% + ${(hsv.v - 0.5) * MARK_R * 2}px)`,
+              width: MARK_R * 2,
+              height: MARK_R * 2,
+              marginLeft: -MARK_R,
+              marginTop: -MARK_R,
               borderRadius: 999,
               border: `2px solid ${markerDark ? "#000" : "#fff"}`,
               boxShadow: "var(--mo-knob-shadow)",
@@ -390,84 +453,111 @@ function Popover({
           />
         </div>
 
-        <div className="flex w-full items-center" style={{ gap: GAP }}>
+        {/*
+          The hue is the system's `Slider`, with the spectrum as its track.
+          
+          It was a hand-built row with a knob that copied the real one's
+          numbers. Copying is how two knobs drift: this one gets the actual
+          component, so it refracts the spectrum underneath it, swells under a
+          press and travels on the same spring as every other knob in the
+          interface, because it IS every other knob.
+          
+          `fill` goes transparent because a hue has no "so far" — the track is
+          the scale, not a quantity. `paramH` is 24, which is the frame's Stack
+          height exactly.
+        */}
+        {/*
+          In a ROW, because `Slider` is built to be one.
+          
+          Its root carries `flex-1`, which is how it takes the space a
+          `ParamRow` has left after the label and the readout. Dropped straight
+          into this column, `flex-1` resolves against the column's main axis
+          instead — basis 0, nothing to grow into — so the row collapsed to no
+          height at all, and a knob centred on a zero-height line sat straddling
+          the square's bottom edge with the track welded to it.
+          
+          The wrapper gives it a horizontal axis to be `flex-1` in, and the
+          height the frame asks for.
+        */}
+        <div className="flex w-full items-center" style={{ height: control.paramH }}>
+          <Slider
+            label="Hue"
+            value={hsv.h}
+            min={0}
+            max={360}
+            step={1}
+            onChange={(h) => set({ h })}
+            track={{ background: SPECTRUM, fill: "transparent" }}
+          />
+        </div>
+
+        {/*
+          The hex, in a pill with the colour beside it.
+          
+          A swatch and its value read as one statement — this IS that red — in
+          a way a bare field does not, and it gives the row something to be
+          when the field is empty mid-edit. The eyedropper rides the far end of
+          the same pill: the frame does not draw one, but it is the fastest way
+          to match a colour already on the screen and it costs the layout
+          nothing, sitting in the room the pill already has.
+        */}
+        <div className="flex w-full items-center" style={{ ...PILL, gap: 4 }}>
+          <span
+            aria-hidden
+            className="shrink-0"
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: "var(--mo-r-swatch)",
+              border: "var(--mo-swatch-edge)",
+              boxShadow: "var(--mo-swatch-shadow)",
+              background: value,
+            }}
+          />
+          <input
+            value={(draft ?? value).toUpperCase()}
+            aria-label="Hex"
+            spellCheck={false}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={(event) => commitHex(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") commitHex((event.target as HTMLInputElement).value);
+              if (event.key === "Escape") setDraft(null);
+            }}
+            className="mo-code min-w-0 flex-1 bg-transparent tabular-nums outline-none"
+          />
           {supportsDropper ? (
             <button
               type="button"
               aria-label="Pick a colour from the screen"
               onClick={pickFromScreen}
               className="grid shrink-0 cursor-pointer place-items-center"
-              style={{ width: control.icon, height: control.icon, color: "var(--mo-ink)" }}
+              style={{ width: 16, height: 16, color: "var(--mo-ink)" }}
             >
               <DropperIcon />
             </button>
           ) : null}
-
-          {/* The hue track carries the spectrum, and the knob is the slider's
-              own — one knob shape in the system, whatever it is riding. */}
-          <div
-            onPointerDown={onHue}
-            className="relative min-w-0 flex-1 cursor-pointer touch-none"
-            style={{ height: KNOB_H }}
-          >
-            <span
-              aria-hidden
-              className="absolute inset-x-0"
-              style={{
-                top: (KNOB_H - control.slider.trackH) / 2,
-                height: control.slider.trackH,
-                borderRadius: 999,
-                background:
-                  "linear-gradient(to right, #f00, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00)",
-              }}
-            />
-            <span
-              role="slider"
-              aria-label="Hue"
-              aria-valuemin={0}
-              aria-valuemax={360}
-              aria-valuenow={Math.round(hsv.h)}
-              tabIndex={0}
-              onKeyDown={(event) => {
-                const step = event.shiftKey ? 10 : 1;
-                if (event.key === "ArrowLeft") set({ h: (hsv.h - step + 360) % 360 });
-                if (event.key === "ArrowRight") set({ h: (hsv.h + step) % 360 });
-              }}
-              className="absolute block"
-              style={{
-                left: `calc(${(hsv.h / 360) * 100}% - ${(hsv.h / 360) * KNOB_W}px)`,
-                width: KNOB_W,
-                height: KNOB_H,
-                borderRadius: 999,
-                background: "var(--mo-knob)",
-                boxShadow: "var(--mo-knob-shadow)",
-              }}
-            />
-          </div>
         </div>
 
-        <input
-          value={(draft ?? value).toUpperCase()}
-          aria-label="Hex"
-          spellCheck={false}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={(event) => commitHex(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") commitHex((event.target as HTMLInputElement).value);
-            if (event.key === "Escape") setDraft(null);
-          }}
-          className="mo-code w-full tabular-nums outline-none"
-          style={{
-            height: 32,
-            padding: "0 var(--mo-space-2)",
-            borderRadius: "var(--mo-r-field)",
-            background: "var(--mo-field)",
-            color: "var(--mo-ink)",
-          }}
-        />
-
+        {/*
+          No pill around these — just the colours.
+          
+          The hex row is a pill because it is a control you act on: a field, a
+          swatch, a dropper, held together as one thing. The recents are not a
+          control, they are a row of marks, and a surface drawn around them made
+          them look like one more button rather than the eight or ten small ones
+          they are. They keep the pill's 12px inset so the first swatch lines up
+          with the one above it.
+        */}
         {recents.length ? (
-          <div className="flex w-full flex-wrap items-center" style={{ gap: 6 }}>
+          <div
+            className="flex w-full items-center justify-between"
+            style={{
+              marginTop: RECENTS_GAP - GAP,
+              marginBottom: RECENTS_INSET,
+              padding: `0 ${RECENTS_INSET}px`,
+            }}
+          >
             {recents.map((hex) => (
               <button
                 key={hex}
@@ -481,6 +571,7 @@ function Popover({
                   height: 16,
                   borderRadius: "var(--mo-r-swatch)",
                   border: "var(--mo-swatch-edge)",
+                  boxShadow: "var(--mo-swatch-shadow)",
                   background: hex,
                 }}
               />
