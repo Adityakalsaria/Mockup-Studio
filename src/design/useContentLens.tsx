@@ -33,6 +33,7 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useState,
   useSyncExternalStore,
   type CSSProperties,
@@ -144,9 +145,29 @@ export function AaveGlass({
     () => false,
   );
 
+  /*
+   * BEFORE PAINT, both of them.
+   *
+   * `generateLensMap` is synchronous — it draws a canvas and hands the URL
+   * straight back — but it was being run from `useEffect`, which fires after
+   * the browser has already painted the frame. So the first paint of any lens
+   * had `map === null`, which makes `active` false, which drops the filter
+   * reference entirely: the pill appeared as its own material and rim, and the
+   * refraction arrived a frame later. That is the flash — an outline in flat
+   * white, and then the finished pill.
+   *
+   * A layout effect runs after the DOM is in place and before the paint, which
+   * is exactly the window this needs: the node can be measured, and the map is
+   * ready in the same frame the pill is first drawn in.
+   *
+   * `useEffect` on the server, where layout effects warn and there is nothing
+   * to measure anyway.
+   */
+  const useMeasureEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
   // Shape only — observe the lens box. Transform/`x` does not change layout
   // size, so dragging never rebuilds the PNG.
-  useEffect(() => {
+  useMeasureEffect(() => {
     if (!lensNode || !enabled) {
       setMap(null);
       setMapKey("");
@@ -169,7 +190,7 @@ export function AaveGlass({
     return () => observer.disconnect();
   }, [lensNode, enabled, lens.borderRadius, lens.width, lens.height, bevel]);
 
-  useEffect(() => {
+  useMeasureEffect(() => {
     if (!enabled || !mapKey || !lensNode) {
       setMap(null);
       return;

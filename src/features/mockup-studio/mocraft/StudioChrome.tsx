@@ -28,6 +28,7 @@ import { GIZMO_SHAPE } from "./GizmoCanvas";
 import {
   AutoHeight,
   Button,
+  Checkbox,
   ColorRow,
   DesignSystem,
   Divider,
@@ -326,15 +327,43 @@ const GizmoCanvas = dynamic(() => import("./GizmoCanvas").then((m) => m.default)
 });
 
 /**
- * The add / remove glyph: a plus whose upright retracts into a minus.
+ * The popup header's three acts, as the file draws them.
  *
- * It used to be a plus rotated 45 degrees into a cross, on the reasoning that
- * the two are the same three strokes at a different angle and so can actually
- * interpolate. True, and the wrong pair: a cross beside a row means "close
- * this", and the row is not a thing to be closed — it is an effect that is in
- * the composition or is not. Plus and minus are that pair, and they turn out to
- * interpolate even more directly: they ARE the same mark, one with its upright
- * and one without, so the change is a single stroke retracting into the other.
+ * Reset and delete were a drawn approximation until the designer exported this
+ * set — three 20x20 frames meant to sit in one header — and the set answers a
+ * question the approximation had got wrong. They are NOT the same size: the
+ * close's X spans 10.96 of its box, the reset's ring 12.8, the trash 14.6. A
+ * ring of thin strokes and a solid X carry different weight at equal size, so
+ * equal size is exactly what makes them look unequal; the file compensates by
+ * drawing the lighter marks bigger, and the three read as peers because of it.
+ *
+ * Which is why these are the exported assets and not geometry rebuilt here:
+ * that balance is a judgement per glyph, not a rule that can be derived.
+ *
+ * The set's Close is byte-identical to `close-rounded.svg`, already in the
+ * file and already this header's close — so there is no fourth asset, and
+ * nothing to reconcile.
+ */
+const HEADER_ICON = { reset: "header-reset", delete: "header-delete" } as const;
+
+/**
+ * The applied / neutral glyph: a plus whose upright retracts into a minus.
+ *
+ * For the two rows a checkbox would lie about. Transform and Camera cannot be
+ * taken out of a shot — the phone is always somewhere at some angle, and the
+ * lens always has a focal length — so a box that says "in the shot" would be
+ * ticked forever and answer nothing.
+ *
+ * It follows the SELECTION: the row you have open offers the minus, because
+ * that is the row whose values you are in a position to clear. Every other one
+ * offers the plus, which opens it. Membership is already carried by ink — the
+ * open row is the one at full strength — so the glyph is free to say what the
+ * press will do rather than repeat what the ink has said.
+ *
+ * The mark interpolates because plus and minus ARE the same mark, one with its
+ * upright and one without, so the change is a single stroke retracting into
+ * the other. (An earlier version turned the plus 45 degrees into a cross,
+ * which reads as "close this" — and the row is not a thing to be closed.)
  *
  * Which is why the plus is drawn here rather than taken from `expand.svg`. An
  * image cannot animate half of itself. The geometry is that file's, read off
@@ -386,24 +415,95 @@ function ToggleGlyph({ on }: { on: boolean }) {
 }
 
 /**
- * The popup header's three acts, as the file draws them.
+ * Getting the shot out, at the foot of the stack.
  *
- * Reset and delete were a drawn approximation until the designer exported this
- * set — three 20x20 frames meant to sit in one header — and the set answers a
- * question the approximation had got wrong. They are NOT the same size: the
- * close's X spans 10.96 of its box, the reset's ring 12.8, the trash 14.6. A
- * ring of thin strokes and a solid X carry different weight at equal size, so
- * equal size is exactly what makes them look unequal; the file compensates by
- * drawing the lighter marks bigger, and the three read as peers because of it.
+ * Below the rule and pushed to the bottom, because it is not a layer: the rows
+ * above build the composition and these two take it away. Putting them in the
+ * `RowGroup` would have let the travelling selection stop on them, which would
+ * say they are something you can be inside.
  *
- * Which is why these are the exported assets and not geometry rebuilt here:
- * that balance is a judgement per glyph, not a rule that can be derived.
+ * Both are always available. The clip exports five seconds of the shot as it
+ * stands when no preset is loaded, rather than being disabled — a still shot
+ * recorded is a legitimate thing to want, and a greyed-out button that cannot
+ * say why is not.
  *
- * The set's Close is byte-identical to `close-rounded.svg`, already in the
- * file and already this header's close — so there is no fourth asset, and
- * nothing to reconcile.
+ * While either runs, both go inert and the one working says so. Video reports
+ * a percentage because it takes seconds; the still does not, because it does
+ * not.
  */
-const HEADER_ICON = { reset: "header-reset", delete: "header-delete" } as const;
+function ExportRow({ studio }: { studio: Studio }) {
+  const busy = studio.exporting;
+  const pct = busy?.kind === "video" ? Math.round(busy.done * 100) : null;
+
+  return (
+    <div className="mt-auto flex w-full flex-col" style={{ gap: "var(--mo-space-2)" }}>
+      <Divider />
+      {/* The same title treatment a popup's sections get — `ParamGroup`'s own
+          class and inset, so a heading in the stack and a heading in a panel
+          are one thing rather than two that resemble each other. */}
+      <span
+        className="mo-title"
+        style={{ padding: "0 var(--mo-space-2)", filter: "var(--mo-text-shadow)" }}
+      >
+        Export craft
+      </span>
+      <div className="flex w-full items-center" style={{ gap: 6 }}>
+        <Button grow onClick={busy ? undefined : studio.exportImage} title="Export a PNG">
+          <MorphText>{busy?.kind === "image" ? "Saving" : "Image"}</MorphText>
+        </Button>
+        <Button grow onClick={busy ? undefined : studio.exportVideo} title="Export a video">
+          <MorphText>{busy?.kind === "video" ? `${pct}%` : "Video"}</MorphText>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The five tools, and their names on hover.
+ *
+ * The rail stays a rail: 56px of glyphs down the edge, because five labels
+ * parked beside the composition are five words of chrome permanently in front
+ * of the shot. The names live in a tip beside whichever item the pointer is on
+ * — see `RailItem` — which costs the rail no width and the shot no room.
+ *
+ * An earlier version opened the whole rail into a panel on hover. It worked and
+ * it was wrong: a surface that resizes under the cursor moves the other four
+ * targets while you are reaching for one of them, and `useSpring` re-rendering
+ * this subtree sixty times a second to do it made the rest of the chrome
+ * stutter. A tip is the same information without moving anything.
+ */
+function ToolRail({
+  tool,
+  onPick,
+  quiet,
+}: {
+  tool: Tool;
+  onPick: (id: Tool) => void;
+  /** A panel is open, and it is standing where the tips appear. */
+  quiet?: boolean;
+}) {
+  return (
+    <Glass shape="rail" className="pointer-events-auto">
+      {/* The rail breathes: 8px between tools, where a list of labels reads
+          fine packed. The lens measures real boxes, so it simply travels
+          further. */}
+      <RowGroup gap={8}>
+        {TOOLS.map((item) => (
+          <RailItem
+            key={item.id}
+            icon={<Icon name={item.icon} />}
+            label={item.title}
+            quiet={quiet}
+            title={item.title}
+            selected={item.id === tool}
+            onClick={() => onPick(item.id)}
+          />
+        ))}
+      </RowGroup>
+    </Glass>
+  );
+}
 
 /**
  * What a crafting popup can do to itself, beside its close.
@@ -607,6 +707,13 @@ const TOOLS = [
 
 type Tool = (typeof TOOLS)[number]["id"];
 
+/** The three history steps, in the order the frame draws them. */
+const HISTORY = [
+  { id: "undo", label: "Undo" },
+  { id: "reset", label: "Reset" },
+  { id: "redo", label: "Redo" },
+] as const;
+
 /**
  * A glyph for each device in the registry.
  *
@@ -689,8 +796,22 @@ export default function StudioChrome() {
    * the popup would also blank the rail, which reads as having lost your
    * place rather than having put a panel away.
    */
+  /*
+   * Nothing open on arrival.
+   *
+   * Both of these opened themselves — the device list on the left, an effect's
+   * popup on the right — because they are useful to look at while the chrome
+   * is being built. They are the wrong first impression of a studio: what
+   * someone lands on should be the shot, on an empty desk, with the tools
+   * plainly to hand and none of them mid-conversation. Two panels already
+   * talking about a drop shadow nobody asked for is an interface interrupting
+   * itself before anyone has touched it.
+   *
+   * The rail still remembers `devices` as the tool it will open, so the first
+   * press lands where it always did.
+   */
   const [tool, setTool] = useState<Tool>("devices");
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   /** Whether the canvas panel is showing its Custom page. Resets whenever the
       panel is put away, so it never reopens two levels deep. */
@@ -749,18 +870,16 @@ export default function StudioChrome() {
   }, [pairing, startPairing]);
 
   const [tab, setTab] = useState<"crafting" | "presets">("crafting");
-  const [history, setHistory] = useState<"undo" | "reset" | "redo">("reset");
 
-  /*
-   * The three history glyphs are one control, so they are a `Segmented` — but
-   * unlike every other switch in the interface, choosing one performs an action
-   * rather than entering a state. The pill travels to whichever was pressed and
-   * stays, which is what the frame draws; what changes is that pressing it now
-   * steps the shot.
+  /**
+   * Undo, reset, redo — three acts, run on the press.
+   *
+   * They used to set a selection first, because the control was a segmented
+   * switch. Nothing here has a state to be in: undoing does not put the studio
+   * into "undo", it steps the shot back once and is finished.
    */
   const runHistory = useCallback(
     (id: "undo" | "reset" | "redo") => {
-      setHistory(id);
       if (id === "undo") studio.undo();
       else if (id === "redo") studio.redo();
       else studio.reset();
@@ -775,7 +894,9 @@ export default function StudioChrome() {
    * place, and reopening it is one press on the row that is already selected.
    */
   const [selectedLayer, setSelectedLayer] = useState<string>("drop-shadow");
-  const [popupOpen, setPopupOpen] = useState(true);
+  // Closed on arrival — see the note on `panelOpen`. The stack still opens on
+  // Drop Shadow, so the first press on it is one press rather than two.
+  const [popupOpen, setPopupOpen] = useState(false);
 
   /**
    * Add an effect or take it away — for real, now.
@@ -808,14 +929,25 @@ export default function StudioChrome() {
     closePopup,
   );
 
-  /** Select a row, switching its effect on if it is not in the shot yet. */
-  const openOrAdd = useCallback(
+  /**
+   * Open a row's controls. It does not put the effect in the shot.
+   *
+   * It used to: clicking a row switched its effect on if it was off. That made
+   * looking at something the same act as applying it, and the four background
+   * rows share one `kind` — so opening Gradient to see what it offered
+   * replaced whatever background was already there, and there was no way to
+   * read the panel without changing the composition first.
+   *
+   * The checkbox is the switch and the row is the way in. Someone going down
+   * the stack to see what each one does now leaves the shot exactly as they
+   * found it, and turns on the ones they want.
+   */
+  const openLayer = useCallback(
     (layer: Layer) => {
-      if (!layer.isOn(state)) edit((prev) => layer.toggle(prev, true));
       setPopupOpen(layer.id === selectedLayer ? !popupOpen : true);
       setSelectedLayer(layer.id);
     },
-    [state, edit, selectedLayer, popupOpen],
+    [selectedLayer, popupOpen],
   );
 
   const [account, setAccount] = useState<"settings" | "sign-out">("settings");
@@ -913,36 +1045,55 @@ export default function StudioChrome() {
             style={{ top: 16 }}
           >
             <div className="pointer-events-auto">
-            <Segmented
-              value={history}
-              onChange={runHistory}
-              width={102}
-              // 102x40 with 4 of padding leaves 94x32 — three 31/32/31 cells,
-              // no gaps. The 16px glyph centred in the 32 gives the 8 the
-              // frame annotates; it is a remainder, not a setting.
-              height={32}
-              /*
-                No bend. `Segmented` draws its labels twice — once sharp, once
-                inside the lens — and the lens displaces its copy. At 14px of
-                text the two land close enough to read as one slightly warped
-                word, which is the effect. A 16px glyph with 2px strokes is
-                not that forgiving: the displaced copy separates from the sharp
-                one and you see the symbol twice.
+              {/*
+                THREE BUTTONS, not a switch.
 
-                Turning the bend off makes the copy sit exactly over the
-                original, so they coincide. `AaveGlass` treats zero as an off
-                switch, so this costs nothing rather than bending a little.
-              */
-              bend={0}
-              options={[
-                // 16, not the system's 20: this control is compact — the
-                // frame draws 15-16px symbols in 31px cells — and at icon size
-                // the middle glyph overruns the pill it sits in.
-                { id: "undo", label: <Icon name="undo" size={16} /> },
-                { id: "reset", label: <Icon name="reset" size={16} /> },
-                { id: "redo", label: <Icon name="redo" size={16} /> },
-              ]}
-            />
+                It was a `Segmented`, on the reasoning that three glyphs in one
+                pill are one control. They are — but a segmented switch is for
+                choosing a state, and these do not have one: pressing undo
+                does not put the studio into "undo", it steps the shot back
+                once. What that cost was a beat of travel before anything
+                happened, and a pill left sitting on the last thing pressed,
+                announcing a mode that does not exist.
+
+                So: the pill, the geometry and the glyphs the frame draws, with
+                nothing selected and nothing to travel. 102x40 with 4 of padding
+                leaves 94x32 — three 31/32/31 cells, no gaps.
+              */}
+              <Glass shape="pill" width={102} style={{ height: 40 }}>
+                <div className="flex h-full w-full items-center">
+                  {HISTORY.map((step) => {
+                    // Undo and redo go quiet with nothing to reach for; reset
+                    // is always available, since there is always a default to
+                    // return to.
+                    const live =
+                      step.id === "undo"
+                        ? studio.canUndo
+                        : step.id === "redo"
+                          ? studio.canRedo
+                          : true;
+                    return (
+                      <button
+                        key={step.id}
+                        type="button"
+                        aria-label={step.label}
+                        title={step.label}
+                        disabled={!live}
+                        onClick={() => runHistory(step.id)}
+                        className="grid h-full flex-1 place-items-center"
+                        style={{ cursor: live ? "pointer" : "default" }}
+                      >
+                        {/* 16, not the system's 20: the frame draws 15-16px
+                            symbols in 31px cells, and at icon size the middle
+                            glyph overruns the pill it sits in. */}
+                        <Glyph muted={!live}>
+                          <Icon name={step.id} size={16} />
+                        </Glyph>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Glass>
             </div>
           </div>
 
@@ -1000,22 +1151,10 @@ export default function StudioChrome() {
             className="pointer-events-none absolute inset-y-0 flex items-center"
             style={{ left: 16, gap: 16 }}
           >
-            <Glass shape="rail" className="pointer-events-auto">
-              {/* The rail breathes: 8px between tools, where a list of labels
-                  reads fine packed. The lens measures real boxes, so it simply
-                  travels further. */}
-              <RowGroup gap={8}>
-                {TOOLS.map((t) => (
-                  <RailItem
-                    key={t.id}
-                    icon={<Icon name={t.icon} />}
-                    title={t.title}
-                    selected={t.id === tool}
-                    onClick={() => pickTool(t.id)}
-                  />
-                ))}
-              </RowGroup>
-            </Glass>
+            {/* Quiet while a panel is open: the panel opens into the space the
+                tip would occupy, and the two are the same fact twice. The tip
+                goes on the click rather than fading behind what it named. */}
+            <ToolRail tool={tool} onPick={pickTool} quiet={panelOpen} />
 
             {/*
               ONE surface, whose contents swap — not five panels that mount and
@@ -1422,29 +1561,45 @@ export default function StudioChrome() {
                         <Row
                           key={l.id}
                           icon={<Icon name={l.icon} />}
-                          // Its own button: the row opens the effect, this adds
-                          // or removes it, and a press on the glyph must not do
-                          // both. `stopPropagation` is what keeps them apart.
-                          trailing={
-                            <button
-                              type="button"
-                              aria-label={`${on ? "Remove" : "Add"} ${l.name}`}
-                              // The glyph follows SELECTION: the row you are
-                              // editing offers to close, every other offers to
-                              // open. Membership is carried by ink, which is
-                              // one signal per state rather than two competing.
+                          /*
+                            The box says whether the effect is IN the shot, and
+                            nothing else — not whether its popup happens to be
+                            open, which is what the old plus-and-minus tracked.
+                            Those were two different facts wearing one glyph:
+                            you could be editing a shadow that was switched off
+                            and the row would offer to remove it.
 
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                toggleLayer(l);
-                              }}
-                              className="grid cursor-pointer place-items-center"
-                            >
-                              <ToggleGlyph on={l.id === selectedLayer} />
-                            </button>
+                            `Checkbox` takes its own press, so opening the row
+                            and toggling it stay separate acts.
+                          */
+                          trailing={
+                            l.removable === false ? (
+                              /* Nothing to check: see `ToggleGlyph`. The press
+                                 still has to stop here, or clearing a transform
+                                 would also open its popup. */
+                              <button
+                                type="button"
+                                aria-label={`Reset ${l.name}`}
+                                className="grid cursor-pointer place-items-center"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  toggleLayer(l);
+                                }}
+                              >
+                                <ToggleGlyph on={l.id === selectedLayer} />
+                              </button>
+                            ) : (
+                              <Checkbox
+                                checked={on}
+                                label={`${l.name} in the shot`}
+                                icon={<Icon name="checkbox" />}
+                                checkedIcon={<Icon name="checkbox-checked" />}
+                                onChange={() => toggleLayer(l)}
+                              />
+                            )
                           }
                           selected={l.id === selectedLayer}
-                          onClick={() => openOrAdd(l)}
+                          onClick={() => openLayer(l)}
                         >
                           {l.name}
                         </Row>
@@ -1457,6 +1612,7 @@ export default function StudioChrome() {
                         : [row];
                     })}
                   </RowGroup>
+                  <ExportRow studio={studio} />
                 </Glass>
               ) : (
                 /* Presets replaces the stack, not the column — the switch and

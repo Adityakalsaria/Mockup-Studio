@@ -629,7 +629,19 @@ export const corner = {
  * the same reason.
  */
 export const surface = {
-  dot: `rgb(${INK_RGB} / 0.07)`,
+  /**
+   * 0.12, where it was 0.07.
+   *
+   * The grid has two jobs and was doing neither well at 7%: it says the
+   * workspace is a surface rather than an empty page, and it is the only fine
+   * detail on that surface — so it is what the panels' frost has to pick up.
+   * Blur a wash with nothing in it and the glass reads as a grey rectangle,
+   * which is the note at the top of this file's material section.
+   *
+   * Still ink at low alpha rather than a grey of its own, so it tracks the
+   * palette instead of drifting from it.
+   */
+  dot: `rgb(${INK_RGB} / 0.12)`,
   /** Spacing of the grid, both axes. */
   pitch: 22,
 } as const;

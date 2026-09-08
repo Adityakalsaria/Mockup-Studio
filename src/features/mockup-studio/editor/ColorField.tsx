@@ -4,7 +4,7 @@ import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState } 
 import { createPortal } from "react-dom";
 import { EditorThemeContext } from "./theme";
 import { Icon } from "./icons";
-import { hexToHsv, hsvToHex, isLight, parseHex, type Hsv } from "./color";
+import { hexToHsv, hsvToHex, isLight, parseHex, type Hsv } from "@/design/color";
 
 /**
  * The colour picker.

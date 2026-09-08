@@ -22,7 +22,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getDevice } from "../devices";
 import { finishForDevice, finishesFor } from "../finishes";
-import { preloadBackgroundImage } from "../backgrounds";
+import { paintBackground, preloadBackgroundImage } from "../backgrounds";
+import { paintOverlay } from "../overlay";
+import { applyCanvasShadow, clearCanvasShadow } from "../shadow";
+import { recordStageVideo } from "../recordVideo";
+import { renderVideoExact, supportsExactRender } from "../renderVideoExact";
+import type { StageCapture, StageRecorder } from "../PhoneStage3D";
 import { useScreenTexture } from "../useScreenTexture";
 import { useBroadcastLink } from "../broadcast/useBroadcastLink";
 import { fitToClip, getMotionPreset } from "../editor/motionPresets";
@@ -34,18 +39,6 @@ import {
   type EditorState,
 } from "../editor/editorState";
 
-/**
- * Its own slot in storage.
- *
- * Not the editor's `ks-shot`. The two shells expose different subsets of the
- * same state — this one has no timeline and no cover screen — so sharing a slot
- * would mean one of them silently reverting fields the other cannot see. Two
- * shots, two keys, and neither can surprise the other.
- */
-const SHOT_KEY = "mocraft-shot";
-/** A background image is a data URL and can be megabytes; storage is small and
-    allowed to refuse. Failing to save is not worth breaking the studio over. */
-const SHOT_LIMIT = 2_000_000;
 
 const HISTORY_COALESCE_MS = 450;
 const HISTORY_LIMIT = 60;
@@ -59,22 +52,14 @@ const HISTORY_LIMIT = 60;
  */
 const DRAG_DEG_PER_PX = 0.4;
 
+/** Export resolution, over what is on screen. 3x is the App Store's ask for a
+    6.9-inch screenshot and the number the old editor settled on. */
+const EXPORT_SCALE = 3;
+const EXPORT_FPS = 30;
+
 /** The frame the studio opens on, and what a canvas panel's reset goes back
     to. Named because two places now need to agree on it. */
 export const DEFAULT_RATIO_ID = "1:1";
-
-function loadShot(): EditorState {
-  if (typeof window === "undefined") return DEFAULT_EDITOR_STATE;
-  try {
-    const raw = window.localStorage.getItem(SHOT_KEY);
-    if (!raw) return DEFAULT_EDITOR_STATE;
-    // Merged over the defaults rather than replacing them, so a shot saved
-    // before a field existed still opens once it does.
-    return { ...DEFAULT_EDITOR_STATE, ...(JSON.parse(raw) as Partial<EditorState>) };
-  } catch {
-    return DEFAULT_EDITOR_STATE;
-  }
-}
 
 /** Read a picked file as a data URL — it outlives the `File` and survives into
     a client-side export, which an object URL does neither of. */
@@ -87,7 +72,21 @@ function readFile(file: File, onLoad: (dataUrl: string) => void) {
 export type Studio = ReturnType<typeof useStudio>;
 
 export function useStudio() {
-  const [state, setState] = useState<EditorState>(loadShot);
+  /*
+   * Every load opens on the defaults.
+   *
+   * The composition used to be saved to `localStorage` and restored, which
+   * sounds like a kindness and is not one here: a mockup tool is a thing
+   * people come back to in order to make a NEW picture, and finding the last
+   * one still on the desk — someone else's device, someone else's background —
+   * means undoing before starting. Worse, it hides the studio's own defaults
+   * from anyone who has used it once, so what a first visitor sees and what
+   * everybody else sees stop being the same thing.
+   *
+   * The writer went with the reader. A key nothing reads is a key that quietly
+   * rots, and this one held a whole composition including a data-URL image.
+   */
+  const [state, setState] = useState<EditorState>(DEFAULT_EDITOR_STATE);
 
   /**
    * The live value, for handlers that must not close over a stale one.
@@ -113,20 +112,6 @@ export function useStudio() {
    *
    * Defined below `record`, which every write goes through first.
    */
-
-  /* ---------------------------------------------------------------- storage */
-
-  useEffect(() => {
-    const id = window.setTimeout(() => {
-      try {
-        const raw = JSON.stringify(state);
-        if (raw.length <= SHOT_LIMIT) window.localStorage.setItem(SHOT_KEY, raw);
-      } catch {
-        // Full, blocked, or private mode. Nothing to do but carry on.
-      }
-    }, 400);
-    return () => window.clearTimeout(id);
-  }, [state]);
 
   /* ---------------------------------------------------------------- history */
 
@@ -410,6 +395,152 @@ export function useStudio() {
     [edit],
   );
 
+  /* ------------------------------------------------------------------ export */
+
+  /*
+   * The two bridges the stage hands back, and the two encoders behind them.
+   *
+   * None of this is new: `CaptureBridge`, `RecorderBridge`, `renderVideoExact`
+   * and `recordStageVideo` are the old editor's export path, which works and is
+   * measured — the comments in `recordVideo.ts` carry the timing results that
+   * settled how it captures. What this adds is the same path reached from the
+   * Mocraft chrome.
+   */
+  const captureRef = useRef<StageCapture | null>(null);
+  const recorderRef = useRef<StageRecorder | null>(null);
+  const [exporting, setExporting] = useState<null | { kind: "image" | "video"; done: number }>(
+    null,
+  );
+
+  /**
+   * The still.
+   *
+   * The WebGL buffer holds the PHONE and nothing else — no background, no
+   * shadow, no overlay — so the export composites the picture itself, in the
+   * order the live stage paints it. The shadow is a CSS filter on the live
+   * canvas and a pixel read does not carry one, so it is laid down here and
+   * scaled, since the settings are in 1x pixels and the export may be 3x.
+   */
+  const exportImage = useCallback(async () => {
+    const shot = stateRef.current;
+    // The painter is synchronous, so an image background has to be decoded
+    // before it runs or the export comes out with the base colour instead.
+    await preloadBackgroundImage(shot.background);
+    const url = captureRef.current?.(EXPORT_SCALE);
+    if (!url) return;
+
+    const frame = new Image();
+    frame.src = url;
+    try {
+      await frame.decode();
+    } catch {
+      return;
+    }
+
+    const out = document.createElement("canvas");
+    out.width = frame.width;
+    out.height = frame.height;
+    const ctx = out.getContext("2d");
+    if (!ctx) return;
+
+    setExporting({ kind: "image", done: 0 });
+    paintBackground(ctx, shot.background, out.width, out.height, EXPORT_SCALE);
+    applyCanvasShadow(ctx, shot.shadow, EXPORT_SCALE);
+    ctx.drawImage(frame, 0, 0);
+    clearCanvasShadow(ctx);
+    // After the phone: the layer sits over the shot, which is the order the
+    // live stage renders in.
+    paintOverlay(ctx, shot.overlay, out.width, out.height);
+
+    const link = document.createElement("a");
+    link.href = out.toDataURL("image/png");
+    link.download = "mocraft.png";
+    link.click();
+    setExporting(null);
+  }, []);
+
+  /**
+   * The clip.
+   *
+   * Length comes from the motion preset, because that is the only length in
+   * this chrome that means anything — one clean pass of whatever was chosen.
+   * With no preset there is nothing moving, so it exports five seconds of the
+   * shot as it stands rather than refusing.
+   *
+   * `onTime` writes straight into the playhead ref the scene samples in its
+   * own frame loop: no React render per frame, and the pose is in place before
+   * the frame is composited, which `renderVideoExact` requires.
+   */
+  const exportVideo = useCallback(async () => {
+    const recorder = recorderRef.current;
+    if (!recorder || exporting) return;
+    const shot = stateRef.current;
+    await preloadBackgroundImage(shot.background);
+
+    // `tracks` is a record of channels, not a list: a shot is animated when
+    // any channel has keys on it.
+    const animated = Object.values(shot.animation.tracks).some((keys) => keys && keys.length > 0);
+    const durationSec = Math.min(30, Math.max(0.5, animated ? shot.animation.durationSec : 5));
+    setPlaying(false);
+    setExporting({ kind: "video", done: 0 });
+
+    const onTime = animated
+      ? (seconds: number) => {
+          playheadRef.current = Math.min(seconds, shot.animation.durationSec);
+        }
+      : undefined;
+    const onProgress = (done: number) => setExporting({ kind: "video", done });
+
+    try {
+      let blob: Blob;
+      let extension: string;
+      if (supportsExactRender()) {
+        // Frame by frame, with timestamps we choose, so the file does not
+        // inherit this machine's stutters. See `renderVideoExact`.
+        blob = await renderVideoExact({
+          recorder,
+          background: shot.background,
+          overlay: shot.overlay,
+          shadow: shot.shadow,
+          scale: EXPORT_SCALE,
+          durationSec,
+          fps: EXPORT_FPS,
+          onTime,
+          onProgress,
+        });
+        extension = "mp4";
+      } else {
+        const result = await recordStageVideo({
+          recorder,
+          background: shot.background,
+          overlay: shot.overlay,
+          shadow: shot.shadow,
+          scale: EXPORT_SCALE,
+          durationSec,
+          fps: EXPORT_FPS,
+          onTime,
+          onProgress,
+        });
+        blob = result.blob;
+        extension = result.format.extension;
+      }
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `mocraft.${extension}`;
+      link.click();
+      // Revoking at once cancels the download in some browsers; a turn of the
+      // event loop is enough for the click to be taken.
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch (error) {
+      console.warn("mocraft: video export failed", error);
+    } finally {
+      setExporting(null);
+      playheadRef.current = 0;
+    }
+  }, [exporting]);
+
   /* --------------------------------------------------------------- the frame */
 
   /*
@@ -549,6 +680,12 @@ export function useStudio() {
     liveStream,
     screenTexture,
     screenFit,
+    // Export
+    captureRef,
+    recorderRef,
+    exportImage,
+    exportVideo,
+    exporting,
     // Direct handling
     turn,
     nudgeRotation,
@@ -584,6 +721,9 @@ export function useStudio() {
     liveStream,
     screenTexture,
     screenFit,
+    exportImage,
+    exportVideo,
+    exporting,
     turn,
     nudgeRotation,
     nudgeZoom,

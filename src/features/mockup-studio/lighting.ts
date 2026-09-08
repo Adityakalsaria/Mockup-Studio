@@ -1,4 +1,4 @@
-import { parseHex, toHex } from "./editor/color";
+import { parseHex, toHex } from "@/design/color";
 
 /**
  * Lighting presets.

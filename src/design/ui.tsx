@@ -31,6 +31,7 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from
 import { TextMorph } from "torph/react";
 import { control, material, motion, radius, SYSTEM_CSS, type ButtonTone } from "./system";
 import { AaveGlass } from "./useContentLens";
+import { ColorPicker } from "./ColorPicker";
 
 /**
  * Text that becomes different text, rather than being replaced by it.
@@ -561,11 +562,31 @@ export function Button({
  */
 export function RailItem({
   icon,
+  label,
+  quiet,
   selected,
   onClick,
   title,
 }: {
   icon: ReactNode;
+  /**
+   * Shown as a tooltip beside the rail on hover, in the selection's material.
+   *
+   * A rail is glyphs, and glyphs have to be read. The name has to be reachable
+   * somewhere, and beside the item is the one place it costs nothing: the rail
+   * keeps its width, the composition keeps the room, and the label is there
+   * the moment you look for it.
+   */
+  label?: ReactNode;
+  /**
+   * Say nothing, however the pointer is sitting.
+   *
+   * For when the space the tip appears in is spoken for — a rail whose panel
+   * is open puts that panel exactly where the tip would be. It also has to be
+   * a prop rather than something the tip works out for itself: hover is CSS
+   * here, and CSS cannot know that a click has opened something elsewhere.
+   */
+  quiet?: boolean;
   selected?: boolean;
   onClick?: () => void;
   title?: string;
@@ -575,7 +596,14 @@ export function RailItem({
   if (!grouped) {
     return (
       <RowGroup>
-        <RailItem icon={icon} selected={selected} onClick={onClick} title={title} />
+        <RailItem
+          icon={icon}
+          label={label}
+          quiet={quiet}
+          selected={selected}
+          onClick={onClick}
+          title={title}
+        />
       </RowGroup>
     );
   }
@@ -584,15 +612,75 @@ export function RailItem({
     <div
       role={interactive ? "button" : undefined}
       tabIndex={interactive ? 0 : undefined}
-      title={title}
+      aria-label={title}
       onClick={interactive ? onClick : undefined}
       onKeyDown={interactive ? pressKeys(onClick) : undefined}
-      className={`relative grid w-full place-items-center ${interactive ? "cursor-pointer" : ""}`}
-      style={{ padding: "10px var(--mo-space-3)", borderRadius: "var(--mo-r-row)" }}
+      className={`group relative grid w-full place-items-center ${
+        interactive ? "cursor-pointer" : ""
+      }`}
+      /*
+       * No horizontal padding, so the glyph is not squeezed.
+       *
+       * It was `10px var(--mo-space-3)`, which is 12 a side — and inside a 56px
+       * rail that leaves a 16px box for a 20px glyph. Centring then means two
+       * pixels of overflow on each side, and two pixels of overflow is two
+       * roundings: at a fractional device ratio they do not have to come out
+       * equal, and the mark drifts off the middle of its own circle.
+       *
+       * The 12 was there for labels the rail no longer has. With it gone the
+       * glyph sits in a 40px box at its own 20, 10 clear on either side, and
+       * there is nothing left to round.
+       */
+      style={{ padding: "10px 0", borderRadius: "var(--mo-r-row)" }}
     >
       <span className="relative" style={{ zIndex: 1 }}>
         <Glyph muted={!strong}>{icon}</Glyph>
       </span>
+      {label && !quiet ? (
+        /*
+         * Centred by a box that spans the row, not by a transform.
+         *
+         * The tip carries `Material`, and a transform on an ancestor of a
+         * `backdrop-filter` groups the backdrop away from it — the tip would
+         * frost nothing and read as a flat plate. `inset-y-0` plus
+         * `items-center` puts it on the row's centre line with no transform in
+         * the chain.
+         *
+         * CSS hover, not React state: a rail of five items that re-rendered on
+         * pointer-over would re-render everything they are drawn inside.
+         *
+         * Removed rather than faded when `quiet`, so it is gone on the frame
+         * the panel is asked for rather than dissolving behind it.
+         */
+        <span className="pointer-events-none absolute inset-y-0 left-full z-10 flex items-center">
+          <span
+            className="mo-mat-selection mo-title relative whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+            style={{
+              /*
+               * 24, to read as 16.
+               *
+               * The gap that matters is from the RAIL to the tip, and this is
+               * measured from the row — which ends one surface-padding inside
+               * the rail's edge. So it is the cluster's own 16 plus the 8 the
+               * glass insets its rows by, and the tip lands exactly where a
+               * tool panel does when it opens.
+               */
+              marginLeft: 24,
+              padding: "6px 12px",
+              borderRadius: "var(--mo-r-selected)",
+              background: "var(--mo-selected)",
+              boxShadow: "var(--mo-selected-shadow)",
+              color: "var(--mo-ink)",
+              filter: "var(--mo-text-shadow)",
+            }}
+          >
+            <Material />
+            <span className="relative" style={{ zIndex: 1 }}>
+              {label}
+            </span>
+          </span>
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -1014,6 +1102,107 @@ export function GlassButton({
   );
 }
 
+/**
+ * A checkbox.
+ *
+ * The stack used to carry a plus that turned into a minus. That reads as "add
+ * this" and "take it away", which is a list you are building; a box reads as
+ * "in the shot" and "not in the shot", which is what these rows actually are —
+ * every one of them exists whether or not it is switched on.
+ *
+ * TWO GLYPHS, cross-faded, when the caller has them. The file draws its own
+ * checked and unchecked marks and they are not one shape with a part added:
+ * the box outline is the same in both, so what the fade shows is the tick
+ * arriving, which is the whole of what changed. Nothing here interpolates
+ * between them, because there is nothing continuous to interpolate.
+ *
+ * Without them the system draws its own — a box that fills and a tick that
+ * draws itself in, off one spring — so `Checkbox` works on a page that has no
+ * asset folder to reach into. Same arrangement as `Header`'s close.
+ *
+ * A press stops here. These sit in rows that open a panel when clicked, and a
+ * checkbox that also opened the panel would be two answers to one press.
+ */
+const TICK = "M5.5 10.4l3 3 5.8-6.2";
+/** The path's length, near enough: 4.2 down and 8.5 back up. */
+const TICK_LEN = 13;
+
+export function Checkbox({
+  checked,
+  onChange,
+  label,
+  icon,
+  checkedIcon,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  /** The control is a box; this is the only name it has. */
+  label: string;
+  /** The file's own marks, when there are any. Both or neither. */
+  icon?: ReactNode;
+  checkedIcon?: ReactNode;
+}) {
+  const { value: t } = useSpring(checked ? 1 : 0);
+  const drawn = !icon || !checkedIcon;
+
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={(event) => {
+        event.stopPropagation();
+        onChange(!checked);
+      }}
+      className="relative grid shrink-0 cursor-pointer place-items-center"
+      style={{
+        width: control.icon,
+        height: control.icon,
+        ...(drawn ? { borderRadius: 6, border: "var(--mo-swatch-edge)" } : null),
+      }}
+    >
+      {drawn ? (
+        <>
+          <span
+            aria-hidden
+            className="absolute inset-0"
+            style={{ borderRadius: "inherit", background: "var(--mo-ink)", opacity: t }}
+          />
+          <svg
+            aria-hidden
+            viewBox="0 0 20 20"
+            width={control.icon}
+            height={control.icon}
+            className="relative"
+            fill="none"
+            stroke="#fff"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path
+              d={TICK}
+              style={{ strokeDasharray: TICK_LEN, strokeDashoffset: TICK_LEN * (1 - t) }}
+            />
+          </svg>
+        </>
+      ) : (
+        <>
+          {/* Stacked, both always mounted: swapping them would restart the
+              fade from nothing every time and flicker on a fast toggle. */}
+          <span aria-hidden className="absolute inset-0 grid place-items-center" style={{ opacity: 1 - t }}>
+            {icon}
+          </span>
+          <span aria-hidden className="absolute inset-0 grid place-items-center" style={{ opacity: t }}>
+            {checkedIcon}
+          </span>
+        </>
+      )}
+    </button>
+  );
+}
+
 /* ===========================================================================
    Slider
    =========================================================================== */
@@ -1408,7 +1597,25 @@ export function AutoHeight({
     // Only the observer measures. A synchronous read here would be a setState
     // in an effect body, and the first callback lands on the next frame
     // anyway — which is why `height` stays `auto` until there is a number.
-    const observer = new ResizeObserver(() => setNatural(inner.offsetHeight));
+    /*
+     * A pixel of wobble is not a resize.
+     *
+     * The header morphs its title — `MorphText`, and the panel's name changes
+     * whenever the tool does — and a morphing line of text does not hold its
+     * box perfectly still: per-character spans shift the line box by a
+     * fraction, which `offsetHeight` rounds to one pixel up and back down.
+     * Each flip is a new spring target, so the height never lands, and what
+     * never landing actually cost was not the animation — it was the CLIP,
+     * which is tied to the same "still moving" flag. The panel sat a hair
+     * short of its contents forever, cutting the last control in half.
+     *
+     * Invisible either way at one pixel, so the cheapest fix is to not hear
+     * it: a change has to be worth more than a pixel to be a change.
+     */
+    const observer = new ResizeObserver(() => {
+      const next = inner.offsetHeight;
+      setNatural((prev) => (Math.abs(prev - next) <= 1 ? prev : next));
+    });
     observer.observe(inner);
     return () => observer.disconnect();
   }, [inner]);
@@ -1434,7 +1641,30 @@ export function AutoHeight({
    * sub-pixel spring value can never shave a hairline off the last row.
    */
   const measured = natural > 0;
-  const moving = measured && Math.abs(value - natural) > 0.5;
+  /*
+   * Settled within a few pixels, not within a fraction of one.
+   *
+   * `natural` is `offsetHeight`, which is a rounded integer, and the spring is
+   * a float chasing it — so "moving" was staying true on a fraction of a pixel
+   * nobody can see. The cost was not the animation: it was the CLIP, which is
+   * tied to this and so never turned off. The panel sat permanently a hair
+   * shorter than its contents with its bottom edge cutting whatever was there,
+   * which for this panel is the Upload key and its shadow.
+   *
+   * A pixel is the smallest difference that can be drawn, so below one there
+   * is nothing to animate. The slack is larger than that on purpose: this flag
+   * also decides whether the panel CLIPS, and the two costs are not
+   * symmetrical. Clip a few pixels early and a growing panel spills a little at
+   * the very end of its travel, faded, for a frame or two. Clip a few pixels
+   * late — which is what a tight threshold risks if the spring ever fails to
+   * land exactly — and a settled panel cuts its own last control in half and
+   * stays that way, which is the bug this has now been chased through twice.
+   *
+   * A panel is 250 wide and its rows are 40 tall; 8px is a fifth of a row.
+   * Nothing legible fits in it, and nothing can hide in it either.
+   */
+  const SETTLED = 8;
+  const moving = measured && Math.abs(value - natural) > SETTLED;
 
   /*
    * The height is ALWAYS the sprung value — never `auto`, at rest or otherwise.
@@ -1457,7 +1687,33 @@ export function AutoHeight({
     <div
       style={{
         height: measured ? value : 0,
-        overflow: moving || !measured ? "hidden" : undefined,
+        /*
+         * `clip` with a margin, not `hidden`.
+         *
+         * Only while the height is actually travelling — see `moving`. It cuts
+         * 20px OUTSIDE the box rather than at its edge, so a shadow at the
+         * bottom of the panel survives the cut instead of being sliced off with
+         * the border it belongs to.
+         *
+         * The clip is unavoidable while the height is travelling, but `hidden`
+         * cuts at the box edge exactly — and what sits at that edge is a
+         * shadow. A selected row's pill, an Upload button, the trash key: each
+         * casts below itself, so the cut takes the shadow off and the border
+         * with it, and the control reads as sliced along a straight line a few
+         * pixels below its own bottom edge.
+         *
+         * `overflow-clip-margin` is the answer the platform already has: clip,
+         * but not until this far outside the box. Shadows have their room and
+         * the spill is still bounded, which is what `hidden` was for. Nothing
+         * moves in layout, which is where the previous attempt — negative
+         * margins — went wrong, since it made the panel shorter than what it
+         * held.
+         *
+         * 20 covers `--mo-selected-shadow`, the deepest of them at 13.4 down
+         * over an 18.5 blur.
+         */
+        overflow: moving || !measured ? "clip" : undefined,
+        overflowClipMargin: moving || !measured ? 20 : undefined,
       }}
     >
       <div ref={setInner}>
@@ -1535,25 +1791,8 @@ export function ColorRow({
       <span className="mo-code shrink-0 tabular-nums">
         <MorphText>{value.toUpperCase()}</MorphText>
       </span>
-      <label
-        className="relative shrink-0 cursor-pointer overflow-hidden"
-        style={{
-          width: 16,
-          height: 16,
-          borderRadius: "var(--mo-r-swatch)",
-          border: "0.8px solid rgb(0 0 0 / 0.1)",
-          boxShadow: "var(--mo-swatch-shadow)",
-          background: value,
-        }}
-      >
-        <input
-          type="color"
-          aria-label={label}
-          className="absolute inset-0 cursor-pointer opacity-0"
-          value={value}
-          onChange={(e) => onChange?.(e.target.value)}
-        />
-      </label>
+      {/* The system's own picker, not the OS window. See `ColorPicker`. */}
+      <ColorPicker value={value} label={label} onChange={(hex) => onChange?.(hex)} />
     </div>
   );
 }

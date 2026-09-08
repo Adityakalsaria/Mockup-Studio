@@ -1,4 +1,12 @@
 /**
+ * Colour maths, shared.
+ *
+ * It sat under the old editor because the old editor's picker was the only
+ * thing that needed it. The system's own picker needs the same conversions and
+ * a design system cannot reach up into a feature for them, so it lives here
+ * now — no imports of its own, which is what made it easy to move.
+ */
+/**
  * Colour conversion for the picker.
  *
  * The picker works in HSV and stores hex, so every edit is a round trip. Two

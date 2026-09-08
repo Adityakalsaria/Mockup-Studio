@@ -35,18 +35,45 @@ import type { Studio } from "./useStudio";
  */
 const INSET = 40;
 
+/**
+ * How much of the room the frame actually takes.
+ *
+ * `min(100cqw, ratio * 100cqh)` is the largest the shot could be, and the
+ * largest is not the right size: it left the composition running edge to edge
+ * under the chrome with no ground showing, so the panels had nothing to sit on
+ * and the shot read as the page rather than as something placed on it.
+ *
+ * A fraction rather than a bigger inset, because a fixed margin is a different
+ * proportion on every window — 40px around a laptop screen and 40px around a
+ * 27-inch one are not the same picture. This holds the same margin at any size.
+ *
+ * Fill is exempt: it is the one ratio whose name is a promise about the room it
+ * takes.
+ */
+const FRAME = 0.82;
+
 function StageInner({ studio }: { studio: Studio }) {
   const { state, ratio, screenTexture, playing, playheadRef } = studio;
 
   return (
     <div
       className="absolute inset-0 grid place-items-center"
-      style={{ containerType: "size", padding: INSET }}
+      /*
+       * No margin at Fill, and the inset at every other ratio.
+       *
+       * Fill means the whole surface: at a ratio the shot is an object sitting
+       * on a workspace and wants ground around it, but Fill is the workspace,
+       * and a 40px band of dot grid around it would be a frame it did not ask
+       * for.
+       */
+      style={{ containerType: "size", padding: ratio === null ? 0 : INSET }}
     >
       <div
         className="relative overflow-hidden"
         style={{
-          borderRadius: "var(--mo-r-panel)",
+          // Square at Fill: a corner is what tells you where a shot ends, and
+          // at Fill it ends at the window.
+          borderRadius: ratio === null ? 0 : "var(--mo-r-panel)",
           ...backgroundCss(state.background),
           ...(ratio === null
             ? { width: "100%", height: "100%" }
@@ -54,12 +81,17 @@ function StageInner({ studio }: { studio: Studio }) {
                 aspectRatio: String(ratio),
                 // Whichever of the two constraints binds first wins, so the
                 // frame always fits and never overflows.
-                width: `min(100cqw, ${ratio} * 100cqh)`,
+                width: `calc(min(100cqw, ${ratio} * 100cqh) * ${FRAME})`,
               }),
         }}
       >
         <PhoneStage3D
           rail={undefined}
+          /* The two doors export goes through: one frame on demand for the
+             still, and a held-open resolution for the clip. Both are refs the
+             scene fills in — see `CaptureBridge` and `RecorderBridge`. */
+          captureRef={studio.captureRef}
+          recorderRef={studio.recorderRef}
           screenTexture={screenTexture}
           deviceId={state.deviceId}
           finishId={state.finishId}
