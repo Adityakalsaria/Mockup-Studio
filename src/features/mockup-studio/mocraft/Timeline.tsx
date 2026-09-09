@@ -1,0 +1,977 @@
+"use client";
+
+/**
+ * The timeline, for when a preset is applied.
+ *
+ * The old editor's version is the reference — play button, `0:03.8 / 0:06.0`,
+ * a ruler, a lane per animated channel with its keyframes on it, and a
+ * playhead you can drag. This is the same instrument in this chrome's clothes:
+ * one `Glass` panel, monochrome, the transport controls that used to live in a
+ * separate pill folded into its header.
+ *
+ * What it deliberately does NOT carry over is the authoring half — Res, FPS,
+ * the easing picker, the zoom slider, Fit. Those exist to BUILD a clip, and
+ * nothing in this shell builds one: presets arrive whole. Bringing the
+ * controls across would put eight widgets on a panel where only two of them
+ * do anything.
+ *
+ * The playhead is the interesting part of the implementation. It moves sixty
+ * times a second and it is not allowed to re-render anything, because this
+ * chrome is full of springs that would each re-run. So the marker's transform
+ * and the readout's text are written straight to the DOM from one rAF loop —
+ * no state, no reconciliation, and the ref that drives it is the same clock
+ * the 3D scene reads in its own frame loop.
+ */
+
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  Button,
+  Divider,
+  Glass,
+  Glyph,
+  PauseIcon,
+  PlayIcon,
+  RepeatIcon,
+  Segmented,
+  Slider,
+  useDismiss,
+} from "@/design/ui";
+import { control, radius } from "@/design/system";
+import {
+  ANIMATABLE,
+  KEY_EPSILON,
+  EASING_PRESETS,
+  easingPresetId,
+  formatClock,
+  formatTime,
+  parseClock,
+  type AnimatableKey,
+} from "../animation";
+import { CurveThumb, EasingMenu } from "./EasingMenu";
+import { KeyframeMenu } from "./KeyframeMenu";
+import { getMotionPreset } from "../editor/motionPresets";
+import type { Studio } from "./useStudio";
+
+/** Fixed, so the composition above does not jump every time a preset with a
+    different number of channels is picked. */
+export const PANEL_H = 250;
+/**
+ * The floor on every gap in the panel, and the clearance from its edge.
+ *
+ * `Glass` already pads itself by 8, so a control in a row exactly its own
+ * height sits 8 from the panel edge and 8 from its neighbour — but only if the
+ * row does not squeeze it. The row is therefore sized as the control plus that
+ * clearance top and bottom rather than to a number that happened to look right,
+ * which is what "36" was.
+ */
+const SAFE = 8;
+/** The frame's keyframe and span marks are both 20 square. */
+const MARK = 20;
+const KEYFRAMES = "/figma-assets/mockup-studio/timeline";
+/** Every control in the toolbar is this tall, so one of them can set the row. */
+const CONTROL_H = 28;
+/** Wide enough for "Pan X", which is the longest label a lane can carry. */
+const LABEL_W = 52;
+/* One lane per channel, exactly as tall as the mark it carries. Flush rows are
+   the frame's own rhythm — the marks are what you read down a lane, and space
+   between them was space spent on nothing. */
+const LANE_H = MARK;
+const RULER_H = 20;
+/**
+ * Breathing room at each end of the time axis.
+ *
+ * A mark at 0 is centred on the very first pixel of the lane, so half of it is
+ * outside the box that scrolls — and a scroller clips. The key at the start of
+ * every track was rendering as a chevron, which is the right half of a diamond.
+ * Padding the viewport insets the whole axis, and everything inside is placed
+ * as a percentage of it, so the ruler, the marks and the playhead all move
+ * together and nothing else has to know.
+ */
+const LEAD = 10;
+
+/**
+ * Ruler spacing that lands on round numbers at any clip length.
+ *
+ * Ten or so ticks now that the panel is the width of the window — the old six
+ * left half-second gaps of empty rule between labels at any sensible duration.
+ */
+const STEPS = [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30];
+function tickStep(duration: number): number {
+  return STEPS.find((step) => step >= duration / 10) ?? STEPS[STEPS.length - 1];
+}
+
+/** Export sizes and frame rates, as the old editor offered them. */
+const SCALES = [1, 2, 3, 4];
+const RATES = [30, 60];
+
+/** Between toolbar groups. A gap alone says "these are apart"; a rule says
+    "and they are about different things". */
+function Rule() {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: 1,
+        height: 18,
+        background: "var(--mo-field)",
+        flex: "none",
+      }}
+    />
+  );
+}
+
+/** A control with its name beside it, which is how the whole toolbar reads —
+    the labels are the only thing saying what a bare "2x" or "60" means. */
+function Labelled({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label
+      className="mo-label flex items-center"
+      style={{ gap: SAFE, color: "var(--mo-ink-muted)" }}
+    >
+      {label}
+      {children}
+    </label>
+  );
+}
+
+export function Timeline({ studio }: { studio: Studio }) {
+  const { playing, playheadRef, duration, seek, parkedAt, presetId } = studio;
+  const animation = studio.state.animation;
+
+  /* Held while it is being typed rather than parsed on every keystroke: "1:"
+     is not a duration, and reformatting mid-word fights the typing. */
+  const [durationDraft, setDurationDraft] = useState<string | null>(null);
+  const [easingOpen, setEasingOpen] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const easingRef = useDismiss<HTMLDivElement>(easingOpen, () =>
+    setEasingOpen(false),
+  );
+
+  /** Which key is selected, if any. One at a time — a timeline that can
+      select many needs a marquee and a group drag, and neither is asked for. */
+  const [selected, setSelected] = useState<{
+    key: AnimatableKey;
+    time: number;
+    x: number;
+    panelW: number;
+  } | null>(null);
+  /** Which span's easing menu is open, and where to hang it. `x` is measured
+      from the panel's left edge at the moment of the click, so the menu is not
+      trapped inside the lanes' horizontal scroller. */
+  const [segment, setSegment] = useState<{
+    key: AnimatableKey;
+    time: number;
+    x: number;
+    panelW: number;
+  } | null>(null);
+  /* Stable, or `useDismiss` tears its listener down and builds a new one on
+     every render — and this panel renders on every frame of a spring. */
+  const closeMenus = useCallback(() => {
+    setSegment(null);
+    setSelected(null);
+  }, []);
+
+  /* One ref, two jobs: the box the span menu is positioned against, and the
+     boundary a press has to land outside of to dismiss it. They are the same
+     element — the menu hangs off the panel and the tile that opened it is
+     inside the panel — so two refs would be the same node twice. */
+  const panelRef = useDismiss<HTMLDivElement>(
+    segment !== null || selected !== null,
+    closeMenus,
+  );
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const laneRef = useRef<HTMLDivElement | null>(null);
+  const markerRef = useRef<HTMLDivElement | null>(null);
+  const readoutRef = useRef<HTMLSpanElement | null>(null);
+  /* Which key a pointer is carrying, and where in the clip it has got to. */
+  const dragRef = useRef<{ key: AnimatableKey; time: number } | null>(null);
+
+  /*
+   * One loop, painting two nodes, running only while something moves.
+   *
+   * `parkedAt` is in the deps rather than the body: a scrub changes it, which
+   * re-runs this effect, which paints once at the new time. That is the whole
+   * mechanism for keeping a paused marker in the right place, and it costs no
+   * frames at all when nothing is playing.
+   */
+  useEffect(() => {
+    const lane = laneRef.current;
+    const marker = markerRef.current;
+    const readout = readoutRef.current;
+    if (!lane || !marker || !readout) return;
+
+    const paint = () => {
+      const time = playheadRef.current;
+      marker.style.transform = `translateX(${(time / Math.max(0.001, duration)) * lane.clientWidth}px)`;
+      readout.textContent = formatTime(time);
+    };
+
+    paint();
+    if (!playing) return;
+
+    let raf = 0;
+    const tick = () => {
+      paint();
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, duration, playheadRef, parkedAt]);
+
+  /*
+   * Zoom around the playhead, not the left edge.
+   *
+   * Anchoring to zero pushes whatever you were looking at off screen every
+   * time you zoom in, which makes the control useless at the moment it is
+   * wanted. Runs after the width has changed, since the scroll position it
+   * computes is a fraction of the new width.
+   */
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const lane = laneRef.current;
+    if (!viewport || !lane) return;
+    const x =
+      (playheadRef.current / Math.max(0.001, duration)) * lane.clientWidth;
+    viewport.scrollLeft = x - viewport.clientWidth / 2;
+  }, [zoom, duration, playheadRef]);
+
+  /*
+   * Delete removes the selected key — the shortcut the old editor's own
+   * tooltip advertised ("delete key or double-click to remove") and the reason
+   * selection is worth having at all. Scoped to this component rather than the
+   * chrome's keyboard effect, because it is only meaningful while something in
+   * here is selected.
+   */
+  useEffect(() => {
+    if (!selected) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      const node = event.target as HTMLElement | null;
+      const tag = node?.tagName;
+      // Not while the Duration field has focus: Backspace is how you edit it.
+      if (
+        node &&
+        (tag === "INPUT" || tag === "TEXTAREA" || node.isContentEditable)
+      )
+        return;
+      event.preventDefault();
+      studio.deleteKey(selected.key, selected.time);
+      setSelected(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected, studio]);
+
+  const tracks = studio.state.animation.tracks;
+  // Ordered by `ANIMATABLE` rather than by whatever order the preset happened
+  // to write its tracks in, so the same channel is always on the same row.
+  const lanes = ANIMATABLE.filter(({ key }) => (tracks[key]?.length ?? 0) > 0);
+
+  if (!presetId) return null;
+
+  /** Where in the clip a screen x lands. The lane box is the one that grows
+      with zoom, and its rect already accounts for the scroll. */
+  const timeAt = (clientX: number): number | null => {
+    const lane = laneRef.current;
+    if (!lane) return null;
+    const box = lane.getBoundingClientRect();
+    return Math.max(
+      0,
+      Math.min(duration, ((clientX - box.left) / box.width) * duration),
+    );
+  };
+
+  /*
+   * Where a key can actually go, which is not always where you dragged it.
+   *
+   * `moveKey` clamps a key between its neighbours so a drag cannot destroy the
+   * ones it passes. That means the time the drag ASKED for and the time the key
+   * ENDED at differ the moment you push against a neighbour — and a drag that
+   * keeps tracking the asked-for time then goes looking for a key that is not
+   * there and stops dead. So the clamp is computed here as well, and everything
+   * downstream follows the real time.
+   */
+  const settleTime = (channel: AnimatableKey, time: number, to: number) => {
+    const keys = tracks[channel] ?? [];
+    const i = keys.findIndex((k) => Math.abs(k.time - time) < 1e-6);
+    if (i < 0) return null;
+    const floor = i > 0 ? keys[i - 1].time + KEY_EPSILON : 0;
+    const ceiling =
+      i < keys.length - 1 ? keys[i + 1].time - KEY_EPSILON : duration;
+    return Math.max(floor, Math.min(ceiling, to));
+  };
+
+  const scrubTo = (clientX: number) => {
+    const at = timeAt(clientX);
+    if (at !== null) seek(at);
+  };
+
+  const step = tickStep(duration);
+  const ticks: number[] = [];
+  for (let t = 0; t <= duration + 1e-6; t += step)
+    ticks.push(Number(t.toFixed(3)));
+
+  return (
+    /*
+       Full width, and positioned by the bottom bar rather than by itself.
+
+       The lanes are the reason it earns the room: a lane is a time axis, and
+       every pixel of width is resolution on it. At the old 660 a preset with
+       keys 40ms apart drew them on top of each other; across the window they
+       separate, and the ruler can carry a label per half second without the
+       numbers touching.
+    */
+    <div ref={panelRef} className="pointer-events-auto relative w-full">
+      <Glass width="100%" style={{ height: PANEL_H }}>
+        {/* ---------------------------------------------------- header
+            One row that wraps rather than one row that scrolls. Ten controls
+            do not fit a narrow window, and the old editor's answer — let them
+            flow onto a second line — keeps every one of them reachable
+            without a scroll gesture inside a toolbar.
+
+            Grouped by subject with a rule between groups, which is the old
+            editor's rule too: transport, then what an export is written at,
+            then what the clip IS, then how it is being looked at. A gap alone
+            says "these are apart"; a rule says "and they are about different
+            things".
+        */}
+        {/*
+          Centred as one group, not run from the left with the last two pushed
+          right. The old editor learned this the same way: with the tail on
+          `ml-auto` it read as two unrelated toolbars with a gulf between them
+          rather than one set of controls for one clip.
+        */}
+        <div
+          className="flex flex-wrap items-center justify-center"
+          style={{
+            minHeight: CONTROL_H + SAFE * 2,
+            columnGap: SAFE,
+            rowGap: SAFE,
+          }}
+        >
+          <button
+            type="button"
+            aria-label={playing ? "Pause" : "Play"}
+            title={playing ? "Pause (Space)" : "Play (Space)"}
+            onClick={studio.togglePlay}
+            className="grid cursor-pointer place-items-center"
+            style={{ width: CONTROL_H, height: CONTROL_H }}
+          >
+            <Glyph>{playing ? <PauseIcon /> : <PlayIcon />}</Glyph>
+          </button>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={studio.looping}
+            aria-label="Repeat"
+            title={studio.looping ? "Repeat is on" : "Repeat is off"}
+            onClick={studio.toggleLoop}
+            className="grid cursor-pointer place-items-center"
+            style={{ width: CONTROL_H, height: CONTROL_H }}
+          >
+            {/* Muted when off, which is the same way every other glyph in this
+                interface says "not in effect". */}
+            <Glyph muted={!studio.looping}>
+              <RepeatIcon />
+            </Glyph>
+          </button>
+
+          {/*
+            Tabular figures, because this is a clock. With proportional ones the
+            string changes width as the digits change and the whole readout
+            jitters sixty times a second.
+          */}
+          <span
+            className="mo-value"
+            style={{ fontVariantNumeric: "tabular-nums" }}
+          >
+            <span ref={readoutRef}>0:00.0</span>
+            <span style={{ color: "var(--mo-ink-muted)" }}>
+              {" "}
+              / {formatTime(duration)}
+            </span>
+          </span>
+
+          <Rule />
+
+          <Labelled label="Res">
+            <Segmented
+              width={140}
+              height={CONTROL_H}
+              value={String(studio.exportScale)}
+              onChange={(id) => studio.setExportScale(Number(id))}
+              options={SCALES.map((n) => ({ id: String(n), label: `${n}x` }))}
+            />
+          </Labelled>
+          <Labelled label="FPS">
+            <Segmented
+              width={78}
+              height={CONTROL_H}
+              value={String(studio.exportFps)}
+              onChange={(id) => studio.setExportFps(Number(id))}
+              options={RATES.map((n) => ({ id: String(n), label: String(n) }))}
+            />
+          </Labelled>
+
+          <Rule />
+
+          {/*
+            A text field with a forgiving parser, not `type="number"` — that is
+            where the browser's little stepper arrows come from, and in a plate
+            this narrow they sit on top of the value. "90", "1:30" and
+            "00:01:30" all mean ninety seconds.
+          */}
+          <Labelled label="Duration">
+            <input
+              type="text"
+              inputMode="numeric"
+              spellCheck={false}
+              aria-label="Duration"
+              value={durationDraft ?? formatClock(duration)}
+              onChange={(event) => setDurationDraft(event.currentTarget.value)}
+              onBlur={(event) => {
+                const parsed = parseClock(event.currentTarget.value);
+                // Unparseable leaves the clip alone rather than snapping it
+                // somewhere the typing did not ask for.
+                if (parsed !== null) studio.setDuration(parsed);
+                setDurationDraft(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.currentTarget.blur();
+                if (event.key === "Escape") {
+                  setDurationDraft(null);
+                  event.currentTarget.blur();
+                }
+              }}
+              /* The readout plate from the system, in its editable form: same
+                 token, same corner, same figures — it just takes typing. */
+              className="mo-value text-center focus:outline-none"
+              style={{
+                width: 82,
+                height: CONTROL_H,
+                borderRadius: "var(--mo-r-field)",
+                background: "var(--mo-field)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            />
+          </Labelled>
+
+          {/* The clip's default, for every span nobody has set individually.
+              A key's own easing beats it — that is what the preset curves are —
+              so this is the floor rather than an override. */}
+          <div ref={easingRef} className="relative">
+            <Button
+              height={CONTROL_H}
+              width={132}
+              onClick={() => setEasingOpen((was) => !was)}
+              title="Default easing for spans with no easing of their own"
+            >
+              {EASING_PRESETS.find(
+                (p) => p.id === easingPresetId(animation.easing),
+              )?.label ?? "Custom"}
+            </Button>
+            {easingOpen ? (
+              /* Upwards. The panel lives at the bottom of the window, so a
+                 menu opening downwards opens off the screen. */
+              <div style={{ position: "absolute", bottom: 34, left: 0 }}>
+                <EasingMenu
+                  value={animation.easing}
+                  onChange={studio.setEasing}
+                />
+              </div>
+            ) : null}
+          </div>
+
+          <Rule />
+
+          {/* Zoom, as Figma puts it: a slider at the toolbar's end. Zooming
+              keeps the PLAYHEAD centred rather than the left edge, because the
+              playhead is where you are working — anchoring to zero would push
+              the thing you were looking at off screen every time. */}
+          <Labelled label="Zoom">
+            <div style={{ width: 96 }}>
+              <Slider
+                label="Timeline zoom"
+                value={zoom}
+                min={1}
+                max={12}
+                step={0.1}
+                onChange={setZoom}
+              />
+            </div>
+          </Labelled>
+          <Button
+            height={CONTROL_H}
+            width={54}
+            onClick={() => setZoom(1)}
+            title="Fit the whole clip"
+          >
+            Fit
+          </Button>
+
+          <Rule />
+
+          <span className="mo-label" style={{ color: "var(--mo-ink-muted)" }}>
+            {getMotionPreset(presetId)?.label ?? presetId}
+          </span>
+          <Button
+            height={CONTROL_H}
+            width={62}
+            onClick={studio.clearPreset}
+            title="Remove the preset and give the pose back to the panels"
+          >
+            Clear
+          </Button>
+        </div>
+
+        <Divider />
+
+        {/* ------------------------------------------------ ruler + lanes */}
+        {/* `min-h-0`, or the flex child refuses to shrink below its content
+            and the panel grows past its 250 instead of scrolling inside it. */}
+        <div
+          className="mo-noscroll flex min-h-0 flex-1 overflow-y-auto"
+          style={{ paddingTop: SAFE }}
+        >
+          <div style={{ width: LABEL_W, flex: "none" }}>
+            <div style={{ height: RULER_H }} />
+            {lanes.map(({ key, label }) => (
+              <div
+                key={key}
+                className="mo-label flex items-center"
+                style={{ height: LANE_H, color: "var(--mo-ink-muted)" }}
+              >
+                {label}
+              </div>
+            ))}
+          </div>
+
+          <div
+            ref={viewportRef}
+            className="mo-noscroll relative flex-1 cursor-ew-resize overflow-x-auto"
+            style={{ paddingInline: LEAD }}
+            /*
+              EVERY pointer gesture in the lanes is handled here, on the
+              viewport, and not on the thing being dragged.
+
+              It was on the diamonds, and that is where the bug came from — the
+              playhead stuck to the cursor and the key would not follow it. A
+              key is keyed by its own time, so the first pixel of a drag
+              re-times it, React throws that element away and mounts a new one,
+              and the element holding the pointer capture no longer exists. The
+              rest of the gesture then lands on whatever is underneath, which is
+              this box, which scrubs. The element under the pointer was never
+              the right place to hold a drag that MOVES that element. This box
+              outlives the whole gesture.
+            */
+            onPointerDown={(event) => {
+              event.currentTarget.setPointerCapture(event.pointerId);
+              const hit = (event.target as HTMLElement).closest?.(
+                "[data-keyframe]",
+              ) as HTMLElement | null;
+              if (hit) {
+                const at = {
+                  key: hit.dataset.channel as AnimatableKey,
+                  time: Number(hit.dataset.time),
+                };
+                dragRef.current = at;
+                // Measured here rather than read off a ref during render: the
+                // menu hangs off the panel and has to know where the mark it
+                // belongs to sits along it.
+                const panel =
+                  event.currentTarget.closest(".mo-glass")?.parentElement;
+                const box = panel?.getBoundingClientRect();
+                const mark = hit.getBoundingClientRect();
+                setSelected({
+                  ...at,
+                  x: box ? mark.left + mark.width / 2 - box.left : 0,
+                  panelW: box?.width ?? 0,
+                });
+                // Never both at once — see `KeyframeMenu`.
+                setSegment(null);
+                return;
+              }
+              // A press on empty lane deselects, the way it does everywhere
+              // else in this interface.
+              setSelected(null);
+              scrubTo(event.clientX);
+            }}
+            onPointerMove={(event) => {
+              if (!event.buttons) return;
+              const drag = dragRef.current;
+              if (!drag) {
+                scrubTo(event.clientX);
+                return;
+              }
+              const asked = timeAt(event.clientX);
+              if (asked === null) return;
+              const to = settleTime(drag.key, drag.time, asked);
+              if (to === null || Math.abs(to - drag.time) < 1e-6) return;
+              studio.moveKey(drag.key, drag.time, to);
+              // Ref and selection both follow the key, so the next move of the
+              // same gesture goes looking for it where it now is.
+              dragRef.current = { key: drag.key, time: to };
+              const lane = laneRef.current?.getBoundingClientRect();
+              const box = event.currentTarget
+                .closest(".mo-glass")
+                ?.parentElement?.getBoundingClientRect();
+              setSelected((was) =>
+                was && lane && box
+                  ? {
+                      key: drag.key,
+                      time: to,
+                      // Follows the mark, so the menu travels with the key it
+                      // is about rather than staying where the drag started.
+                      x:
+                        lane.left +
+                        (to / Math.max(0.001, duration)) * lane.width -
+                        box.left,
+                      panelW: box.width,
+                    }
+                  : was,
+              );
+            }}
+            onPointerUp={() => {
+              dragRef.current = null;
+            }}
+            onPointerCancel={() => {
+              dragRef.current = null;
+            }}
+          >
+            {/*
+              Zoom is width, and nothing else has to know about it. Everything
+              inside is placed as a PERCENTAGE of this box — ticks, keys, the
+              playhead — so making it twelve times as wide spreads them all out
+              and the maths is untouched. Only `scrubTo` reads a pixel, and it
+              reads THIS box's rect, which moves with the scroll on its own.
+
+              `minHeight: 100%` so the playhead can run the full height of the
+              panel rather than stopping at the last lane.
+            */}
+            <div
+              ref={laneRef}
+              className="relative"
+              style={{ width: `${zoom * 100}%`, minHeight: "100%" }}
+            >
+              <div className="relative" style={{ height: RULER_H }}>
+                {ticks.map((t) => (
+                  <span
+                    key={t}
+                    className="mo-code absolute select-none"
+                    style={{
+                      left: `${(t / Math.max(0.001, duration)) * 100}%`,
+                      // Nudged in rather than centred: the first and last tick
+                      // would hang off the ends of the panel otherwise.
+                      transform:
+                        t === 0
+                          ? "none"
+                          : t >= duration - 1e-6
+                            ? "translateX(-100%)"
+                            : "translateX(-50%)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {Number(t.toFixed(2))}s
+                  </span>
+                ))}
+              </div>
+
+              {lanes.map(({ key }) => {
+                const keys = tracks[key] ?? [];
+                return (
+                  <div
+                    key={key}
+                    className="relative flex items-center"
+                    style={{ height: LANE_H }}
+                  >
+                    <div
+                      className="w-full"
+                      style={{
+                        height: 6,
+                        borderRadius: radius.field,
+                        background: "var(--mo-field)",
+                      }}
+                    />
+
+                    {/*
+                      The easing marker for each SPAN, sitting between the two
+                      keys it belongs to.
+
+                      This is the in-between editor. A span is where easing
+                      actually lives — a key is a pose, the curve is how you
+                      leave it — so the control for it belongs between the two
+                      marks rather than in one menu that says "everything".
+                      The glyph is plotted from `easingCurve`, so it shows what
+                      the span does rather than what it was meant to do.
+                    */}
+                    {keys.slice(0, -1).map((from, i) => {
+                      const to = keys[i + 1];
+                      const mid = (from.time + to.time) / 2;
+                      const open =
+                        segment?.key === key &&
+                        Math.abs(segment.time - from.time) < 1e-6;
+                      return (
+                        <button
+                          key={`${from.time}-span`}
+                          type="button"
+                          title={`Easing from ${formatTime(from.time)} to ${formatTime(to.time)}`}
+                          // The lane below must not take this as a scrub.
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            const panel =
+                              panelRef.current?.getBoundingClientRect();
+                            const tile =
+                              event.currentTarget.getBoundingClientRect();
+                            setSegment(
+                              open || !panel
+                                ? null
+                                : {
+                                    key,
+                                    time: from.time,
+                                    // Both measured at the click, so the clamp
+                                    // below needs no ref during render.
+                                    x: tile.left + tile.width / 2 - panel.left,
+                                    panelW: panel.width,
+                                  },
+                            );
+                          }}
+                          className="absolute grid cursor-pointer place-items-center"
+                          style={{
+                            left: `${(mid / Math.max(0.001, duration)) * 100}%`,
+                            top: "50%",
+                            width: MARK,
+                            height: MARK,
+                            marginLeft: -MARK / 2,
+                            marginTop: -MARK / 2,
+                            borderRadius: 6,
+                            background: "var(--mo-field)",
+                            // The selection ring, in this chrome's ink rather
+                            // than the old editor's blue.
+                            boxShadow: open
+                              ? "0 0 0 1.5px var(--mo-ink)"
+                              : "none",
+                          }}
+                        >
+                          <CurveThumb
+                            easing={from.easing ?? animation.easing}
+                            active={open}
+                          />
+                        </button>
+                      );
+                    })}
+
+                    {keys.map((frame) => {
+                      const on =
+                        selected?.key === key &&
+                        Math.abs(selected.time - frame.time) < 1e-6;
+                      return (
+                        <span
+                          key={frame.time}
+                          data-keyframe
+                          data-channel={key}
+                          data-time={frame.time}
+                          role="button"
+                          tabIndex={-1}
+                          title={`${formatTime(frame.time)} — ${frame.value}\nDrag to move, double-click to delete`}
+                          onDoubleClick={(event) => {
+                            event.stopPropagation();
+                            studio.deleteKey(key, frame.time);
+                          }}
+                          className="absolute cursor-ew-resize"
+                          style={{
+                            left: `${(frame.time / Math.max(0.001, duration)) * 100}%`,
+                            top: "50%",
+                            width: MARK,
+                            height: MARK,
+                            marginLeft: -MARK / 2,
+                            marginTop: -MARK / 2,
+                            /*
+                              The frame's own diamond, as a MASK rather than an
+                              image: the asset ships `fill="white"` because it
+                              is a shape and not artwork, so tinting it with the
+                              ink token is what makes it the same mark as every
+                              other glyph on the page. Hollow at rest, solid
+                              when selected — the pair the frame draws.
+                            */
+                            background: on
+                              ? "var(--mo-ink)"
+                              : "var(--mo-ink-muted)",
+                            WebkitMaskImage: `url(${KEYFRAMES}/${on ? "keyframe-selected" : "keyframe"}.svg)`,
+                            maskImage: `url(${KEYFRAMES}/${on ? "keyframe-selected" : "keyframe"}.svg)`,
+                            WebkitMaskSize: "contain",
+                            maskSize: "contain",
+                            WebkitMaskRepeat: "no-repeat",
+                            maskRepeat: "no-repeat",
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                );
+              })}
+
+              {/*
+                Runs the FULL height of the panel, not as far as the last lane.
+                A playhead that stops where the tracks happen to end reads as
+                cropped — and it is a statement about the whole clip, not about
+                the rows that have keys in them.
+
+                Painted by the rAF loop above rather than by React: `left: 0`
+                plus a transform means the loop writes one property and touches
+                no layout.
+              */}
+              <div
+                ref={markerRef}
+                className="pointer-events-none absolute"
+                style={{ left: 0, top: 0, bottom: 0 }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    bottom: 0,
+                    width: 1,
+                    background: "var(--mo-ink)",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    width: 7,
+                    height: 7,
+                    marginLeft: -3,
+                    borderRadius: 2,
+                    background: "var(--mo-ink)",
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </Glass>
+
+      {/*
+        The menus hang OFF the panel, so they live outside it.
+
+        They were inside the `Glass`, and that is what was eating the lanes.
+        A `Glass` is a flex column; the lanes row takes what is left of its 250
+        with `flex-1`; and an absolutely positioned child should take nothing at
+        all — but any slip that leaves one in flow hands it a share of that 250
+        and squeezes the lanes to a sliver. Which is exactly what the symptom
+        was: the taller menu left fewer lanes, and the tallest left none.
+
+        Out here they are positioned against the panel wrapper instead, land in
+        the same place on screen, and cannot cost the panel its layout however
+        they are styled.
+      */}
+      {selected && !segment ? (
+        /* Same shelf as the span menu, same clamp, and never both at once —
+           they are two views of the same mark and stacking them would put
+           one over the lane the other is about. */
+        <div
+          style={{
+            // Stated, not classed. This is the property whose absence squeezed
+            // the lanes, so it does not get to depend on a utility class being
+            // generated.
+            position: "absolute",
+            left: Math.max(
+              0,
+              Math.min(
+                selected.panelW - control.panelW,
+                selected.x - control.panelW / 2,
+              ),
+            ),
+            bottom: PANEL_H + SAFE,
+          }}
+        >
+          {(() => {
+            const keys = tracks[selected.key] ?? [];
+            const frame = keys.find(
+              (k) => Math.abs(k.time - selected.time) < 1e-6,
+            );
+            // The key can go while its menu is open — a Delete, an undo, a
+            // preset swap — and the menu goes with it rather than rendering
+            // the last thing it saw.
+            if (!frame) return null;
+            return (
+              <KeyframeMenu
+                channel={selected.key}
+                label={
+                  ANIMATABLE.find((a) => a.key === selected.key)?.label ??
+                  selected.key
+                }
+                frame={frame}
+                duration={duration}
+                easing={frame.easing ?? animation.easing}
+                onValue={(value) =>
+                  studio.setKeyValue(selected.key, frame.time, value)
+                }
+                onTime={(asked) => {
+                  const time = settleTime(selected.key, frame.time, asked);
+                  if (time === null) return;
+                  studio.moveKey(selected.key, frame.time, time);
+                  setSelected({ ...selected, time });
+                }}
+                onEasing={() =>
+                  setSegment({
+                    key: selected.key,
+                    time: frame.time,
+                    x: selected.x,
+                    panelW: selected.panelW,
+                  })
+                }
+                onDelete={() => {
+                  studio.deleteKey(selected.key, frame.time);
+                  setSelected(null);
+                }}
+              />
+            );
+          })()}
+        </div>
+      ) : null}
+
+      {segment ? (
+        /*
+          Above the panel, not inside the lane it belongs to: the lanes live
+          in a horizontal scroller, and a menu opened in there is clipped by
+          it the moment it is wider than the span. Clamped to the panel so a
+          span near either end still opens a whole menu.
+        */
+        <div
+          style={{
+            // Stated, not classed. This is the property whose absence squeezed
+            // the lanes, so it does not get to depend on a utility class being
+            // generated.
+            position: "absolute",
+            left: Math.max(
+              0,
+              Math.min(
+                segment.panelW - control.panelW,
+                segment.x - control.panelW / 2,
+              ),
+            ),
+            bottom: PANEL_H + SAFE,
+          }}
+        >
+          <EasingMenu
+            value={
+              (tracks[segment.key] ?? []).find(
+                (k) => Math.abs(k.time - segment.time) < 1e-6,
+              )?.easing ?? animation.easing
+            }
+            onChange={(easing) =>
+              studio.setKeyEasing(segment.key, segment.time, easing)
+            }
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}

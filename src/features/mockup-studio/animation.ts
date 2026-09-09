@@ -14,6 +14,15 @@ export const ANIMATABLE = [
   { key: "zoom", label: "Zoom" },
   { key: "panX", label: "Pan X" },
   { key: "panY", label: "Pan Y" },
+  /*
+   * Along the line of sight, in world units.
+   *
+   * Keyable because a camera that cannot leave its tripod still has to be able
+   * to approach: `zoom` scales the phone where this moves it, and the two look
+   * different — enlarging a picture keeps its perspective while coming closer
+   * changes it. A preset that wants the second one needs this channel.
+   */
+  { key: "panZ", label: "Pan Z" },
   // Only folding devices have a hinge, but the track list is about what CAN be
   // keyed, not what the current device has. A rigid phone simply never gets a
   // fold track, because nothing writes one.

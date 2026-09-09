@@ -37,7 +37,7 @@ const PAD = 3;
  * different one does not pass through them. That mismatch is what made the
  * curve leave the box while the handles sat somewhere else entirely.
  */
-function curvePath(
+export function curvePath(
   easing: Easing,
   box: number,
   pad: number,
@@ -77,7 +77,7 @@ function curvePath(
  * move has happened by now. It also gives the plot something to be, instead
  * of a line floating in a box.
  */
-function curveArea(
+export function curveArea(
   easing: Easing,
   box: number,
   pad: number,
@@ -115,10 +115,10 @@ function CurveThumb({ easing, active }: { easing: Easing; active: boolean }) {
   );
 }
 
-const PLOT = 200;
+export const PLOT = 200;
 /* Just enough room for a 6px handle to sit on the axis line without its ring
    being clipped. It was 26, which spent a seventh of the plot on nothing. */
-const PLOT_PAD = 10;
+export const PLOT_PAD = 10;
 /* The editor's vertical axis. It runs past 0..1 on both sides because the
    useful curves do — a handle that could not go above the top of the box could
    not express an overshoot, and "ease out back" would be unreachable by hand
@@ -127,8 +127,8 @@ const PLOT_PAD = 10;
    1.084, so this holds every preset with room to spare while giving the 0..1
    region — the part you are actually reading — 59% of the height instead of
    half. Handles are clamped to the axis, so nothing can be dragged outside it. */
-const Y_MIN = -0.35;
-const Y_MAX = 1.35;
+export const Y_MIN = -0.35;
+export const Y_MAX = 1.35;
 
 /**
  * The bezier editor: two handles you drag, on the square the curve is drawn in.

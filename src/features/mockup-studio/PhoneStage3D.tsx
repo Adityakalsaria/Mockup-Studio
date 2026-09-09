@@ -16,6 +16,7 @@ import { DEFAULT_DEVICE_ID, getDevice, type Device, type DeviceNotch, type Mater
 import { DEFAULT_FINISH_ID, finishForDevice, getFinish } from "./finishes";
 import { sampleAnimation, sampleTrack, type Animation } from "./animation";
 import { recolorBodyTexture } from "./bodyTexture";
+import { MaterialLab } from "./MaterialLab";
 import { StudioEnvironment } from "./StudioEnvironment";
 import { StageLoader } from "./StageLoader";
 import { DEFAULT_SHADOW, type ShadowSettings } from "./shadow";
@@ -314,7 +315,11 @@ function CaptureBridge({
 }: {
   captureRef?: React.MutableRefObject<StageCapture | null>;
 }) {
-  const { gl, scene, camera, size } = useThree();
+  const { gl, size } = useThree();
+  // A full loop step, not a bare draw — same reason as `RecorderBridge`: a
+  // composer draws from inside `useFrame`, so `gl.render` alone would write a
+  // PNG with the depth-of-field pass missing from it.
+  const advance = useThree((state) => state.advance);
   useEffect(() => {
     if (!captureRef) return;
     captureRef.current = (scale: number) => {
@@ -322,7 +327,7 @@ function CaptureBridge({
       try {
         gl.setPixelRatio(scale);
         gl.setSize(size.width, size.height, false);
-        gl.render(scene, camera);
+        advance(performance.now());
         return gl.domElement.toDataURL("image/png");
       } catch {
         return null;
@@ -331,13 +336,13 @@ function CaptureBridge({
         // rendering at export resolution.
         gl.setPixelRatio(prevRatio);
         gl.setSize(size.width, size.height, false);
-        gl.render(scene, camera);
+        advance(performance.now());
       }
     };
     return () => {
       captureRef.current = null;
     };
-  }, [gl, scene, camera, size, captureRef]);
+  }, [gl, size, captureRef, advance]);
   return null;
 }
 
@@ -367,6 +372,22 @@ function RecorderBridge({
   recorderRef?: React.MutableRefObject<StageRecorder | null>;
 }) {
   const { gl, scene, camera, size } = useThree();
+  /*
+   * `advance` steps the whole frame loop; `gl.render` only draws.
+   *
+   * That distinction is why exported clips came out frozen. The pose is
+   * applied inside `useFrame` — the phone's position, rotation and scale for
+   * the playhead the exporter just set — and `gl.render(scene, camera)` does
+   * not run a single `useFrame` callback. So the exporter dutifully advanced
+   * time seventy-five times and drew the same untouched object every time: a
+   * clip of the right length in which nothing moves.
+   *
+   * It costs the depth-of-field pass too, and for the same reason. A composer
+   * takes over drawing by registering a high-priority `useFrame` and rendering
+   * itself; skip the loop and you skip the composer, so the blur that is on
+   * screen is simply absent from the file.
+   */
+  const advance = useThree((state) => state.advance);
   useEffect(() => {
     if (!recorderRef) return;
     let previousRatio: number | null = null;
@@ -382,21 +403,23 @@ function RecorderBridge({
         };
       },
       frame(draw) {
-        gl.render(scene, camera);
+        // One full step — subscribers, then the render (or the composer's) —
+        // rather than a bare draw. See `advance` above.
+        advance(performance.now());
         draw(gl.domElement);
       },
       end() {
         if (previousRatio === null) return;
         gl.setPixelRatio(previousRatio);
         gl.setSize(size.width, size.height, false);
-        gl.render(scene, camera);
+        advance(performance.now());
         previousRatio = null;
       },
     };
     return () => {
       recorderRef.current = null;
     };
-  }, [gl, scene, camera, size, recorderRef]);
+  }, [gl, scene, camera, size, recorderRef, advance]);
   return null;
 }
 
@@ -735,6 +758,8 @@ function PointerDragRotation({
   const lastRef = useRef({ x: 0, y: 0 });
   const startRef = useRef({ x: 0, y: 0 });
   const movedRef = useRef(false);
+  /** Total travel since the gesture began — what decides the locked axis. */
+  const travelRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     const target = gl.domElement;
@@ -750,6 +775,7 @@ function PointerDragRotation({
       if (draggingRef.current) return;
       draggingRef.current = true;
       movedRef.current = false;
+      travelRef.current = { x: 0, y: 0 };
       pointerIdRef.current = e.pointerId;
       startRef.current = { x: e.clientX, y: e.clientY };
       lastRef.current = { x: e.clientX, y: e.clientY };
@@ -774,6 +800,29 @@ function PointerDragRotation({
         return;
       }
       lastRef.current = { x: e.clientX, y: e.clientY };
+      travelRef.current.x += Math.abs(dx);
+      travelRef.current.y += Math.abs(dy);
+
+      /*
+       * Shift locks the turn to one axis.
+       *
+       * A free drag turns the phone about two axes at once, which is right for
+       * finding a pose and wrong for adjusting one: a nudge sideways to check
+       * a reflection also tips the model a degree, and the pose you had is
+       * gone. Held, the drag keeps whichever axis it has travelled furthest in
+       * and drops the other entirely.
+       *
+       * Measured over the whole gesture rather than this event: per-event, a
+       * hand wobbling by a pixel would flip the lock back and forth and the
+       * model would judder between the two axes. Accumulated, the direction
+       * you set out in is the one it commits to, and it can still change its
+       * mind if you genuinely turn a corner.
+       */
+      if (e.shiftKey) {
+        const { x, y } = travelRef.current;
+        rotateRef.current(x >= y ? { dx, dy: 0 } : { dx: 0, dy });
+        return;
+      }
       rotateRef.current({ dx, dy });
     };
     const onUp = (e: PointerEvent) => {
@@ -1907,6 +1956,21 @@ function GLBPhoneScene({
         if (candidate.transparent && !forcedBody) {
           if (typeof candidate.clone !== "function") return mat;
           const glass = candidate.clone() as typeof candidate;
+          const spec = (candidate as { name?: string }).name
+            ? device.bodySurfaces?.[(candidate as { name?: string }).name!]
+            : undefined;
+          if (spec) {
+            if (spec.color !== undefined) {
+              (glass as { color?: { set: (hex: string) => void } }).color?.set(spec.color);
+            }
+            if (spec.roughness !== undefined) glass.roughness = spec.roughness;
+            if (spec.metalness !== undefined && "metalness" in glass) {
+              (glass as { metalness: number }).metalness = spec.metalness;
+            }
+            if (spec.envMapIntensity !== undefined && "envMapIntensity" in glass) {
+              (glass as { envMapIntensity: number }).envMapIntensity = spec.envMapIntensity;
+            }
+          }
           if ("envMapIntensity" in glass) {
             glass.envMapIntensity = GLASS_ENV_MAP_INTENSITY;
           }
@@ -1968,7 +2032,62 @@ function GLBPhoneScene({
         }
         next.emissive?.set?.(BODY_EMISSIVE_COLOR);
         if ("emissiveIntensity" in next) next.emissiveIntensity = BODY_EMISSIVE_INTENSITY;
-        if ("envMapIntensity" in next) next.envMapIntensity = BODY_ENV_MAP_INTENSITY;
+        /*
+         * A fresh surface, where the imported one cannot be reasoned with.
+         *
+         * The converted models arrive with a metallic-roughness TEXTURE — the
+         * exporter merged the two into one on the way through, and the 18's
+         * chassis states `metallicFactor 0.87` with a map over it. three
+         * multiplies the scalar by the map, so the map has the final say: no
+         * value of roughness in `finishes.ts` could reach that surface, which
+         * is why raising it from 0.36 to 0.75 changed nothing visible at all.
+         *
+         * Rather than subtract one map at a time and hope, a device can ask
+         * for the surface to be REBUILT: every map dropped, and colour,
+         * roughness and metalness taken from the finish alone. What is lost is
+         * the variation those maps encoded, which on anodised aluminium is
+         * close to nothing — it is a uniform finish, and the map in question
+         * was a 256px tile whose main contribution was speckle.
+         */
+        const named = (candidate as { name?: string }).name;
+        if (named && device.plainBodyMaterials?.includes(named)) {
+          for (const slot of [
+            "map",
+            "roughnessMap",
+            "metalnessMap",
+            "aoMap",
+            "emissiveMap",
+            "specularIntensityMap",
+          ]) {
+            if (slot in next) (next as Record<string, unknown>)[slot] = null;
+          }
+          next.color?.set?.(bodyColor);
+          if ("roughness" in next) next.roughness = bodyRoughness;
+          if ("metalness" in next) next.metalness = bodyMetalness;
+        }
+        // ...and then whatever the device says about THIS material, which is
+        // how one body can hold a frame and a panel with different surfaces.
+        const surface = named ? device.bodySurfaces?.[named] : undefined;
+        if (surface) {
+          if (surface.color !== undefined) next.color?.set?.(surface.color);
+          if (surface.roughness !== undefined && "roughness" in next) {
+            next.roughness = surface.roughness;
+          }
+          if (surface.metalness !== undefined && "metalness" in next) {
+            next.metalness = surface.metalness;
+          }
+        }
+
+        /*
+         * 2.1 is a studio default that suits the models authored for it. The
+         * converted 18s are not: their bodies came out of a USD with baked
+         * roughness maps, and at 2.1 the chamfers read as mirror streaks
+         * rather than the soft gradient Apple's own render shows. A device may
+         * state its own.
+         */
+        if ("envMapIntensity" in next) {
+          next.envMapIntensity = device.bodyEnvMapIntensity ?? BODY_ENV_MAP_INTENSITY;
+        }
         if ("opacity" in next) next.opacity = BODY_OPACITY;
         if ("transparent" in next) next.transparent = BODY_OPACITY < 1;
         return next;
@@ -2650,6 +2769,7 @@ function PhoneScene({
   animation,
   timeRef,
   playing,
+  animating,
   livePose,
   screenFit,
   fold,
@@ -2670,6 +2790,7 @@ function PhoneScene({
   animation?: Animation;
   timeRef?: React.MutableRefObject<number>;
   playing?: boolean;
+  animating?: boolean;
   /**
    * A real phone's orientation, when one is paired. Sampled here in the frame
    * loop for the same reason playback is: at 30 samples a second, routing it
@@ -2775,6 +2896,7 @@ function PhoneScene({
     let rz = targetRZ;
     let ox = targetOffsetX;
     let oy = targetOffsetY;
+    let oz = targetOffsetZ;
     let sz = targetSizeScale;
     if (playing && animation && timeRef) {
       const pose = sampleAnimation(animation, timeRef.current);
@@ -2783,9 +2905,26 @@ function PhoneScene({
       if (pose.zAxis !== undefined) rz = pose.zAxis * rad;
       if (pose.panX !== undefined) ox = (pose.panX * 100 / 500) * PHONE_HEIGHT;
       if (pose.panY !== undefined) oy = -(pose.panY * 100 / 500) * PHONE_HEIGHT;
+      // Already world units, unlike X and Y — see `offsetZ`.
+      if (pose.panZ !== undefined) oz = pose.panZ;
       if (pose.zoom !== undefined) sz = (heightPct / 100) * pose.zoom;
-      // Demand loop: ask for the next frame or playback stops after one.
-      state.invalidate();
+      /*
+       * Demand loop: ask for the next frame, or playback stops after one.
+       *
+       * `animating` and not `playing`, and the difference is the whole reason
+       * this line has a history. `playing` here means "the pose comes from the
+       * clock", which is also true when the clock is stopped -- a preset
+       * applied and paused, scrubbed, or being exported a frame at a time. So
+       * it cannot decide whether to ask for another frame: leave it asking
+       * always and the canvas redraws at 60Hz forever after a clip ends;
+       * compare against the time last drawn instead and playback never STARTS,
+       * because on its first frame the transport has not advanced the head yet
+       * and the two are equal.
+       *
+       * The honest question is whether the clock is running, which only the
+       * transport knows, so it says so.
+       */
+      if (animating) state.invalidate();
     }
 
     // Playback and export ask for the pose they were given, exactly. The
@@ -2813,7 +2952,7 @@ function PhoneScene({
       k.z = springTo(k.z, scaleZ, vel, "kz", dt);
       g.position.x = springTo(g.position.x, ox, vel, "ox", dt);
       g.position.y = springTo(g.position.y, oy, vel, "oy", dt);
-      g.position.z = springTo(g.position.z, targetOffsetZ, vel, "oz", dt);
+      g.position.z = springTo(g.position.z, oz, vel, "oz", dt);
     }
     g.scale.set(k.u * k.x, k.u * k.y, k.u * k.z);
 
@@ -2969,6 +3108,7 @@ export default function PhoneStage3D({
   animation,
   timeRef,
   playing,
+  animating,
   livePose,
   fold,
   cardRadius,
@@ -3012,6 +3152,9 @@ export default function PhoneStage3D({
   animation?: Animation;
   timeRef?: React.MutableRefObject<number>;
   playing?: boolean;
+  /** The transport is RUNNING, as opposed to the pose merely coming from
+      the clock. Only this asks for the next frame — see `PhoneScene`. */
+  animating?: boolean;
   /** A paired phone's live orientation. Overrides the rotation props while
       present — see the note on PhoneScene. */
   livePose?: React.RefObject<Quat> | null;
@@ -3093,8 +3236,13 @@ export default function PhoneStage3D({
           />
         ) : null}
         <StudioEnvironment lighting={lighting} />
+        {/* Live surface tuning for the converted 18s — see `MaterialLab`. It
+            writes onto the materials after the retint, which is the only place
+            these values can be set at all. */}
+        <MaterialLab active={device.id.startsWith("apple-iphone-18")} />
         <CameraFov fov={fov} animation={animation} timeRef={timeRef} playing={playing} />
         <PhoneScene
+          animating={animating}
           rail={rail}
           screenTexture={screenTexture}
           device={device}

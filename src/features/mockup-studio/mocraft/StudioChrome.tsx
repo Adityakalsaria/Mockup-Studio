@@ -21,7 +21,17 @@
  * `right: 16` here rather than `left: 1196`.
  */
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { GIZMO_SHAPE } from "./GizmoCanvas";
@@ -44,12 +54,21 @@ import {
   RowGroup,
   Segmented,
   Swatch,
+  useDismiss,
   useSpring,
 } from "@/design/ui";
 import { control, radius } from "@/design/system";
+import { MaterialLabPanel } from "../MaterialLabPanel";
 import { Stage } from "./Stage";
+import { PANEL_H as TIMELINE_H, Timeline } from "./Timeline";
 import { DEFAULT_RATIO_ID, useStudio, type Studio } from "./useStudio";
-import { LAYERS, layerIsDirty, resetLayer, resetTransform, type Layer } from "./bindings";
+import {
+  LAYERS,
+  layerIsDirty,
+  resetLayer,
+  resetTransform,
+  type Layer,
+} from "./bindings";
 import { DEVICES } from "../devices";
 import { getMotionPreset } from "../editor/motionPresets";
 import { DEFAULT_EDITOR_STATE } from "../editor/editorState";
@@ -126,18 +145,102 @@ const QR = {
  * moved. The artwork is kept exactly as exported; it is what distinguishes the
  * tiles at a glance, and the pairing below is by what each drawing depicts.
  */
-const PRESETS = [
-  { id: "push-in", art: "pan-in", w: 387, h: 387 },
-  { id: "pull-back", art: "pan-out", w: 200, h: 232 },
-  { id: "slide-in", art: "pan-left", w: 200, h: 232 },
-  { id: "turntable", icon: "macbook", rotate: -20.53 },
-  { id: "pan-across", icon: "laptop" },
-  { id: "hero-orbit", art: "swirl", w: 194, h: 222 },
-  { id: "crane-down", art: "sweep", w: 200, h: 232 },
-  { id: "hero", art: "sweep", w: 200, h: 232 },
-] as const;
+/**
+ * What the tile draws, for each preset the studio offers.
+ *
+ * EMPTY, on purpose. The eight that were here were the frame's placeholders,
+ * pointed at whichever `MOTION_PRESETS` entries had roughly the right name —
+ * so the artwork and the move it triggered were only loosely related, and the
+ * grid was a sampler rather than a set anybody chose. They are being replaced
+ * one at a time by moves built against real reference.
+ *
+ * The registry itself is untouched: `MOTION_PRESETS` still holds all 36 and
+ * the old editor still lists them. This is only what the Mocraft chrome puts
+ * in front of anyone.
+ *
+ * Typed rather than inferred from the array, so an empty list is still a list
+ * of presets rather than a list of nothing.
+ */
+type Preset = {
+  id: string;
+  /** A drawing in `public/figma-assets/mockup-studio/presets`. */
+  art?: string;
+  /** Or a glyph from the icon set, when the file has no drawing for it. */
+  icon?: string;
+  w?: number;
+  h?: number;
+  rotate?: number;
+};
 
-type Preset = (typeof PRESETS)[number];
+const PRESETS: Preset[] = [
+  { id: "unveil", art: "swirl", w: 194, h: 222 },
+  { id: "cross-reveal", art: "pan-left", w: 200, h: 232 },
+  { id: "awaken", art: "pan-out", w: 200, h: 232 },
+  { id: "orbit-focus", art: "sweep", w: 200, h: 232 },
+  { id: "focus-pull", art: "pan-in", w: 387, h: 387 },
+  { id: "bottom-in-top-out", art: "pan-out", w: 200, h: 232 },
+  { id: "reward-pop", art: "swirl", w: 194, h: 222 },
+];
+
+/*
+ * Eight tiles fit the panel; anything past that scrolls.
+ *
+ * The cut has to land exactly on a row boundary, and only the layout knows
+ * where that is: tiles are square and sized off the column width, so their
+ * height depends on how wide the panel happens to be, and the caption under
+ * the artwork adds a height nobody has written down. So it is measured rather
+ * than assumed — the top of the ninth tile, less the gap above it, IS the
+ * bottom edge of row four. Under nine tiles there is no ninth to measure and
+ * no cap is set, which is also why the current six presets simply fill the
+ * panel with no scrolling in sight.
+ *
+ * No scrollbar: the tiles already run to both edges of the panel and a gutter
+ * appearing between them and the glass would be the only asymmetry in the
+ * chrome. Wheel, trackpad and keyboard all still work.
+ */
+const VISIBLE_PRESETS = 8;
+
+function PresetScroller({
+  gap,
+  children,
+}: {
+  gap: number;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [maxHeight, setMaxHeight] = useState<number>();
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const measure = () => {
+      const tiles = el.querySelectorAll<HTMLElement>("[data-preset-tile]");
+      const cut = tiles[VISIBLE_PRESETS];
+      // `offsetTop` is measured against whichever ancestor is positioned, but
+      // both tiles share it, so the difference is the layout distance either
+      // way and there is nothing to resolve.
+      setMaxHeight(cut ? cut.offsetTop - tiles[0].offsetTop - gap : undefined);
+    };
+
+    measure();
+    // Panels resize with the window, and a narrower column means squarer
+    // tiles means a different row boundary.
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [gap, children]);
+
+  return (
+    <div
+      ref={ref}
+      className="mo-noscroll w-full"
+      style={{ maxHeight, overflowY: "auto" }}
+    >
+      {children}
+    </div>
+  );
+}
 
 function PresetTile({
   preset,
@@ -154,6 +257,8 @@ function PresetTile({
     <button
       type="button"
       onClick={onClick}
+      // How the scroller finds the row boundary — see PresetScroller.
+      data-preset-tile
       // A basis of "half the row minus the gap", so two per line — `flex-1`
       // in a wrapping container would put all eight on one line first.
       style={{ width: "calc(50% - 8px)" }}
@@ -180,7 +285,12 @@ function PresetTile({
             height={preset.h}
             unoptimized
             className="pointer-events-none absolute max-w-none"
-            style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: 1 }}
+            style={{
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              zIndex: 1,
+            }}
           />
         ) : (
           <Image
@@ -193,7 +303,8 @@ function PresetTile({
             style={{
               // The frame tilts this one, and its shadow is a filter on the
               // symbol rather than baked into an export — there is no export.
-              transform: "rotate" in preset ? `rotate(${preset.rotate}deg)` : undefined,
+              transform:
+                "rotate" in preset ? `rotate(${preset.rotate}deg)` : undefined,
               filter: "drop-shadow(0 0 40px rgb(0 0 0 / 0.3))",
               zIndex: 1,
             }}
@@ -313,18 +424,21 @@ function ImageWell({
  * fallback is the exported artwork at rest, so the corner is never empty and
  * never jumps size when the real one arrives.
  */
-const GizmoCanvas = dynamic(() => import("./GizmoCanvas").then((m) => m.default), {
-  ssr: false,
-  loading: () => (
-    <Image
-      src={`${ICONS}/gizmo.svg`}
-      alt=""
-      width={GIZMO_CANVAS}
-      height={GIZMO_CANVAS}
-      unoptimized
-    />
-  ),
-});
+const GizmoCanvas = dynamic(
+  () => import("./GizmoCanvas").then((m) => m.default),
+  {
+    ssr: false,
+    loading: () => (
+      <Image
+        src={`${ICONS}/gizmo.svg`}
+        alt=""
+        width={GIZMO_CANVAS}
+        height={GIZMO_CANVAS}
+        unoptimized
+      />
+    ),
+  },
+);
 
 /**
  * The popup header's three acts, as the file draws them.
@@ -436,22 +550,36 @@ function ExportRow({ studio }: { studio: Studio }) {
   const pct = busy?.kind === "video" ? Math.round(busy.done * 100) : null;
 
   return (
-    <div className="mt-auto flex w-full flex-col" style={{ gap: "var(--mo-space-2)" }}>
+    <div
+      className="mt-auto flex w-full flex-col"
+      style={{ gap: "var(--mo-space-2)" }}
+    >
       <Divider />
       {/* The same title treatment a popup's sections get — `ParamGroup`'s own
           class and inset, so a heading in the stack and a heading in a panel
           are one thing rather than two that resemble each other. */}
       <span
         className="mo-title"
-        style={{ padding: "0 var(--mo-space-2)", filter: "var(--mo-text-shadow)" }}
+        style={{
+          padding: "0 var(--mo-space-2)",
+          filter: "var(--mo-text-shadow)",
+        }}
       >
         Export craft
       </span>
       <div className="flex w-full items-center" style={{ gap: 6 }}>
-        <Button grow onClick={busy ? undefined : studio.exportImage} title="Export a PNG">
+        <Button
+          grow
+          onClick={busy ? undefined : studio.exportImage}
+          title="Export a PNG"
+        >
           <MorphText>{busy?.kind === "image" ? "Saving" : "Image"}</MorphText>
         </Button>
-        <Button grow onClick={busy ? undefined : studio.exportVideo} title="Export a video">
+        <Button
+          grow
+          onClick={busy ? undefined : studio.exportVideo}
+          title="Export a video"
+        >
           <MorphText>{busy?.kind === "video" ? `${pct}%` : "Video"}</MorphText>
         </Button>
       </div>
@@ -459,6 +587,20 @@ function ExportRow({ studio }: { studio: Studio }) {
   );
 }
 
+/**
+ * Play, pause and repeat, under the shot.
+ *
+ * Only once a preset is on. With no clip loaded there is nothing to play, and
+ * a transport that is permanently there and permanently inert is a control
+ * that has to be explained; appearing when it becomes true says the same thing
+ * without a word. It is also the answer to a real question a preset raises the
+ * moment it stops — "can I see that again?" — which until now had no control
+ * to press.
+ *
+ * Under the canvas rather than over it: it belongs to the shot the way a
+ * transport belongs to a film, and putting it on the composition would mean
+ * exporting around it or hiding it every time.
+ */
 /**
  * The five tools, and their names on hover.
  *
@@ -551,7 +693,9 @@ function LayerActions({
             // The Image layer deletes by dropping the file — `toggle` only
             // changes which background is drawn and would leave the upload
             // behind, ready to reappear.
-            edit((prev) => (hasFields ? layer.toggle(prev, false) : resetLayer(layer, prev)));
+            edit((prev) =>
+              hasFields ? layer.toggle(prev, false) : resetLayer(layer, prev),
+            );
             onDone();
           }}
         >
@@ -591,7 +735,10 @@ function Gizmo({ studio }: { studio: Studio }) {
   );
 
   return (
-    <div className="pointer-events-auto absolute" style={{ left: 16, bottom: 16 }}>
+    /* Positioned by the bottom bar, not by itself — see StudioChrome. The
+       wrapper is what keeps it hard against the left edge of a row that is now
+       as wide as the window. */
+    <div className="pointer-events-auto self-start">
       <Glass
         shape="pill"
         width={GIZMO_SIZE}
@@ -615,34 +762,6 @@ function Gizmo({ studio }: { studio: Studio }) {
       </Glass>
     </div>
   );
-}
-
-/**
- * Close when the press lands anywhere else.
- *
- * `pointerdown`, not `click`: a press that starts outside should dismiss on the
- * way down rather than waiting for a release that may never come, and it beats
- * any handler inside the panel to it. The ref goes on whatever should NOT
- * dismiss — for the tool panels that is the rail as well as the panel itself,
- * or picking a tool would close the thing it just opened.
- *
- * `onDismiss` must be stable, or the listener is torn down and rebuilt on every
- * render — and this page renders on every frame of a spring.
- */
-function useDismiss<T extends HTMLElement>(open: boolean, onDismiss: () => void) {
-  const ref = useRef<T>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const away = (event: PointerEvent) => {
-      const node = ref.current;
-      if (node && !node.contains(event.target as Node)) onDismiss();
-    };
-    document.addEventListener("pointerdown", away);
-    return () => document.removeEventListener("pointerdown", away);
-  }, [open, onDismiss]);
-
-  return ref;
 }
 
 /**
@@ -675,7 +794,9 @@ function StatusDot({ connected = false }: { connected?: boolean }) {
         width: 12,
         height: 12,
         borderRadius: "var(--mo-r-pill)",
-        background: connected ? "var(--mo-accent-green)" : "var(--mo-accent-yellow)",
+        background: connected
+          ? "var(--mo-accent-green)"
+          : "var(--mo-accent-yellow)",
         boxShadow: "var(--mo-swatch-shadow)",
       }}
     />
@@ -684,10 +805,15 @@ function StatusDot({ connected = false }: { connected?: boolean }) {
 
 function Icon({ name, size = control.icon }: { name: string; size?: number }) {
   return (
-    <Image src={`${ICONS}/${name}.svg`} alt="" width={size} height={size} unoptimized />
+    <Image
+      src={`${ICONS}/${name}.svg`}
+      alt=""
+      width={size}
+      height={size}
+      unoptimized
+    />
   );
 }
-
 
 /**
  * The five tools down the left edge, named for the glyph each one draws.
@@ -786,7 +912,14 @@ export default function StudioChrome() {
    * on screen.
    */
   const studio = useStudio();
-  const { state, edit } = studio;
+  /*
+   * `state` is the shot; `effective` is the shot with the animation laid over
+   * it. Rows READ the second and WRITE through `edit`, which is what keeps a
+   * slider live once a preset is applied: it shows the value on screen, and
+   * the edit becomes a keyframe rather than a change to a number the clip is
+   * about to paint over. See `useStudio`.
+   */
+  const { state, effective, edit } = studio;
 
   /*
    * Which tab, and whether its panel is showing, are two different things.
@@ -816,6 +949,84 @@ export default function StudioChrome() {
   /** Whether the canvas panel is showing its Custom page. Resets whenever the
       panel is put away, so it never reopens two levels deep. */
   const [customOpen, setCustomOpen] = useState(false);
+
+  /** T hides and shows the timeline. Open by default — it only exists at all
+      once a preset is applied, and a preset you cannot see the clip of is a
+      worse default than one row of chrome you did not ask for. */
+  const [timelineOpen, setTimelineOpen] = useState(true);
+  /* It is only really there when there is a clip to show — which is the same
+     condition `Timeline` renders on, hoisted so the layout can reserve its
+     room. */
+  const showTimeline = timelineOpen && studio.presetId !== null;
+
+  /*
+   * The keyboard, matching the old editor key for key.
+   *
+   *   Space   play / pause
+   *   B / E   playhead to the beginning, to the end
+   *   T       show or hide the timeline
+   *   ⌘Z ⇧⌘Z  undo, redo
+   *
+   * Two guards run through all of them, and both are the old editor's
+   * reasoning rather than mine. Nothing fires while a field has focus, because
+   * undoing the whole shot when someone meant to undo their typing is worse
+   * than having no shortcut at all. And Space additionally stands down for
+   * buttons and selects, since Space is how those are pressed from the
+   * keyboard and taking it would break the panel for anyone not on a mouse.
+   *
+   * The bare letters ignore every modifier: ⌘E and friends belong to the
+   * browser, and quietly taking one is a nastier surprise than not having the
+   * shortcut.
+   */
+  useEffect(() => {
+    const typing = (target: EventTarget | null) => {
+      const node = target as HTMLElement | null;
+      const tag = node?.tagName;
+      return (
+        !!node &&
+        (tag === "INPUT" || tag === "TEXTAREA" || node.isContentEditable)
+      );
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+        if (typing(event.target)) return;
+        event.preventDefault();
+        // Shift+Cmd+Z is redo everywhere on this platform; Cmd+Y is the
+        // Windows spelling and is not worth a second branch in a Mac-first
+        // tool — the old editor's call, kept.
+        if (event.shiftKey) studio.redo();
+        else studio.undo();
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      if (event.key === " " || event.code === "Space") {
+        const tag = (event.target as HTMLElement | null)?.tagName;
+        if (typing(event.target) || tag === "BUTTON" || tag === "SELECT")
+          return;
+        event.preventDefault();
+        studio.togglePlay();
+        return;
+      }
+
+      if (typing(event.target)) return;
+      const key = event.key.toLowerCase();
+      if (key === "b") {
+        event.preventDefault();
+        studio.seek(0);
+      } else if (key === "e") {
+        event.preventDefault();
+        studio.seek(studio.duration);
+      } else if (key === "t") {
+        event.preventDefault();
+        setTimelineOpen((was) => !was);
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [studio]);
 
   const closePanel = useCallback(() => setPanelOpen(false), []);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -968,30 +1179,79 @@ export default function StudioChrome() {
       <DesignSystem />
       <div
         className="relative h-dvh w-full overflow-hidden"
-        style={{
-          // The frame's ground: a flat base, a soft radial lift behind the
-          // canvas, and the system's dot grid over both. The dots are what the
-          // frost has to pick up — over flat colour the glass reads as a grey
-          // rectangle and the whole material looks broken when it is fine.
-          backgroundColor: "#e4e4e4",
-          backgroundImage:
-            "var(--mo-dots), radial-gradient(120% 55% at 50% 50%, rgb(233 233 233 / 0) 0%, rgb(233 233 233) 100%)",
-          backgroundSize: "var(--mo-dots-pitch), auto",
-        }}
+        style={
+          {
+            // The frame's ground: a flat base, a soft radial lift behind the
+            // canvas, and the system's dot grid over both. The dots are what the
+            // frost has to pick up — over flat colour the glass reads as a grey
+            // rectangle and the whole material looks broken when it is fine.
+            // The workspace is dragged too — the phone turns under the cursor —
+            // and a drag there would otherwise select whatever the pointer
+            // passed over. Surfaces handle their own; see `.mo-glass`.
+            userSelect: "none",
+            WebkitUserSelect: "none",
+            backgroundColor: "#e4e4e4",
+            backgroundImage:
+              "var(--mo-dots), radial-gradient(120% 55% at 50% 50%, rgb(233 233 233 / 0) 0%, rgb(233 233 233) 100%)",
+            backgroundSize: "var(--mo-dots-pitch), auto",
+            // 250 of panel plus the 16 it stands off the bottom edge. Zero when
+            // there is no timeline, so an empty studio is the whole window.
+            "--mo-reserve": showTimeline ? `${TIMELINE_H + 16}px` : "0px",
+          } as CSSProperties
+        }
       >
-        {/* The shot itself, under everything. See `Stage`. */}
-        <Stage studio={studio} />
+        {/*
+          The shot itself, under everything, in whatever room the timeline has
+          left it. See `Stage`.
+
+          `--mo-reserve` is the one number that says how much of the window the
+          timeline is holding, and three things read it: this wrapper, and the
+          two side clusters below. Written as a variable rather than passed
+          around because the alternative is the same expression typed three
+          times, drifting the moment the panel's height changes.
+
+          The stage SHRINKS rather than being covered. A timeline overlapping
+          the composition means the bottom of the phone is behind a panel while
+          you judge the framing — and framing is most of what this tool is for.
+        */}
+        <div
+          className="absolute"
+          style={{ inset: 0, bottom: "var(--mo-reserve)" }}
+        >
+          <Stage studio={studio} />
+        </div>
+
+        {/* Surface tuning for the converted 18s — the DOM half of the bench.
+            Outside the canvas by necessity: see `MaterialLabPanel`. */}
+        <MaterialLabPanel
+          active={state.deviceId.startsWith("apple-iphone-18")}
+        />
 
         <div className="pointer-events-none absolute inset-0">
           {/*
-            The gizmo. FIRST in this stack so every panel paints above it:
-            it is pinned to the corner while the device list is vertically
-            centred, so the two meet at about 890px of viewport height and
-            overlap below it. Paint order does not stop them colliding, it
-            decides which survives — and a list you are reading beats a
-            readout you glance at.
+            The bottom bar: the gizmo standing on the timeline.
+
+            FIRST in this stack so every panel paints above it — the gizmo is
+            pinned to the corner while the device list is vertically centred,
+            so the two meet at about 890px of viewport height and overlap below
+            it. Paint order does not stop them colliding, it decides which
+            survives, and a list you are reading beats a readout you glance at.
+
+            A column rather than two pinned corners. The timeline's height is
+            the number of channels the preset animates — two lanes for Reward
+            Pop, seven for a preset that moves everything — so a gizmo pinned
+            at `bottom: 16 + something` would need that something to be a
+            number that is only right for one preset. Stacked, the gizmo is
+            simply the row above, and it drops back to the corner on its own
+            when there is no preset and the timeline renders nothing.
           */}
-          <Gizmo studio={studio} />
+          <div
+            className="absolute flex flex-col"
+            style={{ left: 16, right: 16, bottom: 16, gap: 16 }}
+          >
+            <Gizmo studio={studio} />
+            {showTimeline ? <Timeline studio={studio} /> : null}
+          </div>
 
           {/*
             The wordmark is an alpha MASK in the frame, filled with #595959 —
@@ -1103,24 +1363,24 @@ export default function StudioChrome() {
             style={{ right: 16, top: 16, gap: 16 }}
           >
             {menuOpen ? (
-            <Glass width={200}>
-              <RowGroup>
-                <Row
-                  icon={<Icon name="settings" />}
-                  selected={account === "settings"}
-                  onClick={() => setAccount("settings")}
-                >
-                  Settings
-                </Row>
-                <Row
-                  icon={<Icon name="sign-out" />}
-                  selected={account === "sign-out"}
-                  onClick={() => setAccount("sign-out")}
-                >
-                  Sign out
-                </Row>
-              </RowGroup>
-            </Glass>
+              <Glass width={200}>
+                <RowGroup>
+                  <Row
+                    icon={<Icon name="settings" />}
+                    selected={account === "settings"}
+                    onClick={() => setAccount("settings")}
+                  >
+                    Settings
+                  </Row>
+                  <Row
+                    icon={<Icon name="sign-out" />}
+                    selected={account === "sign-out"}
+                    onClick={() => setAccount("sign-out")}
+                  >
+                    Sign out
+                  </Row>
+                </RowGroup>
+              </Glass>
             ) : null}
 
             {/* The account chip. A round glass surface is `Glass shape="pill"`;
@@ -1148,8 +1408,8 @@ export default function StudioChrome() {
           {/* Left cluster: the tool rail and the device list. */}
           <div
             ref={toolRef}
-            className="pointer-events-none absolute inset-y-0 flex items-center"
-            style={{ left: 16, gap: 16 }}
+            className="pointer-events-none absolute top-0 flex items-center"
+            style={{ left: 16, gap: 16, bottom: "var(--mo-reserve)" }}
           >
             {/* Quiet while a panel is open: the panel opens into the space the
                 tip would occupy, and the two are the same fact twice. The tip
@@ -1170,7 +1430,10 @@ export default function StudioChrome() {
               in it.
             */}
             {panelOpen ? (
-              <div className="pointer-events-auto flex flex-col items-center" style={{ gap: 8 }}>
+              <div
+                className="pointer-events-auto flex flex-col items-center"
+                style={{ gap: 8 }}
+              >
                 <Glass width={control.panelW}>
                   <AutoHeight token={customOpen ? `${tool}:custom` : tool}>
                     {tool === "devices" ? (
@@ -1178,7 +1441,9 @@ export default function StudioChrome() {
                         {DEVICES.map((d) => (
                           <Row
                             key={d.id}
-                            icon={<Icon name={DEVICE_ICONS[d.id] ?? "iphone"} />}
+                            icon={
+                              <Icon name={DEVICE_ICONS[d.id] ?? "iphone"} />
+                            }
                             selected={d.id === state.deviceId}
                             onClick={() => studio.pickDevice(d.id)}
                           >
@@ -1264,7 +1529,9 @@ export default function StudioChrome() {
                               className="grid h-full w-full place-items-center [&>svg]:h-full [&>svg]:w-full"
                               aria-label="Pairing code"
                               role="img"
-                              dangerouslySetInnerHTML={{ __html: studio.broadcast.qr }}
+                              dangerouslySetInnerHTML={{
+                                __html: studio.broadcast.qr,
+                              }}
                             />
                           ) : (
                             <Image
@@ -1282,13 +1549,19 @@ export default function StudioChrome() {
                             ink with nothing selected, and in a Row full ink IS
                             the selection — it would arrive with a pill. */}
                         <Header
-                          trailing={<StatusDot connected={studio.broadcast.state === "live"} />}
+                          trailing={
+                            <StatusDot
+                              connected={studio.broadcast.state === "live"}
+                            />
+                          }
                         >
                           {/* The frame says "Status", which is a heading rather
                               than an answer. The link knows which of six things
                               is true, and morphing between them is the same
                               move the popup title makes. */}
-                          <MorphText>{PAIRING_LABEL[studio.broadcast.state]}</MorphText>
+                          <MorphText>
+                            {PAIRING_LABEL[studio.broadcast.state]}
+                          </MorphText>
                         </Header>
                       </div>
                     ) : null}
@@ -1300,14 +1573,18 @@ export default function StudioChrome() {
                             key={c.id}
                             icon={<Icon name={c.icon} />}
                             value={c.value}
-                            trailing={c.drill ? <Icon name="chevron" /> : undefined}
+                            trailing={
+                              c.drill ? <Icon name="chevron" /> : undefined
+                            }
                             selected={
                               c.drill
                                 ? CUSTOM_IDS.has(studio.ratioId)
                                 : c.id === studio.ratioId
                             }
                             onClick={() =>
-                              c.drill ? setCustomOpen(true) : studio.setRatioId(c.id)
+                              c.drill
+                                ? setCustomOpen(true)
+                                : studio.setRatioId(c.id)
                             }
                           >
                             {c.name}
@@ -1333,7 +1610,9 @@ export default function StudioChrome() {
                             <HeaderButton
                               label="Reset canvas size"
                               disabled={studio.ratioId === DEFAULT_RATIO_ID}
-                              onClick={() => studio.setRatioId(DEFAULT_RATIO_ID)}
+                              onClick={() =>
+                                studio.setRatioId(DEFAULT_RATIO_ID)
+                              }
                             >
                               <Icon name={HEADER_ICON.reset} />
                             </HeaderButton>
@@ -1374,7 +1653,10 @@ export default function StudioChrome() {
                 {/* Outside the panel in the frame, so a sibling rather than a
                     last row — and it belongs to one tool, not to the surface. */}
                 {tool === "remote" ? (
-                  <span className="mo-code" style={{ color: "var(--mo-ink-muted)" }}>
+                  <span
+                    className="mo-code"
+                    style={{ color: "var(--mo-ink-muted)" }}
+                  >
                     <MorphText>
                       {studio.broadcast.state === "live"
                         ? "Mirroring this phone"
@@ -1388,8 +1670,8 @@ export default function StudioChrome() {
 
           {/* Right cluster: the mode switch over the open popup and the stack. */}
           <div
-            className="pointer-events-none absolute inset-y-0 flex flex-col items-end justify-center [&>*]:pointer-events-auto"
-            style={{ right: 16, gap: 16 }}
+            className="pointer-events-none absolute top-0 flex flex-col items-end justify-center [&>*]:pointer-events-auto"
+            style={{ right: 16, gap: 16, bottom: "var(--mo-reserve)" }}
           >
             <Segmented
               value={tab}
@@ -1400,7 +1682,11 @@ export default function StudioChrome() {
               ]}
             />
 
-            <div ref={popupRef} className="flex items-start" style={{ gap: 16 }}>
+            <div
+              ref={popupRef}
+              className="flex items-start"
+              style={{ gap: 16 }}
+            >
               {/*
                 One popup, belonging to whichever effect is open. It is not a
                 fixed panel with a changing title: close it and there is no
@@ -1426,100 +1712,127 @@ export default function StudioChrome() {
                         it along with everything else. */}
                     <div
                       className="flex flex-col"
-                      style={{ gap: open.id === "image" ? 0 : "var(--mo-space-4)" }}
+                      style={{
+                        gap: open.id === "image" ? 0 : "var(--mo-space-4)",
+                      }}
                     >
-                  <Header
-                    icon={<Icon name={open.icon} />}
-                    trailing={<LayerActions layer={open} studio={studio} onDone={closePopup} />}
-                    closeIcon={<Icon name="close-rounded" />}
-                    onClose={() => setPopupOpen(false)}
-                  >
-                    {/*
+                      <Header
+                        icon={<Icon name={open.icon} />}
+                        trailing={
+                          <LayerActions
+                            layer={open}
+                            studio={studio}
+                            onDone={closePopup}
+                          />
+                        }
+                        closeIcon={<Icon name="close-rounded" />}
+                        onClose={() => setPopupOpen(false)}
+                      >
+                        {/*
                       The one label in the chrome that becomes a DIFFERENT
                       label rather than appearing or leaving: everything else
                       here is a fixed name in a list. Morphing it letter to
                       letter says the panel changed subject, where a cut says
                       a new panel arrived — and the panel itself has not.
                     */}
-                    <MorphText>{open.name}</MorphText>
-                  </Header>
-                  {open.id === "image" ? (
-                    /* `Background image` in the file — the same well as the
+                        <MorphText>{open.name}</MorphText>
+                      </Header>
+                      {open.id === "image" ? (
+                        /* `Background image` in the file — the same well as the
                        rail's tool, over the composition rather than the screen. */
-                    <ImageWell
-                      src={state.background.imageSrc}
-                      empty="No background image"
-                      onPick={studio.uploadBackground}
-                      onClear={studio.clearBackground}
-                    />
-                  ) : (
-                    <div
-                      className="flex flex-col"
-                      style={{ gap: "var(--mo-space-2)", paddingBottom: 10 }}
-                    >
-                      {open.sections
-                        // A section whose every row is out — the Lid on a
-                        // device with no hinge — takes its title and its rule
-                        // with it, rather than leaving a heading over nothing.
-                        .map((section) => ({
-                          ...section,
-                          fields: section.fields.filter((f) => f.when?.(state) ?? true),
-                        }))
-                        .filter((section) => section.fields.length > 0)
-                        .map((section, i) => (
-                        <Fragment key={section.title ?? i}>
-                          {i > 0 ? <Divider /> : null}
-                          <ParamGroup title={section.title}>
-                            {section.fields.map((f) =>
-                              f.kind === "color" ? (
-                                <ColorRow
-                                  key={f.key}
-                                  label={f.label}
-                                  value={f.get(state)}
-                                  onChange={(hex) => edit((prev) => f.set(prev, hex))}
-                                />
-                              ) : (
-                                <ParamRow
-                                  key={f.key}
-                                  label={f.label}
-                                  icon={
-                                    f.axis ? (
-                                      <span className="mo-label">{f.axis}</span>
-                                    ) : undefined
-                                  }
-                                  /* The frame's reset glyph, and it resets:
+                        <ImageWell
+                          src={state.background.imageSrc}
+                          empty="No background image"
+                          onPick={studio.uploadBackground}
+                          onClear={studio.clearBackground}
+                        />
+                      ) : (
+                        <div
+                          className="flex flex-col"
+                          style={{
+                            gap: "var(--mo-space-2)",
+                            paddingBottom: 10,
+                          }}
+                        >
+                          {open.sections
+                            // A section whose every row is out — the Lid on a
+                            // device with no hinge — takes its title and its rule
+                            // with it, rather than leaving a heading over nothing.
+                            .map((section) => ({
+                              ...section,
+                              fields: section.fields.filter(
+                                (f) => f.when?.(state) ?? true,
+                              ),
+                            }))
+                            .filter((section) => section.fields.length > 0)
+                            .map((section, i) => (
+                              <Fragment key={section.title ?? i}>
+                                {i > 0 ? <Divider /> : null}
+                                <ParamGroup title={section.title}>
+                                  {section.fields.map((f) =>
+                                    f.kind === "color" ? (
+                                      <ColorRow
+                                        key={f.key}
+                                        label={f.label}
+                                        value={f.get(effective)}
+                                        onChange={(hex) =>
+                                          edit((prev) => f.set(prev, hex))
+                                        }
+                                      />
+                                    ) : (
+                                      <ParamRow
+                                        key={f.key}
+                                        label={f.label}
+                                        icon={
+                                          f.axis ? (
+                                            <span className="mo-label">
+                                              {f.axis}
+                                            </span>
+                                          ) : undefined
+                                        }
+                                        /* The frame's reset glyph, and it resets:
                                      back to whatever `DEFAULT_EDITOR_STATE`
                                      says this field is, which is the only
                                      definition of neutral there is. */
-                                  trailing={
-                                    f.reset ? (
-                                      <button
-                                        type="button"
-                                        aria-label={`Reset ${f.label}`}
-                                        className="grid cursor-pointer place-items-center"
-                                        onClick={() =>
-                                          edit((prev) => f.set(prev, f.get(DEFAULT_EDITOR_STATE)))
+                                        trailing={
+                                          f.reset ? (
+                                            <button
+                                              type="button"
+                                              aria-label={`Reset ${f.label}`}
+                                              className="grid cursor-pointer place-items-center"
+                                              onClick={() =>
+                                                edit((prev) =>
+                                                  f.set(
+                                                    prev,
+                                                    f.get(DEFAULT_EDITOR_STATE),
+                                                  ),
+                                                )
+                                              }
+                                            >
+                                              <Icon
+                                                name="reset-value"
+                                                size={12}
+                                              />
+                                            </button>
+                                          ) : undefined
                                         }
-                                      >
-                                        <Icon name="reset-value" size={12} />
-                                      </button>
-                                    ) : undefined
-                                  }
-                                  value={f.get(state)}
-                                  min={f.min}
-                                  max={f.max}
-                                  step={f.step}
-                                  bare={f.bare}
-                                  format={f.format}
-                                  onChange={(n) => edit((prev) => f.set(prev, n))}
-                                />
-                              ),
-                            )}
-                          </ParamGroup>
-                        </Fragment>
-                      ))}
-                    </div>
-                  )}
+                                        value={f.get(effective)}
+                                        min={f.min}
+                                        max={f.max}
+                                        step={f.step}
+                                        bare={f.bare}
+                                        format={f.format}
+                                        onChange={(n) =>
+                                          edit((prev) => f.set(prev, n))
+                                        }
+                                      />
+                                    ),
+                                  )}
+                                </ParamGroup>
+                              </Fragment>
+                            ))}
+                        </div>
+                      )}
                     </div>
                   </AutoHeight>
                 </Glass>
@@ -1556,7 +1869,9 @@ export default function StudioChrome() {
                       // the rows rather than a counted index, so the rule lands
                       // in the right place whatever the order becomes.
                       const opensEffects =
-                        i > 0 && l.group === "effect" && LAYERS[i - 1].group === "stage";
+                        i > 0 &&
+                        l.group === "effect" &&
+                        LAYERS[i - 1].group === "stage";
                       const row = (
                         <Row
                           key={l.id}
@@ -1605,10 +1920,10 @@ export default function StudioChrome() {
                         </Row>
                       );
                       return opensEffects
-                        // 8 either side: a selected row's pill runs to the
-                        // edge of its box, so a rule with no air reads as
-                        // touching whichever row is lit next to it.
-                        ? [<Divider key={`${l.id}-rule`} inset={8} />, row]
+                        ? // 8 either side: a selected row's pill runs to the
+                          // edge of its box, so a rule with no air reads as
+                          // touching whichever row is lit next to it.
+                          [<Divider key={`${l.id}-rule`} inset={8} />, row]
                         : [row];
                     })}
                   </RowGroup>
@@ -1626,25 +1941,36 @@ export default function StudioChrome() {
                     into a grid, and the lens follows sideways as readily as
                     down because it goes to a measured box either way.
                   */}
-                  <RowGroup wrap gap={16} radius={radius.well}>
-                    {PRESETS.map((preset) => (
-                      <PresetTile
-                        key={preset.id}
-                        preset={preset}
-                        label={getMotionPreset(preset.id)?.label ?? preset.id}
-                        selected={preset.id === studio.presetId}
-                        // Applies the move AND plays it once. This shell has no
-                        // transport, so a preset that only loaded keyframes
-                        // would look like a tile that does nothing.
-                        onClick={() => studio.pickPreset(preset.id)}
-                      />
-                    ))}
-                  </RowGroup>
+                  {/* Nothing to show yet, and saying so beats an empty box that
+                      reads as a panel that failed to load. */}
+                  {PRESETS.length === 0 ? (
+                    <div
+                      className="mo-title grid h-full w-full place-items-center"
+                      style={{ color: "var(--mo-ink-muted)" }}
+                    >
+                      No presets yet
+                    </div>
+                  ) : null}
+                  <PresetScroller gap={16}>
+                    <RowGroup wrap gap={16} radius={radius.well}>
+                      {PRESETS.map((preset) => (
+                        <PresetTile
+                          key={preset.id}
+                          preset={preset}
+                          label={getMotionPreset(preset.id)?.label ?? preset.id}
+                          selected={preset.id === studio.presetId}
+                          // Applies the move AND plays it once. This shell has no
+                          // transport, so a preset that only loaded keyframes
+                          // would look like a tile that does nothing.
+                          onClick={() => studio.pickPreset(preset.id)}
+                        />
+                      ))}
+                    </RowGroup>
+                  </PresetScroller>
                 </Glass>
               )}
             </div>
           </div>
-
         </div>
       </div>
     </>

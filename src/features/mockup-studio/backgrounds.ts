@@ -81,9 +81,10 @@ export const BACKGROUND_PRESETS = [
  * Only ever shown in the editor. Export writes real transparency, so the
  * squares must not be painted into the file — see `paintBackground`.
  */
-const CHECKER_LIGHT = "rgba(255,255,255,0.06)";
-const CHECKER_DARK = "rgba(0,0,0,0.16)";
-const CHECKER = 12;
+const CHECKER_LIGHT = "#ffffff";
+const CHECKER_DARK = "#e6e6e6";
+/** One square. 10 is the size Photoshop and Figma both draw it at. */
+const CHECKER = 10;
 
 /** What the frame behind the WebGL canvas is styled with. */
 export function backgroundCss(bg: BackgroundSettings): React.CSSProperties {
@@ -114,14 +115,23 @@ export function backgroundCss(bg: BackgroundSettings): React.CSSProperties {
           }
         : { background: bg.color };
     case "transparent":
+      /*
+       * One conic gradient, which is what a chessboard actually is.
+       *
+       * It was four 45-degree linear gradients — the recipe everyone copied
+       * before `conic-gradient` existed — and with two DIFFERENT colours among
+       * the four, their diagonal edges never met as squares: what it drew was
+       * a field of triangles, which reads as a texture rather than as the
+       * universal "nothing here".
+       *
+       * A conic gradient quartered at 25/50/75 is four right-angled sectors
+       * around each corner, so one tile is a 2x2 board and it repeats with no
+       * offsets to keep in step.
+       */
       return {
-        backgroundColor: "transparent",
-        backgroundImage: `linear-gradient(45deg, ${CHECKER_DARK} 25%, transparent 25%),
-           linear-gradient(-45deg, ${CHECKER_DARK} 25%, transparent 25%),
-           linear-gradient(45deg, transparent 75%, ${CHECKER_LIGHT} 75%),
-           linear-gradient(-45deg, transparent 75%, ${CHECKER_LIGHT} 75%)`,
+        backgroundColor: CHECKER_LIGHT,
+        backgroundImage: `conic-gradient(${CHECKER_DARK} 0 25%, ${CHECKER_LIGHT} 0 50%, ${CHECKER_DARK} 0 75%, ${CHECKER_LIGHT} 0)`,
         backgroundSize: `${CHECKER * 2}px ${CHECKER * 2}px`,
-        backgroundPosition: `0 0, 0 ${CHECKER}px, ${CHECKER}px -${CHECKER}px, -${CHECKER}px 0`,
       };
   }
 }

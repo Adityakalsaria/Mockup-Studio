@@ -890,6 +890,7 @@ export default function EditorShell({
             zoom: pose.zoom,
             panX: pose.panX,
             panY: pose.panY,
+            panZ: pose.panZ,
             fold: pose.fold,
             fov: pose.fov,
           }),

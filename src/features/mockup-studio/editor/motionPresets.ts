@@ -1,4 +1,4 @@
-import type { AnimatableKey, Animation, Keyframe } from "../animation";
+import type { AnimatableKey, Animation, Easing, Keyframe } from "../animation";
 import { RANGES } from "./editorState";
 import { compileSequence, type Shot } from "./sequence";
 
@@ -22,6 +22,8 @@ export interface Pose {
   zoom: number;
   panX: number;
   panY: number;
+  /** Along the line of sight, in world units — a real approach, not a scale. */
+  panZ: number;
   fold: number;
   /** Vertical field of view in degrees -- the LENS, not the distance. */
   fov: number;
@@ -36,12 +38,65 @@ const BOUNDED: Partial<Record<AnimatableKey, { min: number; max: number }>> = {
   zoom: RANGES.zoom,
   panX: RANGES.panX,
   panY: RANGES.panY,
+  panZ: RANGES.panZ,
   fold: RANGES.fold,
   // Below 14 degrees the phone stops reading as a phone and above 90 it is a
   // fisheye. A dolly zoom wants to run hard at one of those walls, so the
   // clamp here is doing real work rather than guarding a typo.
   fov: RANGES.fov,
 };
+
+/**
+ * The lens in millimetres, which is how a camera move is briefed.
+ *
+ * `fov` is a vertical angle; a focal length is the same fact stated the way a
+ * lens is labelled, converted against a full-frame sensor's 24mm height — the
+ * same pair the Camera popup uses, so "+10mm" moves that readout by ten.
+ * Longer is tighter.
+ */
+const SENSOR_MM = 24;
+const lensMm = (p: Pose, mm: number): number => {
+  const now = SENSOR_MM / 2 / Math.tan((p.fov * Math.PI) / 360);
+  return (2 * Math.atan(SENSOR_MM / 2 / (now + mm)) * 180) / Math.PI;
+};
+
+/**
+ * Curve personalities, on the segment that starts at each key.
+ *
+ * The default interpolation here is monotone cubic, which cannot overshoot by
+ * construction — the file's own note says an overshoot has to be WRITTEN as a
+ * key past the target and a key coming back, and warns that the turnaround
+ * flattens into an instant of stillness. That is the right default for a
+ * camera move and the wrong one for a snap.
+ *
+ * A cubic segment is evaluated as `a + (b - a) * curve(t)`, so a curve whose y
+ * passes 1 genuinely travels past its destination and returns — a real
+ * overshoot, with no extra keys and no flat spot at the peak. `HEAVY` is that
+ * curve. The other three are shapes rather than overshoots: where the speed
+ * sits inside the segment.
+ */
+const CURVE = {
+  /** Launch: nearly all the distance in the first third. */
+  fast: { kind: "cubic", p: [0.16, 1, 0.3, 1] },
+  /** Punch: a touch softer, for a move that has somewhere to arrive. */
+  snappy: { kind: "cubic", p: [0.22, 1, 0.36, 1] },
+  /** Snap: slow to leave, fast to land — an accelerator, for exits. */
+  sharp: { kind: "cubic", p: [0.7, 0, 0.84, 0] },
+  /** Overshoot: past the mark and back, in the curve rather than in keys. */
+  heavy: { kind: "cubic", p: [0.34, 1.56, 0.64, 1] },
+} as const satisfies Record<string, Easing>;
+
+/** A track whose keys carry their own outgoing curve. */
+function eased(
+  key: AnimatableKey,
+  points: Array<[number, number] | [number, number, Easing]>,
+): Keyframe[] {
+  return points.map(([time, value, easing]) => ({
+    time,
+    value: Number(clamp(key, value).toFixed(4)),
+    ...(easing ? { easing } : null),
+  }));
+}
 
 function clamp(key: AnimatableKey, value: number): number {
   const bounds = BOUNDED[key];
@@ -50,7 +105,10 @@ function clamp(key: AnimatableKey, value: number): number {
 }
 
 /** Rounded because a keyframe you might later nudge by hand should be legible. */
-function track(key: AnimatableKey, points: Array<[number, number]>): Keyframe[] {
+function track(
+  key: AnimatableKey,
+  points: Array<[number, number]>,
+): Keyframe[] {
   return points.map(([time, value]) => ({
     time,
     value: Number(clamp(key, value).toFixed(4)),
@@ -127,9 +185,16 @@ export interface MotionPreset {
    * about how motion should feel, and applying a preset should not silently
    * overrule the one already chosen.
    */
-  build: (pose: Pose) => Omit<Animation, "easing">;
+  /**
+   * @param pose      what the shot is already set to — every offset is added
+   *                  to this, never assigned over it.
+   * @param intensity scales the offsets around that baseline. 1 is the move as
+   *                  designed; 0.5 is the same move at half the distance. It
+   *                  multiplies the DELTAS only, so a device already at 0.85
+   *                  scale stays at 0.85 whatever this is set to.
+   */
+  build: (pose: Pose, intensity?: number) => Omit<Animation, "easing">;
 }
-
 
 /**
  * ---------------------------------------------------------------------------
@@ -169,41 +234,552 @@ export interface MotionPreset {
  * the old ones feel like they were being dragged rather than thrown.
  */
 export const MOTION_PRESETS: MotionPreset[] = [
-  // ---------------------------------------------------------- SEQUENCES ----
-  /*
-   * The only presets that CUT.
-   *
-   * Everything else in this file is one continuous camera move, and the reason
-   * these exist is that a reference reel was measured rather than admired.
-   * Ten seconds, twelve transitions, a beat every 0.7 seconds -- and in the
-   * middle of it, 1.4 seconds where the subject's bounding box is identical
-   * frame to frame. The object is not moving at all there. All of the energy
-   * in that stretch is coming from the rhythm of the edit around it.
-   *
-   * That is not a smoother push-in. It is a different instrument, and no
-   * amount of craft inside a single move reaches it.
-   *
-   * Three things carry over from the measurement into every preset below.
-   *
-   * BEATS ARE SHORT AND EVEN. Between half a second and one-and-a-bit. The
-   * regularity is the point -- an edit on an irregular beat reads as a mistake
-   * rather than as a rhythm.
-   *
-   * EVERY SHOT IS STILL BEFORE IT IS CUT FROM. That is `settleAt`: the move
-   * finishes in the first two thirds and the shot SITS for the rest. A shot
-   * still travelling when the cut takes it reads as an accident, and it is the
-   * most common way an edit like this falls apart.
-   *
-   * ONE BEAT DOES NOTHING. Each of these holds a completely still frame
-   * somewhere in the middle. It is what gives the cut after it its snap, and
-   * it is the single most counter-intuitive thing in the measurement -- the
-   * stillest part of the reference is what makes the rest feel fast.
-   *
-   * What is NOT here, and is worth saying plainly: the reference glues its
-   * cuts together with motion blur, and this stage has none. These will read
-   * harder and more abrupt than the thing they are modelled on until that
-   * exists.
-   */
+  /* =========================================================================
+     UI REVEAL — cinematic
+
+     Five ways of arriving at the same place: the screen, square to the camera,
+     close enough to read. Each one moves every channel the rig has — three
+     pans, three rotations, scale and the lens — because a real camera move
+     never changes one thing, and a preset that does reads as a transition
+     rather than as a shot.
+
+     ONE OVERSHOOT PER GESTURE. The previous set wrote the overshoot into the
+     values AND put an overshooting curve on the same segment, so every landing
+     bounced twice. Here a settle is either a key past the mark or a `heavy`
+     curve — never both — and the file says which it is each time.
+
+     They end on the hero rather than back where they started: a reveal that
+     returns to its baseline has revealed nothing. `k` scales every offset, so
+     the same design runs subtler or harder without being redrawn.
+     ========================================================================= */
+  {
+    id: "unveil",
+    label: "Unveil",
+    kind: "cinema",
+    loops: false,
+    hint: "Turns up out of the dark into a readable hero",
+    build: (p, k = 1) => ({
+      durationSec: 4.5,
+      tracks: {
+        // The turn carries it: three-quarters away, opening to square. The
+        // first 30 degrees go in the first second — the rest is arrival.
+        yAxis: eased("yAxis", [
+          [0, p.yAxis - 52 * k, CURVE.fast],
+          [1.2, p.yAxis - 22 * k, CURVE.snappy],
+          [2.8, p.yAxis - 5 * k],
+          [4.5, p.yAxis],
+        ]),
+        // Tipped back at the start so the screen is glancing rather than
+        // facing — the reveal is the moment it levels.
+        xAxis: eased("xAxis", [
+          [0, p.xAxis - 14 * k, CURVE.fast],
+          [1.2, p.xAxis - 7 * k, CURVE.snappy],
+          [2.8, p.xAxis + 1.5 * k],
+          [4.5, p.xAxis],
+        ]),
+        // The lean is the only overshoot here, and it is written in the keys:
+        // past level at 2.8, back by the end.
+        zAxis: eased("zAxis", [
+          [0, p.zAxis - 6 * k, CURVE.fast],
+          [1.2, p.zAxis - 2 * k],
+          [2.8, p.zAxis + 1.2 * k],
+          [4.5, p.zAxis],
+        ]),
+        panY: eased("panY", [
+          [0, p.panY - 0.09 * k, CURVE.fast],
+          [1.2, p.panY - 0.03 * k, CURVE.snappy],
+          [4.5, p.panY],
+        ]),
+        panX: eased("panX", [
+          [0, p.panX - 0.05 * k, CURVE.fast],
+          [2.8, p.panX + 0.01 * k],
+          [4.5, p.panX],
+        ]),
+        panZ: eased("panZ", [
+          [0, p.panZ + 0.06 * k, CURVE.fast],
+          [1.2, p.panZ - 0.02 * k, CURVE.snappy],
+          [4.5, p.panZ - 0.1 * k],
+        ]),
+        zoom: eased("zoom", [
+          [0, p.zoom - 0.07 * k, CURVE.fast],
+          [1.2, p.zoom - 0.02 * k],
+          [4.5, p.zoom + 0.03 * k],
+        ]),
+        // Wide while it is turning, long once it is square: the frame closes
+        // around the screen without the phone having to grow.
+        fov: eased("fov", [
+          [0, lensMm(p, -6 * k), CURVE.fast],
+          [1.2, lensMm(p, -1 * k), CURVE.snappy],
+          [4.5, lensMm(p, 11 * k)],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "cross-reveal",
+    label: "Cross Reveal",
+    kind: "cinema",
+    loops: false,
+    hint: "Crosses the frame, turns square, closes in",
+    build: (p, k = 1) => ({
+      durationSec: 4,
+      tracks: {
+        panX: eased("panX", [
+          [0, p.panX - 0.22 * k, CURVE.fast],
+          [1, p.panX - 0.07 * k, CURVE.snappy],
+          [2.4, p.panX + 0.012 * k],
+          [4, p.panX],
+        ]),
+        yAxis: eased("yAxis", [
+          [0, p.yAxis - 34 * k, CURVE.fast],
+          [1, p.yAxis - 14 * k, CURVE.snappy],
+          [2.4, p.yAxis - 2 * k],
+          [4, p.yAxis],
+        ]),
+        // Held slightly above the eye line through the crossing and settling
+        // level — the drop is what makes the arrival feel like it lands.
+        xAxis: eased("xAxis", [
+          [0, p.xAxis + 6 * k, CURVE.fast],
+          [1, p.xAxis + 3 * k],
+          [4, p.xAxis],
+        ]),
+        zAxis: eased("zAxis", [
+          [0, p.zAxis + 5 * k, CURVE.fast],
+          [1, p.zAxis + 1.5 * k],
+          [4, p.zAxis],
+        ]),
+        panY: eased("panY", [
+          [0, p.panY + 0.03 * k, CURVE.fast],
+          [2.4, p.panY - 0.005 * k],
+          [4, p.panY],
+        ]),
+        panZ: eased("panZ", [
+          [0, p.panZ + 0.04 * k, CURVE.fast],
+          [1, p.panZ - 0.03 * k, CURVE.snappy],
+          [4, p.panZ - 0.11 * k],
+        ]),
+        zoom: eased("zoom", [
+          [0, p.zoom - 0.05 * k, CURVE.fast],
+          [4, p.zoom + 0.02 * k],
+        ]),
+        fov: eased("fov", [
+          [0, lensMm(p, -4 * k), CURVE.fast],
+          [1, lensMm(p, 2 * k), CURVE.snappy],
+          [4, lensMm(p, 12 * k)],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "awaken",
+    label: "Awaken",
+    kind: "cinema",
+    loops: false,
+    hint: "Small and tilted, waking into the frame",
+    build: (p, k = 1) => ({
+      durationSec: 3.5,
+      /*
+       * The one preset that uses the overshooting CURVE rather than written
+       * keys — `heavy` on the launch segment of scale and rise, so the arrival
+       * carries past and returns inside a single segment. Nothing else in this
+       * preset overshoots, so the whole thing has exactly one settle in it.
+       */
+      tracks: {
+        zoom: eased("zoom", [
+          [0, p.zoom - 0.16 * k, CURVE.heavy],
+          [1.6, p.zoom + 0.01 * k],
+          [3.5, p.zoom + 0.04 * k],
+        ]),
+        panY: eased("panY", [
+          [0, p.panY - 0.07 * k, CURVE.heavy],
+          [1.6, p.panY],
+          [3.5, p.panY],
+        ]),
+        xAxis: eased("xAxis", [
+          [0, p.xAxis + 11 * k, CURVE.fast],
+          [1.6, p.xAxis + 2 * k],
+          [3.5, p.xAxis],
+        ]),
+        yAxis: eased("yAxis", [
+          [0, p.yAxis + 16 * k, CURVE.fast],
+          [1.6, p.yAxis + 3 * k],
+          [3.5, p.yAxis],
+        ]),
+        zAxis: eased("zAxis", [
+          [0, p.zAxis + 7 * k, CURVE.fast],
+          [1.6, p.zAxis + 1 * k],
+          [3.5, p.zAxis],
+        ]),
+        panX: eased("panX", [
+          [0, p.panX + 0.06 * k, CURVE.fast],
+          [1.6, p.panX + 0.01 * k],
+          [3.5, p.panX],
+        ]),
+        panZ: eased("panZ", [
+          [0, p.panZ + 0.09 * k, CURVE.fast],
+          [1.6, p.panZ - 0.02 * k],
+          [3.5, p.panZ - 0.08 * k],
+        ]),
+        fov: eased("fov", [
+          [0, lensMm(p, -5 * k), CURVE.fast],
+          [1.6, lensMm(p, 3 * k)],
+          [3.5, lensMm(p, 10 * k)],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "orbit-focus",
+    label: "Orbit Focus",
+    kind: "cinema",
+    loops: false,
+    hint: "A slow arc that ends looking straight at the screen",
+    build: (p, k = 1) => ({
+      durationSec: 5,
+      tracks: {
+        /*
+         * The arc runs one way the whole time and simply slows: 40 degrees to
+         * 18 to 6 to square. No reversal anywhere in this preset — it is the
+         * one that has to feel like a camera on a track rather than a hand.
+         */
+        yAxis: eased("yAxis", [
+          [0, p.yAxis - 40 * k, CURVE.fast],
+          [1.6, p.yAxis - 18 * k, CURVE.snappy],
+          [3.4, p.yAxis - 6 * k],
+          [5, p.yAxis],
+        ]),
+        xAxis: eased("xAxis", [
+          [0, p.xAxis + 9 * k, CURVE.fast],
+          [1.6, p.xAxis + 5 * k],
+          [3.4, p.xAxis + 1.5 * k],
+          [5, p.xAxis],
+        ]),
+        zAxis: eased("zAxis", [
+          [0, p.zAxis + 3 * k, CURVE.fast],
+          [3.4, p.zAxis + 0.5 * k],
+          [5, p.zAxis],
+        ]),
+        panX: eased("panX", [
+          [0, p.panX + 0.08 * k, CURVE.fast],
+          [1.6, p.panX + 0.03 * k],
+          [5, p.panX],
+        ]),
+        panY: eased("panY", [
+          [0, p.panY + 0.045 * k, CURVE.fast],
+          [3.4, p.panY + 0.01 * k],
+          [5, p.panY],
+        ]),
+        panZ: eased("panZ", [
+          [0, p.panZ + 0.05 * k, CURVE.fast],
+          [1.6, p.panZ - 0.01 * k],
+          [5, p.panZ - 0.12 * k],
+        ]),
+        zoom: eased("zoom", [
+          [0, p.zoom - 0.04 * k, CURVE.fast],
+          [5, p.zoom + 0.02 * k],
+        ]),
+        fov: eased("fov", [
+          [0, lensMm(p, -3 * k), CURVE.fast],
+          [1.6, lensMm(p, 2 * k)],
+          [5, lensMm(p, 13 * k)],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "focus-pull",
+    label: "Focus Pull",
+    kind: "cinema",
+    loops: false,
+    hint: "Moves in while the lens opens — the screen grows, the room bends",
+    build: (p, k = 1) => ({
+      durationSec: 4,
+      /*
+       * A dolly zoom, held to a whisper.
+       *
+       * Distance and field of view move in OPPOSITE directions: the phone
+       * comes forward while the lens widens, so its size on screen barely
+       * changes and what changes instead is the perspective — the edges of the
+       * device rolling away from a flattening front. It is the one move in
+       * this set that cannot be faked with scale, and it is why `panZ` had to
+       * become keyable at all.
+       *
+       * Small on purpose. A full vertigo is a stunt; at this size it reads as
+       * the screen quietly asserting itself.
+       */
+      tracks: {
+        panZ: eased("panZ", [
+          [0, p.panZ + 0.02 * k, CURVE.fast],
+          [1.4, p.panZ - 0.07 * k, CURVE.snappy],
+          [4, p.panZ - 0.16 * k],
+        ]),
+        fov: eased("fov", [
+          [0, lensMm(p, 8 * k), CURVE.fast],
+          [1.4, lensMm(p, 3 * k), CURVE.snappy],
+          [4, lensMm(p, -4 * k)],
+        ]),
+        // Everything else is a quiet frame around that: a few degrees of
+        // opening turn, a level-out, and a slow drift to keep it alive.
+        yAxis: eased("yAxis", [
+          [0, p.yAxis - 12 * k, CURVE.fast],
+          [1.4, p.yAxis - 5 * k],
+          [4, p.yAxis],
+        ]),
+        xAxis: eased("xAxis", [
+          [0, p.xAxis - 5 * k, CURVE.fast],
+          [1.4, p.xAxis - 2 * k],
+          [4, p.xAxis],
+        ]),
+        zAxis: eased("zAxis", [
+          [0, p.zAxis - 2 * k, CURVE.fast],
+          [4, p.zAxis],
+        ]),
+        panX: eased("panX", [
+          [0, p.panX - 0.03 * k, CURVE.fast],
+          [4, p.panX + 0.01 * k],
+        ]),
+        panY: eased("panY", [
+          [0, p.panY - 0.02 * k, CURVE.fast],
+          [4, p.panY + 0.008 * k],
+        ]),
+        zoom: eased("zoom", [
+          [0, p.zoom - 0.02 * k, CURVE.fast],
+          [4, p.zoom + 0.015 * k],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "bottom-in-top-out",
+    label: "Bottom In \u2192 UI Hold \u2192 Top Out",
+    kind: "cinema",
+    loops: false,
+    hint: "Launches in from below, snaps to the screen, holds 3s, fires out the top",
+    build: (p, k = 1) => ({
+      durationSec: 6,
+      /*
+       * Four beats, and the timing IS the design:
+       *
+       *   0.00 - 0.25  below frame, back to camera, barely moving
+       *   0.25 - 1.10  fires up into the middle and decelerates hard
+       *   1.10 - 1.60  snaps through edge-on to screen-facing
+       *   1.60 - 4.60  HERO HOLD, dead still, exactly on the user's pose
+       *   4.60 - 5.40  launches out through the top
+       *
+       * Three things make it read as motion design rather than a product spin:
+       *
+       * 1. THE ENTRANCE AND THE TURN DO NOT OVERLAP. The phone is fully in
+       *    frame and settled before a single degree of yaw happens. Blend them
+       *    and you get an arc that reads as one soft swoop; keep them separate
+       *    and the rotation lands as a payoff.
+       *
+       * 2. THE HOLD IS WRITTEN AS IDENTICAL KEYS three seconds apart on every
+       *    track. Equal neighbours give the interpolator nothing to curve
+       *    through, so the phone genuinely stops -- no residual drift, and the
+       *    frame it stops on is the user's own composition rather than some
+       *    offset of it. The only exception is a 1mm lens creep across those
+       *    three seconds, which is under the threshold of noticing and keeps
+       *    the shot from looking like a freeze-frame.
+       *
+       * 3. THE EXIT IS FASTER THAN THE ENTRANCE. 0.85s in, 0.80s out over
+       *    more distance, and on an ease-IN curve so it is still accelerating
+       *    when it leaves. It gets launched; it does not float away.
+       *
+       * Everything is a relative offset on `p`, so the move adapts to whatever
+       * orientation, distance and lens the user has set. In particular the
+       * rear-facing state is `p.yAxis - 180`, never a literal 0 or 180 -- and
+       * it turns negative because the default pose already sits at yAxis 180
+       * against a range that stops at 360, so the other direction would clamp.
+       *
+       * Travel is 1.7 phone-heights: pan is measured in fractions of the
+       * device's own height, so that distance clears the frame on any device
+       * and at any zoom without measuring a bounding box.
+       *
+       * `k` scales the flourishes -- tilt, roll, lens -- but NOT the 180 or the
+       * travel, because a half-strength version of this still has to show the
+       * back and still has to leave the frame.
+       */
+      tracks: {
+        /* PRIMARY. Position Y carries the whole piece. */
+        panY: eased("panY", [
+          [0, p.panY - 1.7],
+          // Held low for a quarter second: the shot has a beat of stillness
+          // before it fires, which is what makes the launch read as fast.
+          [0.25, p.panY - 1.68, CURVE.fast],
+          [1.1, p.panY],
+          [1.6, p.panY],
+          [4.6, p.panY, CURVE.sharp],
+          [5.4, p.panY + 1.75],
+          [6, p.panY + 1.95],
+        ]),
+        /* PRIMARY. Back to screen, once, in half a second. */
+        yAxis: eased("yAxis", [
+          [0, p.yAxis - 180],
+          // Still fully backwards on arrival -- see note 1 above.
+          [1.1, p.yAxis - 180, CURVE.snappy],
+          [1.6, p.yAxis],
+          [4.6, p.yAxis],
+          // Stays screen-facing all the way out.
+          [6, p.yAxis],
+        ]),
+        /* SECONDARY. A few degrees of roll on the way in and on the way out,
+           and dead level for the turn and the hold. */
+        zAxis: eased("zAxis", [
+          [0, p.zAxis - 3.5 * k],
+          [0.25, p.zAxis - 3.2 * k, CURVE.fast],
+          [1.1, p.zAxis],
+          [1.6, p.zAxis],
+          [4.6, p.zAxis, CURVE.sharp],
+          [6, p.zAxis - 5 * k],
+        ]),
+        /* SECONDARY. Focal length: wide while travelling so the entrance has
+           some depth, exactly the user's lens for the turn, then a 1mm creep
+           across the hold, then wide again as it goes. */
+        fov: eased("fov", [
+          [0, lensMm(p, -8 * k)],
+          [0.25, lensMm(p, -7.6 * k), CURVE.fast],
+          [1.1, lensMm(p, -1.5 * k), CURVE.snappy],
+          [1.6, p.fov],
+          [4.6, lensMm(p, 1.2 * k), CURVE.sharp],
+          [6, lensMm(p, -10 * k)],
+        ]),
+        /* Tertiary, and all of it resolved before the turn begins. */
+        xAxis: eased("xAxis", [
+          [0, p.xAxis - 6 * k],
+          [0.25, p.xAxis - 5.5 * k, CURVE.fast],
+          [1.1, p.xAxis],
+          [1.6, p.xAxis],
+          [4.6, p.xAxis, CURVE.sharp],
+          [6, p.xAxis + 7 * k],
+        ]),
+        // Starts a touch further out so the entrance comes towards the lens as
+        // well as up it, and is back on the user's depth before the turn.
+        panZ: eased("panZ", [
+          [0, p.panZ + 0.14 * k],
+          [0.25, p.panZ + 0.13 * k, CURVE.fast],
+          [1.1, p.panZ],
+          [1.6, p.panZ],
+          [4.6, p.panZ, CURVE.sharp],
+          [6, p.panZ - 0.16 * k],
+        ]),
+        // Slightly under size on the way in, exact for the hold, and swelling
+        // as it leaves -- the phone reads as passing the camera on the way out.
+        zoom: eased("zoom", [
+          [0, p.zoom - 0.09 * k],
+          [0.25, p.zoom - 0.085 * k, CURVE.fast],
+          [1.1, p.zoom],
+          [1.6, p.zoom],
+          [4.6, p.zoom, CURVE.sharp],
+          [6, p.zoom + 0.12 * k],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "reward-pop",
+    label: "Reward Pop",
+    kind: "cinema",
+    loops: false,
+    hint: "Snaps in from nothing on a full turn, overshoots to 1.5x, settles",
+    /*
+     * MEASURED, not authored.
+     *
+     * Every other preset in this file is a designer's guess at a curve. This
+     * one was read off an animated FBX ("reward card"), converted to glTF,
+     * sampled at 48 points, and least-squares fitted to CSS cubic beziers --
+     * so the numbers below are not taste, they are the reference to within
+     * 1.6 degrees of rotation and 0.03x of scale.
+     *
+     * WHAT THE REFERENCE ACTUALLY DOES, which is less than you would guess
+     * from watching it: exactly two channels move. One full 360 turn about Y,
+     * and a scale that erupts from nothing to 1.5x and eases back to 1. No
+     * translation on any axis -- the source has literally zero -- and no
+     * camera in the file at all. So `panX/panY/panZ` and `fov` are absent
+     * here rather than decorated with invented motion, because a preset built
+     * from a reference should reproduce the reference and nothing else.
+     *
+     * The distribution is the whole trick, and it is the part prose brief
+     * would never have specified correctly: 43% of the turn happens in the
+     * first 8% of the time. That needs two segments -- one bezier across the
+     * whole span leaves 10 degrees of error at the shoulder, two leaves 1.6 --
+     * which is why the turn has a middle key at 0.16s that looks arbitrary
+     * and is not.
+     *
+     * The scale peaks at 0.299s, a third of the way in and well before the
+     * turn finishes, so the overshoot and the spin resolve at different times.
+     * That offset is most of why the move feels alive rather than mechanical.
+     *
+     * THE TAIL IS NOT IN THE REFERENCE. The FBX is 23 frames at 24fps and
+     * nothing more -- 0.96s, which is a perfectly good snap in the viewport
+     * and a uselessly short video file, because the exporter renders exactly
+     * `durationSec`. So the motion still ends where it measured, at 0.96, and
+     * a second key 1.54s later holds it there: identical values give the
+     * interpolator nothing to curve through, and `monotoneTangents` zeroes
+     * the tangent either side of a flat segment, so the card genuinely stops
+     * rather than drifting through the hold. The measured part is untouched;
+     * only the clip got longer.
+     *
+     * The first zoom key is effectively zero and will hit the 0.1 clamp on
+     * `RANGES.zoom` -- deliberately left as the true value so the clamp lands
+     * wherever the user's own zoom puts it. It bites for a single frame at
+     * 24fps and reads as a pop from nothing either way.
+     */
+    build: (p, k = 1) => ({
+      durationSec: 2.5,
+      tracks: {
+        // Fitted: cubic-bezier(0.2383, 0.3488, 0, 0.56) then
+        //         cubic-bezier(0.1764, 0.5662, 0.573, 1.0294).
+        // `k` scales the turn, so a half-strength Reward Pop is a half turn.
+        yAxis: eased("yAxis", [
+          [
+            0,
+            p.yAxis - 360 * k,
+            { kind: "cubic", p: [0.2383, 0.3488, 0, 0.56] },
+          ],
+          [
+            0.16,
+            p.yAxis - 147.7 * k,
+            { kind: "cubic", p: [0.1764, 0.5662, 0.573, 1.0294] },
+          ],
+          [0.96, p.yAxis],
+          [2.5, p.yAxis],
+        ]),
+        /*
+         * Four keys, not three. Two segments left 6% of the overshoot on the
+         * table; the extra key at 0.1 halves that twice over. It was nearly
+         * three keys split at 0.06 instead, which fitted the samples EXACTLY
+         * and was thrown out: with only four samples in that stretch the fit
+         * was free to wander between them, and it did -- 15% above the key it
+         * was heading for and back down again. An exact fit to the samples is
+         * not the same as an honest fit to the motion, so every curve here
+         * was checked for monotonicity between its endpoints as well as for
+         * error at them.
+         *
+         * Multiplicative, so the overshoot is a proportion of whatever zoom
+         * the user composed at rather than a fixed size.
+         */
+        zoom: eased("zoom", [
+          [
+            0,
+            p.zoom * (1 - 0.9999 * k),
+            { kind: "cubic", p: [0.4623, 0.1939, 0, 0.4173] },
+          ],
+          [
+            0.1,
+            p.zoom * (1 + 0.0495 * k),
+            { kind: "cubic", p: [0.0768, 0.2472, 0.4455, 1.0338] },
+          ],
+          [
+            0.3,
+            p.zoom * (1 + 0.4992 * k),
+            { kind: "cubic", p: [0.3552, 0.0696, 0.5053, 0.9045] },
+          ],
+          [0.96, p.zoom],
+          [2.5, p.zoom],
+        ]),
+      },
+    }),
+  },
   {
     id: "cut-reel",
     label: "Cut reel",
@@ -219,7 +795,11 @@ export const MOTION_PRESETS: MotionPreset[] = [
         {
           durationSec: B,
           settleAt: 0.7,
-          from: { zoom: p.zoom * 0.6, yAxis: p.yAxis - 34, xAxis: p.xAxis + 10 },
+          from: {
+            zoom: p.zoom * 0.6,
+            yAxis: p.yAxis - 34,
+            xAxis: p.xAxis + 10,
+          },
           to: { zoom: p.zoom * 0.72, yAxis: p.yAxis - 24, xAxis: p.xAxis + 7 },
         },
         // Hard the other way. Cutting across the axis is what makes a cut feel
@@ -228,7 +808,11 @@ export const MOTION_PRESETS: MotionPreset[] = [
         {
           durationSec: B,
           settleAt: 0.62,
-          from: { zoom: p.zoom * 1.5, yAxis: p.yAxis + 30, panY: p.panY + 0.22 },
+          from: {
+            zoom: p.zoom * 1.5,
+            yAxis: p.yAxis + 30,
+            panY: p.panY + 0.22,
+          },
           to: { zoom: p.zoom * 1.62, yAxis: p.yAxis + 22, panY: p.panY + 0.18 },
         },
         // Tight and square. The readable beat -- if the screen content matters
@@ -263,8 +847,19 @@ export const MOTION_PRESETS: MotionPreset[] = [
         {
           durationSec: B * 1.6,
           settleAt: 0.6,
-          from: { zoom: p.zoom * 1.1, yAxis: p.yAxis + 9, xAxis: p.xAxis + 3, fov: p.fov },
-          to: { zoom: p.zoom, yAxis: p.yAxis, xAxis: p.xAxis, panY: p.panY, panX: p.panX },
+          from: {
+            zoom: p.zoom * 1.1,
+            yAxis: p.yAxis + 9,
+            xAxis: p.xAxis + 3,
+            fov: p.fov,
+          },
+          to: {
+            zoom: p.zoom,
+            yAxis: p.yAxis,
+            xAxis: p.xAxis,
+            panY: p.panY,
+            panX: p.panX,
+          },
         },
       ];
       return compileSequence(shots, p);
@@ -296,16 +891,37 @@ export const MOTION_PRESETS: MotionPreset[] = [
         {
           durationSec: 1.35,
           settleAt: 0.7,
-          from: { zoom: p.zoom * 1.18, yAxis: p.yAxis + 34, xAxis: p.xAxis + 8, fov: p.fov },
-          to: { zoom: p.zoom * 1.26, yAxis: p.yAxis + 26, xAxis: p.xAxis + 5, fov: p.fov },
+          from: {
+            zoom: p.zoom * 1.18,
+            yAxis: p.yAxis + 34,
+            xAxis: p.xAxis + 8,
+            fov: p.fov,
+          },
+          to: {
+            zoom: p.zoom * 1.26,
+            yAxis: p.yAxis + 26,
+            xAxis: p.xAxis + 5,
+            fov: p.fov,
+          },
         },
         {
           durationSec: 1.5,
           settleAt: 0.62,
           // Ends exactly on your framing, on your lens, like every one-way
           // preset in this file.
-          from: { zoom: p.zoom * 1.16, yAxis: p.yAxis - 8, panY: p.panY - 0.1, fov: p.fov },
-          to: { zoom: p.zoom, yAxis: p.yAxis, panY: p.panY, xAxis: p.xAxis, fov: p.fov },
+          from: {
+            zoom: p.zoom * 1.16,
+            yAxis: p.yAxis - 8,
+            panY: p.panY - 0.1,
+            fov: p.fov,
+          },
+          to: {
+            zoom: p.zoom,
+            yAxis: p.yAxis,
+            panY: p.panY,
+            xAxis: p.xAxis,
+            fov: p.fov,
+          },
         },
       ];
       return compileSequence(shots, p);
@@ -335,7 +951,11 @@ export const MOTION_PRESETS: MotionPreset[] = [
         {
           durationSec: 0.5,
           settleAt: 0.42,
-          from: { yAxis: p.yAxis - 88, zoom: p.zoom * 0.85, zAxis: p.zAxis - 9 },
+          from: {
+            yAxis: p.yAxis - 88,
+            zoom: p.zoom * 0.85,
+            zAxis: p.zAxis - 9,
+          },
           to: { yAxis: p.yAxis - 30, zoom: p.zoom * 0.95, zAxis: p.zAxis - 2 },
         },
         {
@@ -347,24 +967,41 @@ export const MOTION_PRESETS: MotionPreset[] = [
         {
           durationSec: 0.55,
           settleAt: 0.4,
-          from: { panY: p.panY - 0.75, zoom: p.zoom * 2.3, xAxis: p.xAxis + 16 },
+          from: {
+            panY: p.panY - 0.75,
+            zoom: p.zoom * 2.3,
+            xAxis: p.xAxis + 16,
+          },
           to: { panY: p.panY - 0.38, zoom: p.zoom * 2.1, xAxis: p.xAxis + 6 },
         },
         // The still beat. Longest of the six and it does nothing at all.
         {
           durationSec: 0.62,
-          from: { zoom: p.zoom * 1.25, yAxis: p.yAxis + 16, fov: lens(p, 0.72) },
+          from: {
+            zoom: p.zoom * 1.25,
+            yAxis: p.yAxis + 16,
+            fov: lens(p, 0.72),
+          },
         },
         {
           durationSec: 0.42,
           settleAt: 0.45,
-          from: { zAxis: p.zAxis + 12, zoom: p.zoom * 0.62, yAxis: p.yAxis - 40 },
+          from: {
+            zAxis: p.zAxis + 12,
+            zoom: p.zoom * 0.62,
+            yAxis: p.yAxis - 40,
+          },
           to: { zAxis: p.zAxis + 3, zoom: p.zoom * 0.8, yAxis: p.yAxis - 16 },
         },
         {
           durationSec: 0.95,
           settleAt: 0.5,
-          from: { yAxis: p.yAxis - 22, zoom: p.zoom * 1.14, zAxis: p.zAxis, fov: p.fov },
+          from: {
+            yAxis: p.yAxis - 22,
+            zoom: p.zoom * 1.14,
+            zAxis: p.zAxis,
+            fov: p.fov,
+          },
           to: {
             yAxis: p.yAxis,
             zoom: p.zoom,
@@ -429,7 +1066,12 @@ export const MOTION_PRESETS: MotionPreset[] = [
       // Front-loaded: most of the collapse is spent by the halfway mark, and
       // the rest is the shot arriving. Even spacing here reads as a slider
       // being dragged rather than as a camera being pushed.
-      const at = [wide, fovAt(p.fov + span * 0.42), fovAt(p.fov + span * 0.09), p.fov];
+      const at = [
+        wide,
+        fovAt(p.fov + span * 0.42),
+        fovAt(p.fov + span * 0.09),
+        p.fov,
+      ];
       return {
         durationSec: 3.4,
         tracks: {
@@ -572,7 +1214,12 @@ export const MOTION_PRESETS: MotionPreset[] = [
        * things that stop together.
        */
       const long = lens(p, 0.58);
-      const at = [long, fovAt(long + (p.fov - long) * 0.45), fovAt(p.fov * 1.04), p.fov];
+      const at = [
+        long,
+        fovAt(long + (p.fov - long) * 0.45),
+        fovAt(p.fov * 1.04),
+        p.fov,
+      ];
       return {
         durationSec: 6,
         tracks: {
@@ -1508,7 +2155,6 @@ export const MOTION_PRESETS: MotionPreset[] = [
       },
     }),
   },
-
 ];
 
 /** Order the picker shows them in. */

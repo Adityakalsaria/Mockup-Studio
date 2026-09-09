@@ -1769,6 +1769,37 @@ export function ParamGroup({ title, children }: { title?: string; children: Reac
  * strength whatever the panel happens to be over, and `--mo-field` is already
  * that colour doing the same job behind a readout.
  */
+/**
+ * Close when the press lands anywhere else.
+ *
+ * `pointerdown`, not `click`: a press that starts outside should dismiss on the
+ * way down rather than waiting for a release that may never come, and it beats
+ * any handler inside the panel to it. The ref goes on whatever should NOT
+ * dismiss — for the tool panels that is the rail as well as the panel itself,
+ * or picking a tool would close the thing it just opened.
+ *
+ * `onDismiss` must be stable, or the listener is torn down and rebuilt on every
+ * render — and this page renders on every frame of a spring.
+ */
+export function useDismiss<T extends HTMLElement>(
+  open: boolean,
+  onDismiss: () => void,
+) {
+  const ref = useRef<T>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: PointerEvent) => {
+      const node = ref.current;
+      if (node && !node.contains(event.target as Node)) onDismiss();
+    };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [open, onDismiss]);
+
+  return ref;
+}
+
 export function Divider({ inset }: { inset?: number }) {
   return (
     <span
@@ -2005,6 +2036,48 @@ export function TrashIcon() {
   return (
     <svg viewBox="0 0 20 20" width={20} height={20} aria-hidden {...stroke}>
       <path d="M4.5 6h11M8 6V4.5h4V6M6 6l.7 9.5h6.6L14 6" />
+    </svg>
+  );
+}
+
+/**
+ * Transport marks, in the same stroke family as the rest.
+ *
+ * The file draws no play, pause or repeat, and these are the three glyphs
+ * every video control in the world already agrees on — a right-pointing
+ * triangle, two bars, an arrow that comes back round — so there is nothing to
+ * invent and nothing to get wrong by drawing them.
+ *
+ * Play is FILLED where the others are stroked: a stroked triangle at this size
+ * reads as an outline of a shape rather than as the shape, and play is the one
+ * that has to be unmistakable at a glance.
+ */
+export function PlayIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width={20} height={20} aria-hidden fill="currentColor">
+      <path d="M6.6 4.4a1 1 0 0 1 1.53-.85l7 5.6a1 1 0 0 1 0 1.7l-7 5.6A1 1 0 0 1 6.6 15.6z" />
+    </svg>
+  );
+}
+
+export function PauseIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width={20} height={20} aria-hidden fill="currentColor">
+      <rect x={5.6} y={4.4} width={3.2} height={11.2} rx={1.3} />
+      <rect x={11.2} y={4.4} width={3.2} height={11.2} rx={1.3} />
+    </svg>
+  );
+}
+
+export function RepeatIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width={20} height={20} aria-hidden {...stroke}>
+      {/* Two runs and two heads: a loop reads as a circuit, and a circuit has
+          to show which way it goes at both ends of the turn. */}
+      <path d="M4.2 8.2a3 3 0 0 1 3-3h5.6" />
+      <path d="M10.9 3.2l1.9 2-1.9 2" />
+      <path d="M15.8 11.8a3 3 0 0 1-3 3H7.2" />
+      <path d="M9.1 16.8l-1.9-2 1.9-2" />
     </svg>
   );
 }

@@ -230,7 +230,12 @@ export const color = {
  * under both. Authored only as a string, the system page had to keep its own
  * copy of those numbers to put on sliders — and two copies of a value drift.
  */
-const PILL_RIM = { color: "#939393", offset: 1.73, spread: -0.8, ring: 0.35 } as const;
+const PILL_RIM = {
+  color: "#939393",
+  offset: 1.73,
+  spread: -0.8,
+  ring: 0.35,
+} as const;
 const PILL_DROP = { y: 13.4, blur: 18.5, alpha: 0.06 } as const;
 
 /**
@@ -255,7 +260,12 @@ const PILL_DROP = { y: 13.4, blur: 18.5, alpha: 0.06 } as const;
  */
 const BUTTON_TONES = {
   primary: { surface: "rgb(255 255 255 / 0.75)", ink: "#000", glow: 1, rim: 1 },
-  secondary: { surface: "rgb(39 39 39 / 0.52)", ink: "#fff", glow: 0.35, rim: 0.3 },
+  secondary: {
+    surface: "rgb(39 39 39 / 0.52)",
+    ink: "#fff",
+    glow: 0.35,
+    rim: 0.3,
+  },
   prominent: {
     // `color-mix` against the site's accent in the original; the studio has no
     // accent token, so the same 75% is written out against ours.
@@ -264,7 +274,12 @@ const BUTTON_TONES = {
     glow: 0.5,
     rim: 0.8,
   },
-  highlighted: { surface: "rgb(39 39 39 / 0.52)", ink: "#fff", glow: 0.35, rim: 1 },
+  highlighted: {
+    surface: "rgb(39 39 39 / 0.52)",
+    ink: "#fff",
+    glow: 0.35,
+    rim: 1,
+  },
 } as const;
 
 export type ButtonTone = keyof typeof BUTTON_TONES;
@@ -284,7 +299,8 @@ export const material = {
     rim: "linear-gradient(170deg, #fff 10%, rgb(0 0 0 / 0.11) 50%, #fff 90%)",
     /** The same rim at the icon size, where 170deg across a square reads as
         almost vertical. */
-    rimIcon: "linear-gradient(150deg, #fff 10%, rgb(0 0 0 / 0.11) 50%, #fff 90%)",
+    rimIcon:
+      "linear-gradient(150deg, #fff 10%, rgb(0 0 0 / 0.11) 50%, #fff 90%)",
     /** The cursor-tracking glow: core, edge, and where it fades out. */
     glow: {
       core: "rgb(255 255 255 / 0.88)",
@@ -961,6 +977,49 @@ ${material.selected.depth
 .mo-mat-depth-3 { box-shadow: var(--mo-mat-depth-3); }
 
 /* The panel's configuration. */
+/*
+ * Nothing on a surface is selectable text.
+ *
+ * Every control here is dragged — a slider knob, the gizmo, the phone itself —
+ * and a drag that starts on a control still travels across labels on its way,
+ * which is all a browser needs to begin selecting them. What you get is a
+ * panel full of blue highlight for having nudged a value, and it persists
+ * until you click somewhere else.
+ *
+ * Inputs are exempt, because the one place text is genuinely text is the hex
+ * field, where selecting it is the point.
+ */
+.mo-glass,
+.mo-glass * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.mo-glass input,
+.mo-glass textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/*
+ * Scrolls, shows nothing.
+ *
+ * A scrollbar inside a glass panel is the one piece of chrome the system does
+ * not draw itself — it arrives with the platform's own colours and its own
+ * idea of a gutter, and on a panel whose content runs edge to edge it takes a
+ * bite out of the right-hand column that nothing else in the interface has.
+ * Overflow still scrolls by wheel, trackpad and keyboard; it is only the bar
+ * that is gone.
+ */
+.mo-noscroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.mo-noscroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 .mo-glass {
   position: relative;
   --mo-mat-veil: var(--mo-glass-veil);

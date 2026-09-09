@@ -20,6 +20,15 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ANIMATABLE,
+  KEY_EPSILON,
+  type Easing,
+  putKey,
+  removeKey,
+  sampleAnimation,
+  type AnimatableKey,
+} from "../animation";
 import { getDevice } from "../devices";
 import { finishForDevice, finishesFor } from "../finishes";
 import { paintBackground, preloadBackgroundImage } from "../backgrounds";
@@ -39,7 +48,6 @@ import {
   type EditorState,
 } from "../editor/editorState";
 
-
 const HISTORY_COALESCE_MS = 450;
 const HISTORY_LIMIT = 60;
 
@@ -52,10 +60,15 @@ const HISTORY_LIMIT = 60;
  */
 const DRAG_DEG_PER_PX = 0.4;
 
-/** Export resolution, over what is on screen. 3x is the App Store's ask for a
-    6.9-inch screenshot and the number the old editor settled on. */
+/** Where Res and FPS open. 3x is the App Store's ask for a 6.9-inch
+    screenshot and the number the old editor settled on; both are settings
+    rather than constants now, and these are their first values. */
 const EXPORT_SCALE = 3;
 const EXPORT_FPS = 30;
+
+/** What the Duration field will accept, from the old editor. */
+export const DURATION_MIN = 0.5;
+export const DURATION_MAX = 3600;
 
 /** The frame the studio opens on, and what a canvas panel's reset goes back
     to. Named because two places now need to agree on it. */
@@ -151,14 +164,50 @@ export function useStudio() {
     if (sameGesture) return;
     const prev = stateRef.current;
     setPast((entries) =>
-      entries.length >= HISTORY_LIMIT ? [...entries.slice(1), prev] : [...entries, prev],
+      entries.length >= HISTORY_LIMIT
+        ? [...entries.slice(1), prev]
+        : [...entries, prev],
     );
   }, []);
 
+  /**
+   * An edit, and a keyframe if the thing edited is animated.
+   *
+   * This is what makes the Transform and Camera rows keep working once a
+   * preset is applied, and it is the old editor's rule exactly: a change to a
+   * property that already has a track becomes a KEY on that track, at the
+   * playhead, rather than a change to a static value the animation is about to
+   * overwrite. Without it every slider in the stack goes dead the moment a
+   * preset lands — you drag, the number moves, and the phone does not, because
+   * the pose is coming from the clip.
+   *
+   * Only channels that ALREADY have keys are keyed. A track is the statement
+   * "this property is animated"; dragging Pan X on a preset that never touched
+   * Pan X should move the shot, not quietly start a new track from one key.
+   *
+   * Which properties moved is worked out by diffing rather than declared,
+   * because `edit` takes a whole-state updater — so the gizmo's double-tap
+   * reset, a slider, and a canvas drag all key themselves without any of them
+   * having to say what they touched.
+   */
   const edit = useCallback(
     (f: (prev: EditorState) => EditorState) => {
       record();
-      setState((prev) => f(prev));
+      setState((prev) => {
+        const next = f(prev);
+        const tracks = { ...next.animation.tracks };
+        let keyed = false;
+        for (const { key } of ANIMATABLE) {
+          const after = next[key];
+          if (typeof after !== "number" || after === prev[key]) continue;
+          if (!tracks[key]?.length) continue;
+          tracks[key] = putKey(tracks[key], playheadRef.current, after);
+          keyed = true;
+        }
+        return keyed
+          ? { ...next, animation: { ...next.animation, tracks } }
+          : next;
+      });
     },
     [record],
   );
@@ -195,7 +244,10 @@ export function useStudio() {
   const reset = useCallback(() => {
     lastEditAt.current = 0;
     record();
-    setState((prev) => ({ ...DEFAULT_EDITOR_STATE, background: prev.background }));
+    setState((prev) => ({
+      ...DEFAULT_EDITOR_STATE,
+      background: prev.background,
+    }));
   }, [record]);
 
   /* ------------------------------------------------------- device & finish */
@@ -211,13 +263,17 @@ export function useStudio() {
    * it here means there is no path to a finish the device does not offer,
    * however the id got there.
    */
-  const pickDevice = useCallback((deviceId: string) => {
-    edit((prev) => ({
-      ...prev,
-      deviceId,
-      finishId: finishForDevice(getDevice(deviceId).finishIds, prev.finishId).id,
-    }));
-  }, [edit]);
+  const pickDevice = useCallback(
+    (deviceId: string) => {
+      edit((prev) => ({
+        ...prev,
+        deviceId,
+        finishId: finishForDevice(getDevice(deviceId).finishIds, prev.finishId)
+          .id,
+      }));
+    },
+    [edit],
+  );
 
   const pickFinish = useCallback(
     (finishId: string) => edit((prev) => ({ ...prev, finishId })),
@@ -347,11 +403,24 @@ export function useStudio() {
    */
   const turn = useCallback(
     ({ dxDeg, dyDeg }: { dxDeg: number; dyDeg: number }) => {
-      edit((prev) => ({
-        ...prev,
-        yAxis: prev.yAxis + dxDeg,
-        xAxis: prev.xAxis + dyDeg,
-      }));
+      edit((prev) => {
+        /*
+         * Continue from where the phone LOOKS, not from the number underneath
+         * it.
+         *
+         * On an animated axis those are different: the static value is
+         * whatever the pose was when the preset landed, and the clip has been
+         * painting over it ever since. Adding the drag to the static one makes
+         * the first frame of the gesture a jump to a rotation nothing has been
+         * showing — then `edit` keys THAT at the playhead, so the jump sticks.
+         */
+        const now = sampleAnimation(prev.animation, playheadRef.current);
+        return {
+          ...prev,
+          yAxis: (now.yAxis ?? prev.yAxis) + dxDeg,
+          xAxis: (now.xAxis ?? prev.xAxis) + dyDeg,
+        };
+      });
     },
     [edit],
   );
@@ -384,13 +453,17 @@ export function useStudio() {
    */
   const nudgeZoom = useCallback(
     (deltaPct: number) => {
-      edit((prev) => ({
-        ...prev,
-        zoom: Math.max(
-          RANGES.zoom.min,
-          Math.min(RANGES.zoom.max, prev.zoom + deltaPct / 100),
-        ),
-      }));
+      edit((prev) => {
+        // Off the sampled scale for the same reason `turn` is — see there.
+        const now = sampleAnimation(prev.animation, playheadRef.current);
+        return {
+          ...prev,
+          zoom: Math.max(
+            RANGES.zoom.min,
+            Math.min(RANGES.zoom.max, (now.zoom ?? prev.zoom) + deltaPct / 100),
+          ),
+        };
+      });
     },
     [edit],
   );
@@ -408,9 +481,10 @@ export function useStudio() {
    */
   const captureRef = useRef<StageCapture | null>(null);
   const recorderRef = useRef<StageRecorder | null>(null);
-  const [exporting, setExporting] = useState<null | { kind: "image" | "video"; done: number }>(
-    null,
-  );
+  const [exporting, setExporting] = useState<null | {
+    kind: "image" | "video";
+    done: number;
+  }>(null);
 
   /**
    * The still.
@@ -421,12 +495,17 @@ export function useStudio() {
    * canvas and a pixel read does not carry one, so it is laid down here and
    * scaled, since the settings are in 1x pixels and the export may be 3x.
    */
+  /* Res and FPS: what an export is written at, and nothing else — neither
+     touches what is on screen. */
+  const [exportScale, setExportScale] = useState(EXPORT_SCALE);
+  const [exportFps, setExportFps] = useState(EXPORT_FPS);
+
   const exportImage = useCallback(async () => {
     const shot = stateRef.current;
     // The painter is synchronous, so an image background has to be decoded
     // before it runs or the export comes out with the base colour instead.
     await preloadBackgroundImage(shot.background);
-    const url = captureRef.current?.(EXPORT_SCALE);
+    const url = captureRef.current?.(exportScale);
     if (!url) return;
 
     const frame = new Image();
@@ -444,8 +523,8 @@ export function useStudio() {
     if (!ctx) return;
 
     setExporting({ kind: "image", done: 0 });
-    paintBackground(ctx, shot.background, out.width, out.height, EXPORT_SCALE);
-    applyCanvasShadow(ctx, shot.shadow, EXPORT_SCALE);
+    paintBackground(ctx, shot.background, out.width, out.height, exportScale);
+    applyCanvasShadow(ctx, shot.shadow, exportScale);
     ctx.drawImage(frame, 0, 0);
     clearCanvasShadow(ctx);
     // After the phone: the layer sits over the shot, which is the order the
@@ -457,7 +536,7 @@ export function useStudio() {
     link.download = "mocraft.png";
     link.click();
     setExporting(null);
-  }, []);
+  }, [exportScale]);
 
   /**
    * The clip.
@@ -479,8 +558,13 @@ export function useStudio() {
 
     // `tracks` is a record of channels, not a list: a shot is animated when
     // any channel has keys on it.
-    const animated = Object.values(shot.animation.tracks).some((keys) => keys && keys.length > 0);
-    const durationSec = Math.min(30, Math.max(0.5, animated ? shot.animation.durationSec : 5));
+    const animated = Object.values(shot.animation.tracks).some(
+      (keys) => keys && keys.length > 0,
+    );
+    const durationSec = Math.min(
+      30,
+      Math.max(0.5, animated ? shot.animation.durationSec : 5),
+    );
     setPlaying(false);
     setExporting({ kind: "video", done: 0 });
 
@@ -502,9 +586,9 @@ export function useStudio() {
           background: shot.background,
           overlay: shot.overlay,
           shadow: shot.shadow,
-          scale: EXPORT_SCALE,
+          scale: exportScale,
           durationSec,
-          fps: EXPORT_FPS,
+          fps: exportFps,
           onTime,
           onProgress,
         });
@@ -515,9 +599,9 @@ export function useStudio() {
           background: shot.background,
           overlay: shot.overlay,
           shadow: shot.shadow,
-          scale: EXPORT_SCALE,
+          scale: exportScale,
           durationSec,
-          fps: EXPORT_FPS,
+          fps: exportFps,
           onTime,
           onProgress,
         });
@@ -539,7 +623,7 @@ export function useStudio() {
       setExporting(null);
       playheadRef.current = 0;
     }
-  }, [exporting]);
+  }, [exporting, exportScale, exportFps]);
 
   /* --------------------------------------------------------------- the frame */
 
@@ -566,7 +650,55 @@ export function useStudio() {
    */
   const playheadRef = useRef(0);
   const [playing, setPlaying] = useState(false);
+  /**
+   * Whether the clip runs again when it reaches the end.
+   *
+   * On by default, because a preset is a loop far more often than not — the
+   * ones worth keeping are the ones that can sit on a page cycling — and
+   * because judging a move takes more than one pass.
+   */
+  const [looping, setLooping] = useState(true);
   const [presetId, setPresetId] = useState<string | null>(null);
+  /**
+   * The playhead, again — as state this time, and only for the parked case.
+   *
+   * `playheadRef` is the clock; this is a nudge that says "the head moved
+   * without the transport running", which is the one case the scene cannot
+   * notice on its own. The canvas is a demand loop: while playing it asks for
+   * the next frame itself, but a scrub happens between frames and nothing
+   * would redraw. Setting state re-renders `Stage`, which is what gets a frame
+   * out of r3f.
+   *
+   * Deliberately NOT written during playback — that would re-render the whole
+   * chrome sixty times a second, which is exactly what the ref exists to
+   * avoid.
+   */
+  const [parkedAt, setParkedAt] = useState(0);
+
+  /**
+   * The shot as it is actually being drawn: the animation laid over the state.
+   *
+   * The panels read this rather than `state`, so a slider on an animated axis
+   * shows the value on screen instead of the static one underneath it — and a
+   * drag therefore continues from where the phone looks rather than jumping to
+   * a number the clip has not used since the preset landed.
+   *
+   * Sampled at `parkedAt`, NOT at the live playhead, and that is the one place
+   * this differs from the old editor. That one pushed the time into React ten
+   * times a second so its sliders crept along during playback; here the same
+   * push would hand `Stage` a new `studio` ten times a second and reconcile the
+   * entire 3D tree behind it. So the rows follow the head whenever it is
+   * parked — paused, scrubbed, stopped at the end — and hold still while the
+   * clip runs, which is the half of the behaviour anyone can actually read.
+   */
+  const effective = useMemo(
+    () =>
+      ({
+        ...state,
+        ...sampleAnimation(state.animation, parkedAt),
+      }) as EditorState,
+    [state, parkedAt],
+  );
 
   /**
    * Apply a preset and play it once.
@@ -576,39 +708,255 @@ export function useStudio() {
    * Playing it through on selection is what makes the tile mean something, and
    * it is the same gesture as flipping through a gallery.
    */
-  const pickPreset = useCallback((id: string) => {
-    const preset = getMotionPreset(id);
-    if (!preset) return;
-    const pose = stateRef.current;
-    setPresetId(id);
-    playheadRef.current = 0;
-    // A preset replaces every keyframe in the shot, which is the largest edit
-    // this shell can make in one press and the one most worth being able to
-    // take back. Its own entry, never folded into a neighbouring gesture.
+  const pickPreset = useCallback(
+    (id: string) => {
+      const preset = getMotionPreset(id);
+      if (!preset) return;
+      const pose = stateRef.current;
+      setPresetId(id);
+      playheadRef.current = 0;
+      // A preset replaces every keyframe in the shot, which is the largest edit
+      // this shell can make in one press and the one most worth being able to
+      // take back. Its own entry, never folded into a neighbouring gesture.
+      lastEditAt.current = 0;
+      record();
+      setState((prev) => ({
+        ...prev,
+        animation: {
+          easing: prev.animation.easing,
+          ...fitToClip(
+            preset.build({
+              xAxis: pose.xAxis,
+              yAxis: pose.yAxis,
+              zAxis: pose.zAxis,
+              zoom: pose.zoom,
+              panX: pose.panX,
+              panY: pose.panY,
+              panZ: pose.panZ,
+              fold: pose.fold,
+              fov: pose.fov,
+            }),
+            // No clip to fit to in this shell, so the preset keeps the length it
+            // was authored at.
+            0,
+          ),
+        },
+      }));
+      setPlaying(true);
+    },
+    [record],
+  );
+
+  /**
+   * Drag a key along its lane.
+   *
+   * Its value and its easing travel with it — a key is a moment with a pose
+   * attached, and moving WHEN it happens should not change WHAT happens. A key
+   * dropped on top of another replaces it, because two keys at one time is a
+   * state the sampler has no answer for.
+   *
+   * Goes through `edit`, so a drag lands in history as one entry (the record
+   * window coalesces the whole gesture) and can be undone in one press.
+   */
+  const moveKey = useCallback(
+    (property: AnimatableKey, from: number, to: number) => {
+      edit((prev) => {
+        const keys = prev.animation.tracks[property];
+        if (!keys?.length) return prev;
+        const key = keys.find((k) => Math.abs(k.time - from) <= KEY_EPSILON);
+        if (!key) return prev;
+        /*
+         * Clamped between its neighbours, and NOTHING is removed.
+         *
+         * This used to drop whatever key the dragged one landed on. That is a
+         * defensible rule for a drop and a catastrophe for a drag, because a
+         * drag is a continuous stream of drops: pulling one key from the start
+         * of a track to the end quietly ate every key it passed on the way.
+         * Two or three of those leaves a track with one key, and one more
+         * press takes the track with it — which is how a timeline full of
+         * keyframes ends up an empty panel.
+         *
+         * Clamping is what every timeline does instead. A key cannot cross its
+         * neighbours, so the order of a track is something you can rely on and
+         * a drag can never destroy anything.
+         */
+        const index = keys.indexOf(key);
+        const floor = index > 0 ? keys[index - 1].time + KEY_EPSILON : 0;
+        const ceiling =
+          index < keys.length - 1
+            ? keys[index + 1].time - KEY_EPSILON
+            : prev.animation.durationSec;
+        const at = Math.max(floor, Math.min(ceiling, to));
+        const next = keys.map((k) => (k === key ? { ...k, time: at } : k));
+        return {
+          ...prev,
+          animation: {
+            ...prev.animation,
+            tracks: { ...prev.animation.tracks, [property]: next },
+          },
+        };
+      });
+    },
+    [edit],
+  );
+
+  /**
+   * Retype a key's value, leaving its time and its easing alone.
+   *
+   * `putKey` replaces whatever sits at that time, so this is the same call the
+   * transform rows make when they key an edit — the difference is only that
+   * the time comes from the key rather than from the playhead.
+   */
+  const setKeyValue = useCallback(
+    (property: AnimatableKey, time: number, value: number) => {
+      edit((prev) => {
+        const keys = prev.animation.tracks[property];
+        if (!keys?.length) return prev;
+        const existing = keys.find(
+          (k) => Math.abs(k.time - time) <= KEY_EPSILON,
+        );
+        return {
+          ...prev,
+          animation: {
+            ...prev.animation,
+            tracks: {
+              ...prev.animation.tracks,
+              [property]: keys.map((k) =>
+                k === existing ? { ...k, value } : k,
+              ),
+            },
+          },
+        };
+      });
+    },
+    [edit],
+  );
+
+  /**
+   * The easing for the span that STARTS at `time`.
+   *
+   * Written onto the leading keyframe rather than held in a table beside the
+   * track, so it travels with that key when it is dragged and disappears with
+   * it when it is deleted — which is what makes the marker between two keys
+   * mean "this span", rather than "the span that used to be here".
+   */
+  const setKeyEasing = useCallback(
+    (property: AnimatableKey, time: number, easing: Easing) => {
+      edit((prev) => {
+        const keys = prev.animation.tracks[property];
+        if (!keys?.length) return prev;
+        return {
+          ...prev,
+          animation: {
+            ...prev.animation,
+            tracks: {
+              ...prev.animation.tracks,
+              [property]: keys.map((k) =>
+                Math.abs(k.time - time) <= KEY_EPSILON ? { ...k, easing } : k,
+              ),
+            },
+          },
+        };
+      });
+    },
+    [edit],
+  );
+
+  /**
+   * Drop a key.
+   *
+   * The last key on a track takes the track with it: an empty array and no
+   * track are the same thing to the sampler, and keeping the empty one leaves
+   * a lane in the timeline with nothing in it.
+   */
+  const deleteKey = useCallback(
+    (property: AnimatableKey, time: number) => {
+      edit((prev) => {
+        const keys = prev.animation.tracks[property];
+        if (!keys?.length) return prev;
+        const next = removeKey(keys, time);
+        const tracks = { ...prev.animation.tracks };
+        if (next.length) tracks[property] = next;
+        else delete tracks[property];
+        return { ...prev, animation: { ...prev.animation, tracks } };
+      });
+    },
+    [edit],
+  );
+
+  /**
+   * How long the clip runs.
+   *
+   * Keys past the new end are left where they are rather than trimmed or
+   * rescaled: shortening a clip to look at its first second and then putting
+   * it back should return the move you had, not a shorter one that has
+   * forgotten its ending. The playhead is pulled inside, because a head parked
+   * past the end has nowhere to sit on the ruler.
+   */
+  const setDuration = useCallback(
+    (seconds: number) => {
+      const next = Math.min(DURATION_MAX, Math.max(DURATION_MIN, seconds));
+      edit((prev) => ({
+        ...prev,
+        animation: { ...prev.animation, durationSec: next },
+      }));
+      if (playheadRef.current > next) {
+        playheadRef.current = next;
+        setParkedAt(next);
+      }
+    },
+    [edit],
+  );
+
+  /**
+   * The clip's default easing, for every segment nobody has set individually.
+   *
+   * A per-key easing beats it — that is what `Keyframe.easing` is — so this is
+   * the floor rather than an override, and changing it leaves the curves a
+   * preset deliberately authored alone.
+   */
+  const setEasing = useCallback(
+    (easing: Easing) => {
+      edit((prev) => ({ ...prev, animation: { ...prev.animation, easing } }));
+    },
+    [edit],
+  );
+
+  /**
+   * Park the head at a time and show that frame.
+   *
+   * Scrubbing stops playback rather than seeking underneath it: a playhead
+   * that springs back to where the clip had got to the moment you let go is a
+   * scrub that does not work, and pausing is what every editor does here.
+   */
+  const seek = useCallback((seconds: number) => {
+    const end = stateRef.current.animation.durationSec;
+    const at = Math.max(0, Math.min(end, seconds));
+    playheadRef.current = at;
+    setPlaying(false);
+    setParkedAt(at);
+  }, []);
+
+  /**
+   * Drop the preset and give the pose back to the panels.
+   *
+   * While a preset is applied the animation owns the phone — the timeline is
+   * showing you a frame of a clip, not the composition — so there has to be a
+   * way back out that is not "undo three times". Clearing empties the tracks,
+   * which is what makes `Stage` stop sampling and the transform rows mean
+   * something again.
+   */
+  const clearPreset = useCallback(() => {
     lastEditAt.current = 0;
     record();
+    setPresetId(null);
+    setPlaying(false);
+    playheadRef.current = 0;
+    setParkedAt(0);
     setState((prev) => ({
       ...prev,
-      animation: {
-        easing: prev.animation.easing,
-        ...fitToClip(
-          preset.build({
-            xAxis: pose.xAxis,
-            yAxis: pose.yAxis,
-            zAxis: pose.zAxis,
-            zoom: pose.zoom,
-            panX: pose.panX,
-            panY: pose.panY,
-            fold: pose.fold,
-            fov: pose.fov,
-          }),
-          // No clip to fit to in this shell, so the preset keeps the length it
-          // was authored at.
-          0,
-        ),
-      },
+      animation: { ...prev.animation, tracks: {} },
     }));
-    setPlaying(true);
   }, [record]);
 
   /**
@@ -628,17 +976,25 @@ export function useStudio() {
       last = now;
       playheadRef.current += dt;
       if (playheadRef.current >= duration) {
-        // Park on the last frame rather than snapping back to the first: the
-        // preset's final pose is the composition it was chosen for.
-        playheadRef.current = duration;
-        setPlaying(false);
-        return;
+        if (looping) {
+          // Wrapped by the overshoot rather than reset to zero, so a clip
+          // whose frame lands 4ms past the end does not lose those 4ms every
+          // cycle and drift out of time with itself.
+          playheadRef.current -= duration;
+        } else {
+          // Park on the last frame rather than snapping back to the first: the
+          // preset's final pose is the composition it was chosen for.
+          playheadRef.current = duration;
+          setPlaying(false);
+          setParkedAt(duration);
+          return;
+        }
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, duration]);
+  }, [playing, duration, looping]);
 
   /**
    * One stable object, so the stage can be told when to bother re-rendering.
@@ -654,83 +1010,134 @@ export function useStudio() {
    * exactly when the stage genuinely has new work — and `memo(Stage)` can skip
    * everything else.
    */
-  return useMemo(() => ({
-    state,
-    edit,
-    device,
-    finishes,
-    pickDevice,
-    pickFinish,
-    // History
-    undo,
-    redo,
-    reset,
-    canUndo: past.length > 0,
-    canRedo: future.length > 0,
-    // Screen
-    screenSrc,
-    screenName,
-    uploadScreen,
-    clearScreen,
-    // Background
-    uploadBackground,
-    clearBackground,
-    // Mirror
-    broadcast,
-    liveStream,
-    screenTexture,
-    screenFit,
-    // Export
-    captureRef,
-    recorderRef,
-    exportImage,
-    exportVideo,
-    exporting,
-    // Direct handling
-    turn,
-    nudgeRotation,
-    nudgeZoom,
-    // Frame
-    ratioId,
-    setRatioId,
-    ratio,
-    // Motion
-    presetId,
-    pickPreset,
-    playing,
-    playheadRef,
-  }), [
-    state,
-    edit,
-    device,
-    finishes,
-    pickDevice,
-    pickFinish,
-    undo,
-    redo,
-    reset,
-    past.length,
-    future.length,
-    screenSrc,
-    screenName,
-    uploadScreen,
-    clearScreen,
-    uploadBackground,
-    clearBackground,
-    broadcast,
-    liveStream,
-    screenTexture,
-    screenFit,
-    exportImage,
-    exportVideo,
-    exporting,
-    turn,
-    nudgeRotation,
-    nudgeZoom,
-    ratioId,
-    ratio,
-    presetId,
-    pickPreset,
-    playing,
-  ]);
+  return useMemo(
+    () => ({
+      state,
+      effective,
+      edit,
+      device,
+      finishes,
+      pickDevice,
+      pickFinish,
+      // History
+      undo,
+      redo,
+      reset,
+      canUndo: past.length > 0,
+      canRedo: future.length > 0,
+      // Screen
+      screenSrc,
+      screenName,
+      uploadScreen,
+      clearScreen,
+      // Background
+      uploadBackground,
+      clearBackground,
+      // Mirror
+      broadcast,
+      liveStream,
+      screenTexture,
+      screenFit,
+      // Export
+      captureRef,
+      recorderRef,
+      exportImage,
+      exportVideo,
+      exporting,
+      // Direct handling
+      turn,
+      nudgeRotation,
+      nudgeZoom,
+      // Frame
+      ratioId,
+      setRatioId,
+      ratio,
+      // Motion
+      presetId,
+      pickPreset,
+      playing,
+      playheadRef,
+      /**
+       * Play from wherever the head is, or from the top if it is at the end.
+       *
+       * Pressing play on a finished clip should replay it, not sit there doing
+       * nothing — which is what happens without this, because the head is parked
+       * on the last frame and the loop exits immediately.
+       */
+      togglePlay: () => {
+        setPlaying((was) => {
+          if (!was && playheadRef.current >= duration - 0.01)
+            playheadRef.current = 0;
+          // Pausing parks the head, which is what lets `effective` — and so
+          // every slider in the stack — catch up to the frame you stopped on.
+          if (was) setParkedAt(playheadRef.current);
+          return !was;
+        });
+      },
+      looping,
+      toggleLoop: () => setLooping((was) => !was),
+      seek,
+      clearPreset,
+      duration,
+      parkedAt,
+      moveKey,
+      deleteKey,
+      setKeyEasing,
+      setKeyValue,
+      setDuration,
+      setEasing,
+      exportScale,
+      setExportScale,
+      exportFps,
+      setExportFps,
+    }),
+    [
+      state,
+      effective,
+      edit,
+      device,
+      finishes,
+      pickDevice,
+      pickFinish,
+      undo,
+      redo,
+      reset,
+      past.length,
+      future.length,
+      screenSrc,
+      screenName,
+      uploadScreen,
+      clearScreen,
+      uploadBackground,
+      clearBackground,
+      broadcast,
+      liveStream,
+      screenTexture,
+      screenFit,
+      exportImage,
+      exportVideo,
+      exporting,
+      turn,
+      nudgeRotation,
+      nudgeZoom,
+      ratioId,
+      ratio,
+      presetId,
+      pickPreset,
+      playing,
+      looping,
+      duration,
+      seek,
+      clearPreset,
+      parkedAt,
+      moveKey,
+      deleteKey,
+      setKeyEasing,
+      setKeyValue,
+      setDuration,
+      setEasing,
+      exportScale,
+      exportFps,
+    ],
+  );
 }

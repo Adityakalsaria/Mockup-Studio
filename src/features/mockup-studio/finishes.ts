@@ -36,6 +36,23 @@ export const FINISHES: Finish[] = [
   { id: "deep-blue", label: "Deep Blue", color: "#3d4c6b", metalness: 0.66, roughness: 0.24 },
   { id: "silver", label: "Silver", color: "#d8dade", metalness: 0.74, roughness: 0.16 },
   /*
+   * Burgundy and Sky Blue, CHOSEN rather than measured.
+   *
+   * Every other entry in this file is read out of a model file or sampled from
+   * Apple's own swatch strip, and the comments say which. These two have
+   * neither to read, so they were picked by eye — said plainly here, because a
+   * reader of a file this careful about provenance is entitled to know which
+   * numbers are evidence and which are taste.
+   *
+   * They appear twice, once per lineup, for the same reason `iphone17-white`
+   * exists beside `cloud-white`: the Pro is anodised aluminium and the 17 is
+   * glass, so one shared entry would put one body's surface on the other's.
+   * The colour is a little deeper here and the surface a good deal tighter —
+   * metal holds a dark red where glass lifts it.
+   */
+  { id: "pro-burgundy", label: "Burgundy", color: "#6b2a3a", metalness: 0.63, roughness: 0.26 },
+  { id: "pro-sky-blue", label: "Sky Blue", color: "#8fb6d6", metalness: 0.63, roughness: 0.26 },
+  /*
    * iPhone Air. A different lineup, and a different surface: the Air is
    * titanium, so these run a little more metallic and a little smoother than
    * the Pro's anodised aluminium.
@@ -78,6 +95,60 @@ export const FINISHES: Finish[] = [
   { id: "mist-blue", label: "Mist Blue", color: "#a2b9dc", metalness: 0.5, roughness: 0.4 },
   { id: "iphone17-white", label: "White", color: "#fcfcfc", metalness: 0.5, roughness: 0.4 },
   { id: "iphone17-black", label: "Black", color: "#353839", metalness: 0.5, roughness: 0.4 },
+  // The 17's pair of the two chosen colours — see the note on `pro-burgundy`.
+  // Lighter than the Pro's, and on the 17's glass surface rather than metal.
+  { id: "iphone17-burgundy", label: "Burgundy", color: "#7d3346", metalness: 0.5, roughness: 0.4 },
+  { id: "iphone17-sky-blue", label: "Sky Blue", color: "#a8cbe8", metalness: 0.5, roughness: 0.4 },
+  /*
+   * The iPhone 18 Pro's three, named by the model itself.
+   *
+   * The variant NAMES came out of the archive; the hexes were read off Apple's
+   * own product renders, which is a step better than the guess they replace
+   * but still not a measurement.
+   *
+   * Three things those renders settle. Black is much darker than a first pass
+   * assumes -- near #1c1c1e, not a soft charcoal -- because the anodising is
+   * nearly matte and the only light on it is the rim. Burgundy is browner and
+   * less saturated than a wine red: in the lit third it reads #6d3341 and in
+   * the turn it is closer to #4e2530, so the swatch sits between them. And Sky
+   * Blue is a GREY that leans blue rather than a blue, which is what keeps it
+   * reading as anodised metal.
+   *
+   * Surface numbers were read the same way, from a side-by-side against
+   * Apple's render, and they are far matter than a first guess: 0.5 / 0.75.
+   * Anodising is sandblasted before it is dyed, and at anything under about
+   * 0.6 roughness the chamfers throw hard white streaks that the real phone
+   * does not have anywhere on it. The lens rings and the flash are the only
+   * things in Apple's frame allowed to be bright.
+   *
+   * Silver is its own entry rather than the 17 Pro's, even though the colour
+   * is the same #d8dade. The surface is not: these four carry the 18's tuned
+   * 0.48 / 0.22, and borrowing the 17's swatch would have meant either the
+   * 18's Silver reading differently from its other three finishes, or the
+   * 17 Pro's changing to suit a phone it is not.
+   */
+  { id: "iphone18-black", label: "Black", color: "#1c1c1e", metalness: 0.48, roughness: 0.22 },
+  {
+    id: "iphone18-burgundy",
+    label: "Burgundy",
+    color: "#5e2b38",
+    metalness: 0.48,
+    roughness: 0.22,
+  },
+  {
+    id: "iphone18-silver",
+    label: "Silver",
+    color: "#d8dade",
+    metalness: 0.48,
+    roughness: 0.22,
+  },
+  {
+    id: "iphone18-sky-blue",
+    label: "Sky Blue",
+    color: "#9fb6cd",
+    metalness: 0.48,
+    roughness: 0.22,
+  },
   /*
    * The 24-inch iMac's seven, in the order apple.com/imac lists them.
    *

@@ -20,7 +20,7 @@ import { parseHex, toHex } from "@/design/color";
  * its balance and temperature move.
  */
 
-export type LightingId = "studio" | "soft" | "contrast" | "warm" | "cool";
+export type LightingId = "studio" | "soft" | "contrast" | "product" | "warm" | "cool";
 
 export type LightingPreset = {
   id: LightingId;
@@ -42,6 +42,24 @@ export const LIGHTING_PRESETS: LightingPreset[] = [
   // The opposite trade. Fill almost off, edges up, so the body goes dark
   // between the rakes and the silhouette does the work.
   { id: "contrast", label: "Contrast", key: 1.3, edge: 1.55, fill: 0.3, bounce: 0.45, warmth: -0.05 },
+  /*
+   * Apple's own product shot, read off four of them: the Burgundy, Sky Blue,
+   * White and Black 18 Pros.
+   *
+   * What those renders have in common is not brightness, it is RESTRAINT. One
+   * big soft key from the upper left, an edge that catches the chamfer and the
+   * camera rings hard enough to draw the whole silhouette in a single bright
+   * line, and almost no fill at all — the right-hand third of the body falls
+   * to within a few values of the black it sits on. `contrast` is the same
+   * idea and stops short: this takes the fill down another third and the edge
+   * up, because in the references the rim is the brightest thing in frame and
+   * on a dark finish it is the ONLY thing that says where the phone ends.
+   *
+   * Barely cool. Apple's white balance is close to neutral with the faintest
+   * blue in the specular, which is what keeps aluminium reading as metal
+   * rather than as paint — a warm key on that grey turns it beige immediately.
+   */
+  { id: "product", label: "Product", key: 1.25, edge: 1.85, fill: 0.2, bounce: 0.3, warmth: -0.12 },
   { id: "warm", label: "Warm", key: 1.05, edge: 0.95, fill: 1.1, bounce: 1.25, warmth: 0.6 },
   { id: "cool", label: "Cool", key: 1, edge: 1.15, fill: 1, bounce: 0.85, warmth: -0.6 },
 ];

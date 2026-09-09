@@ -277,6 +277,52 @@ export interface Device {
    */
   finishMaterials?: string[];
   /**
+   * How strongly the environment shows on the body, overriding the studio's
+   * own 2.1.
+   *
+   * For models whose materials arrived with roughness already baked into a
+   * map, which is every model this repo converted rather than received: the
+   * map wins over the scalar, and a body the map says is smooth turns the
+   * studio's soft key into a hard reflection. Turning the environment down is
+   * the only lever left that reaches them.
+   */
+  bodyEnvMapIntensity?: number;
+  /**
+   * Materials to REBUILD from the finish rather than retint.
+   *
+   * Every map dropped and colour, roughness and metalness taken from the
+   * finish alone. For imported surfaces whose baked metallic-roughness texture
+   * overrules any scalar — where the honest options are to fight the map or to
+   * replace it, and replacing it is the one that ends.
+   */
+  plainBodyMaterials?: string[];
+  /**
+   * Surface numbers for named materials, applied AFTER the finish.
+   *
+   * Not `materialColors`, which is an override list: putting a body material
+   * in that takes it out of the finish path altogether and the phone renders
+   * grey whatever colour is chosen. This sets only roughness, metalness and
+   * environment, and leaves the colour to the finish — which is what lets the
+   * back panel be matter than the frame without ceasing to be Sky Blue.
+   */
+  bodySurfaces?: Record<
+    string,
+    {
+      roughness?: number;
+      metalness?: number;
+      envMapIntensity?: number;
+      /**
+       * A literal colour, for surfaces that should NOT wear the finish.
+       *
+       * Clear glass is the case this exists for. It is not body, so no finish
+       * touches it, and it therefore keeps whatever tint the archive composed
+       * — burgundy, on these — which then sits over every other colour like a
+       * gel. Neutralising it is what lets Silver read silver.
+       */
+      color?: string;
+    }
+  >;
+  /**
    * A perforated panel, stated PER FINISH.
    *
    * Every other override in this file is one value that carries across the
@@ -785,7 +831,15 @@ export const DEVICES: Device[] = [
      * the Lavender swatch exactly, so the model opens in its authored colour
      * rather than jumping to something else on load.
      */
-    finishIds: ["lavender", "sage", "mist-blue", "iphone17-white", "iphone17-black"],
+    finishIds: [
+      "lavender",
+      "sage",
+      "mist-blue",
+      "iphone17-white",
+      "iphone17-black",
+      "iphone17-burgundy",
+      "iphone17-sky-blue",
+    ],
     screenFlipY: true,
     screenCornerRadiusPct: 0.135,
     screenInsetPct: 1,
@@ -803,7 +857,13 @@ export const DEVICES: Device[] = [
     label: "Apple iPhone 17 Pro",
     modelPath: `${MODELS}/apple-iphone-17-pro.glb`,
     hideHints: [],
-    finishIds: ["cosmic-orange", "deep-blue", "silver"],
+    finishIds: [
+      "cosmic-orange",
+      "deep-blue",
+      "silver",
+      "pro-burgundy",
+      "pro-sky-blue",
+    ],
     screenMaterial: "BsXHDwLKqtDOfrW",
     /*
      * Apple ships these in Cosmic Orange, and the back glass is a solid
@@ -1011,7 +1071,13 @@ export const DEVICES: Device[] = [
     label: "Apple iPhone 17 Pro Max",
     modelPath: `${MODELS}/apple-iphone-17-pro-max.glb`,
     hideHints: [],
-    finishIds: ["cosmic-orange", "deep-blue", "silver"],
+    finishIds: [
+      "cosmic-orange",
+      "deep-blue",
+      "silver",
+      "pro-burgundy",
+      "pro-sky-blue",
+    ],
     screenMaterial: "BsXHDwLKqtDOfrW",
     /*
      * Apple ships these in Cosmic Orange, and the back glass is a solid
@@ -1217,6 +1283,328 @@ export const DEVICES: Device[] = [
      * Measured 79.0 x 162.9 mm against Apple's published 78.0 x 163.4.
      */
     credit: "Apple — design resources (iphone-17-pro-e-sim.usdz)",
+  },
+  /* =========================================================================
+     The 18s and the Duo.
+
+     Converted from Apple's USDZ rather than shipped as GLB, which is why the
+     credits name a usdz and the pipeline is worth recording: `usdcat --flatten`
+     to text USD (three cannot read the binary `.usdc` inside a usdz at all),
+     textures unzipped beside it with their package-syntax references rewritten,
+     then three's own loader and exporter with sharp standing in for the canvas.
+
+     The two Pros came out of ONE archive that holds both phones side by side —
+     73 x 150mm and 79 x 163mm, at x +19 and -15 — so each was split out by
+     subtree and recentred. A model 19mm off the origin is 19mm off in every
+     shot taken with it.
+
+     NOT tuned the way the 17s are. Those entries carry `materialColors`,
+     `meshColors` and `keepMaterials` lists worked out by reading each model;
+     these have the screen and the finishes and nothing else yet, so the body
+     retint is whatever the finish's three numbers do unaided. That is the next
+     pass, not a reason to hold the devices back.
+     ========================================================================= */
+  {
+    id: "apple-iphone-18-pro",
+    label: "Apple iPhone 18 Pro",
+    modelPath: `${MODELS}/apple-iphone-18-pro.glb`,
+    hideHints: [],
+    // The archive's own variant data names these three, which is also where
+    // Burgundy came from — a real colour on this device rather than a guess.
+    finishIds: [
+      "iphone18-black",
+      "iphone18-burgundy",
+      "iphone18-sky-blue",
+      "iphone18-silver",
+    ],
+    /*
+     * The single flat black panel at the front face: one mesh, 96.2cm2, no
+     * texture, no thickness. Every material here is a random id, so this was
+     * measured rather than read — the same way the 17s were done.
+     *
+     * A JUDGEMENT CALL, and worth stating as one. `bjwbzXNxYqKWocZ` is a
+     * second black panel 0.2mm behind it at 102.4cm2, and one of the two is
+     * the glass over the other. If a screenshot lands on the cover rather
+     * than the display, they are the wrong way round and that is the swap.
+     */
+    screenMaterial: "KSynYqGGNGMUJti",
+    /*
+     * Which materials the finish is allowed to touch.
+     *
+     * Without this the retint hits EVERY material on the model, which is why
+     * the first pass rendered these two as flat coloured slabs: the display,
+     * the camera glass and the shell all went burgundy together. `keepMaterials`
+     * is the deny-list; this is the allow-list, and on a model whose materials
+     * are random ids it is the only thing standing between a finish and the
+     * screen.
+     *
+     * `DodbyqhrrBLNbcB` is the shell — the one mesh that is 10.6mm thick,
+     * spans the whole body and carries a texture. `IxiedJEUxrDhLIX` is the
+     * back panel behind the camera plateau.
+     */
+    finishMaterials: [
+      // The chassis. Measured 71.8 x 150 x 11.4mm — the whole device, plus the
+      // three little 1.4 x 7mm meshes that are the side buttons. It was left
+      // out of this list at first, which is why the body read as two colours:
+      // the shell took the finish and the frame around it stayed burgundy.
+      "vUgmkmbQjXTaqEc",
+      // The shell, 71.8 x 130.6 x 10.6mm and textured.
+      "DodbyqhrrBLNbcB",
+      /*
+       * The layer UNDER the back glass, and not the glass itself.
+       *
+       * The back is two panels at the same 62.5cm2: `IxiedJEUxrDhLIX`, which
+       * the model states at `opacity 0.3`, and this one solid behind it. That
+       * is how the real thing is built — colour goes under clear glass, not on
+       * it — and colouring the correct one of the two is the whole difference
+       * between anodised metal and moulded plastic.
+       *
+       * Forcing the glass to tint was tried, via `bodyMaterials`, and it works
+       * in the sense that the panel changes colour. It also turns the back
+       * into a glossy shell with one blown specular sweep across it, because
+       * a tinted transparent layer over a tinted opaque one is two coats of
+       * paint and a varnish. The retint's instinct to step around anything
+       * transparent was right; the fault was that nothing underneath was
+       * listed for it to colour instead.
+       */
+      "WElbLmMkunjUugH",
+    ],
+    /*
+     * What the body texture IS, so the retint knows what to shift it FROM.
+     *
+     * Sampled rather than guessed: the shell's own diffuse map averages
+     * #381d20 and the back panel's #452a2f, both dark maroon, because the
+     * variant the archive composes by default is Burgundy. Without this the
+     * recolour never runs — it is gated on the pair — and every finish left
+     * the phone the colour it shipped in, which is what "too dark" was.
+     */
+    authoredBodyColor: "#452a2f",
+    // Apple's render has no mirror on the rails at all — the chamfer is a
+    // gradient. Measured against that rather than chosen: at the studio's 2.1
+    // this body throws white streaks that nothing on the real phone does.
+    // Tuned on the live bench against Apple's own render, then read off it.
+    bodyEnvMapIntensity: 1.8,
+    // The chassis carries the merged map; the other two carry its metalness.
+    // All three are anodised aluminium and nothing else, so all three are
+    // better off as the finish's own numbers.
+    plainBodyMaterials: ["vUgmkmbQjXTaqEc", "DodbyqhrrBLNbcB", "WElbLmMkunjUugH"],
+    /*
+     * The three surfaces that are not simply "the finish".
+     *
+     * The panel under the glass is matter and much less lit than the frame —
+     * it sits behind a sheet, so what reaches it is diffuse. The glass itself
+     * is smooth and not metal at all. Everything here was found by moving
+     * sliders against Apple's render rather than derived, which is the only
+     * way this particular question gets answered.
+     */
+    bodySurfaces: {
+      WElbLmMkunjUugH: { roughness: 0.25, metalness: 0.26, envMapIntensity: 0 },
+      IxiedJEUxrDhLIX: {
+        roughness: 0.31,
+        metalness: 0,
+        envMapIntensity: 0.32,
+        // Neutral, so the sheet stops tinting what is under it.
+        color: "#ffffff",
+      },
+    },
+    materialColors: {
+      /*
+       * The Apple logo: a 16.3 x 20mm flat mesh, with the back glass sitting
+       * 0.4mm in front of it.
+       *
+       * It is not in the finish list, so it never took the body colour — it
+       * disappeared because the tinted glass was drawn OVER it. With the glass
+       * left alone it shows again, but only just, because the logo and the
+       * panel behind it are close in tone on a light finish.
+       *
+       * So it is separated the way the real one is: by SHEEN rather than by
+       * colour. The body is matte anodising and the logo is polished, which is
+       * what makes it legible on Black — where a darker logo would be
+       * invisible — and keeps it subtle on Silver, where a black one would
+       * look printed on.
+       */
+      yPeTOPaiWwFMSdb: { darken: 0.1, roughness: 0.12, metalness: 0.85 },
+    },
+    /*
+     * The panel maps its source upside down: a screenshot came out with the
+     * status bar along the bottom and every line of text mirrored top to
+     * bottom. A flip, not a 180 turn — the layout order was preserved, only
+     * the axis was inverted.
+     */
+    screenFlipY: true,
+    // The 17 Pro's, and the geometry is within a millimetre of it.
+    screenCornerRadiusPct: 0.135,
+    screenInsetPct: 1,
+    screenNative: { width: 1206, height: 2622 },
+    notch: null,
+    credit: "Apple — design resources (iphone-18-pro-e-sim.usdz)",
+  },
+  {
+    id: "apple-iphone-18-pro-max",
+    label: "Apple iPhone 18 Pro Max",
+    modelPath: `${MODELS}/apple-iphone-18-pro-max.glb`,
+    hideHints: [],
+    finishIds: [
+      "iphone18-black",
+      "iphone18-burgundy",
+      "iphone18-sky-blue",
+      "iphone18-silver",
+    ],
+    // The same ids as the Pro: one archive, one set of materials, two bodies.
+    screenMaterial: "KSynYqGGNGMUJti",
+    /*
+     * Which materials the finish is allowed to touch.
+     *
+     * Without this the retint hits EVERY material on the model, which is why
+     * the first pass rendered these two as flat coloured slabs: the display,
+     * the camera glass and the shell all went burgundy together. `keepMaterials`
+     * is the deny-list; this is the allow-list, and on a model whose materials
+     * are random ids it is the only thing standing between a finish and the
+     * screen.
+     *
+     * `DodbyqhrrBLNbcB` is the shell — the one mesh that is 10.6mm thick,
+     * spans the whole body and carries a texture. `IxiedJEUxrDhLIX` is the
+     * back panel behind the camera plateau.
+     */
+    finishMaterials: [
+      // The chassis. Measured 71.8 x 150 x 11.4mm — the whole device, plus the
+      // three little 1.4 x 7mm meshes that are the side buttons. It was left
+      // out of this list at first, which is why the body read as two colours:
+      // the shell took the finish and the frame around it stayed burgundy.
+      "vUgmkmbQjXTaqEc",
+      // The shell, 71.8 x 130.6 x 10.6mm and textured.
+      "DodbyqhrrBLNbcB",
+      /*
+       * The layer UNDER the back glass, and not the glass itself.
+       *
+       * The back is two panels at the same 62.5cm2: `IxiedJEUxrDhLIX`, which
+       * the model states at `opacity 0.3`, and this one solid behind it. That
+       * is how the real thing is built — colour goes under clear glass, not on
+       * it — and colouring the correct one of the two is the whole difference
+       * between anodised metal and moulded plastic.
+       *
+       * Forcing the glass to tint was tried, via `bodyMaterials`, and it works
+       * in the sense that the panel changes colour. It also turns the back
+       * into a glossy shell with one blown specular sweep across it, because
+       * a tinted transparent layer over a tinted opaque one is two coats of
+       * paint and a varnish. The retint's instinct to step around anything
+       * transparent was right; the fault was that nothing underneath was
+       * listed for it to colour instead.
+       */
+      "WElbLmMkunjUugH",
+    ],
+    /*
+     * What the body texture IS, so the retint knows what to shift it FROM.
+     *
+     * Sampled rather than guessed: the shell's own diffuse map averages
+     * #381d20 and the back panel's #452a2f, both dark maroon, because the
+     * variant the archive composes by default is Burgundy. Without this the
+     * recolour never runs — it is gated on the pair — and every finish left
+     * the phone the colour it shipped in, which is what "too dark" was.
+     */
+    authoredBodyColor: "#452a2f",
+    // Apple's render has no mirror on the rails at all — the chamfer is a
+    // gradient. Measured against that rather than chosen: at the studio's 2.1
+    // this body throws white streaks that nothing on the real phone does.
+    // Tuned on the live bench against Apple's own render, then read off it.
+    bodyEnvMapIntensity: 1.8,
+    // The chassis carries the merged map; the other two carry its metalness.
+    // All three are anodised aluminium and nothing else, so all three are
+    // better off as the finish's own numbers.
+    plainBodyMaterials: ["vUgmkmbQjXTaqEc", "DodbyqhrrBLNbcB", "WElbLmMkunjUugH"],
+    /*
+     * The three surfaces that are not simply "the finish".
+     *
+     * The panel under the glass is matter and much less lit than the frame —
+     * it sits behind a sheet, so what reaches it is diffuse. The glass itself
+     * is smooth and not metal at all. Everything here was found by moving
+     * sliders against Apple's render rather than derived, which is the only
+     * way this particular question gets answered.
+     */
+    bodySurfaces: {
+      WElbLmMkunjUugH: { roughness: 0.25, metalness: 0.26, envMapIntensity: 0 },
+      IxiedJEUxrDhLIX: {
+        roughness: 0.31,
+        metalness: 0,
+        envMapIntensity: 0.32,
+        // Neutral, so the sheet stops tinting what is under it.
+        color: "#ffffff",
+      },
+    },
+    materialColors: {
+      /*
+       * The Apple logo: a 16.3 x 20mm flat mesh, with the back glass sitting
+       * 0.4mm in front of it.
+       *
+       * It is not in the finish list, so it never took the body colour — it
+       * disappeared because the tinted glass was drawn OVER it. With the glass
+       * left alone it shows again, but only just, because the logo and the
+       * panel behind it are close in tone on a light finish.
+       *
+       * So it is separated the way the real one is: by SHEEN rather than by
+       * colour. The body is matte anodising and the logo is polished, which is
+       * what makes it legible on Black — where a darker logo would be
+       * invisible — and keeps it subtle on Silver, where a black one would
+       * look printed on.
+       */
+      yPeTOPaiWwFMSdb: { darken: 0.1, roughness: 0.12, metalness: 0.85 },
+    },
+    /*
+     * The panel maps its source upside down: a screenshot came out with the
+     * status bar along the bottom and every line of text mirrored top to
+     * bottom. A flip, not a 180 turn — the layout order was preserved, only
+     * the axis was inverted.
+     */
+    screenFlipY: true,
+    screenCornerRadiusPct: 0.135,
+    screenInsetPct: 1,
+    screenNative: { width: 1320, height: 2868 },
+    notch: null,
+    credit: "Apple — design resources (iphone-18-pro-e-sim.usdz)",
+  },
+  {
+    id: "apple-iphone-duo",
+    label: "Apple iPhone Duo",
+    modelPath: `${MODELS}/apple-iphone-duo.glb`,
+    hideHints: [],
+    // One colourway in this archive — Star White. Night_Sky is in the variant
+    // set too and is a second export away if it is wanted.
+    finishIds: ["cloud-white"],
+    /*
+     * The hinge, as a clip this file had to be given rather than one it shipped.
+     *
+     * The archive states its open and closed states as USD VARIANTS — two
+     * arrangements of one rig — and a variant is not something a glTF carries
+     * or a slider can sit halfway through. Composing the archive twice, once
+     * per Pose, gives two identical hierarchies whose transforms differ on
+     * exactly three nodes; keying those three from one to the other is the
+     * animation, and it is written into the GLB at conversion time.
+     *
+     * Zero is open and one second is closed, matching `iphone-fold`'s reading
+     * of the same control.
+     */
+    fold: { openSec: 0, closedSec: 1 },
+    /*
+     * The panel maps its source upside down — status bar along the bottom,
+     * every line mirrored top to bottom. The same flip the 18s needed, and
+     * from the same converter, which suggests it is the pipeline's convention
+     * rather than anything about these particular models.
+     */
+    screenFlipY: true,
+    /*
+     * The one flat BLACK panel in a white model, at 87.1cm2 — a display that
+     * is off, which is what a display looks like in a product render. The
+     * white 92.4cm2 panel beside it at almost the same depth is its glass.
+     */
+    screenMaterial: "bVtHVUZGvQeXwdh",
+    // `udkIoumZEJmNcgx` is the shell — 196.7cm2 and 4mm thick, which is both
+    // halves of a folding body rather than a panel of one.
+    finishMaterials: ["udkIoumZEJmNcgx"],
+    screenCornerRadiusPct: 0.06,
+    screenInsetPct: 1,
+    screenNative: { width: 2160, height: 1620 },
+    notch: null,
+    credit: "Apple — design resources (iPhone_Duo_Star-White.usdz)",
   },
   {
     id: "apple-iphone-air",

@@ -28,6 +28,7 @@
 
 import { canFold, getDevice } from "../devices";
 import { DEFAULT_EDITOR_STATE, RANGES, type EditorState } from "../editor/editorState";
+import { applyMode, type BlurSettings } from "../blurStyles";
 import { OVERLAY_RANGES } from "../overlay";
 import { SHADOW_RANGES } from "../shadow";
 
@@ -140,6 +141,35 @@ function scalar(
     set: (s, n) => ({ ...s, [key]: n }),
     reset: true,
     ...extra,
+  };
+}
+
+/** The image card is the one device the Card rows describe — see that section.
+    Written once because both of its rows ask the same question. */
+const isCard = (s: EditorState) => getDevice(s.deviceId).kind === "image";
+
+/**
+ * A row on one field of `state.blur`.
+ *
+ * The lens model is already normalised 0..1 (bar `strength`, which is 0..100
+ * to match its slider), so these ranges are stated here rather than imported:
+ * `blurStyles` describes what the numbers MEAN and the shape of each one is in
+ * its doc comment, but unlike shadow and overlay it ships no RANGES table.
+ */
+function blurNum(
+  label: string,
+  key: keyof BlurSettings & string,
+  range: Range,
+  format: (n: number) => string,
+): NumberField {
+  return {
+    kind: "number",
+    label,
+    key,
+    ...range,
+    format,
+    get: (s) => s.blur[key] as number,
+    set: (s, n) => ({ ...s, blur: { ...s.blur, [key]: n } }),
   };
 }
 
@@ -391,6 +421,53 @@ export const LAYERS: Layer[] = [
       },
       {
         /*
+         * Only for the image card, and the same rule as the Lid above: the
+         * registry says which devices these mean anything for.
+         *
+         * `ImageCardScene` is the only mesh that reads them — every other
+         * device is a GLB whose corners and thickness were modelled — so on a
+         * phone these would be two sliders moving numbers no geometry looks at,
+         * which is the dead control this file exists to avoid.
+         */
+        title: "Card",
+        fields: [
+          {
+            kind: "number",
+            label: "Corner Radius",
+            key: "cardRadius",
+            reset: true,
+            when: isCard,
+            ...RANGES.cardRadius,
+            // Stored as a fraction of the card's shorter side, so a radius set
+            // on a wide image still reads the same when a tall one is dropped
+            // in — which is also why it is shown as a percentage rather than
+            // in pixels it does not have.
+            format: fmt.pct,
+            get: (s) => s.cardRadius,
+            set: (s, n) => ({ ...s, cardRadius: n }),
+          },
+          {
+            kind: "number",
+            label: "Thickness",
+            key: "cardDepth",
+            reset: true,
+            when: isCard,
+            ...RANGES.cardDepth,
+            /*
+             * World units, and small ones: the range tops out at 0.08 against
+             * a card about a unit across, so the whole slider spans a business
+             * card to a coaster. Shown to the thousandth because the useful
+             * part of that range is the first fifth of it, and two decimals
+             * would give the entire lower half one value.
+             */
+            format: (n) => n.toFixed(3),
+            get: (s) => s.cardDepth,
+            set: (s, n) => ({ ...s, cardDepth: n }),
+          },
+        ],
+      },
+      {
+        /*
          * One scale, not three.
          *
          * The three axis rows wrote `scaleX/Y/Z`, which STRETCH the phone —
@@ -485,6 +562,79 @@ export const LAYERS: Layer[] = [
     ],
     isOn: (s) => moved(s, CAMERA_KEYS),
     toggle: (s, on) => (on ? s : restore(s, CAMERA_KEYS)),
+  },
+  {
+    id: "depth-of-field",
+    // A lens property, so it sits with the camera rather than among the things
+    // painted behind the phone: the blur is what the shot was TAKEN through.
+    group: "stage",
+    name: "Depth of Field",
+    // TODO: its own glyph. Sharing the camera's is honest about what this is
+    // -- both rows are the lens -- but two identical icons in a list of nine
+    // is a worse row to scan than it should be. Wants a Figma asset.
+    icon: "camera",
+    sections: [
+      {
+        fields: [
+          /*
+           * Focus X and Y are the answer to "blur everywhere except HERE".
+           *
+           * They are a point in the FRAME, 0..1 across it, which the layer
+           * maps onto the phone's own plane to get a point in the scene. That
+           * indirection is why they are a pair of sliders rather than a depth
+           * in millimetres: you pick the part of the picture that should be
+           * sharp, and the distance falls out of where that lands.
+           */
+          blurNum("Focus X", "focusX", { min: 0, max: 1, step: 0.01 }, fmt.pct),
+          blurNum("Focus Y", "focusY", { min: 0, max: 1, step: 0.01 }, fmt.pct),
+          // "How much stays sharp", not "how far away the sharp bit is" --
+          // see the layer, which fixes distance with the target above and
+          // spends this on focusRange.
+          blurNum("Focus Size", "focusSize", { min: 0, max: 1, step: 0.01 }, fmt.pct),
+          blurNum("Falloff", "falloff", { min: 0, max: 1, step: 0.01 }, fmt.pct),
+          blurNum("Strength", "strength", { min: 0, max: 100, step: 1 }, fmt.plain),
+        ],
+      },
+    ],
+    /*
+     * `isBlurActive` is the stage's mount condition and it also requires
+     * strength above zero. This asks a narrower question on purpose -- is the
+     * effect part of the shot -- because a row that switched itself off when
+     * you dragged strength to 0 would take its own sliders away mid-gesture.
+     */
+    isOn: (s) => s.blur.mode !== "off",
+    /*
+     * On means RADIAL. The model carries a tilt-shift pass too, and it is a
+     * genuinely different pass rather than a variant -- one blurs by screen
+     * position, the other by depth -- so it needs a mode control to choose
+     * between them, and the field vocabulary here is numbers and colours with
+     * nothing that renders a choice. Radial is the one that answers "depth of
+     * field"; tilt shift is reachable from the old editor until this panel
+     * grows a row that can express it.
+     *
+     * Bokeh goes on with it. The layer's own comment is that without it "the
+     * same strength reads as a plain defocus" -- and a defocus is not what
+     * anyone turning on depth of field in a mockup tool is after.
+     */
+    toggle: (s, on) =>
+      on
+        ? { ...s, blur: { ...applyMode(s.blur, "radial"), bokeh: true } }
+        : { ...s, blur: { ...s.blur, mode: "off" } },
+    /*
+     * Reset and dirty both measure against the RADIAL defaults, not the
+     * global ones, and they have to be spelled out because the generic
+     * versions compare against `DEFAULT_EDITOR_STATE` -- which holds the
+     * mode-off numbers. Left generic, this row lit its reset glyph the moment
+     * you switched it on, having done nothing but switch it on, and resetting
+     * would have moved strength somewhere the radial pass never opens at.
+     */
+    reset: (s) => ({ ...s, blur: { ...applyMode(s.blur, "radial"), bokeh: true } }),
+    dirty: (s) => {
+      const base = applyMode(s.blur, "radial");
+      return (["focusX", "focusY", "focusSize", "falloff", "strength"] as const).some(
+        (k) => Math.abs(s.blur[k] - base[k]) > 1e-6,
+      );
+    },
   },
   {
     id: "drop-shadow",

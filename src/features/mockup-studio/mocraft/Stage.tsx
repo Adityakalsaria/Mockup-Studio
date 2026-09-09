@@ -53,7 +53,32 @@ const INSET = 40;
 const FRAME = 0.82;
 
 function StageInner({ studio }: { studio: Studio }) {
-  const { state, ratio, screenTexture, playing, playheadRef } = studio;
+  const { state, ratio, screenTexture, playing, playheadRef, exporting, presetId } = studio;
+
+  /*
+   * The pose follows the playhead while the transport runs AND while a video
+   * is being written.
+   *
+   * Those are two different things and it cost an export to find out. The
+   * stage samples the animation only when it is told something is playing,
+   * and `exportVideo` deliberately calls `setPlaying(false)` first -- it
+   * drives time itself, one frame at a time, so that the file does not
+   * inherit this machine's stutters. The two together meant the recorder
+   * advanced the playhead 75 times and the phone never once looked at it:
+   * every frame of the clip was the same static pose, at the right length,
+   * which is precisely the shape of bug that survives being watched.
+   *
+   * The third case is a preset simply being applied. The head can be parked
+   * anywhere -- paused mid-clip, dropped by a scrub, resting on the last frame
+   * -- and in every one of those the phone has to show the frame the timeline
+   * says it is showing. Without it a scrub moves the marker and nothing else,
+   * and a finished clip snaps back to the pre-preset pose.
+   *
+   * `immediate` rides along for the same reason it does during playback: the
+   * spring is a lag filter, and a filter on top of frame-exact export would
+   * smear each keyframe a fifth of a second late.
+   */
+  const timeDriven = playing || exporting?.kind === "video" || presetId !== null;
 
   return (
     <div
@@ -123,10 +148,14 @@ function StageInner({ studio }: { studio: Studio }) {
            * playback, where it would smear every keyframe a fifth of a second
            * late and round off the poses a preset was authored around.
            */
-          immediate={playing}
+          immediate={timeDriven}
           animation={state.animation}
           timeRef={playheadRef}
-          playing={playing}
+          playing={timeDriven}
+          /* The clock is RUNNING — only true for the transport, never for a
+             parked head or a frame-at-a-time export, both of which drive time
+             themselves. It is what keeps the demand loop asking. */
+          animating={playing}
           /*
            * Direct handling. `PhoneStage3D` mounts its pointer listener only
            * when a handler is passed, so without these the model is a picture:

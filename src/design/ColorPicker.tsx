@@ -22,7 +22,7 @@
  * system's.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { hexToHsv, hsvToHex, isLight, parseHex, type Hsv } from "./color";
@@ -200,33 +200,22 @@ function Popover({
   const [draft, setDraft] = useState<string | null>(null);
 
   /**
-   * Hue lives here rather than being derived from `value` on every render.
+   * The WHOLE colour lives here, not just its hue.
    *
-   * Black has no hue and grey has no hue, so a derived one would snap the
-   * square's gradient back to red the instant you dragged into a dark or
-   * washed-out corner, and the colour you were mixing would be gone.
+   * A hex cannot hold where you are in this square. Drag to the bottom and the
+   * colour is black — and black has no saturation — so a marker read back out
+   * of the hex snaps to the left edge however far right you had gone. Hue was
+   * already held for exactly this reason; saturation and value needed it too,
+   * and only the third of the three had been fixed.
+   *
+   * Eight bits a channel cannot round-trip the square either: neighbouring
+   * positions land on one hex, so even in the middle the marker crept against
+   * the drag.
+   *
+   * What arrives from OUTSIDE still wins — a pasted hex or a recent swatch goes
+   * through `commitHex`, which sets all three.
    */
-  const [hue, setHue] = useState(() => hexToHsv(value)?.h ?? 0);
-
-  /*
-   * Saturation and value come from the colour; the hue comes from the knob.
-   *
-   * It used to read the hue back out of the hex whenever the colour had one,
-   * and that is a round trip through a wrap: 360 and 0 are the same red, so
-   * dragging into the far right end produced a hex that reads as hue 0 and the
-   * knob jumped the whole width of the track back to the left. Between those
-   * ends it was quietly lossy too — eight bits per channel cannot hold 360
-   * distinct hues, so the knob crept against the drag.
-   *
-   * The knob's position is a thing this component owns and nothing else can
-   * tell it. What arrives from outside — a pasted hex, a recent swatch — goes
-   * through `commitHex`, which sets the hue explicitly, so the one case that
-   * genuinely knows better still wins.
-   */
-  const hsv = useMemo<Hsv>(() => {
-    const parsed = hexToHsv(value) ?? { h: hue, s: 0, v: 0 };
-    return { h: hue, s: parsed.s, v: parsed.v };
-  }, [value, hue]);
+  const [hsv, setHsv] = useState<Hsv>(() => hexToHsv(value) ?? { h: 0, s: 0, v: 0 });
 
   // Recorded on close, not on every change: dragging across the square would
   // otherwise fill the row with the fifty colours you passed through.
@@ -322,7 +311,7 @@ function Popover({
 
   const set = (next: Partial<Hsv>) => {
     const merged = { ...hsv, ...next };
-    if (next.h !== undefined) setHue(next.h);
+    setHsv(merged);
     onChange(hsvToHex(merged));
   };
 
@@ -363,8 +352,11 @@ function Popover({
     const parsed = parseHex(raw);
     if (parsed) {
       const next = hexToHsv(raw);
-      // A pasted colour brings its own hue, unless it is a grey and has none.
-      if (next && next.s > 0 && next.v > 0) setHue(next.h);
+      if (next) {
+        // A pasted colour brings its own hue, unless it is a grey or a black
+        // and has none to bring — then the square keeps the hue it was on.
+        setHsv({ h: next.s > 0 && next.v > 0 ? next.h : hsv.h, s: next.s, v: next.v });
+      }
       onChange(hsvToHex(next ?? hsv));
     }
     setDraft(null);

@@ -24,6 +24,7 @@ import { DEFAULT_EDITOR_STATE } from "./editorState";
     Presets are built relative to whatever pose is on screen, so feeding them a
     neutral one shows the MOVE rather than your current framing. */
 const NEUTRAL = { xAxis: 0, yAxis: 0, zAxis: 0, zoom: 1, panX: 0, panY: 0,
+  panZ: 0,
   fold: 0,
   // The lens the stage opens on, so a preset that moves the lens is previewed
   // against the same starting point it will be applied to.
