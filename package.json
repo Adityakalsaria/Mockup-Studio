@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "check:system": "node scripts/check-system-guardrails.mjs",
-    "dev:https": "next dev --webpack --experimental-https --experimental-https-key ./certificates/lan-key.pem --experimental-https-cert ./certificates/lan.pem"
+    "dev:https": "next dev --webpack --experimental-https --experimental-https-key ./certificates/lan-key.pem --experimental-https-cert ./certificates/lan.pem",
+    "convert:model": "node scripts/usdz-to-glb.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.3.1",
@@ -52,6 +53,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "schema-dts": "^1.1.5",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

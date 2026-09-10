@@ -26,9 +26,11 @@
  *     the rig grew it, rather than the row being dropped or faked.
  */
 
+import { ANIMATABLE, type AnimatableKey } from "../animation";
 import { canFold, getDevice } from "../devices";
 import { DEFAULT_EDITOR_STATE, RANGES, type EditorState } from "../editor/editorState";
 import { applyMode, type BlurSettings } from "../blurStyles";
+import { LIGHTING_PRESETS } from "../lighting";
 import { OVERLAY_RANGES } from "../overlay";
 import { SHADOW_RANGES } from "../shadow";
 
@@ -89,8 +91,18 @@ export type NumberField = Conditional & {
   axis?: string;
   /** No label column at all: the section title already names the control. */
   bare?: boolean;
-  /** The frame puts a reset glyph after the readout on these. */
+  /** The frame puts a diamond after the readout on these. */
   reset?: boolean;
+  /**
+   * Which animatable channel this row IS, where it is one.
+   *
+   * What turns the row's diamond from decoration into a keyframe toggle. Most
+   * rows have one and it is simply the state field they read -- but not all:
+   * Focal Length is `fov` seen through a lens conversion, and the blur rows
+   * are not animatable at all. Stated rather than inferred from `key`, because
+   * `key` is a React key and only has to be unique within its popup.
+   */
+  channel?: AnimatableKey;
   min: number;
   max: number;
   step: number;
@@ -107,7 +119,29 @@ export type ColorField = Conditional & {
   set: (s: EditorState, hex: string) => EditorState;
 };
 
-export type Field = NumberField | ColorField;
+/**
+ * One of a short list of named looks, chosen rather than dialled.
+ *
+ * The third kind, and it exists because the first two could not say this. A
+ * lighting rig is not a number: "Contrast" is a balance across four emitters
+ * and a white point, and the six presets are not points on any one axis you
+ * could put a slider along. Offering them as `key`, `edge`, `fill`, `bounce`
+ * and `warmth` sliders would be five controls where the honest answer is one,
+ * and would ask the reader to rediscover each preset by hand.
+ *
+ * The list is short on purpose. This is not a general enum row — it is for
+ * where a handful of named states IS the whole domain.
+ */
+export type ChoiceField = Conditional & {
+  kind: "choice";
+  label: string;
+  key: string;
+  options: { id: string; label: string }[];
+  get: (s: EditorState) => string;
+  set: (s: EditorState, id: string) => EditorState;
+};
+
+export type Field = NumberField | ColorField | ChoiceField;
 
 /**
  * Is this row worth drawing for the shot as it stands?
@@ -140,6 +174,16 @@ function scalar(
     get: (s) => s[key] as number,
     set: (s, n) => ({ ...s, [key]: n }),
     reset: true,
+    /*
+     * Derived, because for these rows the state field IS the channel: the nine
+     * transform axes are animatable under exactly the names they are stored
+     * under. Rows whose value is a VIEW of a channel rather than the channel
+     * itself -- Focal Length, which is `fov` through a lens conversion -- say
+     * so themselves in `extra`, which is why this comes before the spread.
+     */
+    channel: ANIMATABLE.some((a) => a.key === key)
+      ? (key as AnimatableKey)
+      : undefined,
     ...extra,
   };
 }
@@ -399,6 +443,9 @@ export const LAYERS: Layer[] = [
             kind: "number",
             label: "Lid",
             key: "fold",
+            // The row reads as openness and the channel is closedness; the
+            // keyframe stores the state value, so this is still `fold`.
+            channel: "fold",
             bare: true,
             reset: true,
             when: (s) => canFold(getDevice(s.deviceId)),
@@ -519,6 +566,9 @@ export const LAYERS: Layer[] = [
           {
             kind: "number",
             label: "Focal length",
+            // `fov` seen through a lens conversion. The row's own key is a
+            // React key, so the channel has to be said outright.
+            channel: "fov",
             key: "focal",
             // Titled "Focal length" and then labelled "Focal length" is the
             // same word twice, and it wraps onto two lines in a 48px column.
@@ -635,6 +685,49 @@ export const LAYERS: Layer[] = [
         (k) => Math.abs(s.blur[k] - base[k]) > 1e-6,
       );
     },
+  },
+  {
+    id: "lighting",
+    /*
+     * How the shot is LIT, so it belongs with the model and the lens rather
+     * than among the things painted behind it — same reasoning as the shadow
+     * below, which is also thrown by the phone rather than laid under it.
+     */
+    group: "stage",
+    name: "Lighting",
+    icon: "styles",
+    sections: [
+      {
+        fields: [
+          {
+            kind: "choice",
+            label: "Rig",
+            key: "lighting",
+            /*
+             * Read from `LIGHTING_PRESETS` rather than restated here.
+             *
+             * Same rule as the ranges at the top of this file: the domain
+             * already knows what the presets are, and a second list would be
+             * one that drifts. Adding a preset there makes it appear here.
+             */
+            options: LIGHTING_PRESETS.map((preset) => ({
+              id: preset.id,
+              label: preset.label,
+            })),
+            get: (s) => s.lighting,
+            set: (s, id) => ({ ...s, lighting: id as EditorState["lighting"] }),
+          },
+        ],
+      },
+    ],
+    /*
+     * Never absent, like the transform and the lens: a scene is always lit by
+     * something. So "on" means lit by something other than the default, and
+     * taking it out is going back to Studio.
+     */
+    removable: false,
+    isOn: (s) => s.lighting !== DEFAULT_EDITOR_STATE.lighting,
+    toggle: (s, on) => (on ? s : { ...s, lighting: DEFAULT_EDITOR_STATE.lighting }),
   },
   {
     id: "drop-shadow",
@@ -832,14 +925,16 @@ export function resetLayer(layer: Layer, s: EditorState): EditorState {
   return layer.sections.reduce(
     (state, section) =>
       section.fields.reduce(
-        // The two arms are the same line and have to be written twice: `Field`
-        // is a union, and until the `kind` is checked `set` is a signature
-        // taking string OR number while `get` returns string AND number, which
-        // no call can satisfy. The check is what pairs them up.
+        // The arms are the same line and have to be written out per kind:
+        // `Field` is a union, and until the `kind` is checked `set` is a
+        // signature taking string OR number while `get` returns string AND
+        // number, which no call can satisfy. The check is what pairs them up.
         (acc, f) =>
           f.kind === "color"
             ? f.set(acc, f.get(DEFAULT_EDITOR_STATE))
-            : f.set(acc, f.get(DEFAULT_EDITOR_STATE)),
+            : f.kind === "choice"
+              ? f.set(acc, f.get(DEFAULT_EDITOR_STATE))
+              : f.set(acc, f.get(DEFAULT_EDITOR_STATE)),
         state,
       ),
     s,
@@ -860,7 +955,11 @@ export function layerIsDirty(layer: Layer, s: EditorState): boolean {
     section.fields.some((f) =>
       f.kind === "color"
         ? f.get(s).toLowerCase() !== f.get(DEFAULT_EDITOR_STATE).toLowerCase()
-        : Math.abs(f.get(s) - f.get(DEFAULT_EDITOR_STATE)) > 1e-6,
+        : // A named look is dirty or it is not; there is no tolerance to
+          // apply to "Contrast" being a different answer from "Studio".
+          f.kind === "choice"
+          ? f.get(s) !== f.get(DEFAULT_EDITOR_STATE)
+          : Math.abs(f.get(s) - f.get(DEFAULT_EDITOR_STATE)) > 1e-6,
     ),
   );
 }

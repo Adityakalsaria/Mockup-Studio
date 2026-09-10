@@ -71,6 +71,43 @@ The studio imports only four things from outside its own folder: `@/components/K
 | `npm start`            | serve the production build            |
 | `npm run lint`         | eslint                                |
 | `npm run check:system` | design-system guardrails (`scripts/`) |
+| `npm run convert:model` | USDZ → GLB, for adding a device (see below) |
+
+## Adding a device
+
+Device models are **GLB**. They arrive as **USDZ** — Apple publishes its design
+resources that way — and `scripts/usdz-to-glb.mjs` is the one-way trip between the
+two. Nothing loads USDZ at runtime, and nothing should: three's USD reader cannot
+read the binary crate inside most archives at all, and Apple's own site does not
+render USDZ in a browser either — it ships one for AR Quick Look, the native
+viewer, and pre-rendered image sequences for everything you actually see.
+
+```sh
+npm run convert:model -- <in.usdz> public/figma-assets/mockup-studio/models/<id>.glb
+```
+
+Useful flags, all of which exist because a real archive needed them:
+
+| flag | for |
+| --- | --- |
+| `--root <prim>` | an archive holding several devices side by side — Apple ships the Pro and Pro Max in one file |
+| `--rotate-y 180` | a component that comes out back-to-front; the studio expects a screen facing −Z |
+| `--rotate-x N` | a device posed rather than laid flat (the iPad ships tilted in a Magic Keyboard) |
+| `--fold <pose>` | a foldable whose open state is a USD *variant* rather than an animation; names the open one and builds the clip |
+| `--iris <material>` | a camera whose aperture blades arrive beside the lens instead of inside it; names their material and recentres them |
+| `--iris-lens <n>` | which lens the iris belongs to, counted from the bottom. The blades do not start nearest their own camera, so the default guess can be wrong; the script prints the lenses it found |
+| `--max-texture N` | cap on map size, default 2048 |
+| `--roughness-range lo,hi` | the band the roughness map is remapped into, default `0.28,0.62` — Apple authors around 0.17, which renders as chrome under this stage's rig |
+
+Then add an entry to `src/features/mockup-studio/devices.ts`. The renderer needs no
+changes: screen size, position and facing are **measured from the geometry** at load,
+so an entry supplies only what geometry cannot say — corner radius, notch, and the
+material names the finish system binds to. Record the source archive in `credit`.
+
+**Requires macOS `usdcat`** (ships with the OS). It is used to compose the archive to
+ASCII, which is where material names come from — `USDComposer` never sets them, and
+without them the studio can never find a device's screen. Without `usdcat` the script
+warns and continues, producing a model with unnamed materials.
 
 ## Deploying
 

@@ -20,10 +20,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { resetTransform } from "./bindings";
 import {
   ANIMATABLE,
   KEY_EPSILON,
   type Easing,
+  keyAt,
   putKey,
   removeKey,
   sampleAnimation,
@@ -263,10 +265,26 @@ export function useStudio() {
    * it here means there is no path to a finish the device does not offer,
    * however the id got there.
    */
+  /**
+   * Choose a device, and frame it from neutral.
+   *
+   * The transform is RESET rather than carried over, and that is a decision
+   * rather than a convenience. A rotation is only meaningful against the shape
+   * it turns: 95 degrees of pitch that framed a phone is a foldable seen edge
+   * on, and a lid left 67% shut by the last device is a slab of black glass on
+   * one that opens the other way. Carrying those over means every device
+   * change starts by undoing the one before it.
+   *
+   * `resetTransform` is the same neutral the Transform panel's own reset uses,
+   * so "pick a device" and "reset the transform" cannot disagree about where
+   * neutral is -- and it already states that the lid's neutral is OPEN for
+   * every device that has one, which is the whole point of a foldable in a
+   * mockup.
+   */
   const pickDevice = useCallback(
     (deviceId: string) => {
       edit((prev) => ({
-        ...prev,
+        ...resetTransform(prev),
         deviceId,
         finishId: finishForDevice(getDevice(deviceId).finishIds, prev.finishId)
           .id,
@@ -296,6 +314,29 @@ export function useStudio() {
   const clearScreen = useCallback(() => {
     setScreenSrc(null);
     setScreenName(null);
+  }, []);
+
+  /*
+   * And the cover panel's own picture, on a foldable.
+   *
+   * Its own source rather than a share of the screen's, because the two show
+   * different things on any real device -- a lock screen outside and whatever
+   * you opened it for inside. One upload bound to both would be a mockup of a
+   * phone mirroring itself, which is a photograph of nothing.
+   */
+  const [coverSrc, setCoverSrc] = useState<string | null>(null);
+  const [coverName, setCoverName] = useState<string | null>(null);
+
+  const uploadCover = useCallback((file: File) => {
+    readFile(file, (dataUrl) => {
+      setCoverSrc(dataUrl);
+      setCoverName(file.name);
+    });
+  }, []);
+
+  const clearCover = useCallback(() => {
+    setCoverSrc(null);
+    setCoverName(null);
   }, []);
 
   /* --------------------------------------------------------- the background */
@@ -380,6 +421,20 @@ export function useStudio() {
     // clip to be parked against, so a video screen simply runs.
     true,
     liveStream,
+  );
+  /*
+   * The same hook again, its own host and its own source, so the two screens
+   * are independent all the way down rather than sharing a crop. No live
+   * stream: a broadcast is the thing you are demonstrating, and it belongs on
+   * the panel you opened the device to look at.
+   */
+  const coverHostRef = useRef<HTMLElement>(null);
+  const coverTexture = useScreenTexture(
+    coverHostRef,
+    coverSrc ?? undefined,
+    2,
+    true,
+    null,
   );
 
   /* --------------------------------------------------------- direct handling */
@@ -885,6 +940,49 @@ export function useStudio() {
   );
 
   /**
+   * Key this property here, or take the key away.
+   *
+   * The one way to START a track. `edit` keys only properties that are already
+   * animated -- deliberately, so that dragging Pan X on a preset that never
+   * touched Pan X moves the shot rather than quietly beginning a new track
+   * from a single key. That rule leaves nothing able to make the first key,
+   * which is what this is.
+   *
+   * A toggle rather than an add, because the glyph is a state and not a verb:
+   * it is filled when there is a key at the playhead, and pressing a filled
+   * one should take it away. Deleting the last key on a track removes the
+   * track, which `deleteKey` already handles.
+   *
+   * The value it stores is the EFFECTIVE one -- what the stage is showing at
+   * this instant, which on an already-animated property is the sampled value
+   * rather than the static one underneath it. Keying the static value would
+   * make the phone jump the moment you pressed the diamond.
+   */
+  const toggleKey = useCallback(
+    (property: AnimatableKey) => {
+      const time = playheadRef.current;
+      const existing = keyAt(effective.animation.tracks[property], time);
+      if (existing) {
+        deleteKey(property, existing.time);
+        return;
+      }
+      const value = effective[property];
+      if (typeof value !== "number") return;
+      edit((prev) => ({
+        ...prev,
+        animation: {
+          ...prev.animation,
+          tracks: {
+            ...prev.animation.tracks,
+            [property]: putKey(prev.animation.tracks[property], time, value),
+          },
+        },
+      }));
+    },
+    [deleteKey, edit, effective],
+  );
+
+  /**
    * How long the clip runs.
    *
    * Keys past the new end are left where they are rather than trimmed or
@@ -1030,6 +1128,11 @@ export function useStudio() {
       screenName,
       uploadScreen,
       clearScreen,
+      // Cover screen
+      coverSrc,
+      coverName,
+      uploadCover,
+      clearCover,
       // Background
       uploadBackground,
       clearBackground,
@@ -1037,6 +1140,7 @@ export function useStudio() {
       broadcast,
       liveStream,
       screenTexture,
+      coverTexture,
       screenFit,
       // Export
       captureRef,
@@ -1081,6 +1185,7 @@ export function useStudio() {
       duration,
       parkedAt,
       moveKey,
+      toggleKey,
       deleteKey,
       setKeyEasing,
       setKeyValue,
@@ -1108,11 +1213,17 @@ export function useStudio() {
       screenName,
       uploadScreen,
       clearScreen,
+      // Cover screen
+      coverSrc,
+      coverName,
+      uploadCover,
+      clearCover,
       uploadBackground,
       clearBackground,
       broadcast,
       liveStream,
       screenTexture,
+      coverTexture,
       screenFit,
       exportImage,
       exportVideo,
@@ -1131,6 +1242,7 @@ export function useStudio() {
       clearPreset,
       parkedAt,
       moveKey,
+      toggleKey,
       deleteKey,
       setKeyEasing,
       setKeyValue,

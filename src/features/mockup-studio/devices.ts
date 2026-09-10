@@ -153,6 +153,23 @@ export interface Device {
    */
   screenUvAspect?: number;
   /**
+   * Fit the screenshot to the aspect this device STATES, not the one measured
+   * off its screen mesh.
+   *
+   * The measurement is normally the better source -- it is the screen the
+   * renderer will actually draw, so it cannot disagree with it. It stops being
+   * reliable when the model is authored LYING FLAT: the box is taken in world
+   * space part-way through standing the device up, and what comes back is some
+   * mixture of the panel's height and the body's thickness rather than either.
+   *
+   * On Apple's web-delivered Duo that produced a crop about a tenth of the
+   * picture tall, stretched down the panel -- vertical bands of colour where a
+   * screenshot should be. Its UVs are a clean proportional 0..1 across the
+   * display, so `screenNative` describes the mapping exactly and measuring
+   * adds nothing but a chance to be wrong.
+   */
+  screenFitFromNative?: boolean;
+  /**
    * The colour the model was authored in, when part of the body is baked into
    * a base-colour map rather than driven by a material factor. Texels sharing
    * this hue follow the selected finish; everything else in the map — lens
@@ -209,7 +226,19 @@ export interface Device {
    * the device renders exactly as authored and no mixer is built -- which is
    * every rigid phone.
    */
-  fold?: { openSec: number; closedSec: number };
+  fold?: {
+    openSec: number;
+    closedSec: number;
+    /**
+     * Which clip holds the fold, when the file carries more than one.
+     *
+     * Defaults to the first, which is right for anything this repo converted
+     * itself -- those files have exactly one. Apple's web-delivered Duo ships
+     * two, `Intro` and `Slider`, and `Intro` comes first: left to the default
+     * the lid slider would scrub an entrance animation.
+     */
+    clip?: string;
+  };
   /**
    * A second screen on the same body, with its own source.
    *
@@ -290,10 +319,16 @@ export interface Device {
   /**
    * Materials to REBUILD from the finish rather than retint.
    *
-   * Every map dropped and colour, roughness and metalness taken from the
-   * finish alone. For imported surfaces whose baked metallic-roughness texture
+   * Every map dropped and colour, roughness and metalness taken from the finish
+   * alone. For imported surfaces whose baked metallic-roughness texture
    * overrules any scalar — where the honest options are to fight the map or to
    * replace it, and replacing it is the one that ends.
+   *
+   * Nothing uses it at present. The iPhone 18s did, because the converter they
+   * came through re-encoded their surface maps; `scripts/usdz-to-glb.mjs`
+   * emits no metallic-roughness texture at all, so the finish's own numbers
+   * reach the body unopposed and the body keeps the colour map that carries
+   * its grain. Kept for the next model that arrives welded shut.
    */
   plainBodyMaterials?: string[];
   /**
@@ -320,6 +355,26 @@ export interface Device {
        * gel. Neutralising it is what lets Silver read silver.
        */
       color?: string;
+      /**
+       * Drop this material's maps and shade it as plain metal.
+       *
+       * For a surface whose texture is DETAIL rather than colour. The iris
+       * blades are the case: the archive prints a full mechanism onto them —
+       * striations, screw heads, etch marks — at a scale meant to be seen from
+       * millimetres away, and on a phone-sized render it reads as litter
+       * scattered inside the lens rather than as a mechanism.
+       *
+       * A colour alone cannot fix that, because a colour MULTIPLIES the map:
+       * darkening the blades dims the pattern and leaves its contrast exactly
+       * where it was. The map has to go.
+       *
+       * Worth knowing why only one of the two 18s ever looked wrong. The Pro
+       * Max is converted with `--rotate-y 180`, so it is seen from the other
+       * side of the same blades and shows their plain back face; the Pro shows
+       * the printed front. Same geometry, same material, opposite faces. This
+       * makes both of them the plain one on purpose rather than by luck.
+       */
+      flat?: boolean;
     }
   >;
   /**
@@ -1366,6 +1421,12 @@ export const DEVICES: Device[] = [
        * paint and a varnish. The retint's instinct to step around anything
        * transparent was right; the fault was that nothing underneath was
        * listed for it to colour instead.
+       *
+       * The sheet DOES carry the finish now, but through `materialColors` and
+       * with its painted map dropped — glass coloured by what it is made of,
+       * over a flat panel. That is a different thing from `bodyMaterials`
+       * pushing the body treatment onto a transparent surface, which is what
+       * produced the varnish.
        */
       "WElbLmMkunjUugH",
     ],
@@ -1378,16 +1439,31 @@ export const DEVICES: Device[] = [
      * recolour never runs — it is gated on the pair — and every finish left
      * the phone the colour it shipped in, which is what "too dark" was.
      */
+    /*
+     * BOTH back panels, flat rather than as the archive painted them.
+     *
+     * They ship a 1024px PNG holding a top-to-bottom fade, and that fade is
+     * baked lighting — Apple's renderer resolves it smoothly, this one
+     * retints it to a new finish and the gradient collapses into a handful of
+     * 8-bit steps. What you see then is a set of horizontal lines across the
+     * back, most visible on the darker colourways where the steps are widest.
+     *
+     * Dropping it is the honest fix rather than a workaround: the studio has
+     * real lighting of its own, and a flat panel lit by it is closer to the
+     * hardware than a painted fade lit twice.
+     *
+     * The clear sheet needs it as much as the layer under it, and that is not
+     * obvious: flattening only the lower panel changed nothing visible,
+     * because the gradient the eye was reading was the one on the pane in
+     * front of it.
+     */
+    plainMaterials: ["WElbLmMkunjUugH", "IxiedJEUxrDhLIX"],
     authoredBodyColor: "#452a2f",
     // Apple's render has no mirror on the rails at all — the chamfer is a
     // gradient. Measured against that rather than chosen: at the studio's 2.1
     // this body throws white streaks that nothing on the real phone does.
     // Tuned on the live bench against Apple's own render, then read off it.
     bodyEnvMapIntensity: 1.8,
-    // The chassis carries the merged map; the other two carry its metalness.
-    // All three are anodised aluminium and nothing else, so all three are
-    // better off as the finish's own numbers.
-    plainBodyMaterials: ["vUgmkmbQjXTaqEc", "DodbyqhrrBLNbcB", "WElbLmMkunjUugH"],
     /*
      * The three surfaces that are not simply "the finish".
      *
@@ -1399,12 +1475,25 @@ export const DEVICES: Device[] = [
      */
     bodySurfaces: {
       WElbLmMkunjUugH: { roughness: 0.25, metalness: 0.26, envMapIntensity: 0 },
-      IxiedJEUxrDhLIX: {
-        roughness: 0.31,
-        metalness: 0,
-        envMapIntensity: 0.32,
-        // Neutral, so the sheet stops tinting what is under it.
-        color: "#ffffff",
+      /*
+       * The iris blades, darkened to read as a mechanism.
+       *
+       * Six leaves in a ring inside the bottom barrel, a twentieth of a
+       * millimetre thick, carrying a white base colour and a detailed
+       * mechanical texture. They are not body, so no finish touches them —
+       * which against a Black phone left them looking like bright shrapnel
+       * scattered in the lens, and against Burgundy merely busy. The real
+       * thing is a dark metal leaf that catches one edge of the light.
+       *
+       * Dark and quite smooth, so what shows is the shape of the aperture
+       * rather than the detail of the texture.
+       */
+      NZtZZWsItDhUsxA: {
+        flat: true,
+        color: "#15151a",
+        roughness: 0.28,
+        metalness: 0.75,
+        envMapIntensity: 0.5,
       },
     },
     materialColors: {
@@ -1424,6 +1513,105 @@ export const DEVICES: Device[] = [
        * look printed on.
        */
       yPeTOPaiWwFMSdb: { darken: 0.1, roughness: 0.12, metalness: 0.85 },
+      /*
+       * The antenna bands, the port and Camera Control — the body colour, a
+       * shade up.
+       *
+       * All three arrived burgundy: the archive is composed in it, and any
+       * material the finish does not own keeps whatever it was authored as.
+       * That put a plum stripe across the top edge of a Black phone and a plum
+       * socket in the bottom of a Sky Blue one.
+       *
+       * `lighten` rather than a hex, because these are the body seen through a
+       * different material — plastic where the band is, sapphire over the
+       * button, a machined wall inside the port — and each returns the finish
+       * a little brighter than the anodised aluminium beside it. Deriving it
+       * keeps that relationship true in all four colourways; a literal would
+       * have to be right four times and would be right once.
+       *
+       * They are here rather than in `finishMaterials` deliberately. The
+       * finish path would give them the body colour EXACTLY, and the whole
+       * point is that they are a shade off it.
+       */
+      /*
+       * 27.2 x 4.5mm across the top edge, and two more of 9.0 and 9.6mm at the
+       * bottom: the plastic filling the splits in the frame so the radios can
+       * see out.
+       *
+       * `lighten: 0` is the finish colour EXACTLY, and is deliberate rather
+       * than a value not yet chosen. Lifting them read as a band; Apple gives
+       * these the same material as the frame, so the seam is the only thing
+       * that shows one is there.
+       */
+      /*
+       * The back glass: the finish colour, on the sheet as well as under it.
+       *
+       * Here rather than in `bodySurfaces` because that only takes a literal,
+       * and a literal cannot be four colours. `lighten: 0` is the finish
+       * exactly — the sheet is glass over anodised metal, not a gel.
+       *
+       * Its 0.3 opacity is left as the archive states it, so this is still a
+       * clear pane tinted by what it is made of rather than a coat of paint.
+       * The surface numbers come with it, since the branch that used to supply
+       * them is no longer the one that runs.
+       */
+      IxiedJEUxrDhLIX: {
+        lighten: 0,
+        roughness: 0.31,
+        metalness: 0,
+        envMapIntensity: 0.32,
+      },
+      ZKYcumThEAllgKc: { lighten: 0 },
+      nuwSyerWvJfhsMd: { lighten: 0 },
+      // The bottom edge with them: the 42.5mm hairline, the two plates either
+      // side of the port, and the 15.3mm strip between.
+      hGSiEINnkluBUrq: { lighten: 0 },
+      mEyfsugDbInWtmQ: { lighten: 0 },
+      /*
+       * Camera Control: three coincident layers on the side edge at y -23mm,
+       * a 0.7mm button behind two 0.3mm covers.
+       *
+       * Glassier than anything around it, which is what identifies it on the
+       * actual phone — it returns the room sharply where the aluminium
+       * scatters it.
+       */
+      NTEUvFZCGwiAbXI: {
+        lighten: 0,
+        roughness: 0.12,
+        metalness: 0.4,
+        envMapIntensity: 1.4,
+      },
+      crYYDRbonRWlXIT: {
+        lighten: 0,
+        roughness: 0.1,
+        metalness: 0.4,
+        envMapIntensity: 1.6,
+      },
+      /*
+       * The outermost cover, and the one that has to be made OPAQUE.
+       *
+       * The archive states it `alphaMode: BLEND` at 0.7, so the colour set on
+       * it was only ever seven tenths of what showed — the rest was whatever
+       * sat behind, which is the dark inside of the recess. That is why this
+       * button stayed plum while the antenna band beside it followed the
+       * finish from the same override list. Colour alone could not fix it.
+       */
+      vmHtEpzvjsKvWzR: {
+        lighten: 0,
+        opacity: 1,
+        roughness: 0.1,
+        metalness: 0.4,
+        envMapIntensity: 1.6,
+      },
+      // The USB-C cavity, four meshes making 9.0 x 4.6 x 3.2mm. Lightest of
+      // the three, and the roughest: a machined wall rather than a polished
+      // one, so it holds the colour without a highlight running round it.
+      bKCxnOaKtDpUlmo: {
+        lighten: 0.3,
+        roughness: 0.45,
+        metalness: 0.6,
+        envMapIntensity: 0.7,
+      },
     },
     /*
      * The panel maps its source upside down: a screenshot came out with the
@@ -1437,6 +1625,9 @@ export const DEVICES: Device[] = [
     screenInsetPct: 1,
     screenNative: { width: 1206, height: 2622 },
     notch: null,
+    // Converted with:
+    //   npm run convert:model -- <in.usdz> <out.glb> \
+    //     --root UBGArkKGrAMRRnj --iris NZtZZWsItDhUsxA --iris-lens 0
     credit: "Apple — design resources (iphone-18-pro-e-sim.usdz)",
   },
   {
@@ -1490,6 +1681,12 @@ export const DEVICES: Device[] = [
        * paint and a varnish. The retint's instinct to step around anything
        * transparent was right; the fault was that nothing underneath was
        * listed for it to colour instead.
+       *
+       * The sheet DOES carry the finish now, but through `materialColors` and
+       * with its painted map dropped — glass coloured by what it is made of,
+       * over a flat panel. That is a different thing from `bodyMaterials`
+       * pushing the body treatment onto a transparent surface, which is what
+       * produced the varnish.
        */
       "WElbLmMkunjUugH",
     ],
@@ -1502,16 +1699,31 @@ export const DEVICES: Device[] = [
      * recolour never runs — it is gated on the pair — and every finish left
      * the phone the colour it shipped in, which is what "too dark" was.
      */
+    /*
+     * BOTH back panels, flat rather than as the archive painted them.
+     *
+     * They ship a 1024px PNG holding a top-to-bottom fade, and that fade is
+     * baked lighting — Apple's renderer resolves it smoothly, this one
+     * retints it to a new finish and the gradient collapses into a handful of
+     * 8-bit steps. What you see then is a set of horizontal lines across the
+     * back, most visible on the darker colourways where the steps are widest.
+     *
+     * Dropping it is the honest fix rather than a workaround: the studio has
+     * real lighting of its own, and a flat panel lit by it is closer to the
+     * hardware than a painted fade lit twice.
+     *
+     * The clear sheet needs it as much as the layer under it, and that is not
+     * obvious: flattening only the lower panel changed nothing visible,
+     * because the gradient the eye was reading was the one on the pane in
+     * front of it.
+     */
+    plainMaterials: ["WElbLmMkunjUugH", "IxiedJEUxrDhLIX"],
     authoredBodyColor: "#452a2f",
     // Apple's render has no mirror on the rails at all — the chamfer is a
     // gradient. Measured against that rather than chosen: at the studio's 2.1
     // this body throws white streaks that nothing on the real phone does.
     // Tuned on the live bench against Apple's own render, then read off it.
     bodyEnvMapIntensity: 1.8,
-    // The chassis carries the merged map; the other two carry its metalness.
-    // All three are anodised aluminium and nothing else, so all three are
-    // better off as the finish's own numbers.
-    plainBodyMaterials: ["vUgmkmbQjXTaqEc", "DodbyqhrrBLNbcB", "WElbLmMkunjUugH"],
     /*
      * The three surfaces that are not simply "the finish".
      *
@@ -1523,12 +1735,25 @@ export const DEVICES: Device[] = [
      */
     bodySurfaces: {
       WElbLmMkunjUugH: { roughness: 0.25, metalness: 0.26, envMapIntensity: 0 },
-      IxiedJEUxrDhLIX: {
-        roughness: 0.31,
-        metalness: 0,
-        envMapIntensity: 0.32,
-        // Neutral, so the sheet stops tinting what is under it.
-        color: "#ffffff",
+      /*
+       * The iris blades, darkened to read as a mechanism.
+       *
+       * Six leaves in a ring inside the bottom barrel, a twentieth of a
+       * millimetre thick, carrying a white base colour and a detailed
+       * mechanical texture. They are not body, so no finish touches them —
+       * which against a Black phone left them looking like bright shrapnel
+       * scattered in the lens, and against Burgundy merely busy. The real
+       * thing is a dark metal leaf that catches one edge of the light.
+       *
+       * Dark and quite smooth, so what shows is the shape of the aperture
+       * rather than the detail of the texture.
+       */
+      NZtZZWsItDhUsxA: {
+        flat: true,
+        color: "#15151a",
+        roughness: 0.28,
+        metalness: 0.75,
+        envMapIntensity: 0.5,
       },
     },
     materialColors: {
@@ -1548,6 +1773,105 @@ export const DEVICES: Device[] = [
        * look printed on.
        */
       yPeTOPaiWwFMSdb: { darken: 0.1, roughness: 0.12, metalness: 0.85 },
+      /*
+       * The antenna bands, the port and Camera Control — the body colour, a
+       * shade up.
+       *
+       * All three arrived burgundy: the archive is composed in it, and any
+       * material the finish does not own keeps whatever it was authored as.
+       * That put a plum stripe across the top edge of a Black phone and a plum
+       * socket in the bottom of a Sky Blue one.
+       *
+       * `lighten` rather than a hex, because these are the body seen through a
+       * different material — plastic where the band is, sapphire over the
+       * button, a machined wall inside the port — and each returns the finish
+       * a little brighter than the anodised aluminium beside it. Deriving it
+       * keeps that relationship true in all four colourways; a literal would
+       * have to be right four times and would be right once.
+       *
+       * They are here rather than in `finishMaterials` deliberately. The
+       * finish path would give them the body colour EXACTLY, and the whole
+       * point is that they are a shade off it.
+       */
+      /*
+       * 27.2 x 4.5mm across the top edge, and two more of 9.0 and 9.6mm at the
+       * bottom: the plastic filling the splits in the frame so the radios can
+       * see out.
+       *
+       * `lighten: 0` is the finish colour EXACTLY, and is deliberate rather
+       * than a value not yet chosen. Lifting them read as a band; Apple gives
+       * these the same material as the frame, so the seam is the only thing
+       * that shows one is there.
+       */
+      /*
+       * The back glass: the finish colour, on the sheet as well as under it.
+       *
+       * Here rather than in `bodySurfaces` because that only takes a literal,
+       * and a literal cannot be four colours. `lighten: 0` is the finish
+       * exactly — the sheet is glass over anodised metal, not a gel.
+       *
+       * Its 0.3 opacity is left as the archive states it, so this is still a
+       * clear pane tinted by what it is made of rather than a coat of paint.
+       * The surface numbers come with it, since the branch that used to supply
+       * them is no longer the one that runs.
+       */
+      IxiedJEUxrDhLIX: {
+        lighten: 0,
+        roughness: 0.31,
+        metalness: 0,
+        envMapIntensity: 0.32,
+      },
+      ZKYcumThEAllgKc: { lighten: 0 },
+      nuwSyerWvJfhsMd: { lighten: 0 },
+      // The bottom edge with them: the 42.5mm hairline, the two plates either
+      // side of the port, and the 15.3mm strip between.
+      hGSiEINnkluBUrq: { lighten: 0 },
+      mEyfsugDbInWtmQ: { lighten: 0 },
+      /*
+       * Camera Control: three coincident layers on the side edge at y -23mm,
+       * a 0.7mm button behind two 0.3mm covers.
+       *
+       * Glassier than anything around it, which is what identifies it on the
+       * actual phone — it returns the room sharply where the aluminium
+       * scatters it.
+       */
+      NTEUvFZCGwiAbXI: {
+        lighten: 0,
+        roughness: 0.12,
+        metalness: 0.4,
+        envMapIntensity: 1.4,
+      },
+      crYYDRbonRWlXIT: {
+        lighten: 0,
+        roughness: 0.1,
+        metalness: 0.4,
+        envMapIntensity: 1.6,
+      },
+      /*
+       * The outermost cover, and the one that has to be made OPAQUE.
+       *
+       * The archive states it `alphaMode: BLEND` at 0.7, so the colour set on
+       * it was only ever seven tenths of what showed — the rest was whatever
+       * sat behind, which is the dark inside of the recess. That is why this
+       * button stayed plum while the antenna band beside it followed the
+       * finish from the same override list. Colour alone could not fix it.
+       */
+      vmHtEpzvjsKvWzR: {
+        lighten: 0,
+        opacity: 1,
+        roughness: 0.1,
+        metalness: 0.4,
+        envMapIntensity: 1.6,
+      },
+      // The USB-C cavity, four meshes making 9.0 x 4.6 x 3.2mm. Lightest of
+      // the three, and the roughest: a machined wall rather than a polished
+      // one, so it holds the colour without a highlight running round it.
+      bKCxnOaKtDpUlmo: {
+        lighten: 0.3,
+        roughness: 0.45,
+        metalness: 0.6,
+        envMapIntensity: 0.7,
+      },
     },
     /*
      * The panel maps its source upside down: a screenshot came out with the
@@ -1560,6 +1884,17 @@ export const DEVICES: Device[] = [
     screenInsetPct: 1,
     screenNative: { width: 1320, height: 2868 },
     notch: null,
+    // As the Pro, plus `--root wUOhcMgiBmCgGaw --rotate-y 180`.
+    //
+    // The yaw is not cosmetic. The two phones face OPPOSITE WAYS in the
+    // archive's layout, so this one arrived with its screen at +Z and its
+    // cameras at -Z — the reverse of what the stage assumes, and the reverse
+    // of every other device in this registry. Measured rather than guessed:
+    // screen z -4.4 against cameras +9.3 now, which is the 17 Pro's
+    // arrangement exactly.
+    //
+    // Its lens layout is mirrored too, but `--iris-lens` counts by height, so
+    // 0 is the bottom lens on both phones regardless.
     credit: "Apple — design resources (iphone-18-pro-e-sim.usdz)",
   },
   {
@@ -1571,19 +1906,25 @@ export const DEVICES: Device[] = [
     // set too and is a second export away if it is wanted.
     finishIds: ["cloud-white"],
     /*
-     * The hinge, as a clip this file had to be given rather than one it shipped.
+     * The hinge, generated at conversion by `--fold Landscape`.
      *
-     * The archive states its open and closed states as USD VARIANTS — two
-     * arrangements of one rig — and a variant is not something a glTF carries
-     * or a slider can sit halfway through. Composing the archive twice, once
-     * per Pose, gives two identical hierarchies whose transforms differ on
-     * exactly three nodes; keying those three from one to the other is the
-     * animation, and it is written into the GLB at conversion time.
+     * The archive states its two states as a `Pose` variant set rather than an
+     * animation, so the converter composes the file twice and interpolates
+     * between them. What matters is HOW: as a screw — a rotation about the
+     * fold line — and not as a straight line between the two endpoints. Two
+     * halves going from stacked to side by side have endpoints a lerp joins by
+     * dragging them through each other, which is what put the hinge spine
+     * outside the body and left the cover display co-planar with the inner one.
+     * Those were reported as two bugs and were one.
      *
-     * Zero is open and one second is closed, matching `iphone-fold`'s reading
-     * of the same control.
+     * Verified rather than assumed: the moving geometry measures 85 x 118 x 17
+     * at the closed end and 165 x 118 x 11 at the open one, and stands 82 deep
+     * halfway, which is a half's width — the two panels at ninety degrees.
+     *
+     * Zero is CLOSED here, one is open, which is the opposite way round from
+     * `iphone-fold` and is simply which pose the archive composes by default.
      */
-    fold: { openSec: 0, closedSec: 1 },
+    fold: { openSec: 1, closedSec: 0 },
     /*
      * The panel maps its source upside down — status bar along the bottom,
      * every line mirrored top to bottom. The same flip the 18s needed, and
@@ -1596,15 +1937,187 @@ export const DEVICES: Device[] = [
      * is off, which is what a display looks like in a product render. The
      * white 92.4cm2 panel beside it at almost the same depth is its glass.
      */
-    screenMaterial: "bVtHVUZGvQeXwdh",
+    /*
+     * The INNER display, which is the one this device exists for.
+     *
+     * Two screens here, as on any fold: `bVtHVUZGvQeXwdh` is a single black
+     * 87.1cm2 panel — the outer cover — and this is three meshes totalling
+     * 92.4cm2 at the same depth, which is the inner display in its halves.
+     * The first pass named the cover, so a screenshot went onto the outside
+     * and the big screen stayed blank. `iphone-fold` makes the same choice for
+     * the same reason: its entry names "OLED IN" and leaves the cover alone.
+     */
+    screenMaterial: "DHVeopyQCCjAHKQ",
     // `udkIoumZEJmNcgx` is the shell — 196.7cm2 and 4mm thick, which is both
     // halves of a folding body rather than a panel of one.
     finishMaterials: ["udkIoumZEJmNcgx"],
+    /*
+     * The camera stack, the flash and the microphone.
+     *
+     * Only 3 of this model's 33 materials carry a texture, so everything that
+     * is not the shell arrives as untinted white — which is why a white phone
+     * had white camera glass, a white flash and a white mic. The 18s could
+     * lean on their maps for this; here the values have to be stated.
+     *
+     * Identified by geometry, since every name is a random id: the lens stack
+     * is three materials of TWO meshes each — one per camera — at 1.8 to
+     * 2.0cm2 and a fraction of a millimetre thick, sitting at the very back of
+     * the model around z -11. Glass, in other words: dark, smooth, and lit
+     * almost entirely by reflection.
+     */
+    bodySurfaces: {
+      /*
+       * The inner display, off.
+       *
+       * Its three materials carry no base colour and no texture at all — the
+       * model simply does not author them, so they render default white and
+       * the open device looks like a folded sheet of paper. The cover display
+       * beside them IS authored, explicitly black, which is why that one reads
+       * as a screen and this one did not.
+       *
+       * Near-black rather than pure: a display that is off still catches a
+       * little of the room, and 0,0,0 reads as a hole cut in the phone.
+       */
+      DHVeopyQCCjAHKQ: { color: "#0a0a0c", roughness: 0.08, metalness: 0, envMapIntensity: 0.5 },
+      // Outer cover glass, then the element under it, then the barrel.
+      KZyHFwBbAcpggBF: { color: "#0b0b0e", roughness: 0.04, metalness: 0, envMapIntensity: 1.4 },
+      VnRXIqfJGJZbeXY: { color: "#08080a", roughness: 0.06, metalness: 0, envMapIntensity: 1 },
+      iWJmrhAGVXsplAU: { color: "#101014", roughness: 0.12, metalness: 0.2, envMapIntensity: 0.8 },
+      // The ring the glass sits in — polished, so it draws the circle.
+      zzpHLLWMeplrvNu: { color: "#c8c8cc", roughness: 0.12, metalness: 0.9, envMapIntensity: 1.6 },
+      // The flash: the one small part that is a LIGHT, so it stays bright and
+      // slightly warm rather than taking the body's colour.
+      uJFPWgDhmWStPgF: { color: "#fff4e2", roughness: 0.18, metalness: 0, envMapIntensity: 1.8 },
+      // The microphone and the two small ports beside it. Holes, so nearly
+      // black and barely lit — a hole that catches the key reads as a bump.
+      yeSylDxiUWUEdUq: { color: "#0a0a0a", roughness: 0.35, metalness: 0, envMapIntensity: 0.25 },
+      qMQBeWGUCGfErnO: { color: "#0a0a0a", roughness: 0.35, metalness: 0, envMapIntensity: 0.25 },
+      qsaDpVIHURYREdD: { color: "#0a0a0a", roughness: 0.35, metalness: 0, envMapIntensity: 0.25 },
+      nyGbnltkiVgOVaK: { color: "#0a0a0a", roughness: 0.35, metalness: 0, envMapIntensity: 0.25 },
+    },
     screenCornerRadiusPct: 0.06,
     screenInsetPct: 1,
     screenNative: { width: 2160, height: 1620 },
     notch: null,
+    // Converted with `--fold Landscape`.
     credit: "Apple — design resources (iPhone_Duo_Star-White.usdz)",
+  },
+  {
+    /*
+     * The same phone from Apple's own product viewer rather than from their
+     * design resources, and it is a different asset in the way that matters:
+     * ITS FOLD IS SKINNED.
+     *
+     * The design-resource USDZ ships two static poses, open and closed, and
+     * the clip beside it is one this repo derived — a screw interpolation
+     * about a hinge line measured from the spine. That is geometrically
+     * correct and it is still two rigid plates. This file carries a 27-joint
+     * skeleton and a 61-key clip authored against it, so the inner display
+     * BENDS across the hinge the way the real panel does, and every angle
+     * between open and shut is a pose someone chose rather than one this code
+     * interpolated.
+     *
+     * Both are kept. This is not strictly better — the design-resource model
+     * is the higher-detail one, and it is the one whose provenance is a file
+     * Apple publishes for exactly this use.
+     */
+    id: "apple-iphone-duo-web",
+    label: "Apple iPhone Duo (product viewer)",
+    /*
+     * Named for its provenance, and RENAMED once on purpose.
+     *
+     * The orientation in this file was rebaked three times while the path
+     * stayed the same, and `useGLTF` caches by url -- so the app kept loading
+     * the first copy and every fix looked like it had done nothing. A new name
+     * is the only way to be sure which file is on screen.
+     */
+    modelPath: `${MODELS}/apple-iphone-duo-viewer.glb`,
+    hideHints: [],
+    finishIds: ["cloud-white"],
+    /*
+     * `Slider`, by name, because this file also carries `Intro` and lists it
+     * first. The lid would otherwise scrub an entrance animation.
+     *
+     * Open at 2s and shut at 0s — the reverse of the converted model, and
+     * taken from the viewer's own states, which map their range input
+     * linearly onto the clip with `closed: 0` at one end and `landscape: 1`
+     * at the other.
+     */
+    fold: { openSec: 2, closedSec: 0, clip: "Slider" },
+    /*
+     * The inner panel: one flat mesh, 15.8 x 11.0 units, spanning both leaves
+     * on the front face. The only mesh in the file that does.
+     */
+    screenMaterial: "pkUBCyCvYJYVzTr",
+    /*
+     * And the cover panel, which this asset names outright — the only
+     * legible material name in the file, and worth the trust: it is on the
+     * back half at 7.7 x 11.2, which is where a cover screen is.
+     */
+    coverScreen: {
+      material: "screenTextureOuterDisplay_usd_shd_lts",
+      native: { width: 1080, height: 1560 },
+    },
+    /*
+     * The two shells, plus the anodised trim around them. Measured: these are
+     * the materials whose meshes span the whole 16.5 x 11.8 body and carry the
+     * cream the file was authored in, against the blacks and greys of the
+     * bezel, the hinge and the camera stack.
+     */
+    finishMaterials: [
+      "lrXfpZcYrByzvym",
+      "NtNSwEIIFmIbXaY",
+      "mAvfMvCzYIPKaNG",
+      "jqlebwNqkTyrcyd",
+      "jeFtQmHBLCfgIkY",
+      "UcYWmlwZxcfqNko",
+      "OwqobJiNTlvAFyj",
+    ],
+    // The cream those shells state, converted out of glTF's linear factors.
+    authoredBodyColor: "#f2ede5",
+    screenCornerRadiusPct: 0.06,
+    screenInsetPct: 1,
+    /*
+     * The inner panel's own proportions, 15.79 x 11.04 in model units.
+     *
+     * Not a guess and not a spec sheet: this device is authored lying flat, so
+     * the stage's measurement of its display comes out zero-height and the fit
+     * falls back to this number. It has to be the panel's real aspect or the
+     * screenshot is cropped to the wrong shape.
+     */
+    screenNative: { width: 2316, height: 1620 },
+    // And use it for the fit rather than the measured mesh. See the field.
+    screenFitFromNative: true,
+    /*
+     * Upright in the FILE, like every other model here.
+     *
+     * Apple's product viewer orbits a camera around a device lying flat, so
+     * that is how its glTF ships: measured through the skin, the inner
+     * display's normal is +Y, face up. The converter stands it up on the way
+     * in -- see the command below -- which lands the display's normal on
+     * (0, 0, -1).
+     *
+     * A quarter turn about X ALONE does that, and is wrong: it also carries
+     * the model's +Z to world +Y, and this phone's top edge is at -Z, so the
+     * device came up correctly facing you and upside down. Turning the other
+     * way about X and then half a turn about Y reaches the same normal with
+     * the opposite up vector, which is the one that has the camera at the top.
+     *
+     * Verified against the 17 Pro rather than by eye: its screen material's
+     * mean normal is (0, 0, -1) too, so this device now sits in the same
+     * neutral as the rest of the registry and needs no `autoStand` search and
+     * no `modelYawDeg` to correct it afterwards.
+     *
+     * Baking it beats standing it up at runtime. `autoStand` scores candidate
+     * poses by height minus depth, which is a guess that happens to be right;
+     * a rotation in the file is a fact, and it can be measured offline instead
+     * of inferred from what the canvas looks like.
+     */
+    notch: null,
+    // Converted with:
+    //   node scripts/gltf-to-glb.mjs <product-viewer.gltf> <out.glb> \
+    //     --rotate-x 90 --rotate-y 180
+    credit: "Apple — iPhone Duo product viewer (apple.com)",
   },
   {
     id: "apple-iphone-air",

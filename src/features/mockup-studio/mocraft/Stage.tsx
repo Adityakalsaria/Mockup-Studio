@@ -53,7 +53,7 @@ const INSET = 40;
 const FRAME = 0.82;
 
 function StageInner({ studio }: { studio: Studio }) {
-  const { state, ratio, screenTexture, playing, playheadRef, exporting, presetId } = studio;
+  const { state, ratio, screenTexture, coverTexture, playing, playheadRef, exporting, presetId } = studio;
 
   /*
    * The pose follows the playhead while the transport runs AND while a video
@@ -118,6 +118,7 @@ function StageInner({ studio }: { studio: Studio }) {
           captureRef={studio.captureRef}
           recorderRef={studio.recorderRef}
           screenTexture={screenTexture}
+          coverTexture={coverTexture}
           deviceId={state.deviceId}
           finishId={state.finishId}
           blur={state.blur}

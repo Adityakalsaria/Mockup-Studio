@@ -38,11 +38,11 @@
  * everything is recompressed, through sharp.
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { dirname, basename } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from "node:fs";
+import { dirname, basename, join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
-import { Box3, Vector3, SRGBColorSpace } from "three";
+import { Box3, Vector3, Quaternion, Matrix4, SRGBColorSpace } from "three";
 import sharp from "sharp";
 import { unzipSync } from "three/examples/jsm/libs/fflate.module.js";
 
@@ -129,6 +129,34 @@ const ROUGHNESS_RANGE = (() => {
  * so turning this on alone will render chrome.
  */
 const SURFACE_MAPS = rest.includes("--surface-maps");
+/*
+ * The name of the OPEN pose variant, for a device that folds.
+ *
+ * A usdz can state alternative poses as a `Pose` variant set rather than as an
+ * animation — Apple's foldable ships "Closed" and "Landscape" that way, and a
+ * variant is neither something glTF carries nor something a slider can sit
+ * halfway through. Given the name of the open one, the archive is composed
+ * twice and the difference between the two becomes a clip.
+ */
+/** The material whose meshes are a camera iris, for models that need it. */
+const irisIndex = rest.indexOf("--iris");
+const IRIS_MATERIAL = irisIndex === -1 ? null : rest[irisIndex + 1];
+/*
+ * Which lens the iris belongs to, counted from the bottom of the plateau.
+ *
+ * The blades do not necessarily start nearest the camera they belong to —
+ * on the iPhone 18 Pro they arrive 5.9mm from the middle lens and 25mm from
+ * the bottom one, which is the one they are actually part of. So "nearest" is
+ * a guess that happens to be wrong here, and the lens is named instead:
+ * lenses are sorted by height and this indexes them, 0 being the lowest.
+ * Omit it to keep the nearest-lens guess.
+ */
+const irisLensIndex = rest.indexOf("--iris-lens");
+const IRIS_LENS = irisLensIndex === -1 ? null : Number(rest[irisLensIndex + 1]);
+const foldIndex = rest.indexOf("--fold");
+const FOLD_POSE = foldIndex === -1 ? null : rest[foldIndex + 1];
+/** Keys along that clip. A hinge is an arc, so it needs sampling, not two ends. */
+const FOLD_KEYS = arg("fold-keys", 9);
 
 /* ------------------------------------------------------- the DOM, stubbed */
 /*
@@ -165,7 +193,16 @@ globalThis.URL.createObjectURL = (blob) => {
 globalThis.URL.revokeObjectURL = () => {};
 globalThis.Image = class {
   set src(value) {
-    this.__bytes = urlBytes.get(value) ?? null;
+    /*
+     * Either a blob url, or a path on disk.
+     *
+     * The archive path hands the loader bytes it already holds, so the blob
+     * table answers. The FLATTENED path below hands it file paths instead, and
+     * those are read here — still the original bytes, still never decoded,
+     * which is the whole point of this shim.
+     */
+    this.__bytes =
+      urlBytes.get(value) ?? (existsSync(value) ? new Uint8Array(readFileSync(value)) : null);
     this.__url = value;
     // Synchronous, so the texture is fully assembled by the time `parse`
     // returns and no async plumbing is needed around a one-shot script.
@@ -180,7 +217,106 @@ const { USDLoader } = await import("three/examples/jsm/loaders/USDLoader.js");
 
 const usdz = readFileSync(input);
 const usdzAb = usdz.buffer.slice(usdz.byteOffset, usdz.byteOffset + usdz.byteLength);
-const root = new USDLoader().parse(usdzAb);
+
+/**
+ * Read the archive, and if three cannot, read a flattened copy of it instead.
+ *
+ * three ships a crate (`.usdc`) reader, and it does not cover every scalar type
+ * USD can store. Apple's newer design resources use ones it does not: the
+ * parser prints "Unsupported scalar type 55" and returns a scene with no meshes
+ * in it at all — no error, just nothing. Every iPhone 18 and the Duo land here.
+ *
+ * The same parser reads the ASCII form perfectly, and `usdcat --flatten` writes
+ * one. So the fallback composes the archive to text, unpacks its images beside
+ * it, and rewrites the texture references from usdz-package syntax
+ * (`@/abs/x.usdz[inner/tex.jpg]@`, which nothing outside USD's own runtime
+ * resolves) to plain relative paths. The loader then finds them through a
+ * URL modifier, and the shimmed `Image` reads their bytes off disk — still the
+ * original bytes, still never re-encoded.
+ */
+let flattenedText = null;
+/** Where the flatten put its work, so a second pose can reuse the textures. */
+let flattenWork = null;
+
+/**
+ * Compose the archive again with one variant selected.
+ *
+ * `usdcat --flatten` resolves whatever the file selects by default; to get a
+ * different one it needs a layer that says so. This writes a three-line wrapper
+ * that references the archive and sets the variant, then flattens THAT.
+ */
+function composePose(variantSet, variant) {
+  const work = flattenWork ?? join(tmpdir(), `usdz-pose-${process.pid}`);
+  mkdirSync(work, { recursive: true });
+  const wrapper = join(work, `pose-${variant}.usda`);
+  const defaultPrim = (flattenedText ?? "").match(/defaultPrim = "([^"]+)"/)?.[1];
+  if (!defaultPrim) return null;
+  writeFileSync(
+    wrapper,
+    `#usda 1.0\n(\n    defaultPrim = "${defaultPrim}"\n)\n\n` +
+      `over "${defaultPrim}" (\n    prepend references = @${input}@\n` +
+      `    variants = {\n        string ${variantSet} = "${variant}"\n    }\n)\n{\n}\n`,
+  );
+  const out = join(work, `pose-${variant}-flat.usda`);
+  execFileSync("usdcat", ["--flatten", wrapper, "-o", out], {
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+  const text = readFileSync(out, "utf8").replace(/@[^@\[]*\.usdz\[([^\]]+)\]@/g, "@$1@");
+  writeFileSync(out, text);
+  const loader = new USDLoader();
+  loader.manager.setURLModifier(() => "");
+  const buf = readFileSync(out);
+  return loader.parse(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+}
+
+function readArchive() {
+  const direct = new USDLoader().parse(usdzAb);
+  let count = 0;
+  direct.traverse((o) => o.isMesh && count++);
+  if (count) return direct;
+
+  console.warn("  ! three could not read the crate; flattening with usdcat");
+  const work = join(tmpdir(), `usdz-flatten-${process.pid}`);
+  flattenWork = work;
+  mkdirSync(work, { recursive: true });
+  const flat = join(work, "scene.usda");
+  execFileSync("usdcat", ["--flatten", input, "-o", flat], {
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+
+  const files = unzipSync(new Uint8Array(usdzAb));
+  const index = new Map();
+  for (const name of Object.keys(files)) {
+    if (!/\.(jpe?g|png|exr|avif)$/i.test(name)) continue;
+    const target = join(work, name);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, files[name]);
+    index.set(basename(name), target);
+  }
+
+  const rewritten = readFileSync(flat, "utf8").replace(
+    /@[^@\[]*\.usdz\[([^\]]+)\]@/g,
+    "@$1@",
+  );
+  writeFileSync(flat, rewritten);
+  /*
+   * Kept for the material-name pass below.
+   *
+   * That pass re-derives the ASCII itself, and on these archives it would
+   * re-derive the SAME unreadable crate and come back with nothing — which is
+   * exactly what happened: 94 meshes converted with zero material names, and a
+   * model whose screen the studio can never bind to. One composition, read
+   * twice, is also one fewer thing that can disagree with itself.
+   */
+  flattenedText = rewritten;
+
+  const loader = new USDLoader();
+  loader.manager.setURLModifier((url) => index.get(basename(url)) ?? url);
+  const text = readFileSync(flat);
+  return loader.parse(text.buffer.slice(text.byteOffset, text.byteOffset + text.byteLength));
+}
+
+const root = readArchive();
 
 /* -------------------------------------------- recover the material names */
 /*
@@ -192,6 +328,7 @@ const root = new USDLoader().parse(usdzAb);
  */
 /** The USD as ASCII, whatever form the archive stores it in. */
 function loadUsdText(archive, file) {
+  if (flattenedText) return flattenedText;
   const files = unzipSync(new Uint8Array(archive));
   const usda = Object.keys(files).find((f) => f.endsWith(".usda"));
   let text;
@@ -247,7 +384,15 @@ function materialNamesByMesh(text) {
    * Slicing the text to the component first makes the names unique again.
    */
   if (ROOT) {
-    const start = text.indexOf(`def Xform "${ROOT}"`);
+    /*
+     * Any prim type, not just `Xform`.
+     *
+     * A component can be declared `def Xform`, `def Scope`, or with a kind
+     * after the name — matching one spelling meant the slice silently missed,
+     * the whole file was read, and both phones' materials went into one map
+     * where the second overwrote the first.
+     */
+    const start = text.search(new RegExp(`def \\w+ "${ROOT}"`));
     if (start === -1) {
       console.warn(`  ! prim "${ROOT}" not found in the USD; reading the whole file`);
     } else {
@@ -365,6 +510,127 @@ subject.traverse((object) => {
   if (!object.isMesh || !object.geometry?.attributes?.position) return;
   meshes.push(object);
 });
+/* ------------------------------------------------------- aperture repair */
+/*
+ * Put a camera's iris back inside its lens.
+ *
+ * Some of Apple's phone models carry the aperture blades as a ring of very thin
+ * meshes — a tenth of a millimetre each — on their own material, and they
+ * arrive about 6mm off the lens they belong to. Instead of reading as an
+ * aperture they read as a black bracket welded to the outside of the barrel.
+ *
+ * The cause is upstream: their transform chain is built from
+ * `xformOp:translate:pivot` paired with `!invert!` — rotate-about-a-point,
+ * expressed as three ops — and something in that composition does not survive
+ * three's USD reader. Every op these files use IS implemented, so it is an
+ * ordering or pivot-application difference rather than a gap, and chasing it
+ * inside a third-party parser is a bigger job than any one model.
+ *
+ * So the cluster is measured and moved onto the nearest lens. That is a
+ * correction rather than a guess: lens barrels are unambiguous — round, 12 to
+ * 17mm across, and thicker than a decal — and an iris belongs on one. Opt-in,
+ * because only some models need it. The day the reader is fixed, this is the
+ * flag to stop passing.
+ */
+if (IRIS_MATERIAL) {
+  const blades = [];
+  const lenses = [];
+  for (const mesh of meshes) {
+    const box = new Box3().setFromObject(mesh);
+    const size = box.getSize(new Vector3());
+    if (nameByMesh.get(mesh.name)?.material === IRIS_MATERIAL) {
+      blades.push({ mesh, centre: box.getCenter(new Vector3()) });
+    } else if (
+      size.x > 1.2 &&
+      size.x < 1.7 &&
+      Math.abs(size.x - size.y) < 0.2 &&
+      size.z > 0.1
+    ) {
+      lenses.push(box.getCenter(new Vector3()));
+    }
+  }
+  if (blades.length && lenses.length) {
+    const hub = blades
+      .reduce((acc, b) => acc.add(b.centre), new Vector3())
+      .divideScalar(blades.length);
+    let target;
+    if (IRIS_LENS !== null) {
+      /*
+       * Deduped before indexing.
+       *
+       * Each barrel contributes several meshes that pass the size test, so an
+       * index into the raw list lands on a repeat of the first lens rather
+       * than on the second — which is how "lens 1" and "lens 0" came out the
+       * same place.
+       */
+      const byHeight = [
+        ...new Map(
+          lenses
+            .slice()
+            .sort((a, b) => a.y - b.y)
+            .map((c) => [`${c.x.toFixed(2)},${c.y.toFixed(2)}`, c]),
+        ).values(),
+      ];
+      target = byHeight[Math.min(IRIS_LENS, byHeight.length - 1)];
+    } else {
+      target = lenses[0];
+      for (const centre of lenses) {
+        if (centre.distanceTo(hub) < target.distanceTo(hub)) target = centre;
+      }
+    }
+    if (IRIS_LENS !== null) {
+      // Printed because the index is only meaningful against this list, and a
+      // silently-wrong pick looks exactly like a right one.
+      console.log(
+        "  iris: lenses found at " +
+          [
+            // Deduped: a barrel is several meshes and each one answers the
+            // size test, so the raw list repeats every lens three or four
+            // times and the index would mean nothing.
+            ...new Map(
+              lenses
+                .slice()
+                .sort((a, b) => a.y - b.y)
+                .map((c) => [
+                  `${(c.x * 10).toFixed(0)},${(c.y * 10).toFixed(0)}`,
+                  c,
+                ]),
+            ).keys(),
+          ]
+            .map((label, i) => `[${i}] ${label}`)
+            .join("  "),
+      );
+    }
+    const shift = target.clone().sub(hub);
+    // Across the face only. The depth is already right, and moving it would
+    // push the blades through the cover glass.
+    shift.z = 0;
+    /*
+     * The shift is a WORLD vector; `position` is in the parent's space.
+     *
+     * USD arrives with an up-axis conversion baked into the tree — a 90 degree
+     * rotation and a hundredfold scale sit above every one of these meshes —
+     * so adding a world-space offset to a local position moves the blades by
+     * the wrong amount in the wrong direction. They ended up 8mm from the lens
+     * and 4mm too deep, which is neither where they were nor where they should
+     * be. Converted through the parent's inverse, as a direction rather than a
+     * point.
+     */
+    for (const { mesh } of blades) {
+      const toLocal = new Matrix4().copy(mesh.parent.matrixWorld).invert();
+      const origin = new Vector3().applyMatrix4(toLocal);
+      mesh.position.add(shift.clone().applyMatrix4(toLocal).sub(origin));
+    }
+    subject.updateMatrixWorld(true);
+    console.log(
+      `  iris: ${blades.length} blades moved ${(shift.length() * 10).toFixed(1)}mm onto ` +
+        `the lens at ${(target.x * 10).toFixed(0)}, ${(target.y * 10).toFixed(0)}`,
+    );
+  } else {
+    console.warn(`  ! no iris found on material "${IRIS_MATERIAL}"`);
+  }
+}
+
 if (!meshes.length) {
   console.error("no meshes found — is this a USDZ?");
   process.exit(1);
@@ -766,6 +1032,235 @@ for (const mesh of meshes) {
   gltf.nodes.push({ name: mesh.name, mesh: gltf.meshes.length - 1 });
   gltf.scenes[0].nodes.push(gltf.nodes.length - 1);
 }
+
+/* ------------------------------------------------------------ fold clip */
+/*
+ * A hinge, as an arc rather than a straight line.
+ *
+ * Every mesh here was written with its world transform BAKED INTO its vertices
+ * and a node carrying no transform at all, so what is animated is the DELTA
+ * from that baked pose: identity at the closed end, and whatever the open pose
+ * asks for at the other. That needs no un-baking and no hierarchy.
+ *
+ * The delta is interpolated as a SCREW — a rotation about a fixed line in
+ * space, plus any slide along it — and not as a position lerp with a slerp
+ * beside it. That distinction is the whole fix. Two halves going from stacked
+ * to side by side have endpoints that a straight line joins by dragging them
+ * THROUGH each other: the hinge spine leaves the body, the cover display ends
+ * up co-planar with the inner one. A rotation about the fold line is the path
+ * the object actually takes.
+ */
+function buildFoldClip(openScene) {
+  if (!openScene) return false;
+
+  const byName = new Map();
+  openScene.updateMatrixWorld(true);
+  openScene.traverse((o) => o.name && byName.set(o.name, o));
+
+  /** The screw that carries `from` to `to`, sampled at `u`. */
+  const screw = (from, to) => {
+    const p0 = new Vector3();
+    const q0 = new Quaternion();
+    const s0 = new Vector3();
+    from.decompose(p0, q0, s0);
+    const p1 = new Vector3();
+    const q1 = new Quaternion();
+    const s1 = new Vector3();
+    to.decompose(p1, q1, s1);
+
+    const dq = q1.clone().multiply(q0.clone().invert()).normalize();
+    const dp = p1.clone().sub(p0.clone().applyQuaternion(dq));
+    let angle = 2 * Math.acos(Math.min(1, Math.abs(dq.w)));
+    if (dq.w < 0) dq.set(-dq.x, -dq.y, -dq.z, -dq.w);
+    angle = 2 * Math.acos(Math.min(1, dq.w));
+
+    const still = Math.abs(angle) < 1e-4;
+    const axis = still
+      ? new Vector3(0, 1, 0)
+      : new Vector3(dq.x, dq.y, dq.z).normalize();
+    const slide = still ? 0 : dp.dot(axis);
+    // The point the rotation turns about: solves (I - R)c = dp minus its slide.
+    const w = dp.clone().sub(axis.clone().multiplyScalar(slide));
+    /*
+     * The point the rotation turns about, solved and then CHECKED.
+     *
+     * `(I - R)c = w` has a closed form in the plane perpendicular to the axis,
+     * and its cross-product term carries a sign that depends on the handedness
+     * convention in play. Getting it backwards does not fail loudly — it
+     * produces a plausible arc that simply does not arrive, which showed up as
+     * a fold whose open end was still 71mm thick instead of flat. So both are
+     * tried and the one that actually reconstructs the far end wins.
+     */
+    const solve = (sign) =>
+      w
+        .clone()
+        .add(axis.clone().cross(w).multiplyScalar(sign / Math.tan(angle / 2)))
+        .multiplyScalar(0.5);
+    const arrives = (c) => {
+      const r = new Quaternion().setFromAxisAngle(axis, angle);
+      const end = p0
+        .clone()
+        .sub(c)
+        .applyQuaternion(r)
+        .add(c)
+        .add(axis.clone().multiplyScalar(slide));
+      return end.distanceTo(p1);
+    };
+    let centre = new Vector3();
+    if (!still) {
+      const plus = solve(1);
+      const minus = solve(-1);
+      centre = arrives(plus) <= arrives(minus) ? plus : minus;
+      const error = arrives(centre);
+      // In centimetres here; a tenth of a millimetre is well inside tolerance.
+      if (error > 0.01) {
+        console.warn(
+          `  ! hinge solve is ${(error * 10).toFixed(1)}mm out; the arc will not land`,
+        );
+      }
+    }
+
+    return (u) => {
+      if (still) {
+        return {
+          position: p0.clone().lerp(p1, u).sub(p0),
+          quaternion: new Quaternion(),
+        };
+      }
+      const r = new Quaternion().setFromAxisAngle(axis, angle * u);
+      /*
+       * The node's TRANSLATION, which is not the same as how far the object
+       * moved.
+       *
+       * A glTF node rotates about its own origin and then translates, so for a
+       * rigid motion `v -> R(v - c) + c` the translation term is `c - R·c`,
+       * not the displacement of any particular point. Handing it the latter
+       * rotated the whole half about the scene origin as well as moving it,
+       * which is why the open end came out 83mm wide and 43 thick when it
+       * should be the two halves lying flat side by side.
+       */
+      const position = centre
+        .clone()
+        .sub(centre.clone().applyQuaternion(r))
+        .add(axis.clone().multiplyScalar(slide * u));
+      return { position, quaternion: r };
+    };
+  };
+
+  /*
+   * One sampler pair per distinct motion, not per mesh.
+   *
+   * Both halves are dozens of meshes each, and every mesh in a half moves by
+   * the same delta. Keying the motion once and pointing every one of its
+   * meshes at the same sampler is the difference between a clip of five
+   * samplers and a clip of a hundred and fifty.
+   */
+  const groups = new Map();
+  for (const mesh of meshes) {
+    const twin = byName.get(mesh.name);
+    if (!twin) continue;
+    const from = mesh.matrixWorld;
+    const to = twin.matrixWorld;
+    if (from.elements.every((v, i) => Math.abs(v - to.elements[i]) < 1e-5)) continue;
+    const key = to.elements.map((v) => v.toFixed(4)).join(",")
+      + "|" + from.elements.map((v) => v.toFixed(4)).join(",");
+    if (!groups.has(key)) groups.set(key, { at: screw(from, to), nodes: [] });
+    groups.get(key).nodes.push(gltf.nodes.findIndex((n) => n.name === mesh.name));
+  }
+  if (!groups.size) {
+    console.warn("  ! the two poses are identical; no fold clip written");
+    return false;
+  }
+
+  /*
+   * The parts that BEND rather than rotate, carried by the half they sit on.
+   *
+   * A folding phone is not entirely rigid: the inner display is one continuous
+   * panel across the hinge, and there is a cover strip over the spine. Apple
+   * deforms those with a skeleton, which is neither something this conversion
+   * reads nor something a rigid delta can express — so they have no motion to
+   * interpolate and were left behind, sitting flat while the halves swung away
+   * from them.
+   *
+   * Each is assigned to the group whose geometry it overlaps most, so it
+   * travels with that half. A panel spanning the hinge then CREASES where it
+   * ought to bend, which is wrong in a way you have to look for, rather than
+   * detaching, which is wrong in a way you cannot miss.
+   *
+   * A mesh spanning the whole model is skipped: at that size it is a bounds
+   * proxy, and swinging it would drag the entire silhouette with it.
+   */
+  const whole = new Box3().setFromObject(subject).getSize(new Vector3());
+  const anchors = [...groups.values()].map((group) => {
+    const box = new Box3();
+    for (const index of group.nodes) {
+      const mesh = meshes.find((m) => m.name === gltf.nodes[index]?.name);
+      if (mesh) box.union(new Box3().setFromObject(mesh));
+    }
+    return { group, centre: box.getCenter(new Vector3()) };
+  });
+  let carried = 0;
+  for (const mesh of meshes) {
+    const index = gltf.nodes.findIndex((n) => n.name === mesh.name);
+    if (index < 0) continue;
+    if ([...groups.values()].some((g) => g.nodes.includes(index))) continue;
+    const box = new Box3().setFromObject(mesh);
+    const size = box.getSize(new Vector3());
+    if (size.x > whole.x * 0.9 && size.z > whole.z * 0.9) continue;
+    const centre = box.getCenter(new Vector3());
+    let nearest = anchors[0];
+    for (const anchor of anchors) {
+      if (anchor.centre.distanceTo(centre) < nearest.centre.distanceTo(centre)) {
+        nearest = anchor;
+      }
+    }
+    nearest.group.nodes.push(index);
+    carried += 1;
+  }
+  if (carried) console.log(`  fold: ${carried} non-rigid parts carried by their half`);
+
+  const times = new Float32Array(FOLD_KEYS);
+  for (let i = 0; i < FOLD_KEYS; i++) times[i] = i / (FOLD_KEYS - 1);
+  const timeAccessor = addAccessor(times, "SCALAR", 5126, FOLD_KEYS, {
+    min: [0],
+    max: [1],
+  });
+
+  const samplers = [];
+  const channels = [];
+  for (const group of groups.values()) {
+    const pos = new Float32Array(FOLD_KEYS * 3);
+    const rot = new Float32Array(FOLD_KEYS * 4);
+    for (let i = 0; i < FOLD_KEYS; i++) {
+      const { position, quaternion } = group.at(times[i]);
+      pos.set([position.x * USD_TO_M, position.y * USD_TO_M, position.z * USD_TO_M], i * 3);
+      rot.set(quaternion.toArray(), i * 4);
+    }
+    const posSampler = samplers.push({
+      input: timeAccessor,
+      output: addAccessor(pos, "VEC3", 5126, FOLD_KEYS),
+      interpolation: "LINEAR",
+    }) - 1;
+    const rotSampler = samplers.push({
+      input: timeAccessor,
+      output: addAccessor(rot, "VEC4", 5126, FOLD_KEYS),
+      interpolation: "LINEAR",
+    }) - 1;
+    for (const node of group.nodes) {
+      if (node < 0) continue;
+      channels.push({ sampler: posSampler, target: { node, path: "translation" } });
+      channels.push({ sampler: rotSampler, target: { node, path: "rotation" } });
+    }
+  }
+
+  gltf.animations = [{ name: "Fold", samplers, channels }];
+  console.log(
+    `  fold: ${groups.size} moving parts, ${channels.length} channels, ${FOLD_KEYS} keys`,
+  );
+  return true;
+}
+
+if (FOLD_POSE) buildFoldClip(composePose("Pose", FOLD_POSE));
 
 // Images last, so every geometry accessor is already placed and the image
 // bytes simply tail the buffer.

@@ -69,7 +69,9 @@ import {
   resetTransform,
   type Layer,
 } from "./bindings";
-import { DEVICES } from "../devices";
+import { canFold, DEVICES, getDevice } from "../devices";
+import { keyAt, type AnimatableKey } from "../animation";
+import { applyPose, POSES, type PoseId } from "./poses";
 import { getMotionPreset } from "../editor/motionPresets";
 import { DEFAULT_EDITOR_STATE } from "../editor/editorState";
 import { STORE_RATIOS } from "../editor/framing";
@@ -707,6 +709,118 @@ function LayerActions({
 }
 
 /**
+ * The pose dock: seven named ways to show a foldable.
+ *
+ * Apple's product viewer for this device offers exactly these seven and no
+ * more, and they are worth having as buttons for the reason they are worth
+ * having there — a foldable has no single portrait. "Landscape" and "Closed"
+ * are the same device and barely the same photograph, and reaching either by
+ * hand means a fold value, a yaw, a tilt and a zoom that all have to be right
+ * together. What each one IS lives in `poses.ts`.
+ *
+ * Only for devices that fold. Every row would still do something on an iMac —
+ * the framing halves of these poses are ordinary transforms — but "Closed" in
+ * front of a desktop is the dead control this chrome refuses to ship.
+ *
+ * The selection is REMEMBERED rather than derived, which is the opposite of
+ * how the layer stack decides what is lit, and deliberate. A pose is seven
+ * numbers written into the shot, and the moment you nudge the yaw afterwards
+ * the shot stops matching any of them — derived, the dock would clear itself
+ * on the first drag and read as having forgotten. This is a record of what you
+ * last asked for, which is what the reference does too.
+ */
+/**
+ * One row's keyframe toggle.
+ *
+ * Two states, and they are the timeline's two: hollow when there is no key at
+ * the playhead, solid when there is. Same pair of assets, same pair of inks,
+ * so a key in a lane and a key in a panel are visibly the same object rather
+ * than two conventions for one thing.
+ */
+function KeyframeDot({
+  studio,
+  channel,
+  label,
+}: {
+  studio: Studio;
+  channel: AnimatableKey;
+  label: string;
+}) {
+  const track = studio.effective.animation.tracks[channel];
+  const here = keyAt(track, studio.playheadRef.current);
+  return (
+    <button
+      type="button"
+      aria-pressed={!!here}
+      aria-label={
+        here ? `Remove ${label} keyframe` : `Add ${label} keyframe`
+      }
+      className="grid cursor-pointer place-items-center"
+      onClick={() => studio.toggleKey(channel)}
+      style={{ width: 14, height: 14 }}
+    >
+      <span
+        style={{
+          width: 12,
+          height: 12,
+          /*
+           * The timeline's own two inks, and no opacity on top of them.
+           *
+           * This had a third, fainter state for "not animated" and dimmed it
+           * to 55% besides, which put the resting diamond somewhere between
+           * the panel's background and its rules -- it read as disabled rather
+           * than as a control. A key is a key: hollow in the lane, hollow
+           * here, and the same ink in both.
+           */
+          background: here ? "var(--mo-ink)" : "var(--mo-ink-muted)",
+          WebkitMaskImage: `url(${TIMELINE_GLYPHS}/${here ? "keyframe-selected" : "keyframe"}.svg)`,
+          maskImage: `url(${TIMELINE_GLYPHS}/${here ? "keyframe-selected" : "keyframe"}.svg)`,
+          WebkitMaskSize: "contain",
+          maskSize: "contain",
+          WebkitMaskRepeat: "no-repeat",
+          maskRepeat: "no-repeat",
+        }}
+      />
+    </button>
+  );
+}
+
+/** Where the timeline keeps its own key glyphs; shared so the two agree. */
+const TIMELINE_GLYPHS = "/figma-assets/mockup-studio/timeline";
+
+/** Room for "Landscape" and "Durability", which are the long ones. */
+const POSE_CELL = 104;
+
+function PoseDock({ studio }: { studio: Studio }) {
+  const [chosen, setChosen] = useState<PoseId>("foldable");
+  return (
+    <div className="pointer-events-auto flex justify-center">
+      <Segmented
+        options={POSES.map((pose) => ({ id: pose.id, label: pose.label }))}
+        value={chosen}
+        onChange={(id) => {
+          const pose = POSES.find((p) => p.id === id);
+          if (!pose) return;
+          setChosen(id);
+          studio.edit((prev) => applyPose(prev, pose));
+        }}
+        /*
+         * An explicit width, and it has to be: `Segmented` lays its options
+         * out as equal flexible cells and sizes the travelling indicator at
+         * `100/n` of the track, so the two only agree when the track has a
+         * width to divide. Left to shrink-wrap, the labels ran together with
+         * no gap and the indicator came out a capsule around the last one.
+         *
+         * Per cell rather than a total, so seven names and four would both
+         * fit their labels rather than one being cramped.
+         */
+        width={POSES.length * POSE_CELL}
+      />
+    </div>
+  );
+}
+
+/**
  * The gizmo's surface, and the canvas inside it.
  *
  * The canvas is three quarters of the surface — the ratio the 160 version had
@@ -1249,6 +1363,11 @@ export default function StudioChrome() {
             className="absolute flex flex-col"
             style={{ left: 16, right: 16, bottom: 16, gap: 16 }}
           >
+            {/* Above the gizmo, so the row that names the shot sits closest
+                to the shot and the readout stays at the edge. */}
+            {canFold(getDevice(state.deviceId)) ? (
+              <PoseDock studio={studio} />
+            ) : null}
             <Gizmo studio={studio} />
             {showTimeline ? <Timeline studio={studio} /> : null}
           </div>
@@ -1500,6 +1619,33 @@ export default function StudioChrome() {
                           onPick={studio.uploadScreen}
                           onClear={studio.clearScreen}
                         />
+                        {/*
+                          A second well, on a device with a second screen.
+
+                          Its own upload rather than a share of the one above,
+                          because the two panels show different things on any
+                          real foldable — a lock screen on the outside, and
+                          whatever you opened it for inside. Binding one image
+                          to both would be a mockup of a phone mirroring
+                          itself.
+
+                          Below rather than beside: the inner panel is the
+                          screen this device is FOR, and the one the camera
+                          frames. The cover is the other one.
+                        */}
+                        {getDevice(state.deviceId).coverScreen ? (
+                          <>
+                            <Divider />
+                            <ParamGroup title="Front screen">
+                              <ImageWell
+                                src={studio.coverSrc}
+                                empty="No front screen yet"
+                                onPick={studio.uploadCover}
+                                onClear={studio.clearCover}
+                              />
+                            </ParamGroup>
+                          </>
+                        ) : null}
                       </div>
                     ) : null}
 
@@ -1779,6 +1925,32 @@ export default function StudioChrome() {
                                           edit((prev) => f.set(prev, hex))
                                         }
                                       />
+                                    ) : f.kind === "choice" ? (
+                                      /*
+                                        A list, not a dropdown. There are six
+                                        of these and the popup has room, so
+                                        showing them costs one scroll and saves
+                                        a click on every change — and choosing
+                                        a light is a thing you do by comparing,
+                                        which a closed menu will not let you do.
+                                      */
+                                      <RowGroup key={f.key}>
+                                        {f.options.map((option) => (
+                                          <Row
+                                            key={option.id}
+                                            selected={
+                                              option.id === f.get(effective)
+                                            }
+                                            onClick={() =>
+                                              edit((prev) =>
+                                                f.set(prev, option.id),
+                                              )
+                                            }
+                                          >
+                                            {option.label}
+                                          </Row>
+                                        ))}
+                                      </RowGroup>
                                     ) : (
                                       <ParamRow
                                         key={f.key}
@@ -1795,7 +1967,31 @@ export default function StudioChrome() {
                                      says this field is, which is the only
                                      definition of neutral there is. */
                                         trailing={
-                                          f.reset ? (
+                                          /*
+                                            The diamond keys the row.
+
+                                            It always looked like a keyframe —
+                                            it is the same glyph the timeline
+                                            draws its keys with — and it used
+                                            to reset the field, which is why
+                                            nothing in this interface could
+                                            START a track: `edit` only keys
+                                            channels that already have one, by
+                                            design, so a shot with no preset
+                                            had no way in at all.
+
+                                            Reset did not need it. Every popup
+                                            already carries one in its header,
+                                            over the whole panel, and that is
+                                            the gesture people reach for.
+                                          */
+                                          f.channel ? (
+                                            <KeyframeDot
+                                              studio={studio}
+                                              channel={f.channel}
+                                              label={f.label}
+                                            />
+                                          ) : f.reset ? (
                                             <button
                                               type="button"
                                               aria-label={`Reset ${f.label}`}

@@ -11,6 +11,8 @@ import { AnimationMixer } from "three";
 // three's own fix for exactly that, and it behaves identically on models
 // with no skin, so it can be the single clone path rather than a branch.
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { patchFoldScreen, type FoldScreenHandle } from "./foldScreen";
+import { createFoldBlur, type FoldBlur } from "./foldScreenBlur";
 
 import { DEFAULT_DEVICE_ID, getDevice, type Device, type DeviceNotch, type MaterialOverride } from "./devices";
 import { DEFAULT_FINISH_ID, finishForDevice, getFinish } from "./finishes";
@@ -1362,8 +1364,8 @@ function GLBPhoneScene({
   // between this and the generated bodies is in PhoneScene.
   const gltf = useGLTF(device.modelPath as string);
   const {
-    scene, width, height, depth, screen, screenMaterials, coverMaterials, mixer,
-    leafRest, hinge, foldRoot,
+    scene, width, height, depth, screen, screenMaterials, coverMaterials,
+    foldScreens, mixer, leafRest, hinge, foldRoot,
   } = useMemo(() => {
     const cloned = cloneSkinned(gltf.scene) as Group;
 
@@ -1388,12 +1390,35 @@ function GLBPhoneScene({
      * Done before the measuring below, so the fit and the screen placement see
      * the pose that will actually be rendered.
      */
-    const clip = gltf.animations?.[0];
+    /*
+     * The fold's clip: named where the device says so, else the only one.
+     *
+     * `[0]` is right for every file this repo converted -- they carry a single
+     * `Fold` -- and wrong for a delivered asset that carries several. Apple's
+     * web Duo lists `Intro` before `Slider`.
+     */
+    const clip =
+      (device.fold?.clip
+        ? gltf.animations?.find((a) => a.name === device.fold?.clip)
+        : undefined) ?? gltf.animations?.[0];
     let mixer: AnimationMixer | null = null;
     const leafRest: { leaf: Object3D; rest: Quaternion }[] = [];
     let hinge: Object3D | null = null;
     if (device.fold && clip) {
       mixer = new AnimationMixer(cloned);
+      /*
+       * Left on the default loop, and NOT clamped when finished.
+       *
+       * `LoopOnce` with `clampWhenFinished` looks like the right way to hold a
+       * clip at its final pose, and it is -- for a clip that plays. This one is
+       * scrubbed: `clampWhenFinished` PAUSES the action the moment it reaches
+       * the end, and `mixer.setTime` skips paused actions, so the first time
+       * the lid reached fully open it froze there and the slider did nothing
+       * for the rest of the session.
+       *
+       * The wrap it was meant to fix is handled where the time is chosen
+       * instead. See `latest` in the fold loop below.
+       */
       mixer.clipAction(clip).play();
       // Posed OPEN for the measuring below, whatever the hinge is currently
       // set to. Measuring the live pose instead would refit the camera as the
@@ -1513,6 +1538,14 @@ function GLBPhoneScene({
     // Materials the screen texture gets bound onto, for models that carry a
     // real screen. Built per instance so two devices on screen at once do not
     // share one map.
+    /*
+     * The fold's grip on the picture, one handle per screen material.
+     *
+     * Collected here rather than looked up later because the materials are
+     * created in two places -- the inner panel and the cover -- and a screen
+     * bound after the fold loop started would otherwise never be patched.
+     */
+    const foldScreens: FoldScreenHandle[] = [];
     const screenMaterials: MeshBasicMaterial[] = [];
     const coverMaterials: MeshBasicMaterial[] = [];
     // Hide any mesh that looks like a baked screen / display so our React
@@ -1596,6 +1629,8 @@ function GLBPhoneScene({
               side: source?.side,
             });
             basic.name = source?.name ?? "screen";
+            // Only where there is a hinge for it to answer to.
+            if (device.fold) foldScreens.push(patchFoldScreen(basic, "inner"));
             screenMaterials.push(basic);
             return basic;
           };
@@ -1635,6 +1670,7 @@ function GLBPhoneScene({
             side: source?.side,
           });
           basic.name = source?.name ?? "cover screen";
+          if (device.fold) foldScreens.push(patchFoldScreen(basic, "cover"));
           coverMaterials.push(basic);
           return basic;
         };
@@ -1946,7 +1982,49 @@ function GLBPhoneScene({
           device.finishMaterials &&
           !device.finishMaterials.some((n) => n.toLowerCase() === keepName)
         ) {
-          return mat;
+          /*
+           * Not body — but the device may still have something to say about it.
+           *
+           * `bodySurfaces` is where the lenses, the flash and the microphone
+           * are described on the converted models, and none of those are body:
+           * they must not take the finish. Without this they left by the
+           * return below untouched, which is why a white phone had white
+           * camera glass. So the override is applied on the way out, and only
+           * the finish is skipped.
+           */
+          const spec = device.bodySurfaces?.[(candidate as { name?: string }).name ?? ""];
+          if (!spec || typeof candidate.clone !== "function") return mat;
+          const tuned = candidate.clone() as typeof candidate;
+          /*
+           * Maps off BEFORE the colour, because the colour multiplies them.
+           * Setting `map` to null without this leaves the tint sitting on a
+           * texture that is still there; see `flat` in the device registry for
+           * what this is actually for.
+           */
+          if (spec.flat) {
+            const maps = tuned as unknown as Record<string, unknown>;
+            for (const slot of [
+              "map",
+              "normalMap",
+              "aoMap",
+              "roughnessMap",
+              "metalnessMap",
+            ]) {
+              if (slot in maps) maps[slot] = null;
+            }
+            (tuned as { needsUpdate?: boolean }).needsUpdate = true;
+          }
+          if (spec.color !== undefined) tuned.color?.set?.(spec.color);
+          if (spec.roughness !== undefined && "roughness" in tuned) {
+            tuned.roughness = spec.roughness;
+          }
+          if (spec.metalness !== undefined && "metalness" in tuned) {
+            tuned.metalness = spec.metalness;
+          }
+          if (spec.envMapIntensity !== undefined && "envMapIntensity" in tuned) {
+            (tuned as { envMapIntensity: number }).envMapIntensity = spec.envMapIntensity;
+          }
+          return tuned;
         }
 
         // ...unless the device says this one is body. See bodyMaterials.
@@ -2213,6 +2291,7 @@ function GLBPhoneScene({
       screen,
       screenMaterials,
       coverMaterials,
+      foldScreens,
       mixer,
       leafRest,
       hinge,
@@ -2254,6 +2333,34 @@ function GLBPhoneScene({
    * clock as the rest of the phone.
    */
   const foldRange = device.fold;
+  /*
+   * The offscreen blur, one pipeline per panel.
+   *
+   * Built here rather than beside the materials because it needs a size, and
+   * the size is the PANEL's aspect -- the content is fitted to that before it
+   * is blurred, so a target of any other shape would squash what was drawn.
+   *
+   * Rebuilt only when the device or those aspects change; the targets are
+   * expensive and the fold moves every frame.
+   */
+  const innerAspect = device.screenNative.width / device.screenNative.height;
+  const coverAspect = device.coverScreen
+    ? device.coverScreen.native.width / device.coverScreen.native.height
+    : 0;
+  const foldBlur = useMemo(() => {
+    if (!device.fold) return null;
+    return {
+      inner: createFoldBlur("inner", innerAspect),
+      cover: coverAspect ? createFoldBlur("cover", coverAspect) : null,
+    };
+  }, [device.fold, innerAspect, coverAspect]);
+  useEffect(
+    () => () => {
+      foldBlur?.inner.dispose();
+      foldBlur?.cover?.dispose();
+    },
+    [foldBlur],
+  );
   const foldVel = useRef<Record<string, number>>({ f: 0 });
   const foldNow = useRef<number | null>(null);
   useFrame((state, dt) => {
@@ -2274,9 +2381,50 @@ function GLBPhoneScene({
       foldNow.current = springTo(foldNow.current, target, foldVel.current, "f", dt);
     }
     const t = foldNow.current / 100;
+    /*
+     * Held a hair inside the clip, which is the whole fix for the wrap.
+     *
+     * On the default loop, `setTime(duration)` is the loop BOUNDARY rather
+     * than the last frame: it wraps to zero. On a clip whose open pose is its
+     * last key -- Apple's Duo runs 0..2 with open at 2 -- that inverts the
+     * control, and `fold: 0` renders a closed slab of black glass.
+     *
+     * A hair before the end is the same pose and is not the boundary.
+     */
+    const latest = Math.max(foldRange.openSec, foldRange.closedSec) - 1e-4;
     mixer.setTime(
-      foldRange.openSec + (foldRange.closedSec - foldRange.openSec) * t,
+      Math.min(
+        latest,
+        foldRange.openSec + (foldRange.closedSec - foldRange.openSec) * t,
+      ),
     );
+    /*
+     * And the same `t` to the screens, which is the point of taking it from
+     * the SETTLED value rather than from the slider: the picture recedes with
+     * the panel it is on, so the blur has to trail the spring exactly as the
+     * geometry does. Read off the target instead and the image would soften
+     * before the device had begun to move.
+     */
+    /*
+     * Written, not replaced. A uniform is a handle the GPU already holds; the
+     * compiler's rule is about values React owns, and this one belongs to a
+     * shader program that outlives every render. Same exemption, same reason,
+     * as the screen-texture block below.
+     */
+    /* eslint-disable react-hooks/immutability */
+    for (const screen of foldScreens) screen.shut.value = t;
+    /*
+     * And redraw the offscreen panels for this fold.
+     *
+     * In the frame loop rather than an effect because `t` is the SETTLED
+     * value: the picture has to soften in step with the geometry, and a
+     * spring's every intermediate value is a frame.
+     */
+    if (foldBlur) {
+      foldBlur.inner.render(state.gl, screenTexture ?? null, t);
+      foldBlur.cover?.render(state.gl, coverTexture ?? null, t);
+    }
+    /* eslint-enable react-hooks/immutability */
 
     /*
      * Lock the hinge, and let the leaves swing.
@@ -2367,8 +2515,31 @@ function GLBPhoneScene({
         Math.abs(Math.round((device.screenRotateDeg ?? 0) / 90)) % 2 === 1;
 
       if (srcWidth && srcHeight) {
-        const flat = screen
-          ? screen.width / screen.height
+        /*
+         * The measured screen -- unless the device says not to, or the
+         * measurement came back degenerate.
+         *
+         * Measuring is normally the better source: it is the screen that will
+         * actually be drawn, so it cannot disagree with it. It stops being
+         * reliable when the model is authored LYING FLAT, because
+         * `screenLocalBox` is taken in world space part-way through standing
+         * the device up, and what it returns is a mixture of the panel's
+         * height and the body's thickness rather than either.
+         *
+         * The symptom is a crop a fraction of the picture tall stretched down
+         * the whole panel: vertical bands of colour where a screenshot should
+         * be. The zero test below only catches the extreme of that, which is
+         * why devices can also say `screenFitFromNative` outright.
+         */
+        const measured =
+          device.screenFitFromNative ||
+          !screen ||
+          screen.width <= 1e-4 ||
+          screen.height <= 1e-4
+            ? null
+            : screen;
+        const flat = measured
+          ? measured.width / measured.height
           : device.screenNative.width / device.screenNative.height;
         // What shape of source region comes out undistorted. Where the model's
         // UVs are laid out proportionally that is just the geometry; where
@@ -2437,7 +2608,16 @@ function GLBPhoneScene({
         screenTexture.colorSpace = SRGBColorSpace;
         applyFit();
       }
-      material.map = screenTexture;
+      /*
+       * The BLURRED target where there is one, and the screenshot otherwise.
+       *
+       * The fit above still matters and still runs: it is what the blur's
+       * first pass draws THROUGH, so the target holds the panel's own crop at
+       * 0..1. What the material binds is the result, which needs no transform
+       * of its own -- see `foldScreenBlur.ts`.
+       */
+      material.map =
+        foldBlur && screenTexture ? foldBlur.inner.output : screenTexture;
       // No source: the screen is off. Near-black rather than pure, so the
       // glass over it still has something to sit on.
       material.color.set(screenTexture ? 0xffffff : 0x050505);
@@ -2460,6 +2640,7 @@ function GLBPhoneScene({
   }, [
     screenMaterials,
     screenTexture,
+    foldBlur,
     device,
     invalidate,
     maxAnisotropy,
@@ -2564,7 +2745,12 @@ function GLBPhoneScene({
         coverTexture.colorSpace = SRGBColorSpace;
         fitCover();
       }
-      material.map = coverTexture ?? null;
+      // Same swap as the inner panel: the fit is what the blur draws through,
+      // and the material binds the result.
+      material.map =
+        foldBlur?.cover && coverTexture
+          ? foldBlur.cover.output
+          : coverTexture ?? null;
       material.color.set(coverTexture ? 0xffffff : 0x050505);
       material.needsUpdate = true;
     }
@@ -2579,8 +2765,8 @@ function GLBPhoneScene({
       image.removeEventListener("loadedmetadata", fitCover);
       image.removeEventListener("resize", fitCover);
     };
-  }, [coverMaterials, coverTexture, coverConfig, invalidate, maxAnisotropy,
-      coverFit.scale, coverFit.offsetX, coverFit.offsetY]);
+  }, [coverMaterials, coverTexture, coverConfig, foldBlur, invalidate,
+      maxAnisotropy, coverFit.scale, coverFit.offsetX, coverFit.offsetY]);
 
   // Placement comes from the model's own screen mesh where there is one, and
   // falls back to the old percentage guesses only if a model ships without a
