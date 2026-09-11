@@ -70,6 +70,7 @@ import {
 } from "./bindings";
 import { DEVICES, getDevice } from "../devices";
 import { keyAt, type AnimatableKey } from "../animation";
+import { signOut } from "@/app/auth/actions";
 import { getMotionPreset } from "../editor/motionPresets";
 import { DEFAULT_EDITOR_STATE } from "../editor/editorState";
 import { STORE_RATIOS } from "../editor/framing";
@@ -987,7 +988,16 @@ const CANVAS_SIZES = [
 /** Every ratio the store list offers, for the row that drills into them. */
 const CUSTOM_IDS = new Set(STORE_RATIOS.map((r) => r.id));
 
-export default function StudioChrome() {
+/**
+ * @param userEmail who is signed in, from the page's server-side check; null
+ * when nobody is or when the project has no auth configured, in which case the
+ * account menu offers no way out because there is nothing to leave.
+ */
+export default function StudioChrome({
+  userEmail = null,
+}: {
+  userEmail?: string | null;
+}) {
   /*
    * The composition, and everything that acts on it. See `useStudio`.
    *
@@ -1442,6 +1452,18 @@ export default function StudioChrome() {
           >
             {menuOpen ? (
               <Glass width={200}>
+                {/* Who this is, as the old editor's chip showed it: one click
+                    away rather than always on screen, which is about how
+                    often anyone needs to read their own address. */}
+                {userEmail ? (
+                  <span
+                    className="mo-code block truncate"
+                    style={{ padding: "var(--mo-space-2)" }}
+                    title={userEmail}
+                  >
+                    {userEmail}
+                  </span>
+                ) : null}
                 <RowGroup>
                   <Row
                     icon={<Icon name="settings" />}
@@ -1450,13 +1472,22 @@ export default function StudioChrome() {
                   >
                     Settings
                   </Row>
-                  <Row
-                    icon={<Icon name="sign-out" />}
-                    selected={account === "sign-out"}
-                    onClick={() => setAccount("sign-out")}
-                  >
-                    Sign out
-                  </Row>
+                  {/*
+                    The real way out, not a row that selects itself. It was a
+                    mock -- it set local state and nothing else. It now calls
+                    the same server action the old editor's chip submits: only
+                    the server can clear the session cookie in a way the next
+                    server render agrees with, and that render is what
+                    decides who gets in.
+                  */}
+                  {userEmail ? (
+                    <Row
+                      icon={<Icon name="sign-out" />}
+                      onClick={() => void signOut()}
+                    >
+                      Sign out
+                    </Row>
+                  ) : null}
                 </RowGroup>
               </Glass>
             ) : null}
@@ -1467,7 +1498,8 @@ export default function StudioChrome() {
               type="button"
               onClick={() => setMenuOpen((v) => !v)}
               aria-expanded={menuOpen}
-              aria-label="Account"
+              aria-label={userEmail ? `Signed in as ${userEmail}` : "Account"}
+              title={userEmail ?? undefined}
               className="cursor-pointer"
             >
               <Glass
@@ -1476,9 +1508,17 @@ export default function StudioChrome() {
                 className="items-center justify-center"
                 style={{ height: 44, padding: 0 }}
               >
-                <Glyph>
-                  <Icon name="duplicate" />
-                </Glyph>
+                {/* The initial, as the old editor's chip drew it, standing in
+                    for the portrait the frame has no export of. */}
+                {userEmail?.trim() ? (
+                  <span className="mo-title">
+                    {userEmail.trim().charAt(0).toUpperCase()}
+                  </span>
+                ) : (
+                  <Glyph>
+                    <Icon name="duplicate" />
+                  </Glyph>
+                )}
               </Glass>
             </button>
           </div>
