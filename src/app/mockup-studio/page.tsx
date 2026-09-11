@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { redirect } from "next/navigation";
 import EditorShell from "@/features/mockup-studio/editor/EditorShell";
-import { currentUser, isSupabaseConfigured } from "@/lib/supabase/auth";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { SITE_NAME, absoluteUrl } from "@/lib/metadata";
 
 export const metadata: Metadata = {
@@ -36,25 +35,22 @@ export const viewport: Viewport = {
 };
 
 /**
- * The studio, behind a sign-in -- but only where there is one to be behind.
- *
- * Gating unconditionally locks everyone out of a fresh clone, a preview deploy
- * with no keys, and any machine where .env.local has not been filled in yet.
- * So the gate is conditional on the project being configured at all: enforce
- * auth when there is an auth service to enforce it against, otherwise get out
- * of the way.
+ * The studio, behind Clerk's sign-in.
  *
  * Decided on the server, before render. A client-side check would paint the
  * whole editor and then yank it away, and would hand the page to anyone with
- * scripting off.
+ * scripting off. `redirectToSignIn` carries this address as the return URL,
+ * so signing in comes back here rather than to a page nobody asked for.
+ *
+ * Only THIS page is gated. The phone's routes beside it -- `join`, `remote`,
+ * `gyro-test` -- are reached by a device that has never signed in, and stay
+ * open; see `src/middleware.ts`.
  */
 export default async function MockupStudioPage() {
+  const { userId, redirectToSignIn } = await auth();
+  if (!userId) return redirectToSignIn();
   const user = await currentUser();
-  if (isSupabaseConfigured() && !user) {
-    // Carries where they were going, so signing in returns them here rather
-    // than dumping them on an account page they did not ask for.
-    redirect("/auth/sign-in?next=/mockup-studio");
-  }
-
-  return <EditorShell userEmail={user?.email ?? null} />;
+  return (
+    <EditorShell userEmail={user?.primaryEmailAddress?.emailAddress ?? null} />
+  );
 }

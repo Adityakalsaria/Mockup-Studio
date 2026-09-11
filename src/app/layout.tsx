@@ -1,3 +1,4 @@
+import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { saans } from "@/lib/fonts";
 import { siteMetadata } from "@/lib/metadata";
@@ -36,7 +37,16 @@ export default function RootLayout({
         />
       </head>
       <body className={`${saans.className} antialiased bg-black`} suppressHydrationWarning>
-        {children}
+        {/* Inside <body>, as Clerk requires. The URLs keep sign-in on this
+            site's own pages, and a finished sign-in lands on Mocraft. */}
+        <ClerkProvider
+          signInUrl="/sign-in"
+          signUpUrl="/sign-up"
+          signInFallbackRedirectUrl="/"
+          signUpFallbackRedirectUrl="/"
+        >
+          {children}
+        </ClerkProvider>
       </body>
     </html>
   );

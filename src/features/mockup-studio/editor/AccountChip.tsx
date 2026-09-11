@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signOut } from "@/app/auth/actions";
+import { useClerk } from "@clerk/nextjs";
 
 /**
  * Who is signed in, and the way out.
@@ -11,12 +11,12 @@ import { signOut } from "@/app/auth/actions";
  * The address is one click away rather than always on screen, which is about
  * how often anyone needs to read their own email.
  *
- * Sign-out is a server action inside a form, not a fetch: it has to clear the
- * session cookie, and only the server can do that in a way the next server
- * render agrees with.
+ * Sign-out is Clerk's: it ends the session with Clerk and clears the cookie
+ * the server reads, so the next render of a gated page agrees.
  */
 export function AccountChip({ email }: { email: string }) {
   const [open, setOpen] = useState(false);
+  const { signOut } = useClerk();
   const initial = email.trim().charAt(0).toUpperCase() || "?";
 
   return (
@@ -48,15 +48,14 @@ export function AccountChip({ email }: { email: string }) {
           <span className="ks-micro truncate" style={{ color: "var(--ks-text-faint)" }}>
             {email}
           </span>
-          <form action={signOut}>
-            <button
-              type="submit"
-              className="ks-press ks-label h-[30px] w-full rounded-[var(--ks-r)]"
-              style={{ background: "var(--ks-ctl)", color: "var(--ks-ctl-text)" }}
-            >
-              Sign out
-            </button>
-          </form>
+          <button
+            type="button"
+            onClick={() => void signOut({ redirectUrl: "/sign-in" })}
+            className="ks-press ks-label h-[30px] w-full rounded-[var(--ks-r)]"
+            style={{ background: "var(--ks-ctl)", color: "var(--ks-ctl-text)" }}
+          >
+            Sign out
+          </button>
         </div>
       ) : null}
     </div>

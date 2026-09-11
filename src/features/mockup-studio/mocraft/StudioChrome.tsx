@@ -70,7 +70,7 @@ import {
 } from "./bindings";
 import { DEVICES, getDevice } from "../devices";
 import { keyAt, type AnimatableKey } from "../animation";
-import { signOut } from "@/app/auth/actions";
+import { useClerk, useUser } from "@clerk/nextjs";
 import { getMotionPreset } from "../editor/motionPresets";
 import { DEFAULT_EDITOR_STATE } from "../editor/editorState";
 import { STORE_RATIOS } from "../editor/framing";
@@ -989,15 +989,16 @@ const CANVAS_SIZES = [
 const CUSTOM_IDS = new Set(STORE_RATIOS.map((r) => r.id));
 
 /**
- * @param userEmail who is signed in, from the page's server-side check; null
- * when nobody is or when the project has no auth configured, in which case the
- * account menu offers no way out because there is nothing to leave.
+ * The Mocraft chrome.
+ *
+ * Who is signed in comes from Clerk's own hooks rather than a prop from the
+ * page, so the account menu follows a sign-in or sign-out made anywhere --
+ * another tab, the profile panel -- without the page being rendered again.
  */
-export default function StudioChrome({
-  userEmail = null,
-}: {
-  userEmail?: string | null;
-}) {
+export default function StudioChrome() {
+  const { user } = useUser();
+  const { signOut, openUserProfile } = useClerk();
+  const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
   /*
    * The composition, and everything that acts on it. See `useStudio`.
    *
@@ -1255,7 +1256,6 @@ export default function StudioChrome({
     [selectedLayer, popupOpen],
   );
 
-  const [account, setAccount] = useState<"settings" | "sign-out">("settings");
   const selected = LAYERS.find((l) => l.id === selectedLayer) ?? null;
   /*
    * The popup belongs to the crafting tab, and `popupOpen` outlives the switch.
@@ -1465,25 +1465,27 @@ export default function StudioChrome({
                   </span>
                 ) : null}
                 <RowGroup>
+                  {/* Clerk's own profile panel: name, email, password, connected
+                      accounts, sessions. This row was a mock that selected
+                      itself; now it opens the real thing. */}
                   <Row
                     icon={<Icon name="settings" />}
-                    selected={account === "settings"}
-                    onClick={() => setAccount("settings")}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      openUserProfile();
+                    }}
                   >
-                    Settings
+                    Account
                   </Row>
                   {/*
-                    The real way out, not a row that selects itself. It was a
-                    mock -- it set local state and nothing else. It now calls
-                    the same server action the old editor's chip submits: only
-                    the server can clear the session cookie in a way the next
-                    server render agrees with, and that render is what
-                    decides who gets in.
+                    Clerk's sign-out: it ends the session with Clerk and
+                    clears the cookie the server reads, so the next render of
+                    a gated page agrees that nobody is signed in.
                   */}
                   {userEmail ? (
                     <Row
                       icon={<Icon name="sign-out" />}
-                      onClick={() => void signOut()}
+                      onClick={() => void signOut({ redirectUrl: "/sign-in" })}
                     >
                       Sign out
                     </Row>

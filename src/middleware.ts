@@ -1,59 +1,35 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 
 /**
- * Keeps the session alive.
+ * Clerk's session handling, on every request that can carry one.
  *
- * An access token is short-lived, and only middleware and route handlers may
- * write cookies in the App Router -- so if nothing refreshes here, a session
- * quietly expires mid-visit and the next server render sees a logged-out user
- * even though the browser still thinks otherwise.
+ * This replaced a Supabase session refresh. It protects nothing by itself --
+ * `clerkMiddleware()` with no handler makes the session available to `auth()`
+ * and leaves every route public -- because the gates live on the pages that
+ * need them: `/` (Mocraft), `/mockup-studio` and `/account`. The phone's own
+ * routes, `/mockup-studio/join`, `/remote` and `/gyro-test`, have to stay open
+ * to a device that was never signed in, and a matcher-level rule would have
+ * shut them along with everything else under `/mockup-studio`.
  *
- * getUser(), not getSession(): getSession reads the cookie and believes it,
- * which is fine in the browser and worthless on the server, where the cookie
- * is exactly the thing an attacker controls. getUser asks Supabase to verify
- * the token. On a page that decides access, that difference is the whole
- * point.
+ * The sign-in and sign-up URLs are stated here, not only in the environment,
+ * so a redirect from `auth().redirectToSignIn()` lands on this site's own
+ * `/sign-in` rather than on Clerk's hosted page.
  */
-export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  // Unconfigured is a normal state -- a fresh clone, or a preview deploy with
-  // no keys. Pass the request through rather than throwing on every route.
-  if (!url || !key) return response;
-
-  const supabase = createServerClient(url, key, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(list) {
-        list.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
-        list.forEach(({ name, value, options }) =>
-          response.cookies.set(name, value, options),
-        );
-      },
-    },
-  });
-
-  await supabase.auth.getUser();
-
-  return response;
-}
+export default clerkMiddleware({ signInUrl: "/sign-in", signUpUrl: "/sign-up" });
 
 export const config = {
   /*
-   * Everything except static assets and image files.
+   * Everything except static assets and image files -- and then Clerk's two.
    *
    * Refreshing a session on a request for a .glb or a favicon costs a network
    * round trip for no benefit, and this app ships megabytes of model and
-   * texture -- so the exclusions here are not housekeeping, they are most of
-   * the requests.
+   * texture -- so the exclusions are not housekeeping, they are most of the
+   * requests. The API routes are listed explicitly because Clerk needs them
+   * matched whatever the first pattern excludes, and `/__clerk` is its proxy.
    */
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|glb|mp4|woff2?)$).*)",
+    "/(api|trpc)(.*)",
+    "/__clerk/:path*",
   ],
 };
