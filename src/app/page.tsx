@@ -13,7 +13,11 @@ import { redirect } from "next/navigation";
  * the pairing QR, the deep link and the iOS app, all of which say
  * `/mockup-studio` and some of which are compiled into a build on someone's
  * phone. Those keep working, and the bare domain lands somewhere useful.
+ *
+ * Somewhere useful is MOCRAFT, the new chrome at `/mockup-studio/ui`, now
+ * that it is what mocraft.app is for. `/mockup-studio` itself is untouched,
+ * so every link above still opens the editor it always did.
  */
 export default function RootPage() {
-  redirect("/mockup-studio");
+  redirect("/mockup-studio/ui");
 }
