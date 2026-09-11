@@ -23,8 +23,14 @@
  *
  *   B, C. BLUR, twice. Their `wipe-blur` pass, over that target and then over
  *      its own result: a distance from the edge that stays sharp, remapped
- *      through per-panel bounds into a blur amount, read as a mip level, and
- *      multiplied by a shade that darkens what is most blurred.
+ *      through per-panel bounds into a blur amount, read as a mip level.
+ *
+ * Their pass also DARKENS -- it multiplies by a shade that goes to black
+ * where the blur is strongest -- and so did this one, until it put a hard
+ * black band across the cover of a closed device. The blur is what reads as
+ * a fold; the darkening only ever read as a shadow nobody asked for. It is
+ * gone, here and on the panel surface, and nothing in this pipeline makes
+ * the picture darker than it was uploaded.
  *
  * Both of their refinements are here and both earn their place. The blur runs
  * TWICE, one pass feeding the next, which is what turns a ramp into a smooth
@@ -62,7 +68,8 @@ import {
   type WebGLRenderer,
 } from "three";
 
-import type { FoldScreenKind } from "./foldScreen";
+/** Which panel this is, and therefore which edge stays sharp. */
+export type FoldScreenKind = "inner" | "cover";
 
 /** The long side of the offscreen targets. */
 const SIZE = 1024;
@@ -159,22 +166,8 @@ const BLUR_FRAGMENT = /* glsl */ `
       0.75,
       clamp(remapTo(uBounds.x, uBounds.y, distanceToWipe) * uAmount * 2.5, 0.0, 1.0)
     );
-    /*
-     * Darker where it is most blurred -- and NOT their vignette.
-     *
-     * Their shade multiplies in smoothstep(1.0, 0.9, |v - 0.5| * 2), which
-     * blacks out the outer tenth of the top and bottom edges unconditionally,
-     * at any fold. It belongs to their pipeline because the target it shades
-     * has already had a rounded display boundary and a black surround
-     * composited into it -- the vignette is darkening a frame.
-     *
-     * We composite no frame. The same term darkens the user's screenshot
-     * instead, which reads as a black band along the top edge that never goes
-     * away however far the lid is opened. Dropped rather than faded out with
-     * the fold, because there is nothing here for it to be shading.
-     */
-    float shade = smoothstep(1.3, 0.9, blurArea);
-    fragColor = textureBicubic(uSource, vQuadUv, blurArea * ${MAX_BLUR}.0) * vec4(vec3(shade), 1.0);
+    // Blur only. See the header for why nothing here darkens.
+    fragColor = textureBicubic(uSource, vQuadUv, blurArea * ${MAX_BLUR}.0);
   }
 `;
 

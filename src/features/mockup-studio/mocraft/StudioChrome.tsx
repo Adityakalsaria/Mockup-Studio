@@ -1571,7 +1571,17 @@ export default function StudioChrome() {
                           <Row
                             key={f.id}
                             icon={<Swatch color={f.color} />}
-                            selected={f.id === state.finishId}
+                            /*
+                              No selection where there is nothing to choose
+                              between. A device that ships in one colour lists
+                              that one colour, and a highlighted row alone in
+                              its list reads as a control that was pressed
+                              rather than as a fact about the device.
+                            */
+                            selected={
+                              studio.finishes.length > 1 &&
+                              f.id === state.finishId
+                            }
                             onClick={() => studio.pickFinish(f.id)}
                           >
                             {f.label}

@@ -11,7 +11,6 @@ import { AnimationMixer } from "three";
 // three's own fix for exactly that, and it behaves identically on models
 // with no skin, so it can be the single clone path rather than a branch.
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { patchFoldScreen, type FoldScreenHandle } from "./foldScreen";
 import { createFoldBlur, type FoldBlur } from "./foldScreenBlur";
 
 import { DEFAULT_DEVICE_ID, getDevice, type Device, type DeviceNotch, type MaterialOverride } from "./devices";
@@ -1364,7 +1363,7 @@ function GLBPhoneScene({
   const gltf = useGLTF(device.modelPath as string);
   const {
     scene, width, height, depth, screen, screenMaterials, coverMaterials,
-    foldScreens, mixer, leafRest, hinge, foldRoot,
+    mixer, leafRest, hinge, foldRoot,
   } = useMemo(() => {
     const cloned = cloneSkinned(gltf.scene) as Group;
 
@@ -1537,14 +1536,6 @@ function GLBPhoneScene({
     // Materials the screen texture gets bound onto, for models that carry a
     // real screen. Built per instance so two devices on screen at once do not
     // share one map.
-    /*
-     * The fold's grip on the picture, one handle per screen material.
-     *
-     * Collected here rather than looked up later because the materials are
-     * created in two places -- the inner panel and the cover -- and a screen
-     * bound after the fold loop started would otherwise never be patched.
-     */
-    const foldScreens: FoldScreenHandle[] = [];
     const screenMaterials: MeshBasicMaterial[] = [];
     const coverMaterials: MeshBasicMaterial[] = [];
     // Hide any mesh that looks like a baked screen / display so our React
@@ -1628,8 +1619,6 @@ function GLBPhoneScene({
               side: source?.side,
             });
             basic.name = source?.name ?? "screen";
-            // Only where there is a hinge for it to answer to.
-            if (device.fold) foldScreens.push(patchFoldScreen(basic, "inner"));
             screenMaterials.push(basic);
             return basic;
           };
@@ -1669,7 +1658,6 @@ function GLBPhoneScene({
             side: source?.side,
           });
           basic.name = source?.name ?? "cover screen";
-          if (device.fold) foldScreens.push(patchFoldScreen(basic, "cover"));
           coverMaterials.push(basic);
           return basic;
         };
@@ -2290,7 +2278,6 @@ function GLBPhoneScene({
       screen,
       screenMaterials,
       coverMaterials,
-      foldScreens,
       mixer,
       leafRest,
       hinge,
@@ -2398,32 +2385,18 @@ function GLBPhoneScene({
       ),
     );
     /*
-     * And the same `t` to the screens, which is the point of taking it from
-     * the SETTLED value rather than from the slider: the picture recedes with
-     * the panel it is on, so the blur has to trail the spring exactly as the
-     * geometry does. Read off the target instead and the image would soften
-     * before the device had begun to move.
-     */
-    /*
-     * Written, not replaced. A uniform is a handle the GPU already holds; the
-     * compiler's rule is about values React owns, and this one belongs to a
-     * shader program that outlives every render. Same exemption, same reason,
-     * as the screen-texture block below.
-     */
-    /* eslint-disable react-hooks/immutability */
-    for (const screen of foldScreens) screen.shut.value = t;
-    /*
-     * And redraw the offscreen panels for this fold.
+     * Redraw the offscreen panels for this fold.
      *
-     * In the frame loop rather than an effect because `t` is the SETTLED
-     * value: the picture has to soften in step with the geometry, and a
-     * spring's every intermediate value is a frame.
+     * In the frame loop rather than an effect, and from the SETTLED value
+     * rather than the slider: the picture softens with the panel it is on, so
+     * the blur has to trail the spring exactly as the geometry does. Read off
+     * the target instead and the image would soften before the device had
+     * begun to move.
      */
     if (foldBlur) {
       foldBlur.inner.render(state.gl, screenTexture ?? null, t);
       foldBlur.cover?.render(state.gl, coverTexture ?? null, t);
     }
-    /* eslint-enable react-hooks/immutability */
 
     /*
      * Lock the hinge, and let the leaves swing.
