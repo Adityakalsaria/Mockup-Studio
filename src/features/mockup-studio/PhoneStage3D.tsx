@@ -1363,7 +1363,7 @@ function GLBPhoneScene({
   const gltf = useGLTF(device.modelPath as string);
   const {
     scene, width, height, depth, screen, screenMaterials, coverMaterials,
-    mixer, leafRest, hinge, foldRoot,
+    mixer, leafRest, hinge, foldRoot, foldCentres,
   } = useMemo(() => {
     const cloned = cloneSkinned(gltf.scene) as Group;
 
@@ -2230,6 +2230,49 @@ function GLBPhoneScene({
      * screen. A device lying on its side measured as short and wide, got
      * scaled as though it were, and then stood up far too large.
      */
+    /*
+     * Where the body's centre sits at each point of the fold, measured once.
+     *
+     * A foldable has no single centre. Open, the Duo is two leaves wide and
+     * centred; shut, it is one leaf wide and sits half a panel to one side of
+     * where it was. The stage is centred once, on the open pose, so a closed
+     * device turned about a point in empty air -- it ORBITED when rotated,
+     * swinging right of centre facing the camera and left of it showing its
+     * back, instead of spinning in place.
+     *
+     * Apple's own viewer moves the device per state for the same reason: its
+     * pose data puts Closed at x 4, a third open at 2.668, Landscape at 0.
+     * This does the same continuously. The centre is sampled here at a spread
+     * of fold positions and the frame loop interpolates between them,
+     * shifting the body so its current centre stays on the open one.
+     *
+     * PRECISE bounds, which read every posed vertex. The default path returns
+     * a skinned mesh's bounding box as cached on first use, which is one fold
+     * position for ever -- the measurement would come back identical at every
+     * sample and the correction would be zero. Too slow to run per frame,
+     * which is why it runs once, here.
+     *
+     * In `stood`'s space, because that is the space `foldRoot` moves in.
+     */
+    const foldCentres: Vector3[] = [];
+    if (mixer && device.fold) {
+      const { openSec, closedSec } = device.fold;
+      const end = Math.max(openSec, closedSec) - 1e-4;
+      const at = (shut: number) =>
+        Math.min(end, openSec + (closedSec - openSec) * shut);
+      const sample = new Box3();
+      stood.updateMatrixWorld(true);
+      for (let i = 0; i < FOLD_CENTRE_SAMPLES; i++) {
+        mixer.setTime(at(i / (FOLD_CENTRE_SAMPLES - 1)));
+        cloned.updateMatrixWorld(true);
+        sample.makeEmpty().expandByObject(cloned, true);
+        foldCentres.push(stood.worldToLocal(sample.getCenter(new Vector3())));
+      }
+      // Back to open, which everything measured below assumes.
+      mixer.setTime(at(0));
+      cloned.updateMatrixWorld(true);
+    }
+
     // Re-measured rather than reused: the traverse above may have hidden the
     // model's own screen mesh, and a body box that still counted it would be
     // fractionally too deep.
@@ -2294,6 +2337,7 @@ function GLBPhoneScene({
       leafRest,
       hinge,
       foldRoot: cloned,
+      foldCentres,
     };
     // Grain is in here because the tint pass is where it is applied: the
     // materials are cloned per finish, so the texture has to be a dependency
@@ -2378,7 +2422,20 @@ function GLBPhoneScene({
     } else {
       foldNow.current = springTo(foldNow.current, target, foldVel.current, "f", dt);
     }
-    const t = foldNow.current / 100;
+    /*
+     * Clamped to 0..1 before it becomes a clip time, and that is the fix for a
+     * lid that flickered open several times on its way shut.
+     *
+     * With playback stopped the lid moves on a SPRING, and a spring overshoots:
+     * pushed to fully closed it goes briefly past it before settling. Past
+     * closed is a clip time BEFORE the start, and on the default loop a
+     * negative time wraps round to the END -- which on both Duos is fully
+     * open. Every overshoot flashed the phone open, and a spring overshoots
+     * more than once. The clamp below the mixer call only ever held the top
+     * of the clip; this holds both ends, whatever the spring or an easing
+     * curve asks for.
+     */
+    const t = Math.min(1, Math.max(0, foldNow.current / 100));
     /*
      * Held a hair inside the clip, which is the whole fix for the wrap.
      *
@@ -2390,10 +2447,14 @@ function GLBPhoneScene({
      * A hair before the end is the same pose and is not the boundary.
      */
     const latest = Math.max(foldRange.openSec, foldRange.closedSec) - 1e-4;
+    const earliest = Math.min(foldRange.openSec, foldRange.closedSec);
     mixer.setTime(
-      Math.min(
-        latest,
-        foldRange.openSec + (foldRange.closedSec - foldRange.openSec) * t,
+      Math.max(
+        earliest,
+        Math.min(
+          latest,
+          foldRange.openSec + (foldRange.closedSec - foldRange.openSec) * t,
+        ),
       ),
     );
     /*
@@ -2440,6 +2501,18 @@ function GLBPhoneScene({
       hinge.getWorldPosition(FOLD_ANCHOR);
       foldRoot.parent?.worldToLocal(FOLD_ANCHOR);
       foldRoot.position.copy(FOLD_ANCHOR_REST).sub(FOLD_ANCHOR);
+    } else if (foldCentres.length > 1) {
+      /*
+       * No hinge to hold, so hold the CENTRE: shift the body so where its
+       * middle is at this fold lands where it was when open. That is what
+       * makes a closed device spin in place instead of orbiting. See
+       * `foldCentres`. Set outright each frame, never accumulated.
+       */
+      const f =
+        Math.min(1, Math.max(0, t)) * (foldCentres.length - 1);
+      const i = Math.min(foldCentres.length - 2, Math.floor(f));
+      FOLD_CENTRE.lerpVectors(foldCentres[i], foldCentres[i + 1], f - i);
+      foldRoot.position.copy(foldCentres[0]).sub(FOLD_CENTRE);
     }
 
     if (
@@ -2909,6 +2982,10 @@ const FOLD_DELTA = new Quaternion();
 const FOLD_HALF = new Quaternion();
 const FOLD_HALF_INV = new Quaternion();
 const FOLD_ANCHOR = new Vector3();
+/** Scratch for the fold-centre lookup; see `foldCentres`. */
+const FOLD_CENTRE = new Vector3();
+/** How many fold positions the body's centre is measured at, once, on load. */
+const FOLD_CENTRE_SAMPLES = 11;
 const FOLD_ANCHOR_REST = new Vector3();
 
 /**
