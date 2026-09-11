@@ -58,7 +58,6 @@ import {
   useSpring,
 } from "@/design/ui";
 import { control, radius } from "@/design/system";
-import { MaterialLabPanel } from "../MaterialLabPanel";
 import { Stage } from "./Stage";
 import { PANEL_H as TIMELINE_H, Timeline } from "./Timeline";
 import { DEFAULT_RATIO_ID, useStudio, type Studio } from "./useStudio";
@@ -1334,12 +1333,6 @@ export default function StudioChrome() {
         >
           <Stage studio={studio} />
         </div>
-
-        {/* Surface tuning for the converted 18s — the DOM half of the bench.
-            Outside the canvas by necessity: see `MaterialLabPanel`. */}
-        <MaterialLabPanel
-          active={state.deviceId.startsWith("apple-iphone-18")}
-        />
 
         <div className="pointer-events-none absolute inset-0">
           {/*

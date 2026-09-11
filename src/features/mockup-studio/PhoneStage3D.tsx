@@ -18,7 +18,6 @@ import { DEFAULT_DEVICE_ID, getDevice, type Device, type DeviceNotch, type Mater
 import { DEFAULT_FINISH_ID, finishForDevice, getFinish } from "./finishes";
 import { sampleAnimation, sampleTrack, type Animation } from "./animation";
 import { recolorBodyTexture } from "./bodyTexture";
-import { MaterialLab } from "./MaterialLab";
 import { StudioEnvironment } from "./StudioEnvironment";
 import { StageLoader } from "./StageLoader";
 import { DEFAULT_SHADOW, type ShadowSettings } from "./shadow";
@@ -3422,10 +3421,13 @@ export default function PhoneStage3D({
           />
         ) : null}
         <StudioEnvironment lighting={lighting} />
-        {/* Live surface tuning for the converted 18s — see `MaterialLab`. It
-            writes onto the materials after the retint, which is the only place
-            these values can be set at all. */}
-        <MaterialLab active={device.id.startsWith("apple-iphone-18")} />
+        {/*
+          No surface bench. `MaterialLab` was mounted here for the 18s while
+          their materials were being tuned; the numbers it found now live in
+          `bodySurfaces` in the device registry, and leaving it mounted would
+          keep writing its own values over them after every retint. The file
+          stays, for the next model that needs tuning by eye.
+        */}
         <CameraFov fov={fov} animation={animation} timeRef={timeRef} playing={playing} />
         <PhoneScene
           animating={animating}
