@@ -172,15 +172,15 @@ type Preset = {
   rotate?: number;
 };
 
-const PRESETS: Preset[] = [
-  { id: "unveil", art: "swirl", w: 194, h: 222 },
-  { id: "cross-reveal", art: "pan-left", w: 200, h: 232 },
-  { id: "awaken", art: "pan-out", w: 200, h: 232 },
-  { id: "orbit-focus", art: "sweep", w: 200, h: 232 },
-  { id: "focus-pull", art: "pan-in", w: 387, h: 387 },
-  { id: "bottom-in-top-out", art: "pan-out", w: 200, h: 232 },
-  { id: "reward-pop", art: "swirl", w: 194, h: 222 },
-];
+/*
+ * Reward Pop, and only Reward Pop.
+ *
+ * The six before it were moves written to a brief; this one is measured off
+ * an animated reference, and it is the one worth putting in front of anyone.
+ * The others are not deleted -- `MOTION_PRESETS` keeps them and the old
+ * editor still lists them -- they are only no longer offered here.
+ */
+const PRESETS: Preset[] = [{ id: "reward-pop", art: "swirl", w: 194, h: 222 }];
 
 /*
  * Eight tiles fit the panel; anything past that scrolls.
@@ -199,6 +199,9 @@ const PRESETS: Preset[] = [
  * chrome. Wheel, trackpad and keyboard all still work.
  */
 const VISIBLE_PRESETS = 8;
+
+/** How far past the tiles the scroller's clip edge sits. See PresetScroller. */
+const SCROLL_ROOM = 8;
 
 function PresetScroller({
   gap,
@@ -220,7 +223,11 @@ function PresetScroller({
       // `offsetTop` is measured against whichever ancestor is positioned, but
       // both tiles share it, so the difference is the layout distance either
       // way and there is nothing to resolve.
-      setMaxHeight(cut ? cut.offsetTop - tiles[0].offsetTop - gap : undefined);
+      setMaxHeight(
+        cut
+          ? cut.offsetTop - tiles[0].offsetTop - gap + SCROLL_ROOM * 2
+          : undefined,
+      );
     };
 
     measure();
@@ -234,8 +241,23 @@ function PresetScroller({
   return (
     <div
       ref={ref}
-      className="mo-noscroll w-full"
-      style={{ maxHeight, overflowY: "auto" }}
+      className="mo-noscroll"
+      /*
+       * Room for the selection to be drawn in full.
+       *
+       * A scroller clips on BOTH axes whatever overflow it was asked for, and
+       * a selected tile's lens is drawn a little wider than the tile -- so at
+       * the edge of the grid its outer side and its foot were sliced off. The
+       * padding and the matching negative margin are one gesture: they move
+       * the clip edge out without moving a single tile. The row cap above
+       * grows by the same amount, so the cut still lands on a row.
+       */
+      style={{
+        maxHeight,
+        overflowY: "auto",
+        padding: SCROLL_ROOM,
+        margin: -SCROLL_ROOM,
+      }}
     >
       {children}
     </div>
