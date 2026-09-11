@@ -59,6 +59,7 @@ export type ScreenFit = {
 
 export const DEFAULT_SCREEN_FIT: ScreenFit = { scale: 1, offsetX: 0, offsetY: 0 };
 
+
 /**
  * The inner and outer radius of a ring mesh, and the centre it turns about.
  *
@@ -1767,6 +1768,7 @@ function GLBPhoneScene({
          * is for nothing to happen to it at all.
          */
         const keepName = (mat as { name?: string } | null)?.name?.toLowerCase();
+
         if (keepName && device.keepMaterials?.some((n) => n.toLowerCase() === keepName)) {
           return mat;
         }

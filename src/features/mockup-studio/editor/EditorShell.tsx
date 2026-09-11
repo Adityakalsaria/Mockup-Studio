@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PhoneStage3D, { type StageCapture, type StageRecorder } from "../PhoneStage3D";
+import { AxisGizmo } from "./AxisGizmo";
 import { backgroundCss, paintBackground, preloadBackgroundImage } from "../backgrounds";
 import { pickRecordingFormat, recordStageVideo } from "../recordVideo";
 import { renderVideoExact, supportsExactRender } from "../renderVideoExact";
@@ -1353,6 +1354,17 @@ export default function EditorShell({
             {/* Opposite the history chip, against the edge it describes. */}
             <div className="absolute right-[8px] top-[8px] z-20">
               <AspectSelect ratioId={ratioId} onRatioChange={setRatioId} />
+            </div>
+            {/* Bottom left: the one corner with nothing in it, and far from
+                the timeline scrubber along the bottom edge. Reads `effective`
+                rather than `state` so it keeps turning during playback. */}
+            <div className="ks-stage-chip absolute bottom-[8px] left-[8px] z-20 p-[2px]">
+              <AxisGizmo
+                xAxis={effective.xAxis}
+                yAxis={effective.yAxis}
+                zAxis={effective.zAxis}
+                onChange={change}
+              />
             </div>
             {/* Over the phone, under the chips. A layer blur is composited on
                 top of the shot by definition -- putting it below the canvas
