@@ -273,15 +273,50 @@ function bgColor(
  * phrase, because "X" as an image is not something a screen reader can
  * announce.
  */
+/**
+ * An angle, shown inside the slider's range, written back without a spin.
+ *
+ * Rotations are free to run past a full turn -- the canvas drag adds degrees
+ * and never wraps, and a preset can wind the phone round twice on purpose --
+ * so the stored number can sit far outside the row's range. Shown raw, the
+ * readout said -398 and the knob had nowhere on the track to be.
+ *
+ * READ as the equivalent angle inside the range. WRITTEN as the equivalent of
+ * the slider's value nearest to what is stored: taking -398 to -38 literally
+ * would ask the stage to spring a full turn to get there, and the first touch
+ * of the slider would spin the phone once before it moved where you meant.
+ */
+const wrapInto = (v: number, r: Range) => {
+  let x = v;
+  while (x > r.max) x -= 360;
+  while (x < r.min) x += 360;
+  return x;
+};
+const nearestTurn = (target: number, current: number) =>
+  target + 360 * Math.round((current - target) / 360);
+
 const triple = (
   prefix: string,
   keys: readonly [keyof EditorState & string, keyof EditorState & string, keyof EditorState & string],
   ranges: readonly [Range, Range, Range],
   format: (n: number) => string,
+  angles = false,
 ): Field[] =>
-  (["X", "Y", "Z"] as const).map((axis, i) =>
-    scalar(`${prefix} ${axis}`, keys[i], ranges[i], format, { axis }),
-  );
+  (["X", "Y", "Z"] as const).map((axis, i) => {
+    const key = keys[i];
+    return scalar(`${prefix} ${axis}`, key, ranges[i], format, {
+      axis,
+      ...(angles
+        ? {
+            get: (s: EditorState) => wrapInto(s[key] as number, ranges[i]),
+            set: (s: EditorState, n: number) => ({
+              ...s,
+              [key]: nearestTurn(n, s[key] as number),
+            }),
+          }
+        : {}),
+    });
+  });
 
 /* ===========================================================================
    Layers
@@ -423,6 +458,7 @@ export const LAYERS: Layer[] = [
           ["xAxis", "yAxis", "zAxis"],
           [RANGES.xAxis, RANGES.yAxis, RANGES.zAxis],
           fmt.deg,
+          true,
         ),
       },
       {

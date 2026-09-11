@@ -37,6 +37,14 @@
  *
  *   --rotate-x N   degrees about X applied to the whole scene, via a wrapper
  *   --rotate-y N   the same about Y, applied after X
+ *   --nudge MATERIAL:dx,dy,dz
+ *                  offset every vertex of that material by (dx, dy, dz) in the
+ *                  file's own BIND space; repeatable. For a part authored just
+ *                  under a surface a web renderer would have shown it through
+ *                  -- Apple's Duo logo sits 0.02 below opaque glass. Bind space
+ *                  rather than world because the mesh is skinned: its vertices
+ *                  are moved by joints at runtime, so an offset has to be said
+ *                  in the space the joints move FROM.
  *
  * The rotation is a WRAPPER NODE rather than a rewrite of every root
  * transform, and that is deliberate: the animation channels target nodes by
@@ -63,6 +71,18 @@ const flag = (name, fallback = 0) => {
 };
 const rotateX = flag("--rotate-x");
 const rotateY = flag("--rotate-y");
+
+/** `--nudge NAME:dx,dy,dz`, any number of times. */
+const nudges = rest.flatMap((arg, i) => {
+  if (arg !== "--nudge") return [];
+  const [name, vector] = (rest[i + 1] ?? "").split(":");
+  const d = (vector ?? "").split(",").map(Number);
+  if (!name || d.length !== 3 || d.some((n) => !Number.isFinite(n))) {
+    console.error(`bad --nudge "${rest[i + 1]}", expected MATERIAL:dx,dy,dz`);
+    process.exit(1);
+  }
+  return [{ name, d }];
+});
 
 const base = dirname(resolve(input));
 const gltf = JSON.parse(readFileSync(input, "utf8"));
@@ -99,6 +119,52 @@ if (gltf.buffers?.length !== 1 || !gltf.buffers[0].uri) {
   process.exit(1);
 }
 const binary = readFileSync(resolve(base, gltf.buffers[0].uri));
+
+/*
+ * The nudges, applied to the buffer before it is copied in.
+ *
+ * Through a DataView, not a Float32Array, because a bufferView is only
+ * guaranteed 4-byte alignment relative to the BUFFER, and this Buffer is a
+ * slice of Node's pool whose own offset can be anything. Every POSITION this
+ * touches must belong to that material alone -- an accessor shared with
+ * another part would move that part too -- so a shared one is refused.
+ */
+for (const { name, d } of nudges) {
+  const material = gltf.materials.findIndex((m) => m.name === name);
+  if (material < 0) {
+    console.error(`--nudge: no material named ${name}`);
+    process.exit(1);
+  }
+  const positions = gltf.meshes.flatMap((mesh) =>
+    mesh.primitives
+      .filter((p) => p.material === material)
+      .map((p) => p.attributes.POSITION),
+  );
+  const users = (index) =>
+    gltf.meshes.flatMap((mesh) => mesh.primitives)
+      .filter((p) => p.attributes.POSITION === index).length;
+  const view = new DataView(binary.buffer, binary.byteOffset, binary.length);
+  for (const index of new Set(positions)) {
+    if (users(index) > 1) {
+      console.error(`--nudge: ${name}'s positions are shared; refusing`);
+      process.exit(1);
+    }
+    const accessor = gltf.accessors[index];
+    const bv = gltf.bufferViews[accessor.bufferView];
+    const stride = bv.byteStride ?? 12;
+    const start = (bv.byteOffset ?? 0) + (accessor.byteOffset ?? 0);
+    for (let v = 0; v < accessor.count; v++) {
+      for (let k = 0; k < 3; k++) {
+        const at = start + v * stride + k * 4;
+        view.setFloat32(at, view.getFloat32(at, true) + d[k], true);
+      }
+    }
+    // A reader trusts these for culling and bounds, so they move too.
+    if (accessor.min) accessor.min = accessor.min.map((n, k) => n + d[k]);
+    if (accessor.max) accessor.max = accessor.max.map((n, k) => n + d[k]);
+  }
+}
+
 append(binary);
 if (offset !== binary.length) {
   // The original buffer was padded to align what follows. Its own views are
@@ -205,4 +271,5 @@ console.log(
   `  clips: ${(gltf.animations ?? []).map((a) => a.name).join(", ") || "none"}`,
 );
 if (rotateX || rotateY) console.log(`  rotated x${rotateX} y${rotateY}`);
+for (const { name, d } of nudges) console.log(`  nudged ${name} by ${d.join(", ")}`);
 console.log(`  ${mb(12 + 8 + jsonChunk.length + 8 + binChunk.length)}MB`);

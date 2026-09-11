@@ -2059,22 +2059,76 @@ export const DEVICES: Device[] = [
       native: { width: 1080, height: 1560 },
     },
     /*
-     * The two shells, plus the anodised trim around them. Measured: these are
-     * the materials whose meshes span the whole 16.5 x 11.8 body and carry the
-     * cream the file was authored in, against the blacks and greys of the
-     * bezel, the hinge and the camera stack.
+     * NOTHING repainted: every material renders exactly as Apple authored it.
+     *
+     * This listed seven materials as "the shells and the anodised trim", and
+     * two of them were the parts that most need to be left alone. The frame
+     * (`lrXfpZcYrByzvym`, the 8.3 x 11.8 outer shell) and the camera rings
+     * (`jqlebwNqkTyrcyd`) are authored as polished champagne metal --
+     * metalness 1, roughness 0.05 -- and the finish pass repainted both in
+     * flat Cloud White at the finish's own metalness and roughness. That is
+     * why the frame read as matte white where Apple's is shiny and faintly
+     * gold, and why the lens rings vanished into the body.
+     *
+     * An empty list is correct rather than lazy. This device ships in ONE
+     * colour and the file was authored in it, so every authored colour is
+     * already Cloud White's real colour; the finish pass has nothing to add
+     * and can only take away. An empty array -- not an absent one -- is what
+     * tells the retint that no material here is body.
      */
-    finishMaterials: [
-      "lrXfpZcYrByzvym",
-      "NtNSwEIIFmIbXaY",
-      "mAvfMvCzYIPKaNG",
-      "jqlebwNqkTyrcyd",
-      "jeFtQmHBLCfgIkY",
-      "UcYWmlwZxcfqNko",
-      "OwqobJiNTlvAFyj",
-    ],
-    // The cream those shells state, converted out of glTF's linear factors.
-    authoredBodyColor: "#f2ede5",
+    finishMaterials: [],
+    /*
+     * The lens stack, given back a surface that catches the light.
+     *
+     * Apple's render shows a navy glint in each lens and a bright ring round
+     * it. Theirs comes off an EXR environment this studio does not ship; the
+     * inner element here is authored at roughness 0.5, which under a studio
+     * rig of a few soft emitters reflects almost nothing, so the lens read as
+     * a flat black disc. Smoother and more reflective, and the inner element
+     * tinted the navy of Apple's glint, so the lens reads as glass with depth
+     * rather than a hole. Tuned by eye against their render, and the first
+     * place to look if the lenses now read too bright.
+     */
+    bodySurfaces: {
+      // The inner element: dark teal metal, authored at roughness 0.5.
+      uykWUEajxHqfrmh: {
+        color: "#26325c",
+        metalness: 1,
+        roughness: 0.08,
+        envMapIntensity: 2.6,
+      },
+      // The element pair in front of it, authored matte at 0.65.
+      XVBEVNwvEGGqQcm: { roughness: 0.14, envMapIntensity: 2 },
+      // The coating: a mirror at 0.001 already, just dim.
+      FVyIOhmektXDyZR: { envMapIntensity: 3 },
+    },
+    materialColors: {
+      /*
+       * The logo, which was never missing -- it was underneath.
+       *
+       * `ZgMnqnyPATyacDv` is a 1.6 x 2.0 mark centred on the back, authored
+       * 0.02 units UNDER the glass, and in Apple's renderer the glass over it
+       * lets it through. Here the glass is opaque, so the converter lifts it
+       * just clear -- see `--nudge` in the command below.
+       *
+       * Lifted, it still vanished: it is authored the same cream as the panel
+       * it sits on, 1.00/0.97/0.94 against 1.00/0.98/0.94, and a mark the
+       * colour of its ground is not a mark. Apple's reads as a faint sheen, a
+       * touch darker and glossier than the glass, which is the treatment the
+       * 18s' logo already gets. Derived from the finish, so it follows it.
+       */
+      ZgMnqnyPATyacDv: { darken: 0.14, roughness: 0.16, metalness: 0.7 },
+      /*
+       * One of two coincident back panels, taken out.
+       *
+       * `QTguOGnxQOXIuCV` and `MZiYIrcFSqDDBWG` cover the back at EXACTLY the
+       * same depth -- colour variants, which Apple's viewer weights between
+       * so that one shows. Here both drew and fought over the same pixels.
+       * This is the flat one; the other carries the soft shadow under the
+       * camera plateau that Apple's render shows, so it is the one kept.
+       */
+      QTguOGnxQOXIuCV: { opacity: 0 },
+    },
     screenCornerRadiusPct: 0.06,
     screenInsetPct: 1,
     /*
@@ -2116,7 +2170,8 @@ export const DEVICES: Device[] = [
     notch: null,
     // Converted with:
     //   node scripts/gltf-to-glb.mjs <product-viewer.gltf> <out.glb> \
-    //     --rotate-x 90 --rotate-y 180
+    //     --rotate-x 90 --rotate-y 180 \
+    //     --nudge ZgMnqnyPATyacDv:0,-0.0261,0
     credit: "Apple — iPhone Duo product viewer (apple.com)",
   },
   {

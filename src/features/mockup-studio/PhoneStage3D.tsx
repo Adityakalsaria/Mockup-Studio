@@ -1423,7 +1423,19 @@ function GLBPhoneScene({
       // phone closed, so the thing would appear to grow while shutting -- and
       // the screen, whose placement comes off the same measurement, would
       // drift with it. One silhouette, taken at the pose the device is for.
-      mixer.setTime(device.fold.openSec);
+      /*
+       * A hair inside the clip, for the same reason the fold loop holds one.
+       *
+       * On the default loop, asking for the clip's exact END is the loop
+       * boundary and wraps to zero. Both Duos keep their open pose on the
+       * last key, so this used to measure them CLOSED: one leaf wide, its
+       * centre half a panel off to the side. Everything fitted from that
+       * measurement -- the centring, the rotation pivot -- then belonged to a
+       * device that was not on screen, and opening it slid the phone off
+       * centre until Location X was dragged to compensate.
+       */
+      const clipEnd = Math.max(device.fold.openSec, device.fold.closedSec);
+      mixer.setTime(Math.min(device.fold.openSec, clipEnd - 1e-4));
       cloned.updateMatrixWorld(true);
 
       /*

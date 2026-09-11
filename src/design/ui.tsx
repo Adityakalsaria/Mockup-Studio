@@ -1267,7 +1267,19 @@ export function Slider({
   /** Overrides `motion.press.scale` — how far the knob swells while held. */
   press?: number;
 }) {
-  const pct = max === min ? 0 : (value - min) / (max - min);
+  /*
+   * Clamped, so the knob can never leave its own track.
+   *
+   * The value is not guaranteed to be inside `min..max`, and it is not this
+   * component's job to insist that it is: a rotation dragged round the canvas
+   * accumulates past a full turn, and a preset can place a number wherever it
+   * needs to. Unclamped, a value past either end put the knob outside the
+   * track and over the panel edge, while the fill -- which was clamped --
+   * stopped at the end without it. The readout beside the slider still says
+   * what the number really is.
+   */
+  const pct =
+    max === min ? 0 : Math.min(1, Math.max(0, (value - min) / (max - min)));
   const knobW = control.slider.knobW;
   const knobH = control.slider.knobH;
   // A full pill by default: half the short side is as round as the box goes.

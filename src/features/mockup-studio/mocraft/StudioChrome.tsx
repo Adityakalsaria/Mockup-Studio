@@ -756,22 +756,25 @@ function KeyframeDot({
       }
       className="grid cursor-pointer place-items-center"
       onClick={() => studio.toggleKey(channel)}
-      style={{ width: 14, height: 14 }}
+      style={{ width: 16, height: 16 }}
     >
       <span
         style={{
-          width: 12,
-          height: 12,
+          width: 14,
+          height: 14,
           /*
-           * The timeline's own two inks, and no opacity on top of them.
+           * The timeline's two states, but not quite its inks.
            *
-           * This had a third, fainter state for "not animated" and dimmed it
-           * to 55% besides, which put the resting diamond somewhere between
-           * the panel's background and its rules -- it read as disabled rather
-           * than as a control. A key is a key: hollow in the lane, hollow
-           * here, and the same ink in both.
+           * In the timeline a hollow key sits on a filled track and is 20px;
+           * here it sits on bare panel at the end of a row, a third smaller,
+           * and the same muted ink all but disappeared -- it read as disabled
+           * rather than as something to press. So the hollow state is stronger
+           * here and a notch larger. The solid state is unchanged: a key at
+           * the playhead is the one thing that has to read the same in both.
            */
-          background: here ? "var(--mo-ink)" : "var(--mo-ink-muted)",
+          background: here
+            ? "var(--mo-ink)"
+            : "color-mix(in srgb, var(--mo-ink) 62%, transparent)",
           WebkitMaskImage: `url(${TIMELINE_GLYPHS}/${here ? "keyframe-selected" : "keyframe"}.svg)`,
           maskImage: `url(${TIMELINE_GLYPHS}/${here ? "keyframe-selected" : "keyframe"}.svg)`,
           WebkitMaskSize: "contain",
