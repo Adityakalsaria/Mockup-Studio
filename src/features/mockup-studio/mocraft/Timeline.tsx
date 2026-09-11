@@ -89,6 +89,15 @@ const SAFE = 8;
 const POPUP_Z = 40;
 /** The frame's keyframe and span marks are both 20 square. */
 const MARK = 20;
+
+/**
+ * The closest two keys on one lane may be dragged, on screen.
+ *
+ * Two diamonds and the easing marker between them, each MARK wide, plus the
+ * SAFE breathing room this chrome keeps between any two controls: the least
+ * that lets all three be seen and pressed.
+ */
+const KEY_GAP_PX = MARK * 2 + SAFE;
 const KEYFRAMES = "/figma-assets/mockup-studio/timeline";
 /** Every control in the toolbar is this tall, so one of them can set the row. */
 const CONTROL_H = 28;
@@ -317,9 +326,28 @@ export function Timeline({ studio }: { studio: Studio }) {
     const keys = tracks[channel] ?? [];
     const i = keys.findIndex((k) => Math.abs(k.time - time) < 1e-6);
     if (i < 0) return null;
-    const floor = i > 0 ? keys[i - 1].time + KEY_EPSILON : 0;
+    /*
+     * And a safe distance from each neighbour, measured in PIXELS.
+     *
+     * The clamp used to stop a hair short of the next key, which kept the
+     * data intact and let the drawing collapse: two diamonds stacked on one
+     * another, with the easing marker for the span between them buried
+     * underneath both. `KEY_GAP_PX` is what the three need to sit side by
+     * side, converted to seconds at the current zoom -- so zooming in lets
+     * keys go closer, which is exactly what zooming in is for.
+     *
+     * A key already closer than the gap is not thrown clear of its neighbour
+     * when grabbed; it simply cannot be pushed any closer. Otherwise touching
+     * a key on a dense preset would make it jump.
+     */
+    const laneW = laneRef.current?.getBoundingClientRect().width ?? 0;
+    const gap =
+      laneW > 0 && duration > 0
+        ? Math.max(KEY_EPSILON, (KEY_GAP_PX / laneW) * duration)
+        : KEY_EPSILON;
+    const floor = i > 0 ? Math.min(keys[i - 1].time + gap, time) : 0;
     const ceiling =
-      i < keys.length - 1 ? keys[i + 1].time - KEY_EPSILON : duration;
+      i < keys.length - 1 ? Math.max(keys[i + 1].time - gap, time) : duration;
     return Math.max(floor, Math.min(ceiling, to));
   };
 
