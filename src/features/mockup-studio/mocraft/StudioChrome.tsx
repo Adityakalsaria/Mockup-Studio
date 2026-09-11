@@ -68,9 +68,8 @@ import {
   resetTransform,
   type Layer,
 } from "./bindings";
-import { canFold, DEVICES, getDevice } from "../devices";
+import { DEVICES, getDevice } from "../devices";
 import { keyAt, type AnimatableKey } from "../animation";
-import { applyPose, POSES, type PoseId } from "./poses";
 import { getMotionPreset } from "../editor/motionPresets";
 import { DEFAULT_EDITOR_STATE } from "../editor/editorState";
 import { STORE_RATIOS } from "../editor/framing";
@@ -708,27 +707,6 @@ function LayerActions({
 }
 
 /**
- * The pose dock: seven named ways to show a foldable.
- *
- * Apple's product viewer for this device offers exactly these seven and no
- * more, and they are worth having as buttons for the reason they are worth
- * having there — a foldable has no single portrait. "Landscape" and "Closed"
- * are the same device and barely the same photograph, and reaching either by
- * hand means a fold value, a yaw, a tilt and a zoom that all have to be right
- * together. What each one IS lives in `poses.ts`.
- *
- * Only for devices that fold. Every row would still do something on an iMac —
- * the framing halves of these poses are ordinary transforms — but "Closed" in
- * front of a desktop is the dead control this chrome refuses to ship.
- *
- * The selection is REMEMBERED rather than derived, which is the opposite of
- * how the layer stack decides what is lit, and deliberate. A pose is seven
- * numbers written into the shot, and the moment you nudge the yaw afterwards
- * the shot stops matching any of them — derived, the dock would clear itself
- * on the first drag and read as having forgotten. This is a record of what you
- * last asked for, which is what the reference does too.
- */
-/**
  * One row's keyframe toggle.
  *
  * Two states, and they are the timeline's two: hollow when there is no key at
@@ -789,38 +767,6 @@ function KeyframeDot({
 
 /** Where the timeline keeps its own key glyphs; shared so the two agree. */
 const TIMELINE_GLYPHS = "/figma-assets/mockup-studio/timeline";
-
-/** Room for "Landscape" and "Durability", which are the long ones. */
-const POSE_CELL = 104;
-
-function PoseDock({ studio }: { studio: Studio }) {
-  const [chosen, setChosen] = useState<PoseId>("foldable");
-  return (
-    <div className="pointer-events-auto flex justify-center">
-      <Segmented
-        options={POSES.map((pose) => ({ id: pose.id, label: pose.label }))}
-        value={chosen}
-        onChange={(id) => {
-          const pose = POSES.find((p) => p.id === id);
-          if (!pose) return;
-          setChosen(id);
-          studio.edit((prev) => applyPose(prev, pose));
-        }}
-        /*
-         * An explicit width, and it has to be: `Segmented` lays its options
-         * out as equal flexible cells and sizes the travelling indicator at
-         * `100/n` of the track, so the two only agree when the track has a
-         * width to divide. Left to shrink-wrap, the labels ran together with
-         * no gap and the indicator came out a capsule around the last one.
-         *
-         * Per cell rather than a total, so seven names and four would both
-         * fit their labels rather than one being cramped.
-         */
-        width={POSES.length * POSE_CELL}
-      />
-    </div>
-  );
-}
 
 /**
  * The gizmo's surface, and the canvas inside it.
@@ -1359,11 +1305,6 @@ export default function StudioChrome() {
             className="absolute flex flex-col"
             style={{ left: 16, right: 16, bottom: 16, gap: 16 }}
           >
-            {/* Above the gizmo, so the row that names the shot sits closest
-                to the shot and the readout stays at the edge. */}
-            {canFold(getDevice(state.deviceId)) ? (
-              <PoseDock studio={studio} />
-            ) : null}
             <Gizmo studio={studio} />
             {showTimeline ? <Timeline studio={studio} /> : null}
           </div>
