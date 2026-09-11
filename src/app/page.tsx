@@ -1,23 +1,33 @@
+import type { Metadata, Viewport } from "next";
 import { redirect } from "next/navigation";
+import StudioChrome from "@/features/mockup-studio/mocraft/StudioChrome";
+import { currentUser, isSupabaseConfigured } from "@/lib/supabase/auth";
+
+export const metadata: Metadata = { title: "Mocraft" };
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 /**
- * The studio is the site.
+ * Mocraft, at the root of mocraft.app.
  *
- * This repo began as a copy of the Koshmoney marketing site with the studio
- * added as one route inside it, which meant deploying it served that site --
- * its homepage, its product pages, its Play Store links -- from whatever
- * domain this was put on. Those routes are gone; what is left is the studio,
- * the auth pages it needs, and the two APIs the phone talks to.
+ * This used to REDIRECT to `/mockup-studio/ui`, so the address bar read
+ * mocraft.app/mockup-studio/ui on the one site whose name is the product.
+ * Rendering it here gives it the address it should have; `/mockup-studio/ui`
+ * redirects back so nothing already linked breaks. The old editor keeps
+ * `/mockup-studio`, which the pairing QR, the deep link and the iOS app use.
  *
- * A redirect rather than moving the editor up to `/`: the route is linked from
- * the pairing QR, the deep link and the iOS app, all of which say
- * `/mockup-studio` and some of which are compiled into a build on someone's
- * phone. Those keep working, and the bare domain lands somewhere useful.
- *
- * Somewhere useful is MOCRAFT, the new chrome at `/mockup-studio/ui`, now
- * that it is what mocraft.app is for. `/mockup-studio` itself is untouched,
- * so every link above still opens the editor it always did.
+ * Behind the same sign-in as before, decided on the server before render and
+ * only when Supabase is configured -- see `/mockup-studio/page.tsx` for why
+ * the gate is conditional. Signing in comes back here.
  */
-export default function RootPage() {
-  redirect("/mockup-studio/ui");
+export default async function MocraftPage() {
+  const user = await currentUser();
+  if (isSupabaseConfigured() && !user) {
+    redirect("/auth/sign-in?next=/");
+  }
+  return <StudioChrome userEmail={user?.email ?? null} />;
 }
