@@ -71,6 +71,22 @@ export const PANEL_H = 250;
  * which is what "36" was.
  */
 const SAFE = 8;
+
+/**
+ * Where the timeline's popups paint: above everything else in the chrome.
+ *
+ * The whole bottom bar is placed FIRST in the chrome on purpose, so the side
+ * panels paint over the gizmo where the two meet. The popups inherited that:
+ * the easing curve and a keyframe's settings opened UNDER the Export panel,
+ * the pose dock and the gizmo, with the thing being edited half-covered by
+ * things that were not. A popup is where your attention is while it is open,
+ * so it is lifted clear of the order its parent was deliberately given.
+ *
+ * Nothing between here and the page starts a stacking context -- the
+ * timeline root, the column and the overlay are all positioned with no
+ * z-index of their own -- which is why a number here is enough.
+ */
+const POPUP_Z = 40;
 /** The frame's keyframe and span marks are both 20 square. */
 const MARK = 20;
 const KEYFRAMES = "/figma-assets/mockup-studio/timeline";
@@ -479,7 +495,14 @@ export function Timeline({ studio }: { studio: Studio }) {
             {easingOpen ? (
               /* Upwards. The panel lives at the bottom of the window, so a
                  menu opening downwards opens off the screen. */
-              <div style={{ position: "absolute", bottom: 34, left: 0 }}>
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 34,
+                  left: 0,
+                  zIndex: POPUP_Z,
+                }}
+              >
                 <EasingMenu
                   value={animation.easing}
                   onChange={studio.setEasing}
@@ -889,6 +912,7 @@ export function Timeline({ studio }: { studio: Studio }) {
               ),
             ),
             bottom: PANEL_H + SAFE,
+            zIndex: POPUP_Z,
           }}
         >
           {(() => {
@@ -958,6 +982,7 @@ export function Timeline({ studio }: { studio: Studio }) {
               ),
             ),
             bottom: PANEL_H + SAFE,
+            zIndex: POPUP_Z,
           }}
         >
           <EasingMenu
