@@ -1493,6 +1493,160 @@ export function Field({ children }: { children: ReactNode }) {
 }
 
 /**
+ * The first number in a readout, sign and decimals included.
+ *
+ * Readouts carry their unit -- "45%", "180°", "1.19×", "55 mm" -- and a field
+ * the user has just typed into may or may not still have it. Either way the
+ * number is the part that means anything.
+ */
+function numberIn(text: string): number {
+  const match = text.replace(/,/g, "").match(/-?\d*\.?\d+/);
+  return match ? Number(match[0]) : Number.NaN;
+}
+
+/**
+ * How many display units one stored unit is, read off the row's own format.
+ *
+ * A row stores 0.45 and shows "45%"; stores 180 and shows "180°". Asking the
+ * user to type 0.45 into a box that says 45% would be asking them to know the
+ * storage, so what they type is taken in the units they SEE -- and the scale
+ * between the two is measured from `format` rather than declared per row,
+ * which keeps every existing row editable without touching any of them.
+ *
+ * Two probes, because a format is only invertible this way if it is LINEAR.
+ * A clock -- the keyframe menu's "0:01.0" -- is not, and returns null so the
+ * caller can parse it as a clock instead of dividing by nonsense.
+ */
+function displayScale(format: (n: number) => string): number | null {
+  const a = numberIn(format(1000)) / 1000;
+  const b = numberIn(format(2000)) / 2000;
+  if (!Number.isFinite(a) || !Number.isFinite(b) || a === 0) return null;
+  return Math.abs(a - b) / Math.abs(a) < 0.005 ? a : null;
+}
+
+/**
+ * A readout you can type into.
+ *
+ * Reads exactly like `Field` until pressed; pressed, the same plate becomes an
+ * input holding the number with its unit stripped and all of it selected, so
+ * typing replaces it. Enter or leaving the field commits, Escape puts it back.
+ * Up and down step by the row's own step, ten at a time with Shift.
+ *
+ * Every key is kept here. The timeline listens for keys at the window --
+ * Space plays, Delete removes a keyframe -- and a digit or a Backspace meant
+ * for this box must not also do that.
+ */
+export function EditableField({
+  label,
+  value,
+  min,
+  max,
+  step = 0.01,
+  format,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  format: (n: number) => string;
+  onChange: (n: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const scale = displayScale(format);
+
+  const shown = (n: number) => {
+    const text = format(n);
+    return scale === null ? text : String(numberIn(text));
+  };
+  const clamp = (n: number) =>
+    Math.min(max ?? Number.POSITIVE_INFINITY, Math.max(min ?? Number.NEGATIVE_INFINITY, n));
+
+  const parse = (text: string): number | null => {
+    // A clock, "m:ss.s" or "ss.s": the only non-linear readout in the chrome.
+    if (scale === null) {
+      const parts = text.split(":").map((part) => numberIn(part));
+      if (parts.some((n) => !Number.isFinite(n))) return null;
+      return parts.reduce((total, n) => total * 60 + n, 0);
+    }
+    const n = numberIn(text);
+    return Number.isFinite(n) ? n / scale : null;
+  };
+
+  const commit = () => {
+    if (draft === null) return;
+    const next = parse(draft);
+    setDraft(null);
+    if (next !== null) onChange(clamp(next));
+  };
+
+  useEffect(() => {
+    if (draft !== null) inputRef.current?.select();
+    // Selected once, on opening; not on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft === null]);
+
+  const plate: CSSProperties = {
+    width: control.fieldW,
+    borderRadius: "var(--mo-r-field)",
+    background: "var(--mo-field)",
+  };
+
+  if (draft === null) {
+    return (
+      <button
+        type="button"
+        aria-label={`Edit ${label}`}
+        className="mo-value grid shrink-0 cursor-text place-items-center tabular-nums whitespace-nowrap"
+        style={plate}
+        onClick={() => setDraft(shown(value))}
+      >
+        <MorphText>{format(value)}</MorphText>
+      </button>
+    );
+  }
+
+  return (
+    <span
+      className="mo-value grid shrink-0 place-items-center"
+      // The selection ring the timeline uses for a selected key, in the same
+      // ink, so "this is being edited" reads the same everywhere.
+      style={{ ...plate, boxShadow: "inset 0 0 0 1.5px var(--mo-ink)" }}
+    >
+      <input
+        ref={inputRef}
+        aria-label={label}
+        inputMode="decimal"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            setDraft(null);
+          } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+            event.preventDefault();
+            const from = parse(draft) ?? value;
+            const by = step * (event.shiftKey ? 10 : 1) * (event.key === "ArrowUp" ? 1 : -1);
+            const next = clamp(from + by);
+            onChange(next);
+            setDraft(shown(next));
+          }
+        }}
+        className="w-full bg-transparent text-center tabular-nums outline-none"
+        style={{ border: 0, font: "inherit", color: "inherit", padding: 0 }}
+      />
+    </span>
+  );
+}
+
+/**
  * Label, slider, readout — the row that most of this interface is made of.
  *
  * The label column is a fixed 48px rather than sized to its text, which is what
@@ -1574,7 +1728,15 @@ export function ParamRow({
         spring={spring}
         press={press}
       />
-      <Field>{format(value)}</Field>
+      <EditableField
+        label={label}
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        format={format}
+        onChange={onChange}
+      />
       {trailing ? <Glyph muted>{trailing}</Glyph> : null}
     </div>
   );

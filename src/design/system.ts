@@ -1204,4 +1204,21 @@ ${material.selected.depth
 
 /* Idle rows and icons are the same ink at half strength. */
 .mo-muted { color: var(--mo-ink-muted); }
+
+/*
+ * No held focus ring, on anything this system draws.
+ *
+ * The browser outlines whatever was last focused -- the gizmo's canvas after a
+ * drag, a pose in the dock after a click -- and leaves the ring there until
+ * something else takes focus. In a chrome where selection is already drawn
+ * by the lens and the travelling indicator, that ring is a second, louder
+ * selection on top of the real one, and it outlives the gesture that made it.
+ *
+ * Scoped by where this stylesheet is mounted: the Mocraft chrome and the
+ * system reference page, and nowhere else on the site. Anything that genuinely
+ * needs to say "you are editing this" draws its own ring -- a value field
+ * being typed into does, in the chrome's ink.
+ */
+*:focus,
+*:focus-visible { outline: none; }
 `;
