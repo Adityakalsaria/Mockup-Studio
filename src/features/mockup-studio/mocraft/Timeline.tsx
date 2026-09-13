@@ -250,6 +250,32 @@ export function Timeline({ studio }: { studio: Studio }) {
     time: number;
     items: Array<{ key: AnimatableKey; time: number }>;
   } | null>(null);
+  /**
+   * A drag across empty lane, which selects rather than scrubs.
+   *
+   * The playhead used to follow every press in here. That is the right
+   * behaviour for a ruler and the wrong one for the lanes: the lanes are where
+   * the keys are, so a drag across them is a selection and moving the playhead
+   * was destroying the shot's frame every time you reached for a key.
+   *
+   * `base` is the selection the gesture started from, so a Shift-drag ADDS a
+   * second box to what was already held instead of replacing it.
+   */
+  const marqueeRef = useRef<{
+    x: number;
+    y: number;
+    base: Array<{ key: AnimatableKey; time: number }>;
+  } | null>(null);
+  /** Only for drawing it. The selection itself is computed live. */
+  const [marquee, setMarquee] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  /** Set only when the press landed on the ruler, which is the one strip that
+      still moves the playhead. */
+  const scrubRef = useRef(false);
 
   /*
    * One loop, painting two nodes, running only while something moves.
@@ -426,6 +452,36 @@ export function Timeline({ studio }: { studio: Studio }) {
     }
     if (lo === -Infinity || hi === Infinity) return delta;
     return Math.max(lo, Math.min(hi, delta));
+  };
+
+  /*
+   * Every key the box touches.
+   *
+   * Lanes are stacked in `lanes` order directly under the ruler with no gaps,
+   * so lane i owns the band RULER_H + i*LANE_H down. Intersection rather than
+   * centre containment: a flat drag along a row would otherwise touch nothing,
+   * and a box you can see covering a diamond has to select it.
+   */
+  const keysInBox = (
+    t0: number,
+    t1: number,
+    y0: number,
+    y1: number,
+  ): Array<{ key: AnimatableKey; time: number }> => {
+    const lo = Math.min(t0, t1);
+    const hi = Math.max(t0, t1);
+    const top = Math.min(y0, y1);
+    const bottom = Math.max(y0, y1);
+    const found: Array<{ key: AnimatableKey; time: number }> = [];
+    lanes.forEach(({ key }, i) => {
+      const bandTop = RULER_H + i * LANE_H;
+      const bandBottom = bandTop + LANE_H;
+      if (bandBottom < top || bandTop > bottom) return;
+      for (const frame of tracks[key] ?? [])
+        if (frame.time >= lo && frame.time <= hi)
+          found.push({ key, time: frame.time });
+    });
+    return found;
   };
 
   const settleTime = (channel: AnimatableKey, time: number, to: number) => {
@@ -741,7 +797,9 @@ export function Timeline({ studio }: { studio: Studio }) {
 
           <div
             ref={viewportRef}
-            className="mo-noscroll relative flex-1 cursor-ew-resize overflow-x-auto"
+            // Not `cursor-ew-resize` any more: that cursor promised a scrub on
+            // a surface that now selects. The ruler keeps it.
+            className="mo-noscroll relative flex-1 cursor-default overflow-x-auto"
             style={{ paddingInline: LEAD }}
             /*
               EVERY pointer gesture in the lanes is handled here, on the
@@ -817,17 +875,78 @@ export function Timeline({ studio }: { studio: Studio }) {
                 setSegment(null);
                 return;
               }
-              // A press on empty lane deselects, the way it does everywhere
-              // else in this interface.
+              /*
+               * Off a key: the ruler scrubs, the lanes select.
+               *
+               * This split is the whole of it. The playhead is still draggable
+               * -- from the strip that is ABOUT time -- and pressing among the
+               * keys no longer moves it.
+               */
+              const laneBox = laneRef.current?.getBoundingClientRect();
+              const localY = laneBox ? event.clientY - laneBox.top : 0;
+              if (laneBox && localY > RULER_H) {
+                const additive = event.shiftKey || event.metaKey;
+                marqueeRef.current = {
+                  x: event.clientX,
+                  y: event.clientY,
+                  base: additive ? selection : [],
+                };
+                if (!additive) setSelection([]);
+                setSelected(null);
+                setSegment(null);
+                setMarquee({
+                  left: event.clientX - laneBox.left,
+                  top: localY,
+                  width: 0,
+                  height: 0,
+                });
+                return;
+              }
               setSelected(null);
               setSelection([]);
+              scrubRef.current = true;
               scrubTo(event.clientX);
             }}
             onPointerMove={(event) => {
               if (!event.buttons) return;
+              const lasso = marqueeRef.current;
+              if (lasso) {
+                const laneBox = laneRef.current?.getBoundingClientRect();
+                if (!laneBox) return;
+                const t0 = timeAt(lasso.x);
+                const t1 = timeAt(event.clientX);
+                if (t0 === null || t1 === null) return;
+                setMarquee({
+                  left: Math.min(lasso.x, event.clientX) - laneBox.left,
+                  top: Math.min(lasso.y, event.clientY) - laneBox.top,
+                  width: Math.abs(event.clientX - lasso.x),
+                  height: Math.abs(event.clientY - lasso.y),
+                });
+                // Recomputed from the box every move rather than accumulated,
+                // so shrinking it takes keys back out again.
+                const inside = keysInBox(
+                  t0,
+                  t1,
+                  lasso.y - laneBox.top,
+                  event.clientY - laneBox.top,
+                );
+                const merged = [...lasso.base];
+                for (const found of inside)
+                  if (
+                    !merged.some(
+                      (sel) =>
+                        sel.key === found.key &&
+                        Math.abs(sel.time - found.time) < 1e-6,
+                    )
+                  )
+                    merged.push(found);
+                setSelection(merged);
+                return;
+              }
               const drag = dragRef.current;
               if (!drag) {
-                scrubTo(event.clientX);
+                // Only ever after a press that landed on the ruler.
+                if (scrubRef.current) scrubTo(event.clientX);
                 return;
               }
               const asked = timeAt(event.clientX);
@@ -894,9 +1013,15 @@ export function Timeline({ studio }: { studio: Studio }) {
             }}
             onPointerUp={() => {
               dragRef.current = null;
+              marqueeRef.current = null;
+              scrubRef.current = false;
+              setMarquee(null);
             }}
             onPointerCancel={() => {
               dragRef.current = null;
+              marqueeRef.current = null;
+              scrubRef.current = false;
+              setMarquee(null);
             }}
           >
             {/*
@@ -914,7 +1039,10 @@ export function Timeline({ studio }: { studio: Studio }) {
               className="relative"
               style={{ width: `${zoom * 100}%`, minHeight: "100%" }}
             >
-              <div className="relative" style={{ height: RULER_H }}>
+              <div
+                className="relative cursor-ew-resize"
+                style={{ height: RULER_H }}
+              >
                 {ticks.map((t) => (
                   <span
                     key={t}
@@ -1068,6 +1196,22 @@ export function Timeline({ studio }: { studio: Studio }) {
                   </div>
                 );
               })}
+
+              {marquee && (marquee.width > 1 || marquee.height > 1) ? (
+                <div
+                  className="pointer-events-none absolute"
+                  style={{
+                    left: marquee.left,
+                    top: marquee.top,
+                    width: marquee.width,
+                    height: marquee.height,
+                    border: "1px solid var(--mo-ink)",
+                    background: "color-mix(in srgb, var(--mo-ink) 10%, transparent)",
+                    borderRadius: 2,
+                    zIndex: 2,
+                  }}
+                />
+              ) : null}
 
               {/*
                 Runs the FULL height of the panel, not as far as the last lane.
