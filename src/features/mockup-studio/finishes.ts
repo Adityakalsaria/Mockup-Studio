@@ -71,6 +71,19 @@ export const FINISHES: Finish[] = [
   { id: "sky-blue", label: "Sky Blue", color: "#cfe0f2", metalness: 0.55, roughness: 0.38 },
   { id: "light-gold", label: "Light Gold", color: "#f0e8d8", metalness: 0.55, roughness: 0.38 },
   { id: "cloud-white", label: "Cloud White", color: "#f4f4f5", metalness: 0.5, roughness: 0.4 },
+  /*
+   * The Duo's dark colourway. #394452 is Apple's own value for it.
+   *
+   * Corroborated rather than guessed: forty thousand pixels of the back panel
+   * in Apple's render -- logo cut-out and edge highlights dropped -- run from
+   * #2a3543 to #3c4552, median #333c49. That is this colour under a curved
+   * body's lighting, which is why the published swatch is the one stated here
+   * and the measured range is what the studio's lights should reproduce.
+   *
+   * Blue-grey, not black: it reads as navy against the frame and as near
+   * black in shadow, which is the character of the finish.
+   */
+  { id: "duo-night-sky", label: "Night Sky", color: "#394452", metalness: 0.55, roughness: 0.38 },
   { id: "space-black", label: "Space Black", color: "#1e1e21", metalness: 0.6, roughness: 0.34 },
   /*
    * The iPhone 17's five, sampled from Apple's own swatch strip.

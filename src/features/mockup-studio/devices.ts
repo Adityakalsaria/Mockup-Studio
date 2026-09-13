@@ -1982,7 +1982,7 @@ export const DEVICES: Device[] = [
      */
     modelPath: `${MODELS}/apple-iphone-duo-viewer.glb`,
     hideHints: [],
-    finishIds: ["cloud-white"],
+    finishIds: ["cloud-white", "duo-night-sky"],
     /*
      * `Slider`, by name, because this file also carries `Intro` and lists it
      * first. The lid would otherwise scrub an entrance animation.
@@ -2025,7 +2025,45 @@ export const DEVICES: Device[] = [
      * and can only take away. An empty array -- not an absent one -- is what
      * tells the retint that no material here is body.
      */
-    finishMaterials: [],
+    /*
+     * The body, so a finish can colour it -- with every surface restored below.
+     *
+     * This list was EMPTY while Cloud White was the only colourway: the file is
+     * authored in it, so leaving every material alone reproduced Apple's render
+     * exactly and the retint could only take away. A second colour ends that --
+     * nothing repainted means nothing to repaint.
+     *
+     * What matters is that these eight do not share a surface. The shell is a
+     * mirror at roughness 0.05, the hinge spine is matte at 1, the back panels
+     * are barely-metallic glass -- and a finish carries ONE metalness and ONE
+     * roughness for everything it touches. So the finish supplies the colour
+     * and `bodySurfaces` puts each material's own measured surface back
+     * afterwards. Without that, Cloud White would flatten into a single
+     * plastic sheen: the exact fault that emptying this list once fixed.
+     */
+    finishMaterials: [
+      // The outer shell, 8.3 x 11.8 -- the whole body.
+      "lrXfpZcYrByzvym",
+      // The polished edge strip, and the bottom trim.
+      "mAvfMvCzYIPKaNG",
+      "UcYWmlwZxcfqNko",
+      // The camera plateau: its ring, and the surround it sits in.
+      "jqlebwNqkTyrcyd",
+      "OwqobJiNTlvAFyj",
+      // The hinge spine down the fold.
+      "jeFtQmHBLCfgIkY",
+      // The two textured back panels. Their maps carry the plateau's shadow,
+      // which is why the retint rebuilds the map against `authoredBodyColor`
+      // rather than multiplying a colour over it.
+      "MZiYIrcFSqDDBWG",
+      "ZoizrWFccovSVQl",
+    ],
+    /*
+     * The cream the file is authored in, read off the shell's own base colour
+     * (0.89, 0.85, 0.78 linear). The retint shifts the textured panels FROM
+     * this, so a wrong value here would tint their grain.
+     */
+    authoredBodyColor: "#f2ede5",
     /*
      * The lens stack, given back a surface that catches the light.
      *
@@ -2039,6 +2077,23 @@ export const DEVICES: Device[] = [
      * place to look if the lenses now read too bright.
      */
     bodySurfaces: {
+      /*
+       * Each body material's own surface, put back after the finish.
+       *
+       * Measured from the model rather than chosen: these are the numbers
+       * Apple authored, and they are what makes the shell a mirror, the spine
+       * matte, and the plateau something between. The finish sets the colour;
+       * this sets everything else.
+       */
+      lrXfpZcYrByzvym: { metalness: 1, roughness: 0.05 },
+      mAvfMvCzYIPKaNG: { metalness: 1, roughness: 0.009 },
+      UcYWmlwZxcfqNko: { metalness: 1, roughness: 0.15 },
+      jqlebwNqkTyrcyd: { metalness: 1, roughness: 0.05 },
+      OwqobJiNTlvAFyj: { metalness: 1, roughness: 0.17 },
+      jeFtQmHBLCfgIkY: { metalness: 1, roughness: 1 },
+      // Glass: barely metallic, fully rough -- the texture carries the grain.
+      MZiYIrcFSqDDBWG: { metalness: 0.1, roughness: 1 },
+      ZoizrWFccovSVQl: { metalness: 0.1, roughness: 1 },
       // The inner element: dark teal metal, authored at roughness 0.5.
       uykWUEajxHqfrmh: {
         color: "#26325c",
