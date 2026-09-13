@@ -781,6 +781,130 @@ export const MOTION_PRESETS: MotionPreset[] = [
     }),
   },
   {
+    id: "slide-up",
+    label: "Slide up",
+    kind: "cinema",
+    loops: false,
+    hint: "Rises from below the frame, tilted toward you, and settles flat",
+    /*
+     * MEASURED, not authored -- "Slide up.fbx", through the same pipeline as
+     * Reward Pop: converted to glTF, the card's world transform sampled at 49
+     * points relative to its final resting frame, each channel least-squares
+     * fitted to a CSS cubic bezier.
+     *
+     * WHAT THE REFERENCE ACTUALLY DOES. Three channels and no others. It rises
+     * 1.2921 of its own heights, recedes 0.5034 heights from in front of the
+     * rest depth, and untilts 30 degrees about X. Scale is a constant 100
+     * across every key -- there is no zoom in this clip, so none is invented.
+     *
+     * The card's ON-SCREEN height is its DEPTH axis, not its Y. The mesh is
+     * 2 x 0.1408 x 3.7898 lying flat and the rest pose stands it up about X,
+     * so travel is measured against 3.7898 x 100 = 378.98 units. Measuring it
+     * against Y would have made the rise 35 times too large.
+     *
+     * `panY` converts at 5 per height -- `oy = -(panY * 100/500) * PHONE_HEIGHT`
+     * with PHONE_HEIGHT at 1 -- which puts the start at 6.461, past the 6 that
+     * `RANGES.panY` allows and `BOUNDED` enforces. So the rise renders about 7%
+     * short of the reference. Left at the measured value rather than pinned to
+     * 6, on the same grounds as Reward Pop's first zoom key: the clamp should
+     * land wherever the user's own pan has put it.
+     *
+     * ONE SEGMENT PER CHANNEL, and the split was tried. It takes the X tilt
+     * from 0.63 degrees of error to 0.11 -- but 0.63 is already well inside
+     * the 1.6 Reward Pop was accepted at, and a middle key that buys nothing
+     * anyone can see is a key that reads as arbitrary in the timeline. Reward
+     * Pop earned its middle key by going from 10 degrees of error to 1.6.
+     *
+     * Position and rotation decay TOGETHER -- at t=0.119 the rise has 48.9%
+     * left and the tilt 49.0% -- so the two curves differ only because each
+     * was fitted to its own samples, not because the channels disagree.
+     *
+     * THE TAIL IS NOT IN THE REFERENCE, which ends at 1.4333s. The exporter
+     * renders exactly `durationSec` and a 1.4s file is uselessly short, so a
+     * hold on identical values carries it to 3 -- flat, so `monotoneTangents`
+     * zeroes the tangents either side and it stops rather than drifting.
+     */
+    build: (p, k = 1) => ({
+      durationSec: 3,
+      tracks: {
+        panY: eased("panY", [
+          [
+            0,
+            p.panY + 6.461 * k,
+            { kind: "cubic", p: [0.0002, 0.84, 0.4596, 0.97] },
+          ],
+          [1.4333, p.panY],
+          [3, p.panY],
+        ]),
+        // Positive is toward the lens: `targetOffsetZ = offsetZ` in world
+        // units, and the card starts nearer the camera than it ends.
+        panZ: eased("panZ", [
+          [
+            0,
+            p.panZ + 0.5034 * k,
+            { kind: "cubic", p: [0, 1.05, 0.1, 1.009] },
+          ],
+          [1.4333, p.panZ],
+          [3, p.panZ],
+        ]),
+        xAxis: eased("xAxis", [
+          [0, p.xAxis - 30 * k, { kind: "cubic", p: [0, 1.2, 0.931, 0.9] }],
+          [1.4333, p.xAxis],
+          [3, p.xAxis],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "rotation-slide-up",
+    label: "Rotation slide up",
+    kind: "cinema",
+    loops: false,
+    hint: "Rises from below on a half turn that unwinds as it lands",
+    /*
+     * MEASURED, from "rotation Slide up.fbx", same pipeline as the above.
+     *
+     * THE FILE HOLDS THREE TAKES and two are duplicates of the plain slide --
+     * same 44 keys, same 1.433s, same endpoints. The one that differs is
+     * `Cube|CubeAction`, 45 keys over 1.4667s, and it is the one read here.
+     *
+     * Two channels: a rise of 1.3054 heights and a half turn about Y unwinding
+     * from 180 degrees to 0. No depth move -- dZ is exactly zero at all 49
+     * samples, unlike the plain slide -- and no scale.
+     *
+     * ITS EULER DECOMPOSITION LIES, and was nearly taken at face value: X
+     * reads 180 and flips to 360 at t=0.183 while Z reads -180 and goes to 0,
+     * which looks like two axes moving and is one. Rx(180)Rz(-180) IS Ry(180).
+     * Read as angle-and-axis the dominant axis is Y in 49 samples out of 49
+     * and the angle falls monotonically from 180 to 0, which is what is keyed.
+     *
+     * `panY` starts at 6.527 and clamps to 6, for the reason given above.
+     */
+    build: (p, k = 1) => ({
+      durationSec: 3,
+      tracks: {
+        panY: eased("panY", [
+          [
+            0,
+            p.panY + 6.527 * k,
+            { kind: "cubic", p: [0, 0.3285, 0.1, 1.0169] },
+          ],
+          [1.4667, p.panY],
+          [3, p.panY],
+        ]),
+        yAxis: eased("yAxis", [
+          [
+            0,
+            p.yAxis + 180 * k,
+            { kind: "cubic", p: [0, 0.3311, 0.1, 1.0106] },
+          ],
+          [1.4667, p.yAxis],
+          [3, p.yAxis],
+        ]),
+      },
+    }),
+  },
+  {
     id: "cut-reel",
     label: "Cut reel",
     kind: "sequence",

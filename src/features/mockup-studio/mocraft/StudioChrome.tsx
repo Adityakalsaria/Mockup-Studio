@@ -181,7 +181,18 @@ type Preset = {
  * The others are not deleted -- `MOTION_PRESETS` keeps them and the old
  * editor still lists them -- they are only no longer offered here.
  */
-const PRESETS: Preset[] = [{ id: "reward-pop", art: "swirl", w: 194, h: 222 }];
+const PRESETS: Preset[] = [
+  { id: "reward-pop", art: "swirl", w: 194, h: 222 },
+  /*
+   * Both tiles are borrowed from the imported set, which is what Reward Pop
+   * did with `swirl`. `pan-in` would have suited the slide better and is
+   * 386.783 square against these 200 x 232 -- in a square tile that clips and
+   * centres at `max-w-none`, it would render at twice the size of its
+   * neighbours and crop. Size won over name.
+   */
+  { id: "slide-up", art: "pan-out", w: 200, h: 232 },
+  { id: "rotation-slide-up", art: "sweep", w: 200, h: 232 },
+];
 
 /*
  * Eight tiles fit the panel; anything past that scrolls.
