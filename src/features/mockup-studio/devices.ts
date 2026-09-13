@@ -1948,111 +1948,6 @@ export const DEVICES: Device[] = [
     credit: "Apple — design resources (iphone-18-pro-e-sim.usdz)",
   },
   {
-    id: "apple-iphone-duo",
-    label: "Apple iPhone Duo",
-    modelPath: `${MODELS}/apple-iphone-duo.glb`,
-    hideHints: [],
-    // One colourway in this archive — Star White. Night_Sky is in the variant
-    // set too and is a second export away if it is wanted.
-    finishIds: ["cloud-white"],
-    /*
-     * The hinge, generated at conversion by `--fold Landscape`.
-     *
-     * The archive states its two states as a `Pose` variant set rather than an
-     * animation, so the converter composes the file twice and interpolates
-     * between them. What matters is HOW: as a screw — a rotation about the
-     * fold line — and not as a straight line between the two endpoints. Two
-     * halves going from stacked to side by side have endpoints a lerp joins by
-     * dragging them through each other, which is what put the hinge spine
-     * outside the body and left the cover display co-planar with the inner one.
-     * Those were reported as two bugs and were one.
-     *
-     * Verified rather than assumed: the moving geometry measures 85 x 118 x 17
-     * at the closed end and 165 x 118 x 11 at the open one, and stands 82 deep
-     * halfway, which is a half's width — the two panels at ninety degrees.
-     *
-     * Zero is CLOSED here, one is open, which is the opposite way round from
-     * `iphone-fold` and is simply which pose the archive composes by default.
-     */
-    fold: { openSec: 1, closedSec: 0 },
-    /*
-     * The panel maps its source upside down — status bar along the bottom,
-     * every line mirrored top to bottom. The same flip the 18s needed, and
-     * from the same converter, which suggests it is the pipeline's convention
-     * rather than anything about these particular models.
-     */
-    screenFlipY: true,
-    /*
-     * The one flat BLACK panel in a white model, at 87.1cm2 — a display that
-     * is off, which is what a display looks like in a product render. The
-     * white 92.4cm2 panel beside it at almost the same depth is its glass.
-     */
-    /*
-     * The INNER display, which is the one this device exists for.
-     *
-     * Two screens here, as on any fold: `bVtHVUZGvQeXwdh` is a single black
-     * 87.1cm2 panel — the outer cover — and this is three meshes totalling
-     * 92.4cm2 at the same depth, which is the inner display in its halves.
-     * The first pass named the cover, so a screenshot went onto the outside
-     * and the big screen stayed blank. `iphone-fold` makes the same choice for
-     * the same reason: its entry names "OLED IN" and leaves the cover alone.
-     */
-    screenMaterial: "DHVeopyQCCjAHKQ",
-    // `udkIoumZEJmNcgx` is the shell — 196.7cm2 and 4mm thick, which is both
-    // halves of a folding body rather than a panel of one.
-    finishMaterials: ["udkIoumZEJmNcgx"],
-    /*
-     * The camera stack, the flash and the microphone.
-     *
-     * Only 3 of this model's 33 materials carry a texture, so everything that
-     * is not the shell arrives as untinted white — which is why a white phone
-     * had white camera glass, a white flash and a white mic. The 18s could
-     * lean on their maps for this; here the values have to be stated.
-     *
-     * Identified by geometry, since every name is a random id: the lens stack
-     * is three materials of TWO meshes each — one per camera — at 1.8 to
-     * 2.0cm2 and a fraction of a millimetre thick, sitting at the very back of
-     * the model around z -11. Glass, in other words: dark, smooth, and lit
-     * almost entirely by reflection.
-     */
-    bodySurfaces: {
-      /*
-       * The inner display, off.
-       *
-       * Its three materials carry no base colour and no texture at all — the
-       * model simply does not author them, so they render default white and
-       * the open device looks like a folded sheet of paper. The cover display
-       * beside them IS authored, explicitly black, which is why that one reads
-       * as a screen and this one did not.
-       *
-       * Near-black rather than pure: a display that is off still catches a
-       * little of the room, and 0,0,0 reads as a hole cut in the phone.
-       */
-      DHVeopyQCCjAHKQ: { color: "#0a0a0c", roughness: 0.08, metalness: 0, envMapIntensity: 0.5 },
-      // Outer cover glass, then the element under it, then the barrel.
-      KZyHFwBbAcpggBF: { color: "#0b0b0e", roughness: 0.04, metalness: 0, envMapIntensity: 1.4 },
-      VnRXIqfJGJZbeXY: { color: "#08080a", roughness: 0.06, metalness: 0, envMapIntensity: 1 },
-      iWJmrhAGVXsplAU: { color: "#101014", roughness: 0.12, metalness: 0.2, envMapIntensity: 0.8 },
-      // The ring the glass sits in — polished, so it draws the circle.
-      zzpHLLWMeplrvNu: { color: "#c8c8cc", roughness: 0.12, metalness: 0.9, envMapIntensity: 1.6 },
-      // The flash: the one small part that is a LIGHT, so it stays bright and
-      // slightly warm rather than taking the body's colour.
-      uJFPWgDhmWStPgF: { color: "#fff4e2", roughness: 0.18, metalness: 0, envMapIntensity: 1.8 },
-      // The microphone and the two small ports beside it. Holes, so nearly
-      // black and barely lit — a hole that catches the key reads as a bump.
-      yeSylDxiUWUEdUq: { color: "#0a0a0a", roughness: 0.35, metalness: 0, envMapIntensity: 0.25 },
-      qMQBeWGUCGfErnO: { color: "#0a0a0a", roughness: 0.35, metalness: 0, envMapIntensity: 0.25 },
-      qsaDpVIHURYREdD: { color: "#0a0a0a", roughness: 0.35, metalness: 0, envMapIntensity: 0.25 },
-      nyGbnltkiVgOVaK: { color: "#0a0a0a", roughness: 0.35, metalness: 0, envMapIntensity: 0.25 },
-    },
-    screenCornerRadiusPct: 0.06,
-    screenInsetPct: 1,
-    screenNative: { width: 2160, height: 1620 },
-    notch: null,
-    // Converted with `--fold Landscape`.
-    credit: "Apple — design resources (iPhone_Duo_Star-White.usdz)",
-  },
-  {
     /*
      * The same phone from Apple's own product viewer rather than from their
      * design resources, and it is a different asset in the way that matters:
@@ -2067,12 +1962,16 @@ export const DEVICES: Device[] = [
      * between open and shut is a pose someone chose rather than one this code
      * interpolated.
      *
-     * Both are kept. This is not strictly better — the design-resource model
-     * is the higher-detail one, and it is the one whose provenance is a file
-     * Apple publishes for exactly this use.
+     * The only Duo now. The design-resource model sat beside it for a while
+     * and was removed on 2026-09-13: two entries with the same name, one of
+     * which folded as two rigid plates, was a choice nobody wanted to make in
+     * a device list. Worth recording that it was not strictly worse -- it
+     * carried more detail, and its provenance was a file Apple publishes for
+     * exactly this use, where this one was fetched from their product page.
+     * It is in git if a higher-detail static Duo is ever wanted.
      */
     id: "apple-iphone-duo-web",
-    label: "Apple iPhone Duo (product viewer)",
+    label: "Apple iPhone Duo",
     /*
      * Named for its provenance, and RENAMED once on purpose.
      *
