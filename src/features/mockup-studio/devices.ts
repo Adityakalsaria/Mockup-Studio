@@ -2052,9 +2052,9 @@ export const DEVICES: Device[] = [
       "OwqobJiNTlvAFyj",
       // The hinge spine down the fold.
       "jeFtQmHBLCfgIkY",
-      // The two textured back panels. Their maps carry the plateau's shadow,
-      // which is why the retint rebuilds the map against `authoredBodyColor`
-      // rather than multiplying a colour over it.
+      // The two back panels. Their maps are dropped -- see `plainMaterials`
+      // below -- so the finish fills them flat; near-white texels are exactly
+      // what the atlas retint skips, which is why they stayed Cloud White.
       "MZiYIrcFSqDDBWG",
       "ZoizrWFccovSVQl",
     ],
@@ -2064,6 +2064,22 @@ export const DEVICES: Device[] = [
      * this, so a wrong value here would tint their grain.
      */
     authoredBodyColor: "#f2ede5",
+    /*
+     * The two back panels, filled with the finish rather than retinted.
+     *
+     * They stayed Cloud White under Night Sky while the frame and the logo
+     * changed, and the reason is what `recolorBodyTexture` is FOR: it retints
+     * coloured trim inside an atlas, skipping any texel below a saturation or
+     * value floor and any whose hue is far from the authored one. These panels
+     * are near-white and essentially unsaturated, so every texel was skipped
+     * and the panel came through cream at any finish.
+     *
+     * Dropping the map lets the finish colour fill them flat, which is what
+     * `plainMaterials` exists for and what the 18s' back glass already does.
+     * It costs the plateau's baked shadow, which lived in that map -- the
+     * studio's own lighting is what draws it now.
+     */
+    plainMaterials: ["MZiYIrcFSqDDBWG", "ZoizrWFccovSVQl"],
     /*
      * The lens stack, given back a surface that catches the light.
      *
