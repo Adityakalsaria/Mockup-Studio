@@ -2184,10 +2184,10 @@ export const DEVICES: Device[] = [
      */
     meshColors: {
       MjAVumOaiYuioav: {
-        lighten: 0.34,
-        saturate: 0.75,
-        opacity: 0.5,
-        roughness: 0.08,
+        darken: 0.22,
+        saturate: 1.25,
+        opacity: 0.74,
+        roughness: 0.04,
         metalness: 0,
         envMapIntensity: 1.9,
       },
