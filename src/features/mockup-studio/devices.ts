@@ -2105,7 +2105,10 @@ export const DEVICES: Device[] = [
       mAvfMvCzYIPKaNG: { metalness: 1, roughness: 0.009 },
       UcYWmlwZxcfqNko: { metalness: 1, roughness: 0.15 },
       jqlebwNqkTyrcyd: { metalness: 1, roughness: 0.05 },
-      OwqobJiNTlvAFyj: { metalness: 1, roughness: 0.17 },
+      // The plateau pad, under the glass: tighter than Apple's authored 0.17,
+      // because the glass above it is what carries the highlight and a matte
+      // pad under a clear sheet reads as paint.
+      OwqobJiNTlvAFyj: { metalness: 1, roughness: 0.08 },
       jeFtQmHBLCfgIkY: { metalness: 1, roughness: 1 },
       // Glass: barely metallic, fully rough -- the texture carries the grain.
       MZiYIrcFSqDDBWG: { metalness: 0.1, roughness: 1 },
@@ -2123,6 +2126,40 @@ export const DEVICES: Device[] = [
       FVyIOhmektXDyZR: { envMapIntensity: 3 },
     },
     materialColors: {
+      /*
+       * The camera plateau's cover glass -- the same treatment the Air's got.
+       *
+       * Apple authors it `alphaMode: BLEND` at base alpha 0: fully clear, and
+       * so contributing nothing, which is why the bump read as a flat pad with
+       * no glass over it at all. Stated here it becomes a sheet: mostly clear,
+       * a hair lighter than the body beneath it, and smooth enough to carry a
+       * highlight. Derived from the finish rather than pinned, so it is navy
+       * over Night Sky and cream over Cloud White.
+       */
+      iVzCHFKAaRqjQhl: {
+        lighten: 0.04,
+        opacity: 0.32,
+        metalness: 0.2,
+        roughness: 0.03,
+        envMapIntensity: 2.2,
+      },
+      /*
+       * The chassis where it shows through the shell -- the pale bands.
+       *
+       * These are the only light materials reaching the frame rim that no
+       * finish touched, which is why they stayed Cloud White while the body
+       * went navy. Apple's own render has the inlays a touch lighter than the
+       * body rather than a different colour, so they are derived from the
+       * finish and lifted slightly, and they keep their authored surface.
+       *
+       * Where this geometry is hidden behind the shell instead of showing at
+       * a gap, colouring it changes nothing -- which is the reason to do it
+       * this way rather than hunt for the one strip that happens to be
+       * visible at a given fold.
+       */
+      stlMkdXkRsspsoE: { lighten: 0.08 },
+      NtNSwEIIFmIbXaY: { lighten: 0.08 },
+      hpmqrCvWLXWudrz: { lighten: 0.08 },
       /*
        * The logo, which was never missing -- it was underneath.
        *
