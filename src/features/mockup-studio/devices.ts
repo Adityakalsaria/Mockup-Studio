@@ -2161,19 +2161,33 @@ export const DEVICES: Device[] = [
      * the material would put a half-clear pane over the logo as well, so the
      * sheet is named directly.
      *
-     * The treatment is the Air's `PLATEAU`, and the reason is the same: glass
-     * is a DIELECTRIC. The first attempt here set metalness 0.2 at a tint
-     * derived from the finish, which is body colour over a pad already in body
-     * colour -- nothing to see, which is why the bump stayed matte. At
-     * metalness 0 and roughness 0 the sheet stops being a tint and starts
-     * being a reflection, and the body colour beneath shows through it.
+     * LIGHTER than the body, which is the whole of it, and what two attempts
+     * here got wrong in the same way.
+     *
+     * The Air is the reference and it does NOT use the 17's `PLATEAU`: it
+     * declares no `finishMaterials`, so its pad reaches this same branch with
+     * only `{ lighten: 0.05 }` on it, KEEPING the alpha and gloss Apple
+     * authored -- translucent at 50%, tinted #dfe8f0. A light pane at half
+     * alpha over a near-black body composites to the pale pad in Apple's crop.
+     * The lightness is the tint, not the gloss.
+     *
+     * This sheet is authored `BLEND` at alpha 0: no tint and no alpha to keep,
+     * so both have to be stated. Both earlier attempts stated a colour DERIVED
+     * from the finish -- first a metal tint, then a dielectric at 0.74 -- which
+     * is body colour over a backing already in body colour. No value of
+     * roughness rescues that: a metalness-0 dielectric reflects about 4% head
+     * on, so the environment cannot supply the contrast the tint is not
+     * providing, and the bump reads flat at every gloss setting.
+     *
+     * Lifted well clear of the body instead, at half alpha, so the composite
+     * lands between the two the way the Air's does.
      */
     meshColors: {
       MjAVumOaiYuioav: {
-        darken: 0.02,
-        saturate: 1.7,
-        opacity: 0.74,
-        roughness: 0,
+        lighten: 0.34,
+        saturate: 0.75,
+        opacity: 0.5,
+        roughness: 0.08,
         metalness: 0,
         envMapIntensity: 1.9,
       },
