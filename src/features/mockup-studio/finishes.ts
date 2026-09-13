@@ -141,10 +141,21 @@ export const FINISHES: Finish[] = [
    * 17 Pro's changing to suit a phone it is not.
    */
   { id: "iphone18-black", label: "Black", color: "#1c1c1e", metalness: 0.48, roughness: 0.22 },
+  /*
+   * Apple's own value for the 18's Burgundy, #2e0f14 -- and far darker than
+   * the #5e2b38 that stood here, which was read off a render rather than
+   * published. Near black until the light catches it, which is what the
+   * anodising actually does.
+   *
+   * The surface below is unchanged, and is the thing to reach for if this
+   * reads as black rather than as a deep red: 0.48 / 0.22 was tuned against
+   * the lighter tone, and a body a third as light returns a third as much of
+   * whatever the rig gives it.
+   */
   {
     id: "iphone18-burgundy",
     label: "Burgundy",
-    color: "#5e2b38",
+    color: "#2e0f14",
     metalness: 0.48,
     roughness: 0.22,
   },
