@@ -134,13 +134,14 @@ export const FINISHES: Finish[] = [
    * does not have anywhere on it. The lens rings and the flash are the only
    * things in Apple's frame allowed to be bright.
    *
-   * Silver is its own entry rather than the 17 Pro's, even though the colour
-   * is the same #d8dade. The surface is not: these four carry the 18's tuned
-   * 0.48 / 0.22, and borrowing the 17's swatch would have meant either the
-   * 18's Silver reading differently from its other three finishes, or the
-   * 17 Pro's changing to suit a phone it is not.
+   * All four are Apple's published values, replacing the ones read off
+   * renders here: black #242424, sky blue #a3b1c4, silver #c4c4c4, and the
+   * burgundy noted below. Silver was the same #d8dade as the 17 Pro's when
+   * both were guessed from images; published, they differ, which settles the
+   * question of whether these four ever wanted to be one shared entry --
+   * they are a different phone's swatches and always were.
    */
-  { id: "iphone18-black", label: "Black", color: "#1c1c1e", metalness: 0.48, roughness: 0.22 },
+  { id: "iphone18-black", label: "Black", color: "#242424", metalness: 0.48, roughness: 0.22 },
   /*
    * Apple's own value for the 18's Burgundy, #2e0f14 -- and far darker than
    * the #5e2b38 that stood here, which was read off a render rather than
@@ -162,14 +163,14 @@ export const FINISHES: Finish[] = [
   {
     id: "iphone18-silver",
     label: "Silver",
-    color: "#d8dade",
+    color: "#c4c4c4",
     metalness: 0.48,
     roughness: 0.22,
   },
   {
     id: "iphone18-sky-blue",
     label: "Sky Blue",
-    color: "#9fb6cd",
+    color: "#a3b1c4",
     metalness: 0.48,
     roughness: 0.22,
   },
