@@ -912,11 +912,30 @@ const TOOLS = [
   { id: "devices", icon: "devices", title: "Devices" },
   { id: "finish", icon: "styles", title: "Finish" },
   { id: "image", icon: "add-image", title: "Screen image" },
-  { id: "remote", icon: "duplicate", title: "Connect a phone" },
+  /*
+   * Connect a phone, hidden until it launches.
+   *
+   * Commented out rather than deleted, and the panel it opens is left
+   * untouched below: the feature works, it is just not being offered yet.
+   * Putting this line back is the whole of turning it on again -- the tool's
+   * panel, its pairing effect and the phone's own routes at
+   * `/mockup-studio/join` and `/remote` are all still here.
+   */
+  // { id: "remote", icon: "duplicate", title: "Connect a phone" },
   { id: "canvas", icon: "layout", title: "Canvas size" },
 ] as const;
 
-type Tool = (typeof TOOLS)[number]["id"];
+/*
+ * The rail's tools, plus the one that is built but not yet offered.
+ *
+ * `remote` is commented out of `TOOLS` above until Connect a phone
+ * launches, which narrows this union and makes the three `tool === "remote"`
+ * branches below unreachable -- and, to the compiler, a comparison that can
+ * never be true. Naming it here keeps those branches compiling and the panel
+ * intact, so launching the feature is uncommenting one line rather than
+ * writing the panel again.
+ */
+type Tool = (typeof TOOLS)[number]["id"] | "remote";
 
 /** The three history steps, in the order the frame draws them. */
 const HISTORY = [
