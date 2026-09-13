@@ -178,14 +178,34 @@ export function Timeline({ studio }: { studio: Studio }) {
     setEasingOpen(false),
   );
 
-  /** Which key is selected, if any. One at a time — a timeline that can
-      select many needs a marquee and a group drag, and neither is asked for. */
+  /**
+   * Every key that is selected, and separately the one the menu is about.
+   *
+   * Two pieces of state rather than one, because they answer different
+   * questions. `selection` is what a drag MOVES and what Delete removes, and
+   * it can hold keys on several lanes at once. `selected` is where the
+   * keyframe menu hangs and which key it edits -- and that menu retypes one
+   * value, one time and one easing, so it is only meaningful when exactly one
+   * key is selected. Folding the two together would mean either a menu
+   * claiming to edit a group it cannot, or a group drag that can only ever
+   * hold one key.
+   *
+   * A key is identified by its TIME, which the drag then changes -- so both of
+   * these are re-based on every move, the same way `dragRef` already was.
+   */
+  const [selection, setSelection] = useState<
+    Array<{ key: AnimatableKey; time: number }>
+  >([]);
   const [selected, setSelected] = useState<{
     key: AnimatableKey;
     time: number;
     x: number;
     panelW: number;
   } | null>(null);
+  const isSelected = (channel: AnimatableKey, time: number) =>
+    selection.some(
+      (s) => s.key === channel && Math.abs(s.time - time) < 1e-6,
+    );
   /** Which span's easing menu is open, and where to hang it. `x` is measured
       from the panel's left edge at the moment of the click, so the menu is not
       trapped inside the lanes' horizontal scroller. */
@@ -200,6 +220,7 @@ export function Timeline({ studio }: { studio: Studio }) {
   const closeMenus = useCallback(() => {
     setSegment(null);
     setSelected(null);
+    setSelection([]);
   }, []);
 
   /* One ref, two jobs: the box the span menu is positioned against, and the
@@ -207,7 +228,9 @@ export function Timeline({ studio }: { studio: Studio }) {
      element — the menu hangs off the panel and the tile that opened it is
      inside the panel — so two refs would be the same node twice. */
   const panelRef = useDismiss<HTMLDivElement>(
-    segment !== null || selected !== null,
+    // Armed on the SELECTION too, not just the menu: a multi-key selection
+    // shows no menu, and a press outside still has to clear it.
+    segment !== null || selected !== null || selection.length > 0,
     closeMenus,
   );
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -215,7 +238,18 @@ export function Timeline({ studio }: { studio: Studio }) {
   const markerRef = useRef<HTMLDivElement | null>(null);
   const readoutRef = useRef<HTMLSpanElement | null>(null);
   /* Which key a pointer is carrying, and where in the clip it has got to. */
-  const dragRef = useRef<{ key: AnimatableKey; time: number } | null>(null);
+  /**
+   * The gesture in flight: what was grabbed, and everything travelling with it.
+   *
+   * `items` is a snapshot taken at pointer-down rather than a read of
+   * `selection` during the move, because the move re-times the very keys it is
+   * reading and state has not landed yet when the next pointer event arrives.
+   */
+  const dragRef = useRef<{
+    key: AnimatableKey;
+    time: number;
+    items: Array<{ key: AnimatableKey; time: number }>;
+  } | null>(null);
 
   /*
    * One loop, painting two nodes, running only while something moves.
@@ -274,7 +308,7 @@ export function Timeline({ studio }: { studio: Studio }) {
    * here is selected.
    */
   useEffect(() => {
-    if (!selected) return;
+    if (!selection.length) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Delete" && event.key !== "Backspace") return;
       const node = event.target as HTMLElement | null;
@@ -286,12 +320,15 @@ export function Timeline({ studio }: { studio: Studio }) {
       )
         return;
       event.preventDefault();
-      studio.deleteKey(selected.key, selected.time);
+      // Every selected key, not just the menu's one. Removal does not re-time
+      // anything, so the order these go in does not matter.
+      for (const item of selection) studio.deleteKey(item.key, item.time);
       setSelected(null);
+      setSelection([]);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, studio]);
+  }, [selection, studio]);
 
   const tracks = studio.state.animation.tracks;
   // Ordered by `ANIMATABLE` rather than by whatever order the preset happened
@@ -322,6 +359,75 @@ export function Timeline({ studio }: { studio: Studio }) {
    * there and stops dead. So the clamp is computed here as well, and everything
    * downstream follows the real time.
    */
+  /** `KEY_GAP_PX` in seconds at the current zoom. Shared, because a group drag
+      has to keep exactly the spacing a single drag keeps. */
+  const gapSeconds = () => {
+    const laneW = laneRef.current?.getBoundingClientRect().width ?? 0;
+    return laneW > 0 && duration > 0
+      ? Math.max(KEY_EPSILON, (KEY_GAP_PX / laneW) * duration)
+      : KEY_EPSILON;
+  };
+
+  /*
+   * One delta for the whole selection, limited by whichever member runs out
+   * of room first.
+   *
+   * Clamping each key on its own is the obvious thing and it is wrong: the
+   * moment one member reaches a neighbour it stops while the rest keep going,
+   * and the shape the selection had -- which is the thing being dragged -- is
+   * destroyed. So the group moves rigidly or not at all.
+   *
+   * What a selected key is actually blocked by is the nearest UNSELECTED key,
+   * because anything selected between the two is moving with it. That makes
+   * the unit a contiguous RUN of selected keys on one lane: only the run's
+   * first key can be stopped on the left and only its last on the right, and
+   * everything between them is carried.
+   *
+   * A key already closer than the gap is not thrown clear -- the bound is
+   * pinned to where it already sits -- which is the rule `settleTime` follows
+   * for a single key, kept here so a dense preset behaves the same either way.
+   */
+  const clampGroupDelta = (
+    items: Array<{ key: AnimatableKey; time: number }>,
+    delta: number,
+  ) => {
+    const gap = gapSeconds();
+    const byLane = new Map<AnimatableKey, number[]>();
+    for (const item of items) {
+      const keys = tracks[item.key] ?? [];
+      const i = keys.findIndex((k) => Math.abs(k.time - item.time) < 1e-6);
+      if (i < 0) continue;
+      const list = byLane.get(item.key);
+      if (list) list.push(i);
+      else byLane.set(item.key, [i]);
+    }
+    let lo = -Infinity;
+    let hi = Infinity;
+    for (const [channel, indices] of byLane) {
+      const keys = tracks[channel] ?? [];
+      const sorted = [...indices].sort((a, b) => a - b);
+      let r = 0;
+      while (r < sorted.length) {
+        const start = sorted[r];
+        while (r + 1 < sorted.length && sorted[r + 1] === sorted[r] + 1) r += 1;
+        const end = sorted[r];
+        const first = keys[start].time;
+        const last = keys[end].time;
+        const floor =
+          start > 0 ? Math.min(keys[start - 1].time + gap, first) : 0;
+        const ceiling =
+          end < keys.length - 1
+            ? Math.max(keys[end + 1].time - gap, last)
+            : duration;
+        lo = Math.max(lo, floor - first);
+        hi = Math.min(hi, ceiling - last);
+        r += 1;
+      }
+    }
+    if (lo === -Infinity || hi === Infinity) return delta;
+    return Math.max(lo, Math.min(hi, delta));
+  };
+
   const settleTime = (channel: AnimatableKey, time: number, to: number) => {
     const keys = tracks[channel] ?? [];
     const i = keys.findIndex((k) => Math.abs(k.time - time) < 1e-6);
@@ -340,11 +446,7 @@ export function Timeline({ studio }: { studio: Studio }) {
      * when grabbed; it simply cannot be pushed any closer. Otherwise touching
      * a key on a dense preset would make it jump.
      */
-    const laneW = laneRef.current?.getBoundingClientRect().width ?? 0;
-    const gap =
-      laneW > 0 && duration > 0
-        ? Math.max(KEY_EPSILON, (KEY_GAP_PX / laneW) * duration)
-        : KEY_EPSILON;
+    const gap = gapSeconds();
     const floor = i > 0 ? Math.min(keys[i - 1].time + gap, time) : 0;
     const ceiling =
       i < keys.length - 1 ? Math.max(keys[i + 1].time - gap, time) : duration;
@@ -592,15 +694,49 @@ export function Timeline({ studio }: { studio: Studio }) {
         >
           <div style={{ width: LABEL_W, flex: "none" }}>
             <div style={{ height: RULER_H }} />
-            {lanes.map(({ key, label }) => (
-              <div
-                key={key}
-                className="mo-label flex items-center"
-                style={{ height: LANE_H, color: "var(--mo-ink-muted)" }}
-              >
-                {label}
-              </div>
-            ))}
+            {/*
+              The lane's name selects the lane.
+
+              "Drag two or three properties as one" is the whole ask, and
+              picking every key on a channel by hand is the slow way to say it.
+              Shift adds a second channel to what is already held, which is the
+              gesture that assembles a cross-lane group in two clicks.
+            */}
+            {lanes.map(({ key, label }) => {
+              const all = (tracks[key] ?? []).map((frame) => ({
+                key,
+                time: frame.time,
+              }));
+              const whole =
+                all.length > 0 && all.every((k) => isSelected(k.key, k.time));
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  title={`Select every key on ${label}`}
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                    const additive = event.shiftKey || event.metaKey;
+                    setSelection((was) => {
+                      const rest = additive
+                        ? was.filter((sel) => sel.key !== key)
+                        : [];
+                      return whole && additive ? rest : [...rest, ...all];
+                    });
+                    // A whole lane is never one key, so no menu.
+                    setSelected(null);
+                    setSegment(null);
+                  }}
+                  className="mo-label flex cursor-pointer items-center text-left"
+                  style={{
+                    height: LANE_H,
+                    color: whole ? "var(--mo-ink)" : "var(--mo-ink-muted)",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
 
           <div
@@ -631,7 +767,34 @@ export function Timeline({ studio }: { studio: Studio }) {
                   key: hit.dataset.channel as AnimatableKey,
                   time: Number(hit.dataset.time),
                 };
-                dragRef.current = at;
+                /*
+                 * Three cases, and the middle one is what makes a group
+                 * draggable at all.
+                 *
+                 * Shift or Cmd toggles a key in or out, which is how the
+                 * selection gets built. A plain press on a key ALREADY in the
+                 * selection keeps the selection and starts dragging it --
+                 * without that, grabbing one of three selected keys would
+                 * discard the other two and you could never move the group you
+                 * just made. A plain press anywhere else starts over.
+                 */
+                const additive = event.shiftKey || event.metaKey;
+                const already = isSelected(at.key, at.time);
+                const next = additive
+                  ? already
+                    ? selection.filter(
+                        (sel) =>
+                          !(
+                            sel.key === at.key &&
+                            Math.abs(sel.time - at.time) < 1e-6
+                          ),
+                      )
+                    : [...selection, at]
+                  : already
+                    ? selection
+                    : [at];
+                setSelection(next);
+                dragRef.current = { ...at, items: next };
                 // Measured here rather than read off a ref during render: the
                 // menu hangs off the panel and has to know where the mark it
                 // belongs to sits along it.
@@ -639,11 +802,17 @@ export function Timeline({ studio }: { studio: Studio }) {
                   event.currentTarget.closest(".mo-glass")?.parentElement;
                 const box = panel?.getBoundingClientRect();
                 const mark = hit.getBoundingClientRect();
-                setSelected({
-                  ...at,
-                  x: box ? mark.left + mark.width / 2 - box.left : 0,
-                  panelW: box?.width ?? 0,
-                });
+                // The menu is about ONE key, so it only opens when one is
+                // selected -- and never for the key a Shift-press just removed.
+                setSelected(
+                  next.length === 1 && (!additive || !already)
+                    ? {
+                        ...at,
+                        x: box ? mark.left + mark.width / 2 - box.left : 0,
+                        panelW: box?.width ?? 0,
+                      }
+                    : null,
+                );
                 // Never both at once — see `KeyframeMenu`.
                 setSegment(null);
                 return;
@@ -651,6 +820,7 @@ export function Timeline({ studio }: { studio: Studio }) {
               // A press on empty lane deselects, the way it does everywhere
               // else in this interface.
               setSelected(null);
+              setSelection([]);
               scrubTo(event.clientX);
             }}
             onPointerMove={(event) => {
@@ -662,12 +832,45 @@ export function Timeline({ studio }: { studio: Studio }) {
               }
               const asked = timeAt(event.clientX);
               if (asked === null) return;
-              const to = settleTime(drag.key, drag.time, asked);
-              if (to === null || Math.abs(to - drag.time) < 1e-6) return;
-              studio.moveKey(drag.key, drag.time, to);
-              // Ref and selection both follow the key, so the next move of the
-              // same gesture goes looking for it where it now is.
-              dragRef.current = { key: drag.key, time: to };
+              const delta = clampGroupDelta(drag.items, asked - drag.time);
+              if (Math.abs(delta) < 1e-6) return;
+              /*
+               * Order matters, per lane, and getting it wrong eats keys.
+               *
+               * `moveKey` clamps a key against its neighbours, so moving a key
+               * RIGHT into a slot its selected neighbour has not vacated yet
+               * would be blocked by that neighbour and the group would bunch
+               * up. Moving the rightmost first means every key always lands in
+               * space that is already clear. Leftwards is the mirror of it.
+               */
+              const lanesMoved = new Map<
+                AnimatableKey,
+                Array<{ key: AnimatableKey; time: number }>
+              >();
+              for (const item of drag.items) {
+                const list = lanesMoved.get(item.key);
+                if (list) list.push(item);
+                else lanesMoved.set(item.key, [item]);
+              }
+              for (const [, group] of lanesMoved) {
+                const ordered = [...group].sort((a, b) =>
+                  delta > 0 ? b.time - a.time : a.time - b.time,
+                );
+                for (const item of ordered)
+                  studio.moveKey(item.key, item.time, item.time + delta);
+              }
+              // Everything that tracks a key by its time is re-based, so the
+              // next move of the same gesture finds them where they now are.
+              const moved = drag.items.map((item) => ({
+                key: item.key,
+                time: item.time + delta,
+              }));
+              dragRef.current = {
+                key: drag.key,
+                time: drag.time + delta,
+                items: moved,
+              };
+              setSelection(moved);
               const lane = laneRef.current?.getBoundingClientRect();
               const box = event.currentTarget
                 .closest(".mo-glass")
@@ -675,13 +878,14 @@ export function Timeline({ studio }: { studio: Studio }) {
               setSelected((was) =>
                 was && lane && box
                   ? {
-                      key: drag.key,
-                      time: to,
+                      key: was.key,
+                      time: was.time + delta,
                       // Follows the mark, so the menu travels with the key it
                       // is about rather than staying where the drag started.
                       x:
                         lane.left +
-                        (to / Math.max(0.001, duration)) * lane.width -
+                        ((was.time + delta) / Math.max(0.001, duration)) *
+                          lane.width -
                         box.left,
                       panelW: box.width,
                     }
@@ -818,9 +1022,7 @@ export function Timeline({ studio }: { studio: Studio }) {
                     })}
 
                     {keys.map((frame) => {
-                      const on =
-                        selected?.key === key &&
-                        Math.abs(selected.time - frame.time) < 1e-6;
+                      const on = isSelected(key, frame.time);
                       return (
                         <span
                           key={frame.time}
@@ -922,7 +1124,7 @@ export function Timeline({ studio }: { studio: Studio }) {
         the same place on screen, and cannot cost the panel its layout however
         they are styled.
       */}
-      {selected && !segment ? (
+      {selected && selection.length === 1 && !segment ? (
         /* Same shelf as the span menu, same clamp, and never both at once —
            they are two views of the same mark and stacking them would put
            one over the lane the other is about. */
@@ -970,6 +1172,7 @@ export function Timeline({ studio }: { studio: Studio }) {
                   if (time === null) return;
                   studio.moveKey(selected.key, frame.time, time);
                   setSelected({ ...selected, time });
+                  setSelection([{ key: selected.key, time }]);
                 }}
                 onEasing={() =>
                   setSegment({
@@ -982,6 +1185,7 @@ export function Timeline({ studio }: { studio: Studio }) {
                 onDelete={() => {
                   studio.deleteKey(selected.key, frame.time);
                   setSelected(null);
+                  setSelection([]);
                 }}
               />
             );
