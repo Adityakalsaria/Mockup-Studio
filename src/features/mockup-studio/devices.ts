@@ -2108,7 +2108,7 @@ export const DEVICES: Device[] = [
       // The plateau pad, under the glass: tighter than Apple's authored 0.17,
       // because the glass above it is what carries the highlight and a matte
       // pad under a clear sheet reads as paint.
-      OwqobJiNTlvAFyj: { metalness: 1, roughness: 0.08 },
+      OwqobJiNTlvAFyj: { metalness: 1, roughness: 0.17 },
       jeFtQmHBLCfgIkY: { metalness: 1, roughness: 1 },
       // Glass: barely metallic, fully rough -- the texture carries the grain.
       MZiYIrcFSqDDBWG: { metalness: 0.1, roughness: 1 },
@@ -2125,37 +2125,73 @@ export const DEVICES: Device[] = [
       // The coating: a mirror at 0.001 already, just dim.
       FVyIOhmektXDyZR: { envMapIntensity: 3 },
     },
+    /*
+     * The camera plateau's cover glass, stated per MESH and not per material.
+     *
+     * `iVzCHFKAaRqjQhl` covers two planes: the 5.6 x 2.1 sheet over the
+     * plateau, and a 1.6 x 2.0 one on the same footprint as the logo. Stating
+     * the material would put a half-clear pane over the logo as well, so the
+     * sheet is named directly.
+     *
+     * The treatment is the Air's `PLATEAU`, and the reason is the same: glass
+     * is a DIELECTRIC. The first attempt here set metalness 0.2 at a tint
+     * derived from the finish, which is body colour over a pad already in body
+     * colour -- nothing to see, which is why the bump stayed matte. At
+     * metalness 0 and roughness 0 the sheet stops being a tint and starts
+     * being a reflection, and the body colour beneath shows through it.
+     */
+    meshColors: {
+      MjAVumOaiYuioav: {
+        darken: 0.02,
+        saturate: 1.7,
+        opacity: 0.74,
+        roughness: 0,
+        metalness: 0,
+        envMapIntensity: 1.9,
+      },
+    },
     materialColors: {
       /*
-       * The camera plateau's cover glass -- the same treatment the Air's got.
+       * The band around the rim -- the part that stayed pale on every dark
+       * finish.
        *
-       * Apple authors it `alphaMode: BLEND` at base alpha 0: fully clear, and
-       * so contributing nothing, which is why the bump read as a flat pad with
-       * no glass over it at all. Stated here it becomes a sheet: mostly clear,
-       * a hair lighter than the body beneath it, and smooth enough to carry a
-       * highlight. Derived from the finish rather than pinned, so it is navy
-       * over Night Sky and cream over Cloud White.
+       * Found by ray-casting the model rather than by reading the material
+       * list: from the front, the top edge, the bottom edge and the side, the
+       * first surface a ray meets along the outer lip is `FoAbzXGuCEeVRQW`,
+       * and it is the ONLY untouched material that appears in all four views
+       * (7.0% of the front, 5.5-7.4% of each edge, spanning the full length of
+       * every one). It borders the display and wraps the rim: the band.
+       *
+       * Why it hid: it is authored #595959, a MID GREY, not cream. Against
+       * Cloud White it is darker than the body and reads as a normal shadowed
+       * edge, so nothing looks wrong. Against Night Sky at L 0.27 the same
+       * grey sits at L 0.36 -- LIGHTER than the body -- and the eye reads it
+       * as the old white finish left behind. Searching for pale materials
+       * could never have found it, which is what the two earlier attempts did.
+       *
+       * Darkened rather than lightened, so it keeps its authored relationship
+       * to the body on every colourway instead of only on the dark ones. Its
+       * surface is left alone: matte at metalness 0 is what makes a band read
+       * as an inlay rather than as more frame.
        */
-      iVzCHFKAaRqjQhl: {
-        lighten: 0.04,
-        opacity: 0.32,
-        metalness: 0.2,
-        roughness: 0.03,
-        envMapIntensity: 2.2,
-      },
+      FoAbzXGuCEeVRQW: { darken: 0.45 },
       /*
-       * The chassis where it shows through the shell -- the pale bands.
+       * The rim grille, authored pure white over a woven 128x128 map.
        *
-       * These are the only light materials reaching the frame rim that no
-       * finish touched, which is why they stayed Cloud White while the body
-       * went navy. Apple's own render has the inlays a touch lighter than the
-       * body rather than a different colour, so they are derived from the
-       * finish and lifted slightly, and they keep their authored surface.
+       * The map stays -- it is what makes this read as a grille rather than a
+       * painted stripe -- and only the colour under it moves, which is exactly
+       * what `materialColors` does to a textured material.
+       */
+      hAKVdrzztJgljCR: { darken: 0.3 },
+      /*
+       * The chassis, where it shows at a gap in the shell.
        *
-       * Where this geometry is hidden behind the shell instead of showing at
-       * a gap, colouring it changes nothing -- which is the reason to do it
-       * this way rather than hunt for the one strip that happens to be
-       * visible at a given fold.
+       * These three were the first guess at the band and they were NOT it:
+       * ray-casting puts them at 0.6-1.9% of any view, too little to be what
+       * was visible. They are kept because the reasoning still holds on its
+       * own terms -- they are unfinished chassis that does show at the seams,
+       * and Apple's render has it a touch lighter than the body -- but they
+       * are not the fix, and the comment that said they were was wrong.
        */
       stlMkdXkRsspsoE: { lighten: 0.08 },
       NtNSwEIIFmIbXaY: { lighten: 0.08 },
