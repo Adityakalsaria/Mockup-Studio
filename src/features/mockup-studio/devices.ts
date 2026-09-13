@@ -2081,6 +2081,20 @@ export const DEVICES: Device[] = [
      */
     plainMaterials: ["MZiYIrcFSqDDBWG", "ZoizrWFccovSVQl"],
     /*
+     * Both panels again, this time for their METALLIC-ROUGHNESS map.
+     *
+     * `plainMaterials` drops `map` only, which is all the banding fix needed.
+     * It leaves `roughnessMap` in place, and three multiplies factor by map --
+     * so `MZiYIrcFSqDDBWG`, which ships one (tex 47), renders at map x factor
+     * no matter what roughness is stated above. Stating 0.18 without this
+     * changes nothing visible, which is the same failure the 18s' chassis hit.
+     *
+     * It also settles a difference between the two: `ZoizrWFccovSVQl` has no
+     * such map, so the studio's grain pass was adding one to that panel and
+     * not to its neighbour, and the halves of one back were lit differently.
+     */
+    plainBodyMaterials: ["MZiYIrcFSqDDBWG", "ZoizrWFccovSVQl"],
+    /*
      * The lens stack, given back a surface that catches the light.
      *
      * Apple's render shows a navy glint in each lens and a bright ring round
@@ -2110,9 +2124,23 @@ export const DEVICES: Device[] = [
       // pad under a clear sheet reads as paint.
       OwqobJiNTlvAFyj: { metalness: 1, roughness: 0.17 },
       jeFtQmHBLCfgIkY: { metalness: 1, roughness: 1 },
-      // Glass: barely metallic, fully rough -- the texture carries the grain.
-      MZiYIrcFSqDDBWG: { metalness: 0.1, roughness: 1 },
-      ZoizrWFccovSVQl: { metalness: 0.1, roughness: 1 },
+      /*
+       * The back glass, and the reason it read as painted card.
+       *
+       * Apple authors both panels `roughnessFactor: 1` -- fully matte, no
+       * specular, no environment. That is not what their render shows: the
+       * back is glass with a soft vertical gradient and a bright edge where it
+       * meets the rail. The authored 1 is a placeholder their own renderer
+       * overrides; ours took it literally.
+       *
+       * Dielectric, not metal. Glass is metalness 0: at 0.1 the highlight
+       * takes the body colour and reads as anodised aluminium, which is what
+       * the rail beside it already is and why the two never separated.
+       *
+       * `plainBodyMaterials` below is what makes the number reach the surface.
+       */
+      MZiYIrcFSqDDBWG: { metalness: 0, roughness: 0.18 },
+      ZoizrWFccovSVQl: { metalness: 0, roughness: 0.18 },
       // The inner element: dark teal metal, authored at roughness 0.5.
       uykWUEajxHqfrmh: {
         color: "#26325c",
@@ -2174,7 +2202,17 @@ export const DEVICES: Device[] = [
        * surface is left alone: matte at metalness 0 is what makes a band read
        * as an inlay rather than as more frame.
        */
-      FoAbzXGuCEeVRQW: { darken: 0.45 },
+      /*
+       * Darkened only slightly. The first pass used 0.45, which is close to
+       * the relationship Apple authored (#595959 on a near-white body is a
+       * 0.64 darken) -- but that relationship is what makes the band a hard
+       * dark line on a DARK finish, where the same proportion of a much lower
+       * lightness lands almost at black. Apple's own render has the inlays
+       * barely separated from the rail. 0.15 keeps them readable as inlays on
+       * Cloud White and subtle on Night Sky, which is the look, rather than
+       * reproducing a ratio that only ever suited the white phone.
+       */
+      FoAbzXGuCEeVRQW: { darken: 0.15 },
       /*
        * The rim grille, authored pure white over a woven 128x128 map.
        *
@@ -2182,7 +2220,7 @@ export const DEVICES: Device[] = [
        * painted stripe -- and only the colour under it moves, which is exactly
        * what `materialColors` does to a textured material.
        */
-      hAKVdrzztJgljCR: { darken: 0.3 },
+      hAKVdrzztJgljCR: { darken: 0.12 },
       /*
        * The chassis, where it shows at a gap in the shell.
        *
