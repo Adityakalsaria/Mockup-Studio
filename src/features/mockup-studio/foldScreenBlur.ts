@@ -25,12 +25,28 @@
  *      its own result: a distance from the edge that stays sharp, remapped
  *      through per-panel bounds into a blur amount, read as a mip level.
  *
- * Their pass also DARKENS -- it multiplies by a shade that goes to black
- * where the blur is strongest -- and so did this one, until it put a hard
- * black band across the cover of a closed device. The blur is what reads as
- * a fold; the darkening only ever read as a shadow nobody asked for. It is
- * gone, here and on the panel surface, and nothing in this pipeline makes
- * the picture darker than it was uploaded.
+ * Their pass also DARKENS, and the shade it multiplies by is a PRODUCT of two
+ * independent terms:
+ *
+ *     smoothstep(1.3, 0.9, blurArea) * smoothstep(1.0, 0.9, distance(uv.y, 0.5) * 2.0)
+ *
+ * An earlier version of this file dropped BOTH, having read them as one
+ * darkening. Only the first was ever the problem. It drives to black wherever
+ * the blur peaks, which on a closed device is a whole panel, and that is what
+ * put a hard black band across the cover. It stays out.
+ *
+ * The second is a plain vertical falloff: 0 at the middle of the panel, 1 at
+ * the top and bottom edges, fading the outer ~5% of each end. It never
+ * references the fold, so it reads as the screen's own edge under glass rather
+ * than as a shadow that arrives when the phone moves -- which is why the
+ * reference leaves it ungated, and why removing it made our panel look like a
+ * picture pasted flat to the surface. It is back.
+ *
+ * Applied in BOTH blur passes, which squares it. That is deliberate and it is
+ * what the reference does: their `renderScreen` draws the same `blurMaterial`
+ * into `blurTargets[mode]` and then into `target` reading the first, so their
+ * shade lands twice as well. The band stays inside the outer 5% either way --
+ * squaring steepens the falloff within it, it does not widen it.
  *
  * Both of their refinements are here and both earn their place. The blur runs
  * TWICE, one pass feeding the next, which is what turns a ramp into a smooth
@@ -166,8 +182,19 @@ const BLUR_FRAGMENT = /* glsl */ `
       0.75,
       clamp(remapTo(uBounds.x, uBounds.y, distanceToWipe) * uAmount * 2.5, 0.0, 1.0)
     );
-    // Blur only. See the header for why nothing here darkens.
-    fragColor = textureBicubic(uSource, vQuadUv, blurArea * ${MAX_BLUR}.0);
+    /*
+     * Their edge falloff, and only their edge falloff.
+     *
+     * distance(vQuadUv.y, 0.5) * 2.0 is 0 down the middle of the panel and
+     * 1 at the top and bottom edges, so this fades the outer ~5% of each end
+     * to black. It does not reference the fold at all -- the panel carries it
+     * open, shut and everywhere between, which is what the reference does and
+     * what the hardware looks like under its own glass.
+     */
+    float edgeFade = smoothstep(1.0, 0.9, distance(vQuadUv.y, 0.5) * 2.0);
+    fragColor =
+      textureBicubic(uSource, vQuadUv, blurArea * ${MAX_BLUR}.0) *
+      vec4(vec3(edgeFade), 1.0);
   }
 `;
 
