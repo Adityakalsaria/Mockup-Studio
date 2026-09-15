@@ -23,10 +23,6 @@ import { parseHex, toHex } from "@/design/color";
 export type LightingId =
   | "studio"
   | "soft"
-  | "contrast"
-  | "product"
-  | "warm"
-  | "cool"
   | "dramatic"
   | "top"
   | "high-key"
@@ -49,29 +45,6 @@ export const LIGHTING_PRESETS: LightingPreset[] = [
   // Lift the fill and pull the edges back: the highlights stop being lines and
   // become gradients. Nothing to catch the eye, which is the point.
   { id: "soft", label: "Soft", key: 0.8, edge: 0.55, fill: 1.7, bounce: 1.35, warmth: 0.1 },
-  // The opposite trade. Fill almost off, edges up, so the body goes dark
-  // between the rakes and the silhouette does the work.
-  { id: "contrast", label: "Contrast", key: 1.3, edge: 1.55, fill: 0.3, bounce: 0.45, warmth: -0.05 },
-  /*
-   * Apple's own product shot, read off four of them: the Burgundy, Sky Blue,
-   * White and Black 18 Pros.
-   *
-   * What those renders have in common is not brightness, it is RESTRAINT. One
-   * big soft key from the upper left, an edge that catches the chamfer and the
-   * camera rings hard enough to draw the whole silhouette in a single bright
-   * line, and almost no fill at all — the right-hand third of the body falls
-   * to within a few values of the black it sits on. `contrast` is the same
-   * idea and stops short: this takes the fill down another third and the edge
-   * up, because in the references the rim is the brightest thing in frame and
-   * on a dark finish it is the ONLY thing that says where the phone ends.
-   *
-   * Barely cool. Apple's white balance is close to neutral with the faintest
-   * blue in the specular, which is what keeps aluminium reading as metal
-   * rather than as paint — a warm key on that grey turns it beige immediately.
-   */
-  { id: "product", label: "Product", key: 1.25, edge: 1.85, fill: 0.2, bounce: 0.3, warmth: -0.12 },
-  { id: "warm", label: "Warm", key: 1.05, edge: 0.95, fill: 1.1, bounce: 1.25, warmth: 0.6 },
-  { id: "cool", label: "Cool", key: 1, edge: 1.15, fill: 1, bounce: 0.85, warmth: -0.6 },
   // Edges at their brightest over almost nothing: a black body cut out by two
   // hard lines of light.
   { id: "dramatic", label: "Dramatic", key: 0.55, edge: 2.2, fill: 0.08, bounce: 0.15, warmth: -0.1 },
