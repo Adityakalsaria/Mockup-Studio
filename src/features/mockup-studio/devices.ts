@@ -226,6 +226,11 @@ export interface Device {
    * the device renders exactly as authored and no mixer is built -- which is
    * every rigid phone.
    */
+  /**
+   * Meshes moved by hand, in the file's own units and world axes, before the
+   * model is posed or measured. For a part an export left in the wrong place.
+   */
+  meshNudges?: Record<string, [number, number, number]>;
   fold?: {
     openSec: number;
     closedSec: number;
@@ -965,6 +970,10 @@ export const DEVICES: Device[] = [
     label: "Apple iPhone 17 Pro",
     modelPath: `${MODELS}/apple-iphone-17-pro.glb`,
     hideHints: [],
+    // The LiDAR window sat at the bottom of its barrel, 1.2mm inside the body
+    // while the flash beside it is flush. Brought up to the barrel's rim, level
+    // with the flash cover (z -0.0068; the back faces -z).
+    meshNudges: { CUXydfOmpZTOIwn: [0, 0, -0.0012] },
     finishIds: [
       "cosmic-orange",
       "deep-blue",

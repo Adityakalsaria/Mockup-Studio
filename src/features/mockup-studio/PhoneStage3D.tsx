@@ -1389,6 +1389,18 @@ function GLBPhoneScene({
   } = useMemo(() => {
     const cloned = cloneSkinned(gltf.scene) as Group;
 
+    // Parts the file left in the wrong place (see `Device.meshNudges`). The
+    // offset is in world axes, so it is turned into the part's parent space.
+    if (device.meshNudges) {
+      cloned.updateMatrixWorld(true);
+      for (const [name, offset] of Object.entries(device.meshNudges)) {
+        const node = cloned.getObjectByName(name);
+        if (!node?.parent) continue;
+        const world = node.getWorldPosition(new Vector3()).add(new Vector3(...offset));
+        node.position.copy(node.parent.worldToLocal(world));
+      }
+    }
+
 
     // Before the posing and the measuring below, so the added rim is part of
     // the silhouette everything downstream is fitted to.
