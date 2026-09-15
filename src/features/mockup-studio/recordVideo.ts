@@ -2,6 +2,7 @@
 
 import { paintBackground, type BackgroundSettings } from "./backgrounds";
 import { paintOverlay, type OverlaySettings } from "./overlay";
+import { loadWatermark, paintWatermark } from "./watermark";
 import { applyCanvasShadow, clearCanvasShadow, type ShadowSettings } from "./shadow";
 import type { StageRecorder } from "./PhoneStage3D";
 
@@ -153,6 +154,8 @@ export async function recordStageVideo({
     }
   }
 
+  const mark = await loadWatermark();
+  const markCache = {};
   const composeFrame = () => {
     // Clear first: "None" paints nothing, and without this the previous frame
     // would still be sitting there under the transparent phone.
@@ -167,6 +170,7 @@ export async function recordStageVideo({
     // After the phone: the layer sits over the shot, which is the order the
     // live stage uses and the order `renderVideoExact` uses.
     if (overlay) paintOverlay(ctx, overlay, width, height);
+    if (mark) paintWatermark(ctx, width, height, mark, markCache);
   };
 
   // Prime the canvas without pushing: the recorder is not running yet, so a

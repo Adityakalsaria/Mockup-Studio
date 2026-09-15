@@ -35,6 +35,7 @@ import {
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
+import { ColorPickerPanel } from "@/design/ColorPicker";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { GIZMO_SHAPE } from "./GizmoCanvas";
@@ -1502,7 +1503,6 @@ const HISTORY = [
 const DEVICE_ICONS: Record<string, string> = {
   "apple-iphone-17": "iphone",
   "apple-iphone-17-pro": "iphone",
-  "test-4": "iphone",
   "apple-iphone-17-pro-max": "iphone",
   "apple-iphone-air": "iphone",
   "iphone-fold": "iphone",
@@ -1877,6 +1877,12 @@ export default function StudioChrome() {
    * moves, which belongs to neither.
    */
   const open = popupOpen && tab === "crafting" ? selected : null;
+  // The open popup's field when it has exactly one and it is a colour.
+  const onlyField =
+    open?.sections.length === 1 && open.sections[0].fields.length === 1
+      ? open.sections[0].fields[0]
+      : null;
+  const soloColor = onlyField?.kind === "color" ? onlyField : null;
 
   return (
     <>
@@ -2548,6 +2554,16 @@ export default function StudioChrome() {
                             empty="No background image"
                             onPick={studio.uploadBackground}
                             onClear={studio.clearBackground}
+                          />
+                        ) : soloColor ? (
+                          /* One colour and nothing else: the picker IS the
+                             popup, under its header, rather than a row with a
+                             chip that opens a second panel below this one. */
+                          <ColorPickerPanel
+                            value={soloColor.get(effective)}
+                            onChange={(hex) =>
+                              edit((prev) => soloColor.set(prev, hex))
+                            }
                           />
                         ) : (
                           <div

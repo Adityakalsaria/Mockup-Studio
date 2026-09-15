@@ -4,7 +4,7 @@ import { DEFAULT_FINISH_ID } from "../finishes";
 import { DEFAULT_BACKGROUND, type BackgroundSettings } from "../backgrounds";
 import { DEFAULT_DEVICE_ID } from "../devices";
 import { DEFAULT_SHADOW, type ShadowSettings } from "../shadow";
-import { DEFAULT_LIGHTING, rigOf, type LightRig, type LightingId } from "../lighting";
+import { DEFAULT_LIGHTING, type LightingId } from "../lighting";
 import { DEFAULT_ANIMATION, type Animation } from "../animation";
 
 /**
@@ -88,8 +88,12 @@ export interface EditorState {
   shadow: ShadowSettings;
   /** Which lighting rig the environment builds. */
   lighting: LightingId;
-  /** The rig as dialled — see `lightOf`. Absent on shots saved before it. */
-  light?: LightRig;
+  /**
+   * Where the light comes from: degrees round the phone, and up (+) or down
+   * (−). 0 and 0 are the rig as authored. Absent on shots saved before them.
+   */
+  lightAngle: number;
+  lightElevation: number;
 
   /* TIMELINE */
   animation: Animation;
@@ -143,7 +147,8 @@ export const DEFAULT_EDITOR_STATE: EditorState = {
   background: DEFAULT_BACKGROUND,
   shadow: DEFAULT_SHADOW,
   lighting: DEFAULT_LIGHTING,
-  light: rigOf(DEFAULT_LIGHTING),
+  lightAngle: 0,
+  lightElevation: 0,
   animation: DEFAULT_ANIMATION,
 };
 
@@ -227,6 +232,8 @@ export const RANGES = {
   // 14 is very wide and 90 is nearly fisheye. Below 14 a phone at this
   // distance stops being recognisable as one.
   fov: { min: 14, max: 90, step: 1 },
+  lightAngle: { min: -180, max: 180, step: 1 },
+  lightElevation: { min: -60, max: 60, step: 1 },
   /*
    * Pan is a fixed distance in world units while the FRAME grows with the
    * lens, so the same pan covers less and less of the shot as the lens widens.

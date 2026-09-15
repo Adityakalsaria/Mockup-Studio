@@ -34,7 +34,10 @@ export const FINISHES: Finish[] = [
   // iPhone 17 Pro / Pro Max.
   { id: "cosmic-orange", label: "Cosmic Orange", color: "#cf5f28", metalness: 0.6, roughness: 0.27 },
   { id: "deep-blue", label: "Deep Blue", color: "#3d4c6b", metalness: 0.66, roughness: 0.24 },
-  { id: "silver", label: "Silver", color: "#d8dade", metalness: 0.74, roughness: 0.16 },
+  // A grey, not a near-white: through the tone mapping and a bright studio
+  // #d8dade landed as white paint. Metal reads as silver when it is darker
+  // than white and reflective enough to carry the highlights.
+  { id: "silver", label: "Silver", color: "#b4b8be", metalness: 0.86, roughness: 0.18 },
   /*
    * Burgundy and Sky Blue, CHOSEN rather than measured.
    *

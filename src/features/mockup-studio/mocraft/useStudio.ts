@@ -36,6 +36,7 @@ import { getDevice } from "../devices";
 import { finishForDevice, finishesFor } from "../finishes";
 import { paintBackground, preloadBackgroundImage } from "../backgrounds";
 import { paintOverlay } from "../overlay";
+import { loadWatermark, paintWatermark } from "../watermark";
 import { applyCanvasShadow, clearCanvasShadow } from "../shadow";
 import { recordStageVideo } from "../recordVideo";
 import { renderVideoExact, supportsExactRender } from "../renderVideoExact";
@@ -602,6 +603,21 @@ export function useStudio() {
    * over a hundred, clamped to the range the Transform popup's sliders run in
    * so the two cannot disagree about where the ends are.
    */
+  /** Cmd+Shift+drag on the stage: Location X and Y, from where the phone is. */
+  const nudgePan = useCallback(
+    ({ dx, dy }: { dx: number; dy: number }) => {
+      edit((prev) => {
+        const now = sampleAnimation(prev.animation, playheadRef.current);
+        return {
+          ...prev,
+          panX: (now.panX ?? prev.panX) + dx,
+          panY: (now.panY ?? prev.panY) + dy,
+        };
+      });
+    },
+    [edit],
+  );
+
   const nudgeZoom = useCallback(
     (deltaPct: number) => {
       // Once per event, for the reason `turn` gives.
@@ -704,6 +720,8 @@ export function useStudio() {
     // After the phone: the layer sits over the shot, which is the order the
     // live stage renders in.
     paintOverlay(ctx, shot.overlay, out.width, out.height);
+    const mark = await loadWatermark();
+    if (mark) paintWatermark(ctx, out.width, out.height, mark);
 
     const link = document.createElement("a");
     link.href = out.toDataURL("image/png");
@@ -1271,6 +1289,7 @@ export function useStudio() {
       turn,
       nudgeRotation,
       nudgeZoom,
+      nudgePan,
       // Snapping
       guides,
       snapField,
@@ -1353,6 +1372,7 @@ export function useStudio() {
       turn,
       nudgeRotation,
       nudgeZoom,
+      nudgePan,
       guides,
       snapField,
       ratioId,

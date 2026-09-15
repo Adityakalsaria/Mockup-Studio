@@ -84,34 +84,6 @@ export const LIGHTING_PRESETS: LightingPreset[] = [
   { id: "rim", label: "Rim", key: 0.3, edge: 2, fill: 0.15, bounce: 0.6, warmth: -0.2 },
 ];
 
-/**
- * The rig as dialled: a preset's balance, or one moved by hand, plus how far
- * the whole rig is turned around the phone. What the Lighting popup's sliders
- * edit and what the environment builds.
- */
-export type LightRig = Omit<LightingPreset, "id" | "label"> & {
-  /** Degrees about the vertical, 0 as authored. */
-  angle: number;
-  /** Degrees the rig is tipped up (+) or down (−), 0 as authored. */
-  elevation: number;
-};
-
-export const rigOf = (
-  id: LightingId,
-  angle = 0,
-  elevation = 0,
-): LightRig => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { id: _id, label: _label, ...balance } = getLighting(id);
-  return { ...balance, angle, elevation };
-};
-
-/** A shot's rig — saved before the sliders existed, it is its preset's. */
-export const lightOf = (s: {
-  lighting: LightingId;
-  light?: Partial<LightRig>;
-}): LightRig => ({ ...rigOf(s.lighting), ...s.light });
-
 export const DEFAULT_LIGHTING: LightingId = "studio";
 
 export const getLighting = (id: LightingId): LightingPreset =>

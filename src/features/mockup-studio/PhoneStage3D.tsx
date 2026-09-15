@@ -21,7 +21,7 @@ import { StudioEnvironment } from "./StudioEnvironment";
 import { StageLoader } from "./StageLoader";
 import { DEFAULT_SHADOW, type ShadowSettings } from "./shadow";
 import { useShadowFilter } from "./ShadowFilter";
-import { DEFAULT_LIGHTING, type LightRig, type LightingId } from "./lighting";
+import { DEFAULT_LIGHTING, type LightingId } from "./lighting";
 import { isBlurActive, type BlurSettings } from "./blurStyles";
 import { TRANSFORM_OMEGA, springTo } from "./transformSpring";
 import type { Quat } from "./gyro/quaternion";
@@ -734,11 +734,14 @@ const DRAG_SLOP = 4;
 function PointerDragRotation({
   onRotateChange,
   onScaleChange,
+  onPanChange,
 }: {
   onRotateChange: (delta: { dx: number; dy: number }) => void;
   onScaleChange?: (deltaPct: number) => void;
+  /** Cmd+Shift+drag: a move of Location X/Y, in pan units. */
+  onPanChange?: (delta: { dx: number; dy: number }) => void;
 }) {
-  const { gl } = useThree();
+  const { gl, camera } = useThree();
 
   // Callers pass inline arrows, so these props get a new identity on every
   // render. Latching them in a ref keeps the effect below depending on `gl`
@@ -747,9 +750,11 @@ function PointerDragRotation({
   // pixel in.
   const rotateRef = useRef(onRotateChange);
   const scaleRef = useRef(onScaleChange);
+  const panRef = useRef(onPanChange);
   useEffect(() => {
     rotateRef.current = onRotateChange;
     scaleRef.current = onScaleChange;
+    panRef.current = onPanChange;
   });
 
   // Refs rather than closure locals for the same reason — a re-subscribe must
@@ -819,6 +824,22 @@ function PointerDragRotation({
        * you set out in is the one it commits to, and it can still change its
        * mind if you genuinely turn a corner.
        */
+      /*
+       * Cmd+Shift: move instead of turn, so the phone stays under the cursor.
+       * A pixel is converted to world units at the phone's depth (the camera's
+       * distance and field of view), then to pan units — a fifth of a phone
+       * height, with Y down. See `PhoneScene`'s offsets.
+       */
+      if (e.metaKey && e.shiftKey && panRef.current) {
+        const persp = camera as PerspectiveCamera;
+        const worldPerPx =
+          (2 * persp.position.length() * Math.tan(((persp.fov ?? 30) * Math.PI) / 360)) /
+          Math.max(1, target.clientHeight);
+        const perPan = 0.2 * PHONE_HEIGHT;
+        panRef.current({ dx: (dx * worldPerPx) / perPan, dy: (dy * worldPerPx) / perPan });
+        return;
+      }
+
       if (e.shiftKey) {
         const { x, y } = travelRef.current;
         rotateRef.current(x >= y ? { dx, dy: 0 } : { dx: 0, dy });
@@ -3337,6 +3358,40 @@ function PhoneScene({
   );
 }
 
+/**
+ * Where the light comes from, as a turn of the finished environment.
+ *
+ * `scene.environmentRotation`, not the rig: the environment is rendered into
+ * its cube map once, and turning the lights themselves would mean rendering it
+ * again every frame of a keyed light move. Turning what was rendered is free.
+ * Sampled from the clip each frame so a keyed angle plays; otherwise the value
+ * as dialled.
+ */
+function LightTurn({
+  angle,
+  elevation,
+  animation,
+  timeRef,
+}: {
+  angle: number;
+  elevation: number;
+  animation?: Animation;
+  timeRef?: React.RefObject<number>;
+}) {
+  const scene = useThree((state) => state.scene);
+  const invalidate = useThree((state) => state.invalidate);
+  useFrame(() => {
+    const pose = animation && timeRef ? sampleAnimation(animation, timeRef.current) : {};
+    const a = pose.lightAngle ?? angle;
+    const e = pose.lightElevation ?? elevation;
+    scene.environmentRotation.set((-e * Math.PI) / 180, (a * Math.PI) / 180, 0, "YXZ");
+  });
+  useEffect(() => {
+    invalidate();
+  }, [angle, elevation, invalidate]);
+  return null;
+}
+
 export default function PhoneStage3D({
   rail,
   screenTexture,
@@ -3368,13 +3423,15 @@ export default function PhoneStage3D({
   fov = 38,
   shadow = DEFAULT_SHADOW,
   lighting = DEFAULT_LIGHTING,
-  light,
+  lightAngle = 0,
+  lightElevation = 0,
   screenFit,
   canvasRef,
   captureRef,
   recorderRef,
   onRotateDrag,
   onScaleWheel,
+  onPanDrag,
 }: {
   rail: Phone3DRail | undefined;
   screenTexture: Texture | null;
@@ -3419,8 +3476,9 @@ export default function PhoneStage3D({
   fov?: number;
   shadow?: ShadowSettings;
   lighting?: LightingId;
-  /** The dialled rig, over the preset. */
-  light?: LightRig;
+  /** Where the light comes from, in degrees; keyable. */
+  lightAngle?: number;
+  lightElevation?: number;
   /** Manual nudge on the screen crop — see ScreenFit. */
   screenFit?: ScreenFit;
   canvasRef?: React.MutableRefObject<HTMLCanvasElement | null>;
@@ -3430,6 +3488,7 @@ export default function PhoneStage3D({
   onRotateDrag?: (delta: { dx: number; dy: number }) => void;
   /** Wheel / trackpad pinch over the canvas, in scale percentage points. */
   onScaleWheel?: (deltaPct: number) => void;
+  onPanDrag?: (delta: { dx: number; dy: number }) => void;
 }) {
   const device = getDevice(deviceId);
   const { id: shadowFilterId, defs: shadowDefs } = useShadowFilter(shadow);
@@ -3487,9 +3546,16 @@ export default function PhoneStage3D({
           <PointerDragRotation
             onRotateChange={onRotateDrag}
             onScaleChange={onScaleWheel}
+            onPanChange={onPanDrag}
           />
         ) : null}
-        <StudioEnvironment lighting={lighting} light={light} />
+        <StudioEnvironment lighting={lighting} />
+        <LightTurn
+          angle={lightAngle}
+          elevation={lightElevation}
+          animation={animation}
+          timeRef={timeRef}
+        />
         {/*
           No surface bench. `MaterialLab` was mounted here for the 18s while
           their materials were being tuned; the numbers it found now live in

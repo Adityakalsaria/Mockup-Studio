@@ -180,17 +180,34 @@ export function ColorPicker({
   );
 }
 
+/**
+ * The picker drawn straight into a surface, rather than hung off a swatch —
+ * for a popup whose only field IS the colour, where a row with a chip and a
+ * second panel under it would be the same control twice.
+ */
+export function ColorPickerPanel({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return <Popover value={value} onChange={onChange} />;
+}
+
 function Popover({
   anchor,
   value,
   onChange,
   onClose,
 }: {
-  anchor: React.RefObject<HTMLButtonElement | null>;
+  /** Absent: drawn in place, with no positioning and nothing to dismiss. */
+  anchor?: React.RefObject<HTMLButtonElement | null>;
   value: string;
   onChange: (next: string) => void;
-  onClose: () => void;
+  onClose?: () => void;
 }) {
+  const inline = !anchor;
   const rootRef = useRef<HTMLDivElement>(null);
 
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
@@ -237,6 +254,7 @@ function Popover({
    * around by the spring. On the body it is clipped by nothing.
    */
   useEffect(() => {
+    if (!anchor) return;
     const place = () => {
       const trigger = anchor.current;
       const node = rootRef.current;
@@ -293,6 +311,7 @@ function Popover({
   }, [anchor]);
 
   useEffect(() => {
+    if (!anchor || !onClose) return;
     const onDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (rootRef.current?.contains(target) || anchor.current?.contains(target)) return;
@@ -376,36 +395,8 @@ function Popover({
   const supportsDropper = typeof window !== "undefined" && !!window.EyeDropper;
   const markerDark = isLight(value);
 
-  return createPortal(
-    <div
-      ref={rootRef}
-      role="dialog"
-      aria-modal={false}
-      aria-label="Colour picker"
-      /*
-       * ABSOLUTE, in page coordinates — not fixed, and with no z-index.
-       *
-       * Both of those group the backdrop away from the `backdrop-filter`
-       * inside: a fixed element is composited on its own, a z-index opens a
-       * stacking context, and either one leaves the frost sampling nothing.
-       * The picker rendered as a pane of clear glass with the blueprint's grid
-       * lines crossing it dead sharp.
-       *
-       * Neither is needed. This portals to the end of the body, so paint order
-       * puts it on top without a layer number, and page coordinates put it
-       * where fixed would — `place` runs again on scroll and resize, which is
-       * the one thing fixed was doing for free.
-       */
-      style={{
-        position: "absolute",
-        left: pos?.left ?? -9999,
-        top: pos?.top ?? -9999,
-        // Hidden until placed, so it never flashes in the corner first.
-        visibility: pos ? "visible" : "hidden",
-      }}
-      onPointerDown={(event) => event.stopPropagation()}
-    >
-      <Glass style={{ gap: GAP }}>
+  const body = (
+    <>
         {/* Saturation across, value down, over the current hue. Two CSS
             gradients do what a canvas would and stay sharp at any zoom. */}
         <div
@@ -570,6 +561,48 @@ function Popover({
             ))}
           </div>
         ) : null}
+    </>
+  );
+
+  if (inline) {
+    return (
+      <div className="flex flex-col" style={{ gap: GAP }}>
+        {body}
+      </div>
+    );
+  }
+
+  return createPortal(
+    <div
+      ref={rootRef}
+      role="dialog"
+      aria-modal={false}
+      aria-label="Colour picker"
+      /*
+       * ABSOLUTE, in page coordinates — not fixed, and with no z-index.
+       *
+       * Both of those group the backdrop away from the `backdrop-filter`
+       * inside: a fixed element is composited on its own, a z-index opens a
+       * stacking context, and either one leaves the frost sampling nothing.
+       * The picker rendered as a pane of clear glass with the blueprint's grid
+       * lines crossing it dead sharp.
+       *
+       * Neither is needed. This portals to the end of the body, so paint order
+       * puts it on top without a layer number, and page coordinates put it
+       * where fixed would — `place` runs again on scroll and resize, which is
+       * the one thing fixed was doing for free.
+       */
+      style={{
+        position: "absolute",
+        left: pos?.left ?? -9999,
+        top: pos?.top ?? -9999,
+        // Hidden until placed, so it never flashes in the corner first.
+        visibility: pos ? "visible" : "hidden",
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <Glass style={{ gap: GAP }}>
+        {body}
       </Glass>
     </div>,
     document.body,

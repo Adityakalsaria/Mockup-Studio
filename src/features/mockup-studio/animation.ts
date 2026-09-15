@@ -44,6 +44,10 @@ export const ANIMATABLE = [
    * a lens that visibly steps.
    */
   { key: "fov", label: "Lens" },
+  // Where the light comes from. Keyable like the pose: a turn of the light
+  // across a still phone is a move in its own right.
+  { key: "lightAngle", label: "Light angle" },
+  { key: "lightElevation", label: "Light height" },
 ] as const;
 
 export type AnimatableKey = (typeof ANIMATABLE)[number]["key"];

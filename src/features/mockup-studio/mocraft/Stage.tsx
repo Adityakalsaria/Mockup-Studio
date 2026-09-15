@@ -27,7 +27,6 @@ import { isOverlayActive } from "../overlay";
 import type { Studio } from "./useStudio";
 import type { SnapGuides } from "./snapping";
 import { isBlurActive, type BlurSettings } from "../blurStyles";
-import { lightOf } from "../lighting";
 
 /**
  * How much workspace is left around the canvas.
@@ -144,7 +143,8 @@ function StageInner({ studio }: { studio: Studio }) {
           cardDepth={state.cardDepth}
           shadow={state.shadow}
           lighting={state.lighting}
-          light={lightOf(state)}
+          lightAngle={state.lightAngle ?? 0}
+          lightElevation={state.lightElevation ?? 0}
           screenFit={{
             ...studio.screenFit,
             // A mirrored device screen already contains its own island.
@@ -178,6 +178,7 @@ function StageInner({ studio }: { studio: Studio }) {
            */
           onRotateDrag={studio.nudgeRotation}
           onScaleWheel={studio.nudgeZoom}
+          onPanDrag={studio.nudgePan}
         />
 
         {/*

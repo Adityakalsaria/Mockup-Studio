@@ -3,6 +3,7 @@
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 import { paintBackground, type BackgroundSettings } from "./backgrounds";
 import { paintOverlay, type OverlaySettings } from "./overlay";
+import { loadWatermark, paintWatermark } from "./watermark";
 import { applyCanvasShadow, clearCanvasShadow, type ShadowSettings } from "./shadow";
 import type { StageRecorder } from "./PhoneStage3D";
 
@@ -192,6 +193,8 @@ export async function renderVideoExact({
   video?.pause();
 
   const frameCount = Math.max(1, Math.round(durationSec * fps));
+  const mark = await loadWatermark();
+  const markCache = {};
   const frameDurationUs = 1_000_000 / fps;
   const clipLength =
     video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
@@ -219,6 +222,7 @@ export async function renderVideoExact({
         if (overlay) paintOverlay(ctx, overlay, width, height);
       });
       clearCanvasShadow(ctx);
+      if (mark) paintWatermark(ctx, width, height, mark, markCache);
 
       const frame = new VideoFrame(composite, {
         timestamp: Math.round(i * frameDurationUs),

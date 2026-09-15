@@ -5,9 +5,8 @@ import { Environment, Lightformer } from "@react-three/drei";
 import { CanvasTexture, LinearFilter } from "three";
 import {
   DEFAULT_LIGHTING,
-  rigOf,
+  getLighting,
   shiftTemperature,
-  type LightRig,
   type LightingId,
 } from "./lighting";
 
@@ -67,11 +66,8 @@ function makeSoftboxTexture(): CanvasTexture {
 
 export function StudioEnvironment({
   lighting = DEFAULT_LIGHTING,
-  light,
 }: {
   lighting?: LightingId;
-  /** The dialled rig; the preset's own when absent. */
-  light?: LightRig;
 }) {
   const softbox = useMemo(() => makeSoftboxTexture(), []);
   useEffect(() => () => softbox.dispose(), [softbox]);
@@ -79,7 +75,7 @@ export function StudioEnvironment({
   // The preset multiplies the rig rather than replacing it, so the positions
   // and scales below stay the ones that were dialled in and only the balance
   // and the temperature move.
-  const rig = light ?? rigOf(lighting);
+  const rig = getLighting(lighting);
   const tint = (hex: string) => shiftTemperature(hex, rig.warmth);
 
   return (
@@ -87,16 +83,6 @@ export function StudioEnvironment({
     // quantises a smooth falloff into visible steps across a surface as
     // polished as the back glass. Still `frames={1}` — nothing here moves.
     <Environment resolution={512} frames={1}>
-      {/* The whole rig turned about the phone, so the highlights travel
-          round the body together: round it, then up or down. */}
-      <group
-        rotation={[
-          (-(rig.elevation ?? 0) * Math.PI) / 180,
-          (rig.angle * Math.PI) / 180,
-          0,
-        ]}
-        rotation-order="YXZ"
-      >
       {/* Key: a wide softbox up and in front, warm. Intensities run higher
           than the old hard rects because a radial falloff emits roughly a
           third of the light a flat panel of the same size does. */}
@@ -183,7 +169,6 @@ export function StudioEnvironment({
         scale={[3, 0.5, 1]}
         target={[0, 0, 0]}
       />
-      </group>
     </Environment>
   );
 }

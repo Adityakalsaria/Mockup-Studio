@@ -39,7 +39,7 @@ import {
   type BlurMode,
   type BlurSettings,
 } from "../blurStyles";
-import { LIGHTING_PRESETS, lightOf, rigOf, type LightingId } from "../lighting";
+import { LIGHTING_PRESETS } from "../lighting";
 import { OVERLAY_RANGES } from "../overlay";
 import { SHADOW_RANGES } from "../shadow";
 
@@ -870,17 +870,8 @@ export const LAYERS: Layer[] = [
               label: preset.label,
             })),
             get: (s) => s.lighting,
-            // A preset loads its balance into the sliders and keeps the angle
-            // the rig was turned to.
-            set: (s, id) => ({
-              ...s,
-              lighting: id as EditorState["lighting"],
-              light: rigOf(
-                id as LightingId,
-                lightOf(s).angle,
-                lightOf(s).elevation ?? 0,
-              ),
-            }),
+            // Only the rig: the direction it comes from is its own, and stays.
+            set: (s, id) => ({ ...s, lighting: id as EditorState["lighting"] }),
           },
         ],
       },
@@ -896,22 +887,20 @@ export const LAYERS: Layer[] = [
             kind: "point",
             label: "Light Direction",
             key: "light-direction",
-            get: (s) => {
-              const l = lightOf(s);
-              return {
-                x: (l.angle + 180) / 360,
-                y: (60 - (l.elevation ?? 0)) / 120,
-              };
-            },
+            get: (s) => ({
+              x: ((s.lightAngle ?? 0) + 180) / 360,
+              y: (60 - (s.lightElevation ?? 0)) / 120,
+            }),
             set: (s, p) => ({
               ...s,
-              light: {
-                ...lightOf(s),
-                angle: p.x * 360 - 180,
-                elevation: 60 - p.y * 120,
-              },
+              lightAngle: Math.round(p.x * 360 - 180),
+              lightElevation: Math.round(60 - p.y * 120),
             }),
           },
+          // The same two numbers as rows, which is where their keyframe
+          // diamonds live: a pad has no single value to key.
+          scalar("Angle", "lightAngle", RANGES.lightAngle, fmt.deg),
+          scalar("Height", "lightElevation", RANGES.lightElevation, fmt.deg),
         ],
       },
     ],
@@ -928,7 +917,8 @@ export const LAYERS: Layer[] = [
         : {
             ...s,
             lighting: DEFAULT_EDITOR_STATE.lighting,
-            light: rigOf(DEFAULT_EDITOR_STATE.lighting),
+            lightAngle: 0,
+            lightElevation: 0,
           },
   },
   {
