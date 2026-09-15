@@ -534,8 +534,13 @@ function Popover({
         */}
         {recents.length ? (
           <div
-            className="flex w-full items-center justify-between"
+            // Slots for a FULL row, filled from the left. Spread with
+            // justify-between, four recents flew to the corners of a row
+            // spaced for ten.
+            className="grid w-full items-center"
             style={{
+              gridTemplateColumns: `repeat(${RECENTS_MAX}, 16px)`,
+              justifyContent: "space-between",
               marginTop: RECENTS_GAP - GAP,
               marginBottom: RECENTS_INSET,
               padding: `0 ${RECENTS_INSET}px`,
