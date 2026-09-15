@@ -4,7 +4,7 @@ import { DEFAULT_FINISH_ID } from "../finishes";
 import { DEFAULT_BACKGROUND, type BackgroundSettings } from "../backgrounds";
 import { DEFAULT_DEVICE_ID } from "../devices";
 import { DEFAULT_SHADOW, type ShadowSettings } from "../shadow";
-import { DEFAULT_LIGHTING, type LightingId } from "../lighting";
+import { DEFAULT_LIGHTING, rigOf, type LightRig, type LightingId } from "../lighting";
 import { DEFAULT_ANIMATION, type Animation } from "../animation";
 
 /**
@@ -88,6 +88,8 @@ export interface EditorState {
   shadow: ShadowSettings;
   /** Which lighting rig the environment builds. */
   lighting: LightingId;
+  /** The rig as dialled — see `lightOf`. Absent on shots saved before it. */
+  light?: LightRig;
 
   /* TIMELINE */
   animation: Animation;
@@ -141,6 +143,7 @@ export const DEFAULT_EDITOR_STATE: EditorState = {
   background: DEFAULT_BACKGROUND,
   shadow: DEFAULT_SHADOW,
   lighting: DEFAULT_LIGHTING,
+  light: rigOf(DEFAULT_LIGHTING),
   animation: DEFAULT_ANIMATION,
 };
 

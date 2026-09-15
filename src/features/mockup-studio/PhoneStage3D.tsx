@@ -21,12 +21,12 @@ import { StudioEnvironment } from "./StudioEnvironment";
 import { StageLoader } from "./StageLoader";
 import { DEFAULT_SHADOW, type ShadowSettings } from "./shadow";
 import { useShadowFilter } from "./ShadowFilter";
-import { DEFAULT_LIGHTING, type LightingId } from "./lighting";
+import { DEFAULT_LIGHTING, type LightRig, type LightingId } from "./lighting";
 import { isBlurActive, type BlurSettings } from "./blurStyles";
 import { TRANSFORM_OMEGA, springTo } from "./transformSpring";
 import type { Quat } from "./gyro/quaternion";
 
-// Lazy so `postprocessing` only reaches the browser when a blur is switched
+// Lazy so the blur passes only reach the browser when a blur is switched
 // on. It is by far the heaviest thing this feature can pull in.
 const DepthOfFieldLayer = lazy(() => import("./DepthOfFieldLayer"));
 
@@ -1367,6 +1367,7 @@ function GLBPhoneScene({
     mixer, leafRest, hinge, foldRoot, foldCentres,
   } = useMemo(() => {
     const cloned = cloneSkinned(gltf.scene) as Group;
+
 
     // Before the posing and the measuring below, so the added rim is part of
     // the silhouette everything downstream is fitted to.
@@ -3367,6 +3368,7 @@ export default function PhoneStage3D({
   fov = 38,
   shadow = DEFAULT_SHADOW,
   lighting = DEFAULT_LIGHTING,
+  light,
   screenFit,
   canvasRef,
   captureRef,
@@ -3417,6 +3419,8 @@ export default function PhoneStage3D({
   fov?: number;
   shadow?: ShadowSettings;
   lighting?: LightingId;
+  /** The dialled rig, over the preset. */
+  light?: LightRig;
   /** Manual nudge on the screen crop — see ScreenFit. */
   screenFit?: ScreenFit;
   canvasRef?: React.MutableRefObject<HTMLCanvasElement | null>;
@@ -3429,6 +3433,7 @@ export default function PhoneStage3D({
 }) {
   const device = getDevice(deviceId);
   const { id: shadowFilterId, defs: shadowDefs } = useShadowFilter(shadow);
+
   return (
     <>
       {shadowDefs}
@@ -3484,7 +3489,7 @@ export default function PhoneStage3D({
             onScaleChange={onScaleWheel}
           />
         ) : null}
-        <StudioEnvironment lighting={lighting} />
+        <StudioEnvironment lighting={lighting} light={light} />
         {/*
           No surface bench. `MaterialLab` was mounted here for the 18s while
           their materials were being tuned; the numbers it found now live in

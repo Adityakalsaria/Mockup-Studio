@@ -1172,6 +1172,72 @@ export const DEVICES: Device[] = [
     credit: "Apple — design resources (iphone-17-pro-e-sim.usdz)",
   },
   {
+    // TEST 4: a Blender re-export of the iPhone 17 Pro, supplied as
+    // "test 4.glb". Blender suffixed every part name (".004", ".008"…), and
+    // parts are matched by name — so each name here is the suffixed copy.
+    id: "test-4",
+    label: "TEST 4",
+    modelPath: `${MODELS}/test-4.glb`,
+    hideHints: [],
+    finishIds: [
+      "cosmic-orange",
+      "deep-blue",
+      "silver",
+      "pro-burgundy",
+      "pro-sky-blue",
+    ],
+    screenMaterial: "BsXHDwLKqtDOfrW.004",
+    authoredBodyColor: "#e47a44",
+    plainMaterials: ["SMUhrjUPCjJkPUK.008"],
+    bodyMaterials: ["PJgHvfOhNXkxvzq.004", "iAKEWdNafBldSCV.004"],
+    materialColors: {
+      "YQFhPSFSryEqJMp.012": "#0d0d0f",
+      "edDerJJLuuabITp.012": "#0d0d0f",
+      // Surfaces tuned by eye on the Surface bench and locked here.
+      // The frame.
+      "SLmJkLdkhbbuEfG.032": {
+        // `lighten: 0` is the finish colour itself. An override with only
+        // surfaces keeps the file's orange whatever finish is picked.
+        lighten: 0,
+        roughness: 0.76,
+        metalness: 0.61,
+        envMapIntensity: 1.65,
+      },
+      // The back glass, as it was before the bench.
+      "SMUhrjUPCjJkPUK.008": {
+        lighten: 0.07,
+        roughness: 0.14,
+        metalness: 0,
+        envMapIntensity: 2.6,
+      },
+      // The antenna bands.
+      "sJxAokqqlZYuwzy.008": { lighten: 0, roughness: 0.52, metalness: 0.08 },
+      "yPEFElLJTRhfWfw.004": { darken: 0.12 },
+      "awYxKfiOpRgQIxD.004": { darken: 0.12 },
+    },
+    meshColors: {
+      "IvdeSiYDweqsnZm.004": "#0d0d0f",
+      "RhBESHcBbtHIQyo.004": "#0d0d0f",
+      "yTmdRacfvebHTTS.004": "#101013",
+    },
+    keepMaterials: [
+      "uFgsppDNoPNkBqW.060",
+      "nypJRzXNHbmJCqR.012",
+      "ieDmCkHnOnSIOcm.004",
+      "ieDmCkHnOnSIOcm.006",
+      "LqxrKBoiOXSOFqs.008",
+      "JKTmNomFyvfvVAj.012",
+      "QEOvfSZiwySWiUk.004",
+    ],
+    // No screenFlipY, unlike the 17 Pro: Blender's glTF export already writes
+    // the screen UVs top-down; the USDZ conversion behind the 17 Pro did not.
+    screenCornerRadiusPct: 0.135,
+    screenInsetPct: 1,
+    screenNative: { width: 1206, height: 2622 },
+    notch: null,
+    credit: "TEST — test 4.glb",
+  },
+  {
     id: "apple-iphone-17-pro-max",
     label: "Apple iPhone 17 Pro Max",
     modelPath: `${MODELS}/apple-iphone-17-pro-max.glb`,

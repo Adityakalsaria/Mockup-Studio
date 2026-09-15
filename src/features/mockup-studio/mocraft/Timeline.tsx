@@ -59,8 +59,12 @@ import { getMotionPreset } from "../editor/motionPresets";
 import type { Studio } from "./useStudio";
 
 /** Fixed, so the composition above does not jump every time a preset with a
-    different number of channels is picked. */
-export const PANEL_H = 250;
+    different number of channels is picked — fixed per window, not per preset.
+    250 wherever there is room for it; a short window gives some back, down to
+    a floor that still holds the header and a couple of lanes, because a
+    constant 250 was 40% of a 640 laptop and left the side panels nowhere to
+    go. The lanes scroll already, so what shrinking costs is a scroll. */
+export const PANEL_H = "clamp(180px, 30dvh, 250px)";
 /**
  * The floor on every gap in the panel, and the clearance from its edge.
  *
@@ -1285,7 +1289,7 @@ export function Timeline({ studio }: { studio: Studio }) {
                 selected.x - control.panelW / 2,
               ),
             ),
-            bottom: PANEL_H + SAFE,
+            bottom: `calc(100% + ${SAFE}px)`,
             zIndex: POPUP_Z,
           }}
         >
@@ -1357,7 +1361,7 @@ export function Timeline({ studio }: { studio: Studio }) {
                 segment.x - control.panelW / 2,
               ),
             ),
-            bottom: PANEL_H + SAFE,
+            bottom: `calc(100% + ${SAFE}px)`,
             zIndex: POPUP_Z,
           }}
         >

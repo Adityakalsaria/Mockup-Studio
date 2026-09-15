@@ -21,6 +21,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resetTransform } from "./bindings";
+import { NO_GUIDES, snap, type SnapGuides, type SnapKey } from "./snapping";
 import {
   ANIMATABLE,
   KEY_EPSILON,
@@ -456,8 +457,104 @@ export function useStudio() {
    * frame and the phone would turn in steps. `prev` is always the newest queued
    * value, whether or not it has been painted yet.
    */
+  /* ---------------------------------------------------------------- snapping */
+
+  /*
+   * What the stage's guides show. Held while a gesture sits on a snap and
+   * cleared a beat after it stops moving, the way Figma's lines leave once
+   * you let go — a guide that stayed would be a mark on the shot.
+   */
+  const [guides, setGuides] = useState<SnapGuides>(NO_GUIDES);
+  const guideTimer = useRef<number | null>(null);
+  const showGuides = useCallback(
+    (hits: { key: SnapKey; snapped: boolean; label: string | null }[]) => {
+      const on = hits.filter((h) => h.snapped);
+      const next: SnapGuides = {
+        // A line for every snap, not only position: a turn about Y lands on the
+        // vertical, about X on the horizontal, and the rest mark the centre.
+        vertical: on.some((h) => !["panY", "xAxis"].includes(h.key)),
+        horizontal: on.some((h) => !["panX", "yAxis"].includes(h.key)),
+        label:
+          on.find((h) => h.key !== "panX" && h.key !== "panY")?.label ?? null,
+      };
+      setGuides((was) =>
+        was.vertical === next.vertical &&
+        was.horizontal === next.horizontal &&
+        was.label === next.label
+          ? was
+          : next,
+      );
+      if (guideTimer.current !== null) window.clearTimeout(guideTimer.current);
+      guideTimer.current = window.setTimeout(() => setGuides(NO_GUIDES), 700);
+    },
+    [],
+  );
+  useEffect(
+    () => () => {
+      if (guideTimer.current !== null) window.clearTimeout(guideTimer.current);
+    },
+    [],
+  );
+
+  /** A slider's value, snapped — for the Transform popup's rows. */
+  const snapField = useCallback(
+    (key: SnapKey, raw: number) => {
+      const hit = snap(key, raw);
+      showGuides([{ key, ...hit }]);
+      return hit.value;
+    },
+    [showGuides],
+  );
+
+  /*
+   * Where a drag WOULD be without the snaps.
+   *
+   * A drag arrives as deltas. Added to a value that has just snapped, every
+   * small move would be pulled straight back and the phone could never leave
+   * 0°. So the gesture keeps its own unsnapped total and the snap is applied
+   * to that; a pause longer than a gesture's gap starts from the state again.
+   */
+  const rawDrag = useRef<{
+    at: number;
+    values: Partial<Record<SnapKey, number>>;
+  }>({
+    at: 0,
+    values: {},
+  });
+  const dragBase = (key: SnapKey, current: number) => {
+    const now = performance.now();
+    if (now - rawDrag.current.at > 250) rawDrag.current.values = {};
+    rawDrag.current.at = now;
+    return rawDrag.current.values[key] ?? current;
+  };
+
   const turn = useCallback(
     ({ dxDeg, dyDeg }: { dxDeg: number; dyDeg: number }) => {
+      /*
+       * The snap is worked out once per event, outside the updater: React runs
+       * updaters twice in development, and the unsnapped total below would
+       * gather each delta twice — a drag at double speed. The updater only
+       * receives the answer, and a memo of it per starting pose.
+       */
+      let answer: { yAxis: number; xAxis: number } | null = null;
+      const snapTurn = (y0: number, x0: number) => {
+        if (answer) return answer;
+        const rawY = dragBase("yAxis", y0) + dxDeg;
+        const rawX = dragBase("xAxis", x0) + dyDeg;
+        rawDrag.current.values.yAxis = rawY;
+        rawDrag.current.values.xAxis = rawX;
+        const y = snap("yAxis", rawY);
+        const x = snap("xAxis", rawX);
+        // Only where the gesture moves that axis: a sideways drag should not
+        // flash a guide for the tilt it never touched.
+        const hits = [
+          ...(dxDeg !== 0 ? [{ key: "yAxis" as const, ...y }] : []),
+          ...(dyDeg !== 0 ? [{ key: "xAxis" as const, ...x }] : []),
+        ];
+        queueMicrotask(() => showGuides(hits));
+        answer = { yAxis: y.value, xAxis: x.value };
+        return answer;
+      };
       edit((prev) => {
         /*
          * Continue from where the phone LOOKS, not from the number underneath
@@ -472,12 +569,11 @@ export function useStudio() {
         const now = sampleAnimation(prev.animation, playheadRef.current);
         return {
           ...prev,
-          yAxis: (now.yAxis ?? prev.yAxis) + dxDeg,
-          xAxis: (now.xAxis ?? prev.xAxis) + dyDeg,
+          ...snapTurn(now.yAxis ?? prev.yAxis, now.xAxis ?? prev.xAxis),
         };
       });
     },
-    [edit],
+    [edit, showGuides],
   );
 
   /**
@@ -508,19 +604,27 @@ export function useStudio() {
    */
   const nudgeZoom = useCallback(
     (deltaPct: number) => {
+      // Once per event, for the reason `turn` gives.
+      let zoomAnswer: number | null = null;
       edit((prev) => {
         // Off the sampled scale for the same reason `turn` is — see there.
         const now = sampleAnimation(prev.animation, playheadRef.current);
-        return {
-          ...prev,
-          zoom: Math.max(
-            RANGES.zoom.min,
-            Math.min(RANGES.zoom.max, (now.zoom ?? prev.zoom) + deltaPct / 100),
+        if (zoomAnswer !== null) return { ...prev, zoom: zoomAnswer };
+        const raw = Math.max(
+          RANGES.zoom.min,
+          Math.min(
+            RANGES.zoom.max,
+            dragBase("zoom", now.zoom ?? prev.zoom) + deltaPct / 100,
           ),
-        };
+        );
+        rawDrag.current.values.zoom = raw;
+        const hit = snap("zoom", raw);
+        queueMicrotask(() => showGuides([{ key: "zoom", ...hit }]));
+        zoomAnswer = hit.value;
+        return { ...prev, zoom: hit.value };
       });
     },
-    [edit],
+    [edit, showGuides],
   );
 
   /* ------------------------------------------------------------------ export */
@@ -574,8 +678,23 @@ export function useStudio() {
     const out = document.createElement("canvas");
     out.width = frame.width;
     out.height = frame.height;
-    const ctx = out.getContext("2d");
+    /*
+     * Display P3 where the screen is, so the file is the picture the editor
+     * showed. An sRGB canvas clipped the wider colours an image background
+     * carries on a Mac, and wrote a PNG with no profile at all — which apps
+     * are then free to read as whatever they like, and several read as dull.
+     * A P3 canvas tags the file; the sRGB phone converts into it exactly.
+     */
+    const colorSpace: PredefinedColorSpace = window.matchMedia(
+      "(color-gamut: p3)",
+    ).matches
+      ? "display-p3"
+      : "srgb";
+    const ctx = out.getContext("2d", { colorSpace });
     if (!ctx) return;
+    // The canvas default is "low", and CSS scales a background image with a
+    // far better filter than that.
+    ctx.imageSmoothingQuality = "high";
 
     setExporting({ kind: "image", done: 0 });
     paintBackground(ctx, shot.background, out.width, out.height, exportScale);
@@ -1152,6 +1271,9 @@ export function useStudio() {
       turn,
       nudgeRotation,
       nudgeZoom,
+      // Snapping
+      guides,
+      snapField,
       // Frame
       ratioId,
       setRatioId,
@@ -1231,6 +1353,8 @@ export function useStudio() {
       turn,
       nudgeRotation,
       nudgeZoom,
+      guides,
+      snapField,
       ratioId,
       ratio,
       presetId,

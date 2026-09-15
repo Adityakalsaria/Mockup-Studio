@@ -31,7 +31,10 @@ import {
   useState,
   type CSSProperties,
   type ReactNode,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
 } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { GIZMO_SHAPE } from "./GizmoCanvas";
@@ -69,7 +72,13 @@ import {
   type Layer,
 } from "./bindings";
 import { DEVICES, getDevice } from "../devices";
-import { keyAt, type AnimatableKey } from "../animation";
+import { isSnapKey, type SnapKey } from "./snapping";
+import {
+  DEFAULT_EASING,
+  keyAt,
+  sampleAnimation,
+  type AnimatableKey,
+} from "../animation";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { getMotionPreset } from "../editor/motionPresets";
 import { DEFAULT_EDITOR_STATE } from "../editor/editorState";
@@ -86,6 +95,427 @@ const ICONS = "/figma-assets/mockup-studio/icons";
  * — and grow and shrink under the popup beside it as effects come and go.
  */
 const STACK_HEIGHT = 600;
+
+/**
+ * Where the side clusters start: under the top bar, whose tallest piece is the
+ * 44 account chip at 16 — plus the 16 every surface stands off the next.
+ */
+const SIDE_TOP = 16 + 44 + 16;
+
+/**
+ * The stack's two halves. Always listed: the things every shot has — where
+ * the phone is, the lens, the light — and its background colour. Everything
+ * else is an effect, listed only once it is added from the Effects menu.
+ */
+const BASE_IDS = ["transform", "camera", "lighting", "background"];
+const BASE_LAYERS = BASE_IDS.map((id) => LAYERS.find((l) => l.id === id)!);
+const EFFECT_LAYERS = LAYERS.filter((l) => !BASE_IDS.includes(l.id));
+
+/**
+ * A menu of rows, opened from a trigger: the Effects plus and the dropdowns in
+ * a popup.
+ *
+ * Portalled to the body, for the reason `ColorPicker` gives — the panels
+ * scroll and clip, and a menu inside one would be cut off at its edge.
+ * Absolute in page coordinates with no z-index, so the glass still has a
+ * backdrop to frost.
+ *
+ * `side` opens it beside the panel the trigger sits in, where every popup from
+ * the stack opens, level with the trigger — hanging under the Effects plus put
+ * the menu across the rows it adds to. `below` drops it under the trigger at
+ * the trigger's width, which is what a dropdown inside a popup wants.
+ */
+type MenuItem = {
+  id: string;
+  label: string;
+  icon?: string;
+  selected?: boolean;
+};
+
+function MenuPopover({
+  anchor,
+  items,
+  label,
+  placement,
+  onPick,
+  onClose,
+}: {
+  anchor: RefObject<HTMLDivElement | null>;
+  items: MenuItem[];
+  label: string;
+  placement: "side" | "below";
+  onPick: (id: string) => void;
+  onClose: () => void;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{
+    left: number;
+    top: number;
+    width: number;
+  } | null>(null);
+
+  useLayoutEffect(() => {
+    const place = () => {
+      const trigger = anchor.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const h = rootRef.current?.offsetHeight ?? 0;
+      const M = 8;
+      if (placement === "side") {
+        const w = control.panelW;
+        const panel =
+          trigger.closest(".mo-glass")?.getBoundingClientRect() ?? rect;
+        const top = Math.max(
+          M,
+          Math.min(rect.top - 8, window.innerHeight - M - h),
+        );
+        const left = Math.max(M, panel.left - 16 - w);
+        setPos({
+          left: left + window.scrollX,
+          top: top + window.scrollY,
+          width: w,
+        });
+        return;
+      }
+      // Under the trigger, or over it when there is no room below.
+      const below = rect.bottom + 4;
+      const top =
+        below + h > window.innerHeight - M
+          ? Math.max(M, rect.top - 4 - h)
+          : below;
+      setPos({
+        left: rect.left + window.scrollX,
+        top: top + window.scrollY,
+        width: rect.width,
+      });
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [anchor, placement, items.length]);
+
+  useEffect(() => {
+    const away = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target) || anchor.current?.contains(target))
+        return;
+      onClose();
+    };
+    const key = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", key);
+    };
+  }, [anchor, onClose]);
+
+  return createPortal(
+    <div
+      ref={rootRef}
+      role="menu"
+      aria-label={label}
+      style={{
+        position: "absolute",
+        left: pos?.left ?? -9999,
+        top: pos?.top ?? -9999,
+        visibility: pos ? "visible" : "hidden",
+      }}
+      // The popup's dismiss boundary does not include the body, so a press
+      // here must not read as a press outside it.
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <Glass width={pos?.width}>
+        <RowGroup>
+          {items.map((item) => (
+            <Row
+              key={item.id}
+              icon={item.icon ? <Icon name={item.icon} /> : undefined}
+              selected={item.selected}
+              onClick={() => onPick(item.id)}
+            >
+              {item.label}
+            </Row>
+          ))}
+        </RowGroup>
+      </Glass>
+    </div>,
+    document.body,
+  );
+}
+
+/**
+ * A mode, as a row that opens its options: label at the left, the current
+ * answer and a chevron at the right. Inset and type are `ColorRow`'s, so the
+ * two sit in one popup as one kind of thing.
+ */
+function SelectRow({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: { id: string; label: string }[];
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  const current = options.find((o) => o.id === value)?.label ?? value;
+  return (
+    <div ref={ref}>
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full cursor-pointer items-center"
+        style={{
+          gap: "var(--mo-space-2)",
+          padding: "6px var(--mo-space-2)",
+          filter: "var(--mo-text-shadow)",
+        }}
+      >
+        <span className="mo-title min-w-0 flex-1 text-left">{label}</span>
+        <span className="mo-code shrink-0">
+          <MorphText>{current}</MorphText>
+        </span>
+        <span
+          className="grid place-items-center"
+          style={{
+            transform: `rotate(${open ? -90 : 90}deg)`,
+            transition: "transform 150ms ease-out",
+          }}
+        >
+          <Glyph muted>
+            <Icon name="chevron" />
+          </Glyph>
+        </span>
+      </button>
+      {open ? (
+        <MenuPopover
+          anchor={ref}
+          label={label}
+          // Beside the popup, like every other menu here: dropped over the
+          // popup it laid glass over the very sliders the mode governs.
+          placement="side"
+          items={options.map((o) => ({ ...o, selected: o.id === value }))}
+          onPick={(id) => {
+            onChange(id);
+            setOpen(false);
+          }}
+          onClose={close}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/** A switch, as the system's checkbox at the end of a `ColorRow`-shaped row. */
+function ToggleRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  return (
+    <div
+      className="flex w-full items-center"
+      style={{
+        gap: "var(--mo-space-2)",
+        padding: "6px var(--mo-space-2)",
+        filter: "var(--mo-text-shadow)",
+      }}
+    >
+      <span className="mo-title min-w-0 flex-1">{label}</span>
+      <Checkbox
+        checked={value}
+        label={label}
+        icon={<Icon name="checkbox" />}
+        checkedIcon={<Icon name="checkbox-checked" />}
+        onChange={onChange}
+      />
+    </div>
+  );
+}
+
+/**
+ * Where in the frame the sharp part sits: a square pad, crosshairs through
+ * its middle, and a handle dragged (or pressed) into place. The point is a
+ * share of the frame across and down, so the pad's shape does not have to be
+ * the frame's. Double-click puts it back in the middle; arrow keys nudge it.
+ */
+function FocusPad({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: { x: number; y: number };
+  onChange: (p: { x: number; y: number }) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const clamp = (n: number) => Math.min(1, Math.max(0, n));
+  const place = (event: ReactPointerEvent) => {
+    const box = ref.current?.getBoundingClientRect();
+    if (!box) return;
+    onChange({
+      x: clamp((event.clientX - box.left) / box.width),
+      y: clamp((event.clientY - box.top) / box.height),
+    });
+  };
+  const HANDLE = 14;
+  const rule = "color-mix(in srgb, var(--mo-ink) 14%, transparent)";
+  return (
+    <div style={{ padding: "0 var(--mo-space-2)" }}>
+      <div
+        ref={ref}
+        role="slider"
+        aria-label={label}
+        aria-valuenow={Math.round(value.x * 100)}
+        aria-valuetext={`${Math.round(value.x * 100)}% across, ${Math.round(value.y * 100)}% down`}
+        tabIndex={0}
+        onPointerDown={(event) => {
+          event.currentTarget.setPointerCapture(event.pointerId);
+          place(event);
+        }}
+        onPointerMove={(event) => {
+          if (event.currentTarget.hasPointerCapture(event.pointerId))
+            place(event);
+        }}
+        onDoubleClick={() => onChange({ x: 0.5, y: 0.5 })}
+        onKeyDown={(event) => {
+          const step = event.shiftKey ? 0.1 : 0.02;
+          const nudge: Record<string, [number, number]> = {
+            ArrowLeft: [-step, 0],
+            ArrowRight: [step, 0],
+            ArrowUp: [0, -step],
+            ArrowDown: [0, step],
+          };
+          const d = nudge[event.key];
+          if (!d) return;
+          event.preventDefault();
+          onChange({ x: clamp(value.x + d[0]), y: clamp(value.y + d[1]) });
+        }}
+        className="relative w-full cursor-crosshair touch-none overflow-hidden"
+        style={{
+          // Square whatever the layout: a tall frame stretched the pad down the
+          // popup, and the point is a share across and down either way.
+          aspectRatio: "1",
+          // A well's corner, like the image well — not a row's capsule, which
+          // on a box this size read as a second panel inside the popup.
+          borderRadius: "var(--mo-r-well)",
+          background: "var(--mo-field)",
+          boxShadow: `inset 0 0 0 1px ${rule}`,
+        }}
+      >
+        <span
+          aria-hidden
+          className="absolute inset-y-0"
+          style={{ left: "50%", width: 1, background: rule }}
+        />
+        <span
+          aria-hidden
+          className="absolute inset-x-0"
+          style={{ top: "50%", height: 1, background: rule }}
+        />
+        <span
+          aria-hidden
+          className="absolute rounded-full"
+          style={{
+            width: HANDLE,
+            height: HANDLE,
+            left: `calc(${value.x * 100}% - ${HANDLE / 2}px)`,
+            top: `calc(${value.y * 100}% - ${HANDLE / 2}px)`,
+            background: "#fff",
+            boxShadow: "var(--mo-knob-shadow)",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The part of a panel that gives up height when the window cannot fit it.
+ *
+ * `min-h-0` so the flex column lets it shrink below its contents, and the
+ * scroll lives here rather than on the `Glass`, so the surface's padding and
+ * anything pinned under this (the export row) stay put while the rows move.
+ */
+function PanelScroll({ children }: { children: ReactNode }) {
+  /*
+   * Scrolls only when the window is too short for the panel — and only then
+   * carries the room below.
+   *
+   * A scroll box clips, and the selected pill's rim sits a few px outside its
+   * row while its drop shadow falls ~32 under it (`PILL_DROP`: 13.4 down,
+   * 18.5 of blur). Clipped at the rows, both were cut square. The room fixes
+   * that, but as a constant it was 32 of empty glass under every panel and
+   * popup in a window with space to spare — where nothing scrolls, nothing
+   * clips, and none of it is needed.
+   *
+   * Measured on the inner column against the box, less the room while it is
+   * there, so adding the room cannot itself keep the box scrolling.
+   */
+  const outerRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [scrolls, setScrolls] = useState(false);
+  useEffect(() => {
+    const outer = outerRef.current;
+    const inner = innerRef.current;
+    if (!outer || !inner) return;
+    const measure = () =>
+      setScrolls((was) => {
+        const room = was ? ROOM.top + ROOM.bottom : 0;
+        return inner.offsetHeight > outer.clientHeight - room + 1;
+      });
+    const observer = new ResizeObserver(measure);
+    observer.observe(outer);
+    observer.observe(inner);
+    return () => observer.disconnect();
+  }, []);
+  return (
+    <div
+      ref={outerRef}
+      className="mo-noscroll flex min-h-0 flex-col"
+      style={
+        scrolls
+          ? {
+              overflowY: "auto",
+              // The glass's own 8 moved inside the box so the clip edge is
+              // the glass's edge, handed back by the margin — except below,
+              // where giving it back would slide the export row up under
+              // the last row.
+              padding: `${ROOM.top}px 8px ${ROOM.bottom}px`,
+              margin: `-${ROOM.top}px -8px 0`,
+              // The same room for `scrollIntoView`, which otherwise parks a
+              // row flush on the clip edge.
+              scrollPadding: `${ROOM.top}px 8px ${ROOM.bottom}px`,
+            }
+          : undefined
+      }
+    >
+      <div ref={innerRef} className="flex flex-col">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** The room a scrolling panel keeps for the selected pill's rim and shadow. */
+const ROOM = { top: 8, bottom: 32 };
 
 /**
  * The pairing code, scaled to fill the panel.
@@ -276,21 +706,120 @@ function PresetScroller({
   );
 }
 
+/**
+ * A preset's move, played on its tile's drawing while the tile is hovered.
+ *
+ * The REAL keyframes, not an illustration of them: the preset is built from a
+ * neutral pose and sampled every frame, so what the tile shows is what picking
+ * it will do — Reward Pop's turn and overshoot, Slide up's rise and untilt.
+ * Mapped into the tile's 2D as rotations with perspective, a scale for zoom
+ * and depth, and a translate for pan.
+ *
+ * Loops over the MOVE, not the clip. The presets carry a flat hold at the end
+ * so an export has room to settle; in a 100px tile that is a second of nothing
+ * per cycle, so the loop ends at the hold and pauses briefly instead.
+ *
+ * Written straight to the node's style: a state update per frame would
+ * re-render the tile, and the lens renders every tile twice.
+ */
+function usePresetPreview(id: string, playing: boolean) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const rest = () => {
+      node.style.transition = "transform 200ms ease-out";
+      node.style.transform = "";
+    };
+    const preset = getMotionPreset(id);
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    if (!playing || !preset || reduced) {
+      rest();
+      return;
+    }
+
+    const animation = {
+      ...preset.build({
+        xAxis: 0,
+        yAxis: 0,
+        zAxis: 0,
+        zoom: 1,
+        panX: 0,
+        panY: 0,
+        panZ: 0,
+        fold: 0,
+        fov: 0,
+      }),
+      easing: DEFAULT_EASING,
+    };
+    // Where each track stops moving: the start of its closing hold, if it has
+    // one.
+    const moveEnd = Math.max(
+      ...Object.values(animation.tracks).map((keys) => {
+        if (!keys?.length) return 0;
+        const n = keys.length;
+        return n > 1 && keys[n - 1].value === keys[n - 2].value
+          ? keys[n - 2].time
+          : keys[n - 1].time;
+      }),
+    );
+    const period = moveEnd + 0.6;
+
+    // Pixels per unit of pan: the drawing's phone is about 70 tall and a pan
+    // of 5 is one phone height (see the Slide up preset), so ~14.
+    const PAN_PX = 14;
+    const started = performance.now();
+    let frame = 0;
+    node.style.transition = "none";
+    const tick = (now: number) => {
+      const t = ((now - started) / 1000) % period;
+      const v = sampleAnimation(animation, Math.min(t, moveEnd));
+      const scale = (v.zoom ?? 1) * (1 + (v.panZ ?? 0) * 0.4);
+      node.style.transform = [
+        `translate(${(v.panX ?? 0) * PAN_PX}px, ${(v.panY ?? 0) * PAN_PX}px)`,
+        `rotateX(${v.xAxis ?? 0}deg)`,
+        `rotateY(${v.yAxis ?? 0}deg)`,
+        `rotateZ(${v.zAxis ?? 0}deg)`,
+        `scale(${Math.max(0, scale)})`,
+      ].join(" ");
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      rest();
+    };
+  }, [id, playing]);
+
+  return ref;
+}
+
 function PresetTile({
   preset,
   label,
   selected,
+  playing,
+  onHover,
   onClick,
 }: {
   preset: Preset;
   label: string;
   selected: boolean;
+  /** Hovered — play the move on the drawing. See `usePresetPreview`. */
+  playing: boolean;
+  onHover: (id: string | null) => void;
   onClick: () => void;
 }) {
+  const art = usePresetPreview(preset.id, playing);
   return (
     <button
       type="button"
       onClick={onClick}
+      onPointerEnter={() => onHover(preset.id)}
+      onPointerLeave={() => onHover(null)}
       // How the scroller finds the row boundary — see PresetScroller.
       data-preset-tile
       // A basis of "half the row minus the gap", so two per line — `flex-1`
@@ -309,41 +838,47 @@ function PresetTile({
       <div
         data-lens
         className="relative grid aspect-square w-full place-items-center overflow-hidden"
-        style={{ borderRadius: "var(--mo-r-well)" }}
+        style={{ borderRadius: "var(--mo-r-well)", perspective: 400 }}
       >
-        {"art" in preset ? (
-          <Image
-            src={`/figma-assets/mockup-studio/presets/${preset.art}.svg`}
-            alt=""
-            width={preset.w}
-            height={preset.h}
-            unoptimized
-            className="pointer-events-none absolute max-w-none"
-            style={{
-              left: "50%",
-              top: "50%",
-              transform: "translate(-50%, -50%)",
-              zIndex: 1,
-            }}
-          />
-        ) : (
-          <Image
-            src={`${ICONS}/${preset.icon}.svg`}
-            alt=""
-            width={72}
-            height={72}
-            unoptimized
-            className="pointer-events-none relative"
-            style={{
-              // The frame tilts this one, and its shadow is a filter on the
-              // symbol rather than baked into an export — there is no export.
-              transform:
-                "rotate" in preset ? `rotate(${preset.rotate}deg)` : undefined,
-              filter: "drop-shadow(0 0 40px rgb(0 0 0 / 0.3))",
-              zIndex: 1,
-            }}
-          />
-        )}
+        {/* What the preview moves: the whole drawing, about the tile's
+            centre, so the art's own centring transform stays untouched. */}
+        <div ref={art} className="absolute inset-0 grid place-items-center">
+          {"art" in preset ? (
+            <Image
+              src={`/figma-assets/mockup-studio/presets/${preset.art}.svg`}
+              alt=""
+              width={preset.w}
+              height={preset.h}
+              unoptimized
+              className="pointer-events-none absolute max-w-none"
+              style={{
+                left: "50%",
+                top: "50%",
+                transform: "translate(-50%, -50%)",
+                zIndex: 1,
+              }}
+            />
+          ) : (
+            <Image
+              src={`${ICONS}/${preset.icon}.svg`}
+              alt=""
+              width={72}
+              height={72}
+              unoptimized
+              className="pointer-events-none relative"
+              style={{
+                // The frame tilts this one, and its shadow is a filter on the
+                // symbol rather than baked into an export — there is no export.
+                transform:
+                  "rotate" in preset
+                    ? `rotate(${preset.rotate}deg)`
+                    : undefined,
+                filter: "drop-shadow(0 0 40px rgb(0 0 0 / 0.3))",
+                zIndex: 1,
+              }}
+            />
+          )}
+        </div>
       </div>
       <span
         className="mo-code whitespace-nowrap"
@@ -585,7 +1120,7 @@ function ExportRow({ studio }: { studio: Studio }) {
 
   return (
     <div
-      className="mt-auto flex w-full flex-col"
+      className="mt-auto flex w-full shrink-0 flex-col"
       style={{ gap: "var(--mo-space-2)" }}
     >
       <Divider />
@@ -763,9 +1298,7 @@ function KeyframeDot({
     <button
       type="button"
       aria-pressed={!!here}
-      aria-label={
-        here ? `Remove ${label} keyframe` : `Add ${label} keyframe`
-      }
+      aria-label={here ? `Remove ${label} keyframe` : `Add ${label} keyframe`}
       className="grid cursor-pointer place-items-center"
       onClick={() => studio.toggleKey(channel)}
       style={{ width: 16, height: 16 }}
@@ -969,6 +1502,7 @@ const HISTORY = [
 const DEVICE_ICONS: Record<string, string> = {
   "apple-iphone-17": "iphone",
   "apple-iphone-17-pro": "iphone",
+  "test-4": "iphone",
   "apple-iphone-17-pro-max": "iphone",
   "apple-iphone-air": "iphone",
   "iphone-fold": "iphone",
@@ -1107,10 +1641,11 @@ export default function StudioChrome() {
     const typing = (target: EventTarget | null) => {
       const node = target as HTMLElement | null;
       const tag = node?.tagName;
-      return (
-        !!node &&
-        (tag === "INPUT" || tag === "TEXTAREA" || node.isContentEditable)
-      );
+      // A slider is an <input> too, but nobody types into one — counting it
+      // took every shortcut away from the popup the moment a slider was used.
+      const text =
+        tag === "INPUT" && (node as HTMLInputElement).type !== "range";
+      return !!node && (text || tag === "TEXTAREA" || node.isContentEditable);
     };
 
     const onKey = (event: KeyboardEvent) => {
@@ -1254,6 +1789,51 @@ export default function StudioChrome() {
     [state, edit],
   );
 
+  /*
+   * The effects list. An effect has a row while it is in the shot — and while
+   * its popup is open, because Image is only "in" once something is uploaded,
+   * and adding it would otherwise open a popup for a row that is not there.
+   */
+  const [hoveredPreset, setHoveredPreset] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const closeAddMenu = useCallback(() => setAddOpen(false), []);
+  const addRef = useRef<HTMLDivElement>(null);
+  const shownEffects = EFFECT_LAYERS.filter(
+    (l) => l.isOn(state) || (popupOpen && l.id === selectedLayer),
+  );
+  const addable = EFFECT_LAYERS.filter((l) => !shownEffects.includes(l));
+
+  const addEffect = useCallback(
+    (layer: Layer) => {
+      if (!layer.isOn(state)) edit((prev) => layer.toggle(prev, true));
+      setSelectedLayer(layer.id);
+      setPopupOpen(true);
+      setAddOpen(false);
+      // A stack short enough to scroll can take the new row below the fold,
+      // half under the export row. Bring it into view once it has rendered.
+      // After the stack has re-measured whether it scrolls, which is a
+      // render of its own after this one.
+      window.setTimeout(() => {
+        const stack = addRef.current?.closest(".mo-glass");
+        const row = Array.from(
+          stack?.querySelectorAll<HTMLElement>("[role=button]") ?? [],
+        ).find((el) => el.textContent === layer.name);
+        row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }, 80);
+    },
+    [state, edit],
+  );
+
+  const removeEffect = useCallback(
+    (layer: Layer) => {
+      // Only if it is in: Image's `toggle(false)` resets the background kind,
+      // and an Image row that was only open would take a gradient with it.
+      if (layer.isOn(state)) edit((prev) => layer.toggle(prev, false));
+      if (layer.id === selectedLayer) setPopupOpen(false);
+    },
+    [state, edit, selectedLayer],
+  );
+
   const closePopup = useCallback(() => setPopupOpen(false), []);
   // The boundary is the popup AND the stack beside it: the stack is what opens
   // the popup, so a press there must not count as an outside press.
@@ -1318,9 +1898,9 @@ export default function StudioChrome() {
             backgroundImage:
               "var(--mo-dots), radial-gradient(120% 55% at 50% 50%, rgb(233 233 233 / 0) 0%, rgb(233 233 233) 100%)",
             backgroundSize: "var(--mo-dots-pitch), auto",
-            // 250 of panel plus the 16 it stands off the bottom edge. Zero when
+            // The panel plus the 16 it stands off the bottom edge. Zero when
             // there is no timeline, so an empty studio is the whole window.
-            "--mo-reserve": showTimeline ? `${TIMELINE_H + 16}px` : "0px",
+            "--mo-reserve": showTimeline ? `calc(${TIMELINE_H} + 16px)` : "0px",
           } as CSSProperties
         }
       >
@@ -1558,8 +2138,15 @@ export default function StudioChrome() {
           {/* Left cluster: the tool rail and the device list. */}
           <div
             ref={toolRef}
-            className="pointer-events-none absolute top-0 flex items-center"
-            style={{ left: 16, gap: 16, bottom: "var(--mo-reserve)" }}
+            className="pointer-events-none absolute flex items-center"
+            style={{
+              left: 16,
+              gap: 16,
+              top: SIDE_TOP,
+              // Clear of the gizmo standing on the timeline, rather than
+              // painting over it once the window is too short for both.
+              bottom: `calc(var(--mo-reserve) + ${GIZMO_SIZE + 32}px)`,
+            }}
           >
             {/* Quiet while a panel is open: the panel opens into the space the
                 tip would occupy, and the two are the same fact twice. The tip
@@ -1581,86 +2168,93 @@ export default function StudioChrome() {
             */}
             {panelOpen ? (
               <div
-                className="pointer-events-auto flex flex-col items-center"
-                style={{ gap: 8 }}
+                className="pointer-events-auto flex min-h-0 flex-col items-center"
+                style={{ gap: 8, maxHeight: "100%" }}
               >
-                <Glass width={control.panelW}>
-                  <AutoHeight token={customOpen ? `${tool}:custom` : tool}>
-                    {tool === "devices" ? (
-                      <RowGroup>
-                        {DEVICES.map((d) => (
-                          <Row
-                            key={d.id}
-                            icon={
-                              <Icon name={DEVICE_ICONS[d.id] ?? "iphone"} />
-                            }
-                            selected={d.id === state.deviceId}
-                            onClick={() => studio.pickDevice(d.id)}
-                          >
-                            {d.label}
-                          </Row>
-                        ))}
-                      </RowGroup>
-                    ) : null}
+                <Glass
+                  width={control.panelW}
+                  className="min-h-0"
+                  style={{ maxHeight: "100%" }}
+                >
+                  <PanelScroll>
+                    <AutoHeight token={customOpen ? `${tool}:custom` : tool}>
+                      {tool === "devices" ? (
+                        <RowGroup>
+                          {DEVICES.map((d) => (
+                            <Row
+                              key={d.id}
+                              icon={
+                                <Icon name={DEVICE_ICONS[d.id] ?? "iphone"} />
+                              }
+                              selected={d.id === state.deviceId}
+                              onClick={() => studio.pickDevice(d.id)}
+                            >
+                              {d.label}
+                            </Row>
+                          ))}
+                        </RowGroup>
+                      ) : null}
 
-                    {tool === "finish" ? (
-                      <RowGroup>
-                        {studio.finishes.map((f) => (
-                          <Row
-                            key={f.id}
-                            icon={<Swatch color={f.color} />}
-                            /*
+                      {tool === "finish" ? (
+                        <RowGroup>
+                          {studio.finishes.map((f) => (
+                            <Row
+                              key={f.id}
+                              icon={<Swatch color={f.color} />}
+                              /*
                               No selection where there is nothing to choose
                               between. A device that ships in one colour lists
                               that one colour, and a highlighted row alone in
                               its list reads as a control that was pressed
                               rather than as a fact about the device.
                             */
-                            selected={
-                              studio.finishes.length > 1 &&
-                              f.id === state.finishId
-                            }
-                            onClick={() => studio.pickFinish(f.id)}
-                          >
-                            {f.label}
-                          </Row>
-                        ))}
-                      </RowGroup>
-                    ) : null}
+                              selected={
+                                studio.finishes.length > 1 &&
+                                f.id === state.finishId
+                              }
+                              onClick={() => studio.pickFinish(f.id)}
+                            >
+                              {f.label}
+                            </Row>
+                          ))}
+                        </RowGroup>
+                      ) : null}
 
-                    {tool === "image" ? (
-                      <div className="flex flex-col">
-                        <Header
-                          icon={<Icon name="image" />}
-                          /* Delete, not reset: this panel IS the upload, so
+                      {tool === "image" ? (
+                        <div className="flex flex-col">
+                          <Header
+                            icon={<Icon name="image" />}
+                            /* Delete, not reset: this panel IS the upload, so
                              the only thing to put back is nothing, and that is
                              a deletion however it is labelled. The well below
                              has the same act as a full-width button; this is
                              it in the header, where every other popup keeps
                              what it can do to itself. */
-                          trailing={
-                            <HeaderButton
-                              label="Delete image"
-                              disabled={!studio.screenSrc}
-                              onClick={studio.clearScreen}
-                            >
-                              <Icon name={HEADER_ICON.delete} />
-                            </HeaderButton>
-                          }
-                          closeIcon={<Icon name="close-rounded" />}
-                          onClose={closePanel}
-                        >
-                          {/* The file's name once there is one: it is the only
+                            trailing={
+                              <HeaderButton
+                                label="Delete image"
+                                disabled={!studio.screenSrc}
+                                onClick={studio.clearScreen}
+                              >
+                                <Icon name={HEADER_ICON.delete} />
+                              </HeaderButton>
+                            }
+                            closeIcon={<Icon name="close-rounded" />}
+                            onClose={closePanel}
+                          >
+                            {/* The file's name once there is one: it is the only
                               thing that tells two screenshots apart. */}
-                          <MorphText>{studio.screenName ?? "Image"}</MorphText>
-                        </Header>
-                        <ImageWell
-                          src={studio.screenSrc}
-                          empty="No screen yet"
-                          onPick={studio.uploadScreen}
-                          onClear={studio.clearScreen}
-                        />
-                        {/*
+                            <MorphText>
+                              {studio.screenName ?? "Image"}
+                            </MorphText>
+                          </Header>
+                          <ImageWell
+                            src={studio.screenSrc}
+                            empty="No screen yet"
+                            onPick={studio.uploadScreen}
+                            onClear={studio.clearScreen}
+                          />
+                          {/*
                           A second well, on a device with a second screen.
 
                           Its own upload rather than a share of the one above,
@@ -1674,35 +2268,35 @@ export default function StudioChrome() {
                           screen this device is FOR, and the one the camera
                           frames. The cover is the other one.
                         */}
-                        {getDevice(state.deviceId).coverScreen ? (
-                          <>
-                            <Divider />
-                            <ParamGroup title="Front screen">
-                              <ImageWell
-                                src={studio.coverSrc}
-                                empty="No front screen yet"
-                                onPick={studio.uploadCover}
-                                onClear={studio.clearCover}
-                              />
-                            </ParamGroup>
-                          </>
-                        ) : null}
-                      </div>
-                    ) : null}
+                          {getDevice(state.deviceId).coverScreen ? (
+                            <>
+                              <Divider />
+                              <ParamGroup title="Front screen">
+                                <ImageWell
+                                  src={studio.coverSrc}
+                                  empty="No front screen yet"
+                                  onPick={studio.uploadCover}
+                                  onClear={studio.clearCover}
+                                />
+                              </ParamGroup>
+                            </>
+                          ) : null}
+                        </div>
+                      ) : null}
 
-                    {tool === "remote" ? (
-                      <div className="flex flex-col">
-                        {/*
+                      {tool === "remote" ? (
+                        <div className="flex flex-col">
+                          {/*
                           Clipped to its window: the rest of the asset is the
                           shadow's room to fall, and on this panel it reads as a
                           second surface haloing the first. See `QR`.
                         */}
-                        <div
-                          className="relative shrink-0 overflow-hidden"
-                          style={{ width: QR.window, height: QR.window }}
-                        >
-                          {studio.broadcast.qr ? (
-                            /*
+                          <div
+                            className="relative shrink-0 overflow-hidden"
+                            style={{ width: QR.window, height: QR.window }}
+                          >
+                            {studio.broadcast.qr ? (
+                              /*
                               The real pairing code, as the SVG the session
                               returns. `dangerouslySetInnerHTML` because it IS
                               markup — our own, built from our own session id,
@@ -1712,129 +2306,130 @@ export default function StudioChrome() {
                               this arrives, so the panel is never a blank square
                               while the session is being set up.
                             */
-                            <div
-                              className="grid h-full w-full place-items-center [&>svg]:h-full [&>svg]:w-full"
-                              aria-label="Pairing code"
-                              role="img"
-                              dangerouslySetInnerHTML={{
-                                __html: studio.broadcast.qr,
-                              }}
-                            />
-                          ) : (
-                            <Image
-                              src="/figma-assets/mockup-studio/qr.svg"
-                              alt="Pairing code"
-                              width={QR.size}
-                              height={QR.size}
-                              unoptimized
-                              className="pointer-events-none absolute max-w-none"
-                              style={{ left: QR.x, top: QR.y }}
-                            />
-                          )}
-                        </div>
-                        {/* `Header`, not `Row`: the frame draws Status at full
+                              <div
+                                className="grid h-full w-full place-items-center [&>svg]:h-full [&>svg]:w-full"
+                                aria-label="Pairing code"
+                                role="img"
+                                dangerouslySetInnerHTML={{
+                                  __html: studio.broadcast.qr,
+                                }}
+                              />
+                            ) : (
+                              <Image
+                                src="/figma-assets/mockup-studio/qr.svg"
+                                alt="Pairing code"
+                                width={QR.size}
+                                height={QR.size}
+                                unoptimized
+                                className="pointer-events-none absolute max-w-none"
+                                style={{ left: QR.x, top: QR.y }}
+                              />
+                            )}
+                          </div>
+                          {/* `Header`, not `Row`: the frame draws Status at full
                             ink with nothing selected, and in a Row full ink IS
                             the selection — it would arrive with a pill. */}
-                        <Header
-                          trailing={
-                            <StatusDot
-                              connected={studio.broadcast.state === "live"}
-                            />
-                          }
-                        >
-                          {/* The frame says "Status", which is a heading rather
+                          <Header
+                            trailing={
+                              <StatusDot
+                                connected={studio.broadcast.state === "live"}
+                              />
+                            }
+                          >
+                            {/* The frame says "Status", which is a heading rather
                               than an answer. The link knows which of six things
                               is true, and morphing between them is the same
                               move the popup title makes. */}
-                          <MorphText>
-                            {PAIRING_LABEL[studio.broadcast.state]}
-                          </MorphText>
-                        </Header>
-                      </div>
-                    ) : null}
+                            <MorphText>
+                              {PAIRING_LABEL[studio.broadcast.state]}
+                            </MorphText>
+                          </Header>
+                        </div>
+                      ) : null}
 
-                    {tool === "canvas" && !customOpen ? (
-                      <RowGroup>
-                        {CANVAS_SIZES.map((c) => (
-                          <Row
-                            key={c.id}
-                            icon={<Icon name={c.icon} />}
-                            value={c.value}
-                            trailing={
-                              c.drill ? <Icon name="chevron" /> : undefined
-                            }
-                            selected={
-                              c.drill
-                                ? CUSTOM_IDS.has(studio.ratioId)
-                                : c.id === studio.ratioId
-                            }
-                            onClick={() =>
-                              c.drill
-                                ? setCustomOpen(true)
-                                : studio.setRatioId(c.id)
-                            }
-                          >
-                            {c.name}
-                          </Row>
-                        ))}
-                      </RowGroup>
-                    ) : null}
+                      {tool === "canvas" && !customOpen ? (
+                        <RowGroup>
+                          {CANVAS_SIZES.map((c) => (
+                            <Row
+                              key={c.id}
+                              icon={<Icon name={c.icon} />}
+                              value={c.value}
+                              trailing={
+                                c.drill ? <Icon name="chevron" /> : undefined
+                              }
+                              selected={
+                                c.drill
+                                  ? CUSTOM_IDS.has(studio.ratioId)
+                                  : c.id === studio.ratioId
+                              }
+                              onClick={() =>
+                                c.drill
+                                  ? setCustomOpen(true)
+                                  : studio.setRatioId(c.id)
+                              }
+                            >
+                              {c.name}
+                            </Row>
+                          ))}
+                        </RowGroup>
+                      ) : null}
 
-                    {tool === "canvas" && customOpen ? (
-                      /* The frame's chevron promised somewhere to go. These are
+                      {tool === "canvas" && customOpen ? (
+                        /* The frame's chevron promised somewhere to go. These are
                          the store sizes — the ones that come with a pixel count
                          rather than a bare ratio, which is what "custom" means
                          on a row that already lists every plain one above it. */
-                      <div className="flex flex-col">
-                        <Header
-                          icon={<Icon name="ratio-custom" />}
-                          /* Back to the frame the studio opens on. The
+                        <div className="flex flex-col">
+                          <Header
+                            icon={<Icon name="ratio-custom" />}
+                            /* Back to the frame the studio opens on. The
                              trailing glyph here is a chevron that goes UP a
                              level rather than a close, and reset is still the
                              other thing you can do to a panel — so it keeps
                              its place beside it. */
-                          trailing={
-                            <HeaderButton
-                              label="Reset canvas size"
-                              disabled={studio.ratioId === DEFAULT_RATIO_ID}
-                              onClick={() =>
-                                studio.setRatioId(DEFAULT_RATIO_ID)
-                              }
-                            >
-                              <Icon name={HEADER_ICON.reset} />
-                            </HeaderButton>
-                          }
-                          /* Turned, not a second export. The rail's chevron
+                            trailing={
+                              <HeaderButton
+                                label="Reset canvas size"
+                                disabled={studio.ratioId === DEFAULT_RATIO_ID}
+                                onClick={() =>
+                                  studio.setRatioId(DEFAULT_RATIO_ID)
+                                }
+                              >
+                                <Icon name={HEADER_ICON.reset} />
+                              </HeaderButton>
+                            }
+                            /* Turned, not a second export. The rail's chevron
                              points the way a row drills IN, and this one is the
                              way back out — the same mark reversed, which is
                              what a back affordance is. */
-                          closeIcon={
-                            <span
-                              className="grid place-items-center"
-                              style={{ transform: "rotate(180deg)" }}
-                            >
-                              <Icon name="chevron" />
-                            </span>
-                          }
-                          onClose={() => setCustomOpen(false)}
-                        >
-                          Custom
-                        </Header>
-                        <RowGroup>
-                          {STORE_RATIOS.map((r) => (
-                            <Row
-                              key={r.id}
-                              value={r.size}
-                              selected={r.id === studio.ratioId}
-                              onClick={() => studio.setRatioId(r.id)}
-                            >
-                              {r.label}
-                            </Row>
-                          ))}
-                        </RowGroup>
-                      </div>
-                    ) : null}
-                  </AutoHeight>
+                            closeIcon={
+                              <span
+                                className="grid place-items-center"
+                                style={{ transform: "rotate(180deg)" }}
+                              >
+                                <Icon name="chevron" />
+                              </span>
+                            }
+                            onClose={() => setCustomOpen(false)}
+                          >
+                            Custom
+                          </Header>
+                          <RowGroup>
+                            {STORE_RATIOS.map((r) => (
+                              <Row
+                                key={r.id}
+                                value={r.size}
+                                selected={r.id === studio.ratioId}
+                                onClick={() => studio.setRatioId(r.id)}
+                              >
+                                {r.label}
+                              </Row>
+                            ))}
+                          </RowGroup>
+                        </div>
+                      ) : null}
+                    </AutoHeight>
+                  </PanelScroll>
                 </Glass>
 
                 {/* Outside the panel in the frame, so a sibling rather than a
@@ -1856,9 +2451,27 @@ export default function StudioChrome() {
           </div>
 
           {/* Right cluster: the mode switch over the open popup and the stack. */}
+          {/*
+            A band, not the full height: below the account chip and above the
+            timeline, with the stack capped to whatever is left. Centred in a
+            window that fits 600 of stack, and on a shorter one the stack gives
+            up height and scrolls — it used to spill out of both ends, under
+            the chip and over the timeline.
+
+            A grid rather than the column it was: `minmax(0, max-content)` is
+            a track that is the content's height until the band runs out, and
+            a grid track is a definite height the panels' `maxHeight: 100%`
+            can resolve against. A flex item that had shrunk is not.
+          */}
           <div
-            className="pointer-events-none absolute top-0 flex flex-col items-end justify-center [&>*]:pointer-events-auto"
-            style={{ right: 16, gap: 16, bottom: "var(--mo-reserve)" }}
+            className="pointer-events-none absolute grid content-center justify-items-end [&>*]:pointer-events-auto"
+            style={{
+              right: 16,
+              top: SIDE_TOP,
+              bottom: "calc(var(--mo-reserve) + 16px)",
+              rowGap: 16,
+              gridTemplateRows: "auto minmax(0, max-content)",
+            }}
           >
             <Segmented
               value={tab}
@@ -1871,7 +2484,7 @@ export default function StudioChrome() {
 
             <div
               ref={popupRef}
-              className="flex items-start"
+              className="flex min-h-0 items-start"
               style={{ gap: 16 }}
             >
               {/*
@@ -1884,90 +2497,121 @@ export default function StudioChrome() {
                    panel width whatever it holds, so a one-colour Background
                    and a three-group Transform are the same object resizing
                    vertically rather than two panels of different shapes. */
-                <Glass width={control.panelW}>
-                  {/*
+                <Glass width={control.panelW} style={{ maxHeight: "100%" }}>
+                  <PanelScroll>
+                    {/*
                     Header and body together inside the spring, not just the
                     body: the popup is one surface, and animating its contents
                     while its own edge jumped would be worse than not animating
                     at all.
                   */}
-                  <AutoHeight token={open.id}>
-                    {/* The gap under the header is 16 for a popup of
+                    <AutoHeight token={open.id}>
+                      {/* The gap under the header is 16 for a popup of
                         parameters and 0 for the image well — the frame runs
                         that one's preview straight off the header. It rides on
                         this column, inside the spring, so the spring measures
                         it along with everything else. */}
-                    <div
-                      className="flex flex-col"
-                      style={{
-                        gap: open.id === "image" ? 0 : "var(--mo-space-4)",
-                      }}
-                    >
-                      <Header
-                        icon={<Icon name={open.icon} />}
-                        trailing={
-                          <LayerActions
-                            layer={open}
-                            studio={studio}
-                            onDone={closePopup}
-                          />
-                        }
-                        closeIcon={<Icon name="close-rounded" />}
-                        onClose={() => setPopupOpen(false)}
+                      <div
+                        className="flex flex-col"
+                        style={{
+                          gap: open.id === "image" ? 0 : "var(--mo-space-4)",
+                        }}
                       >
-                        {/*
+                        <Header
+                          icon={<Icon name={open.icon} />}
+                          trailing={
+                            <>
+                              <LayerActions
+                                layer={open}
+                                studio={studio}
+                                onDone={closePopup}
+                              />
+                            </>
+                          }
+                          closeIcon={<Icon name="close-rounded" />}
+                          onClose={() => setPopupOpen(false)}
+                        >
+                          {/*
                       The one label in the chrome that becomes a DIFFERENT
                       label rather than appearing or leaving: everything else
                       here is a fixed name in a list. Morphing it letter to
                       letter says the panel changed subject, where a cut says
                       a new panel arrived — and the panel itself has not.
                     */}
-                        <MorphText>{open.name}</MorphText>
-                      </Header>
-                      {open.id === "image" ? (
-                        /* `Background image` in the file — the same well as the
+                          <MorphText>{open.name}</MorphText>
+                        </Header>
+                        {open.id === "image" ? (
+                          /* `Background image` in the file — the same well as the
                        rail's tool, over the composition rather than the screen. */
-                        <ImageWell
-                          src={state.background.imageSrc}
-                          empty="No background image"
-                          onPick={studio.uploadBackground}
-                          onClear={studio.clearBackground}
-                        />
-                      ) : (
-                        <div
-                          className="flex flex-col"
-                          style={{
-                            gap: "var(--mo-space-2)",
-                            paddingBottom: 10,
-                          }}
-                        >
-                          {open.sections
-                            // A section whose every row is out — the Lid on a
-                            // device with no hinge — takes its title and its rule
-                            // with it, rather than leaving a heading over nothing.
-                            .map((section) => ({
-                              ...section,
-                              fields: section.fields.filter(
-                                (f) => f.when?.(state) ?? true,
-                              ),
-                            }))
-                            .filter((section) => section.fields.length > 0)
-                            .map((section, i) => (
-                              <Fragment key={section.title ?? i}>
-                                {i > 0 ? <Divider /> : null}
-                                <ParamGroup title={section.title}>
-                                  {section.fields.map((f) =>
-                                    f.kind === "color" ? (
-                                      <ColorRow
-                                        key={f.key}
-                                        label={f.label}
-                                        value={f.get(effective)}
-                                        onChange={(hex) =>
-                                          edit((prev) => f.set(prev, hex))
-                                        }
-                                      />
-                                    ) : f.kind === "choice" ? (
-                                      /*
+                          <ImageWell
+                            src={state.background.imageSrc}
+                            empty="No background image"
+                            onPick={studio.uploadBackground}
+                            onClear={studio.clearBackground}
+                          />
+                        ) : (
+                          <div
+                            className="flex flex-col"
+                            style={{
+                              gap: "var(--mo-space-2)",
+                              paddingBottom: 10,
+                            }}
+                          >
+                            {open.sections
+                              // A section whose every row is out — the Lid on a
+                              // device with no hinge — takes its title and its rule
+                              // with it, rather than leaving a heading over nothing.
+                              .map((section) => ({
+                                ...section,
+                                fields: section.fields.filter(
+                                  (f) => f.when?.(state) ?? true,
+                                ),
+                              }))
+                              .filter((section) => section.fields.length > 0)
+                              .map((section, i) => (
+                                <Fragment key={section.title ?? i}>
+                                  {i > 0 ? <Divider /> : null}
+                                  <ParamGroup title={section.title}>
+                                    {section.fields.map((f) =>
+                                      f.kind === "color" ? (
+                                        <ColorRow
+                                          key={f.key}
+                                          label={f.label}
+                                          value={f.get(effective)}
+                                          onChange={(hex) =>
+                                            edit((prev) => f.set(prev, hex))
+                                          }
+                                        />
+                                      ) : f.kind === "select" ? (
+                                        <SelectRow
+                                          key={f.key}
+                                          label={f.label}
+                                          value={f.get(effective)}
+                                          options={f.options}
+                                          onChange={(id) =>
+                                            edit((prev) => f.set(prev, id))
+                                          }
+                                        />
+                                      ) : f.kind === "toggle" ? (
+                                        <ToggleRow
+                                          key={f.key}
+                                          label={f.label}
+                                          value={f.get(effective)}
+                                          onChange={(on) =>
+                                            edit((prev) => f.set(prev, on))
+                                          }
+                                        />
+                                      ) : f.kind === "point" ? (
+                                        <FocusPad
+                                          key={f.key}
+                                          label={f.label}
+                                          value={f.get(effective)}
+                                          onChange={(point) =>
+                                            edit((prev) => f.set(prev, point))
+                                          }
+                                        />
+                                      ) : f.kind === "choice" ? (
+                                        /*
                                         A list, not a dropdown. There are six
                                         of these and the popup has room, so
                                         showing them costs one scroll and saves
@@ -1975,40 +2619,40 @@ export default function StudioChrome() {
                                         a light is a thing you do by comparing,
                                         which a closed menu will not let you do.
                                       */
-                                      <RowGroup key={f.key}>
-                                        {f.options.map((option) => (
-                                          <Row
-                                            key={option.id}
-                                            selected={
-                                              option.id === f.get(effective)
-                                            }
-                                            onClick={() =>
-                                              edit((prev) =>
-                                                f.set(prev, option.id),
-                                              )
-                                            }
-                                          >
-                                            {option.label}
-                                          </Row>
-                                        ))}
-                                      </RowGroup>
-                                    ) : (
-                                      <ParamRow
-                                        key={f.key}
-                                        label={f.label}
-                                        icon={
-                                          f.axis ? (
-                                            <span className="mo-label">
-                                              {f.axis}
-                                            </span>
-                                          ) : undefined
-                                        }
-                                        /* The frame's reset glyph, and it resets:
+                                        <RowGroup key={f.key}>
+                                          {f.options.map((option) => (
+                                            <Row
+                                              key={option.id}
+                                              selected={
+                                                option.id === f.get(effective)
+                                              }
+                                              onClick={() =>
+                                                edit((prev) =>
+                                                  f.set(prev, option.id),
+                                                )
+                                              }
+                                            >
+                                              {option.label}
+                                            </Row>
+                                          ))}
+                                        </RowGroup>
+                                      ) : (
+                                        <ParamRow
+                                          key={f.key}
+                                          label={f.label}
+                                          icon={
+                                            f.axis ? (
+                                              <span className="mo-label">
+                                                {f.axis}
+                                              </span>
+                                            ) : undefined
+                                          }
+                                          /* The frame's reset glyph, and it resets:
                                      back to whatever `DEFAULT_EDITOR_STATE`
                                      says this field is, which is the only
                                      definition of neutral there is. */
-                                        trailing={
-                                          /*
+                                          trailing={
+                                            /*
                                             The diamond keys the row.
 
                                             It always looked like a keyframe —
@@ -2026,52 +2670,64 @@ export default function StudioChrome() {
                                             over the whole panel, and that is
                                             the gesture people reach for.
                                           */
-                                          f.channel ? (
-                                            <KeyframeDot
-                                              studio={studio}
-                                              channel={f.channel}
-                                              label={f.label}
-                                            />
-                                          ) : f.reset ? (
-                                            <button
-                                              type="button"
-                                              aria-label={`Reset ${f.label}`}
-                                              className="grid cursor-pointer place-items-center"
-                                              onClick={() =>
-                                                edit((prev) =>
-                                                  f.set(
-                                                    prev,
-                                                    f.get(DEFAULT_EDITOR_STATE),
-                                                  ),
-                                                )
-                                              }
-                                            >
-                                              <Icon
-                                                name="reset-value"
-                                                size={12}
+                                            f.channel ? (
+                                              <KeyframeDot
+                                                studio={studio}
+                                                channel={f.channel}
+                                                label={f.label}
                                               />
-                                            </button>
-                                          ) : undefined
-                                        }
-                                        value={f.get(effective)}
-                                        min={f.min}
-                                        max={f.max}
-                                        step={f.step}
-                                        bare={f.bare}
-                                        format={f.format}
-                                        onChange={(n) =>
-                                          edit((prev) => f.set(prev, n))
-                                        }
-                                      />
-                                    ),
-                                  )}
-                                </ParamGroup>
-                              </Fragment>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                  </AutoHeight>
+                                            ) : f.reset ? (
+                                              <button
+                                                type="button"
+                                                aria-label={`Reset ${f.label}`}
+                                                className="grid cursor-pointer place-items-center"
+                                                onClick={() =>
+                                                  edit((prev) =>
+                                                    f.set(
+                                                      prev,
+                                                      f.get(
+                                                        DEFAULT_EDITOR_STATE,
+                                                      ),
+                                                    ),
+                                                  )
+                                                }
+                                              >
+                                                <Icon
+                                                  name="reset-value"
+                                                  size={12}
+                                                />
+                                              </button>
+                                            ) : undefined
+                                          }
+                                          value={f.get(effective)}
+                                          min={f.min}
+                                          max={f.max}
+                                          step={f.step}
+                                          bare={f.bare}
+                                          format={f.format}
+                                          snap={
+                                            isSnapKey(f.key)
+                                              ? (n) =>
+                                                  studio.snapField(
+                                                    f.key as SnapKey,
+                                                    n,
+                                                  )
+                                              : undefined
+                                          }
+                                          onChange={(n) =>
+                                            edit((prev) => f.set(prev, n))
+                                          }
+                                        />
+                                      ),
+                                    )}
+                                  </ParamGroup>
+                                </Fragment>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    </AutoHeight>
+                  </PanelScroll>
                 </Glass>
               ) : null}
 
@@ -2087,9 +2743,13 @@ export default function StudioChrome() {
                   by tab, each tab gets its own group, and a group that has just
                   been born puts its lens where it belongs.
                 */
-                <Glass key="crafting" style={{ height: STACK_HEIGHT }}>
-                  <RowGroup>
-                    {/*
+                <Glass
+                  key="crafting"
+                  style={{ height: STACK_HEIGHT, maxHeight: "100%" }}
+                >
+                  <PanelScroll>
+                    <RowGroup>
+                      {/*
                       FLAT, not rows wrapped with their rule.
 
                       `RowGroup` finds the selection by looking for the child
@@ -2100,20 +2760,13 @@ export default function StudioChrome() {
                       disappearing. A divider emitted as its own sibling counts
                       in both places and stays in step.
                     */}
-                    {LAYERS.flatMap((l, i) => {
-                      const on = l.isOn(state);
-                      // Where the two halves meet — see `Layer.group`. Read off
-                      // the rows rather than a counted index, so the rule lands
-                      // in the right place whatever the order becomes.
-                      const opensEffects =
-                        i > 0 &&
-                        l.group === "effect" &&
-                        LAYERS[i - 1].group === "stage";
-                      const row = (
-                        <Row
-                          key={l.id}
-                          icon={<Icon name={l.icon} />}
-                          /*
+                      {[...BASE_LAYERS].flatMap((l) => {
+                        const on = l.isOn(state);
+                        const row = (
+                          <Row
+                            key={l.id}
+                            icon={<Icon name={l.icon} />}
+                            /*
                             The box says whether the effect is IN the shot, and
                             nothing else — not whether its popup happens to be
                             open, which is what the old plus-and-minus tracked.
@@ -2124,53 +2777,128 @@ export default function StudioChrome() {
                             `Checkbox` takes its own press, so opening the row
                             and toggling it stay separate acts.
                           */
-                          trailing={
-                            l.removable === false ? (
-                              /* Nothing to check: see `ToggleGlyph`. The press
+                            trailing={
+                              l.removable === false ? (
+                                /* Nothing to check: see `ToggleGlyph`. The press
                                  still has to stop here, or clearing a transform
                                  would also open its popup. */
-                              <button
-                                type="button"
-                                aria-label={`Reset ${l.name}`}
-                                className="grid cursor-pointer place-items-center"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  toggleLayer(l);
-                                }}
-                              >
-                                <ToggleGlyph on={l.id === selectedLayer} />
-                              </button>
-                            ) : (
-                              <Checkbox
-                                checked={on}
-                                label={`${l.name} in the shot`}
-                                icon={<Icon name="checkbox" />}
-                                checkedIcon={<Icon name="checkbox-checked" />}
-                                onChange={() => toggleLayer(l)}
-                              />
-                            )
+                                <button
+                                  type="button"
+                                  aria-label={`Reset ${l.name}`}
+                                  className="grid cursor-pointer place-items-center"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    toggleLayer(l);
+                                  }}
+                                >
+                                  <ToggleGlyph on={l.id === selectedLayer} />
+                                </button>
+                              ) : (
+                                <Checkbox
+                                  checked={on}
+                                  label={`${l.name} in the shot`}
+                                  icon={<Icon name="checkbox" />}
+                                  checkedIcon={<Icon name="checkbox-checked" />}
+                                  onChange={() => toggleLayer(l)}
+                                />
+                              )
+                            }
+                            selected={l.id === selectedLayer}
+                            onClick={() => openLayer(l)}
+                          >
+                            {l.name}
+                          </Row>
+                        );
+                        // Background Color is its own block, between the stage
+                        // rows and Effects, so it gets a rule of its own.
+                        return l.id === "background"
+                          ? [<Divider key="background-rule" inset={8} />, row]
+                          : [row];
+                      })}
+                      {/*
+                      Effects, the way Figma lists them: a heading with a plus,
+                      and a row only for what is actually in the shot. Eight
+                      rows of unticked boxes read as a checklist to get through;
+                      a short list of what you added reads as the shot.
+
+                      8 either side of the rule: a selected row's pill runs to
+                      the edge of its box, so a rule with no air reads as
+                      touching whichever row is lit next to it.
+                    */}
+                      <Divider key="effects-rule" inset={8} />
+                      <div key="effects-head" ref={addRef}>
+                        <Header
+                          trailing={
+                            <HeaderButton
+                              label="Add effect"
+                              disabled={addable.length === 0}
+                              onClick={() => {
+                                // The menu opens in the popup's place, so the
+                                // popup steps aside rather than sitting under it.
+                                if (!addOpen) setPopupOpen(false);
+                                setAddOpen(!addOpen);
+                              }}
+                            >
+                              <ToggleGlyph on={false} />
+                            </HeaderButton>
+                          }
+                        >
+                          Effects
+                        </Header>
+                      </div>
+                      {shownEffects.map((l) => (
+                        <Row
+                          key={l.id}
+                          icon={<Icon name={l.icon} />}
+                          trailing={
+                            <button
+                              type="button"
+                              aria-label={`Remove ${l.name}`}
+                              title={`Remove ${l.name}`}
+                              className="grid cursor-pointer place-items-center"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                removeEffect(l);
+                              }}
+                            >
+                              <ToggleGlyph on />
+                            </button>
                           }
                           selected={l.id === selectedLayer}
                           onClick={() => openLayer(l)}
                         >
                           {l.name}
                         </Row>
-                      );
-                      return opensEffects
-                        ? // 8 either side: a selected row's pill runs to the
-                          // edge of its box, so a rule with no air reads as
-                          // touching whichever row is lit next to it.
-                          [<Divider key={`${l.id}-rule`} inset={8} />, row]
-                        : [row];
-                    })}
-                  </RowGroup>
+                      ))}
+                    </RowGroup>
+                    {addOpen ? (
+                      <MenuPopover
+                        anchor={addRef}
+                        label="Add effect"
+                        placement="side"
+                        items={addable.map((l) => ({
+                          id: l.id,
+                          label: l.name,
+                          icon: l.icon,
+                        }))}
+                        onPick={(id) => {
+                          const layer = addable.find((l) => l.id === id);
+                          if (layer) addEffect(layer);
+                        }}
+                        onClose={closeAddMenu}
+                      />
+                    ) : null}
+                  </PanelScroll>
                   <ExportRow studio={studio} />
                 </Glass>
               ) : (
                 /* Presets replaces the stack, not the column — the switch and
                    any open popup stay put. The system's 250, same as the
                    stack it replaces — the tiles share what is left. */
-                <Glass key="presets" style={{ height: STACK_HEIGHT }}>
+                <Glass
+                  key="presets"
+                  style={{ height: STACK_HEIGHT, maxHeight: "100%" }}
+                >
                   {/*
                     One group, not four rows of two: the lens travels between
                     whichever tiles are selected, and it can only do that if
@@ -2196,6 +2924,11 @@ export default function StudioChrome() {
                           preset={preset}
                           label={getMotionPreset(preset.id)?.label ?? preset.id}
                           selected={preset.id === studio.presetId}
+                          // Held here, not in the tile: the lens draws every
+                          // tile twice, and the copy under a selected tile has
+                          // to play the same move as the tile it covers.
+                          playing={preset.id === hoveredPreset}
+                          onHover={setHoveredPreset}
                           // Applies the move AND plays it once. This shell has no
                           // transport, so a preset that only loaded keyframes
                           // would look like a tile that does nothing.

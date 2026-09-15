@@ -17,6 +17,8 @@ export type SurfaceValues = {
   panelEnv: number;
   logoRoughness: number;
   logoMetalness: number;
+  antennaRoughness: number;
+  antennaMetalness: number;
   glassRoughness: number;
   glassMetalness: number;
   glassEnv: number;
@@ -47,6 +49,9 @@ export const SURFACE_DEFAULTS: SurfaceValues = {
   panelRoughness: 0.25,
   panelMetalness: 0.26,
   panelEnv: 0,
+  // TEST 4's antenna bands, as the file has them.
+  antennaRoughness: 0.5,
+  antennaMetalness: 0,
   logoRoughness: 0.12,
   logoMetalness: 0.85,
   /* The back glass — `IxiedJEUxrDhLIX`, the one the model states at

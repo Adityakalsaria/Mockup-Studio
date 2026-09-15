@@ -45,7 +45,20 @@ type Surface = {
   color?: { multiplyScalar: (n: number) => void; clone: () => unknown };
 };
 
-export function MaterialLab({ active }: { active: boolean }) {
+export function MaterialLab({
+  active,
+  body = BODY,
+  panel = PANEL,
+  glass = GLASS,
+  antenna = [],
+}: {
+  active: boolean;
+  /** Material names per folder; the iPhone 18's when not given. */
+  body?: string[];
+  panel?: string[];
+  glass?: string[];
+  antenna?: string[];
+}) {
   const scene = useThree((state) => state.scene);
   const invalidate = useThree((state) => state.invalidate);
 
@@ -92,13 +105,13 @@ export function MaterialLab({ active }: { active: boolean }) {
           const material = one as Surface & { name?: string };
           const name = material?.name;
           if (!name) continue;
-          if (BODY.includes(name)) {
+          if (body.includes(name)) {
             paint(material, {
               roughness: surfaceValues.bodyRoughness,
               metalness: surfaceValues.bodyMetalness,
               envMapIntensity: surfaceValues.bodyEnv,
             });
-          } else if (PANEL.includes(name)) {
+          } else if (panel.includes(name)) {
             paint(material, {
               darken: surfaceValues.panelDarken,
               roughness: surfaceValues.panelRoughness,
@@ -110,6 +123,23 @@ export function MaterialLab({ active }: { active: boolean }) {
               roughness: surfaceValues.logoRoughness,
               metalness: surfaceValues.logoMetalness,
             });
+          } else if (antenna.includes(name)) {
+            paint(material, {
+              roughness: surfaceValues.antennaRoughness,
+              metalness: surfaceValues.antennaMetalness,
+            });
+          } else if (glass.includes(name)) {
+            paint(material, {
+              roughness: surfaceValues.glassRoughness,
+              metalness: surfaceValues.glassMetalness,
+              envMapIntensity: surfaceValues.glassEnv,
+            });
+          } else if (surfaceValues.restOn) {
+            paint(material, {
+              roughness: surfaceValues.restRoughness,
+              metalness: surfaceValues.restMetalness,
+              envMapIntensity: surfaceValues.restEnv,
+            });
           }
         }
       });
@@ -119,7 +149,7 @@ export function MaterialLab({ active }: { active: boolean }) {
 
     apply();
     return subscribeSurface(apply);
-  }, [active, scene, invalidate]);
+  }, [active, scene, invalidate, body, panel, glass, antenna]);
 
   return null;
 }

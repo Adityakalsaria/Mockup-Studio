@@ -20,7 +20,17 @@ import { parseHex, toHex } from "@/design/color";
  * its balance and temperature move.
  */
 
-export type LightingId = "studio" | "soft" | "contrast" | "product" | "warm" | "cool";
+export type LightingId =
+  | "studio"
+  | "soft"
+  | "contrast"
+  | "product"
+  | "warm"
+  | "cool"
+  | "dramatic"
+  | "top"
+  | "high-key"
+  | "rim";
 
 export type LightingPreset = {
   id: LightingId;
@@ -62,7 +72,45 @@ export const LIGHTING_PRESETS: LightingPreset[] = [
   { id: "product", label: "Product", key: 1.25, edge: 1.85, fill: 0.2, bounce: 0.3, warmth: -0.12 },
   { id: "warm", label: "Warm", key: 1.05, edge: 0.95, fill: 1.1, bounce: 1.25, warmth: 0.6 },
   { id: "cool", label: "Cool", key: 1, edge: 1.15, fill: 1, bounce: 0.85, warmth: -0.6 },
+  // Edges at their brightest over almost nothing: a black body cut out by two
+  // hard lines of light.
+  { id: "dramatic", label: "Dramatic", key: 0.55, edge: 2.2, fill: 0.08, bounce: 0.15, warmth: -0.1 },
+  // All from above: the top chamfer and the upper back carry it, the lower
+  // half falls away.
+  { id: "top", label: "Top light", key: 1.9, edge: 0.6, fill: 0.35, bounce: 0.1, warmth: 0.05 },
+  // Everything up and even, for a bright catalogue shot with no dark side.
+  { id: "high-key", label: "High-key", key: 1.3, edge: 1.1, fill: 2.2, bounce: 1.8, warmth: 0.05 },
+  // Light only from the sides and behind: a glowing outline on a dim face.
+  { id: "rim", label: "Rim", key: 0.3, edge: 2, fill: 0.15, bounce: 0.6, warmth: -0.2 },
 ];
+
+/**
+ * The rig as dialled: a preset's balance, or one moved by hand, plus how far
+ * the whole rig is turned around the phone. What the Lighting popup's sliders
+ * edit and what the environment builds.
+ */
+export type LightRig = Omit<LightingPreset, "id" | "label"> & {
+  /** Degrees about the vertical, 0 as authored. */
+  angle: number;
+  /** Degrees the rig is tipped up (+) or down (−), 0 as authored. */
+  elevation: number;
+};
+
+export const rigOf = (
+  id: LightingId,
+  angle = 0,
+  elevation = 0,
+): LightRig => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { id: _id, label: _label, ...balance } = getLighting(id);
+  return { ...balance, angle, elevation };
+};
+
+/** A shot's rig — saved before the sliders existed, it is its preset's. */
+export const lightOf = (s: {
+  lighting: LightingId;
+  light?: Partial<LightRig>;
+}): LightRig => ({ ...rigOf(s.lighting), ...s.light });
 
 export const DEFAULT_LIGHTING: LightingId = "studio";
 

@@ -397,7 +397,14 @@ function pressKeys(onClick?: () => void) {
  * implementation of the selected look rather than two that can drift.
  */
 export function Row({ icon, children, trailing, value, selected, onClick, title }: RowProps) {
-  const { grouped, strong, interactive } = useRowState(selected, onClick);
+  const { grouped, strong: selectedInk, interactive } = useRowState(selected, onClick);
+  /*
+   * Hover borrows the selected INK, not the lens: text and glyphs go to full
+   * strength under the pointer so a row reads as reachable before it is
+   * pressed, while the pill stays with what is actually selected.
+   */
+  const [hovered, setHovered] = useState(false);
+  const strong = selectedInk || (interactive && hovered);
 
   if (!grouped) {
     return (
@@ -423,6 +430,8 @@ export function Row({ icon, children, trailing, value, selected, onClick, title 
       title={title}
       onClick={interactive ? onClick : undefined}
       onKeyDown={interactive ? pressKeys(onClick) : undefined}
+      onPointerEnter={interactive ? () => setHovered(true) : undefined}
+      onPointerLeave={interactive ? () => setHovered(false) : undefined}
       className={`relative flex w-full items-center ${interactive ? "cursor-pointer" : ""}`}
       style={{
         gap: "var(--mo-space-2)",
@@ -441,6 +450,7 @@ export function Row({ icon, children, trailing, value, selected, onClick, title 
           zIndex: 1,
           color: strong ? "var(--mo-ink)" : "var(--mo-ink-muted)",
           filter: "var(--mo-text-shadow)",
+          transition: "color 150ms ease-out",
         }}
       >
         {children}
@@ -918,6 +928,7 @@ export function Glyph({ children, muted }: { children: ReactNode; muted?: boolea
         height: control.icon,
         color: "var(--mo-ink)",
         opacity: muted ? 0.5 : 1,
+        transition: "opacity 150ms ease-out",
       }}
     >
       {children}
@@ -1667,8 +1678,14 @@ export function ParamRow({
   glass,
   spring,
   press,
+  snap,
 }: {
   label: string;
+  /**
+   * Pulls a DRAGGED value onto somewhere worth landing. The slider only: a
+   * number typed into the field is taken exactly as typed.
+   */
+  snap?: (n: number) => number;
   /**
    * Replaces the label column with a glyph box.
    *
@@ -1723,7 +1740,7 @@ export function ParamRow({
         min={min}
         max={max}
         step={step}
-        onChange={onChange}
+        onChange={snap ? (n) => onChange(snap(n)) : onChange}
         glass={glass}
         spring={spring}
         press={press}

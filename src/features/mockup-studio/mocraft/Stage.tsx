@@ -19,12 +19,15 @@
  * scene on every drag of the window edge. Same technique as the editor's.
  */
 
-import { memo } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import PhoneStage3D from "../PhoneStage3D";
 import { OverlayLayer } from "../OverlayLayer";
 import { backgroundCss } from "../backgrounds";
 import { isOverlayActive } from "../overlay";
 import type { Studio } from "./useStudio";
+import type { SnapGuides } from "./snapping";
+import { isBlurActive, type BlurSettings } from "../blurStyles";
+import { lightOf } from "../lighting";
 
 /**
  * How much workspace is left around the canvas.
@@ -53,7 +56,16 @@ const INSET = 40;
 const FRAME = 0.82;
 
 function StageInner({ studio }: { studio: Studio }) {
-  const { state, ratio, screenTexture, coverTexture, playing, playheadRef, exporting, presetId } = studio;
+  const {
+    state,
+    ratio,
+    screenTexture,
+    coverTexture,
+    playing,
+    playheadRef,
+    exporting,
+    presetId,
+  } = studio;
 
   /*
    * The pose follows the playhead while the transport runs AND while a video
@@ -78,7 +90,8 @@ function StageInner({ studio }: { studio: Studio }) {
    * spring is a lag filter, and a filter on top of frame-exact export would
    * smear each keyframe a fifth of a second late.
    */
-  const timeDriven = playing || exporting?.kind === "video" || presetId !== null;
+  const timeDriven =
+    playing || exporting?.kind === "video" || presetId !== null;
 
   return (
     <div
@@ -131,6 +144,7 @@ function StageInner({ studio }: { studio: Studio }) {
           cardDepth={state.cardDepth}
           shadow={state.shadow}
           lighting={state.lighting}
+          light={lightOf(state)}
           screenFit={{
             ...studio.screenFit,
             // A mirrored device screen already contains its own island.
@@ -181,8 +195,185 @@ function StageInner({ studio }: { studio: Studio }) {
         {isOverlayActive(state.overlay) ? (
           <OverlayLayer overlay={state.overlay} raise={false} />
         ) : null}
+
+        <SnapGuideLayer guides={studio.guides} />
+        {isBlurActive(state.blur) ? (
+          <FocusGuide blur={state.blur} />
+        ) : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * The alignment guides, Figma's way: a dashed line through the frame's centre
+ * for each axis the phone has snapped onto, and a small label for a snap a
+ * line cannot draw — an angle, a scale, a depth.
+ *
+ * Over the shot and never in it: this is a DOM layer on the frame, not part of
+ * the canvas, so no export or recording can pick it up. It takes no pointer
+ * events, so a drag on the model passes straight through the lines it causes.
+ */
+const GUIDE = "#0D99FF"; // Figma's selection blue
+
+function SnapGuideLayer({ guides }: { guides: SnapGuides }) {
+  const line = {
+    position: "absolute",
+    pointerEvents: "none",
+  } as const;
+  return (
+    <>
+      {guides.vertical ? (
+        <div
+          aria-hidden
+          style={{
+            ...line,
+            top: 0,
+            bottom: 0,
+            left: "calc(50% - 0.5px)",
+            // A dotted border, not a gradient: at 1px a gradient's dashes are
+            // blended into the ground and the red read as grey.
+            borderLeft: `1px dotted ${GUIDE}`,
+          }}
+        />
+      ) : null}
+      {guides.horizontal ? (
+        <div
+          aria-hidden
+          style={{
+            ...line,
+            left: 0,
+            right: 0,
+            top: "calc(50% - 0.5px)",
+            borderTop: `1px dotted ${GUIDE}`,
+          }}
+        />
+      ) : null}
+      {guides.label ? (
+        <div
+          aria-hidden
+          className="mo-code"
+          style={{
+            ...line,
+            left: "50%",
+            top: 12,
+            transform: "translateX(-50%)",
+            padding: "2px 6px",
+            borderRadius: 4,
+            background: GUIDE,
+            color: "#fff",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {guides.label}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Where the blur is, drawn over the shot: solid where sharp ends, dotted where
+ * the blur is fully in. The numbers are `DepthOfFieldLayer`'s own — radius
+ * `focusSize / 2` and a falloff of `0.02 + falloff × 0.6`, both in frame
+ * heights — so the marks sit exactly on the edges the shader draws.
+ */
+function FocusGuide({ blur }: { blur: BlurSettings }) {
+  const ref = useRef<SVGSVGElement>(null);
+  /*
+   * At rest until the blur is being edited: shown on each change and gone a
+   * beat after the last, like the snap guides. The first render is not an
+   * edit, so switching DOF on — or loading a shot with it — draws nothing.
+   */
+  // Written to the node, not state: it is a fade, not something to render.
+  const first = useRef(true);
+  useEffect(() => {
+    const node = ref.current;
+    if (first.current || !node) {
+      first.current = false;
+      return;
+    }
+    node.style.transition = "opacity 100ms ease-out";
+    node.style.opacity = "1";
+    const t = window.setTimeout(() => {
+      node.style.transition = "opacity 300ms ease-out";
+      node.style.opacity = "0";
+    }, 800);
+    return () => window.clearTimeout(t);
+  }, [blur]);
+  const [aspect, setAspect] = useState(1);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (height > 0) setAspect(width / height);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  // Frame heights across, so a circle is round at any ratio.
+  const cx = blur.focusX * aspect;
+  const cy = blur.focusY;
+  const inner = blur.focusSize * 0.5;
+  const outer = inner + 0.02 + blur.falloff * 0.6;
+  // The shader's direction is y-up; the SVG's is y-down.
+  const a = (blur.angle * Math.PI) / 180;
+  const dir = { x: Math.cos(a), y: -Math.sin(a) };
+  const stroke = {
+    stroke: GUIDE,
+    fill: "none",
+    vectorEffect: "non-scaling-stroke" as const,
+    strokeWidth: 1.5,
+  };
+  const dotted = { ...stroke, strokeDasharray: "2 4" };
+
+  /** A line through the frame, `d` along `n` from the focus point. */
+  const across = (n: { x: number; y: number }, d: number, dots: boolean) => {
+    const px = cx + n.x * d;
+    const py = cy + n.y * d;
+    const L = 10;
+    return (
+      <line
+        key={`${d}-${dots}`}
+        x1={px - n.y * L}
+        y1={py + n.x * L}
+        x2={px + n.y * L}
+        y2={py - n.x * L}
+        {...(dots ? dotted : stroke)}
+      />
+    );
+  };
+  // Tilt shift measures across the band, along its normal; directional along
+  // the direction itself.
+  const normal = { x: -Math.sin(a), y: -Math.cos(a) };
+
+  return (
+    <svg
+      ref={ref}
+      aria-hidden
+      viewBox={`0 0 ${aspect} 1`}
+      preserveAspectRatio="none"
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      style={{ opacity: 0 }}
+    >
+      {blur.mode === "radial" ? (
+        <>
+          <circle cx={cx} cy={cy} r={inner} {...stroke} />
+          <circle cx={cx} cy={cy} r={outer} {...dotted} />
+        </>
+      ) : blur.mode === "directional" ? (
+        [across(dir, inner, false), across(dir, outer, true)]
+      ) : (
+        [
+          across(normal, inner, false),
+          across(normal, -inner, false),
+          across(normal, outer, true),
+          across(normal, -outer, true),
+        ]
+      )}
+    </svg>
   );
 }
 
