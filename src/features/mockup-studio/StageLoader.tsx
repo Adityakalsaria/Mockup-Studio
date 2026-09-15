@@ -25,21 +25,27 @@ import { useProgress } from "@react-three/drei";
     frame reads as a glitch rather than as progress. */
 const SHOW_AFTER_MS = 160;
 
+/*
+ * Geist's spinner, by hand: twelve bars round a circle, each fading after the
+ * one before it. `@vercel/geistcn` is not a published package, and this is
+ * the whole of what its Spinner draws.
+ */
 const LOADER_CSS = `
-@keyframes ks-loader-slide {
-  0%   { transform: translateX(-100%); }
-  100% { transform: translateX(340%); }
+@keyframes ks-spinner-fade {
+  0%   { opacity: 1; }
+  100% { opacity: 0.15; }
 }
-.ks-loader-bar {
-  width: 30%;
-  animation: ks-loader-slide 1.1s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+.ks-spinner-bar {
+  animation: ks-spinner-fade 1.2s linear infinite;
 }
-/* Reduced motion is not "no feedback": the bar stops travelling and simply
-   sits there as a filled track, so the panel still reads as busy. */
 @media (prefers-reduced-motion: reduce) {
-  .ks-loader-bar { width: 100%; animation: none; opacity: 0.55; }
+  .ks-spinner-bar { animation: none; }
 }
 `;
+
+const SPINNER_SIZE = 28;
+const SPINNER_COLOR = "#0D99FF";
+
 
 export function StageLoader() {
   const { active } = useProgress();
@@ -70,46 +76,29 @@ export function StageLoader() {
         transition: "opacity 220ms cubic-bezier(0.23, 1, 0.32, 1)",
       }}
     >
-      <div
-        role="status"
-        aria-live="polite"
-        className="flex flex-col items-center gap-[10px] rounded-full px-[16px] py-[10px]"
-        style={{
-          background: "var(--ks-surface-solid, rgba(255, 255, 255, 0.92))",
-          color: "var(--ks-text, #1d1d1f)",
-          backdropFilter: "blur(24px) saturate(180%)",
-          WebkitBackdropFilter: "blur(24px) saturate(180%)",
-          boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12)",
-        }}
-      >
-        {/* Scoped here rather than in the editor theme, because this renders
-            wherever the stage does and the theme sheet is only mounted by the
-            editor shell. */}
+      <div role="status" aria-live="polite" aria-label="Loading model">
         <style>{LOADER_CSS}</style>
-        <span
-          className="ks-label"
-          style={{ fontSize: 13, lineHeight: "18px", letterSpacing: "-0.08px" }}
+        <div
+          className="relative"
+          style={{ width: SPINNER_SIZE, height: SPINNER_SIZE }}
         >
-          Loading model
-        </span>
-        {/* Indeterminate, deliberately.
-            The obvious thing is a percentage, and the first version did that
-            -- but three's loading manager counts FILES, not bytes, and the
-            stage loads two. So the bar sat at 4% for the whole of a three
-            second download and then jumped straight to 100%: a progress bar
-            that does not move is a stronger "this is stuck" signal than no
-            progress bar at all, which is the opposite of the point. A bar that
-            is honestly indeterminate says "working" without claiming a
-            precision the data does not have. */}
-        <span
-          className="block h-[3px] w-[120px] overflow-hidden rounded-full"
-          style={{ background: "var(--ks-ctl, rgba(120, 120, 128, 0.16))" }}
-        >
-          <span
-            className="ks-loader-bar block h-full rounded-full"
-            style={{ background: "var(--ks-accent, #007AFF)" }}
-          />
-        </span>
+          {Array.from({ length: 12 }, (_, i) => (
+            <span
+              key={i}
+              className="ks-spinner-bar absolute rounded-full"
+              style={{
+                left: "calc(50% - 1.25px)",
+                top: 0,
+                width: 2.5,
+                height: SPINNER_SIZE * 0.28,
+                background: SPINNER_COLOR,
+                transformOrigin: `50% ${SPINNER_SIZE / 2}px`,
+                transform: `rotate(${i * 30}deg)`,
+                animationDelay: `${(i - 12) * 0.1}s`,
+              }}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

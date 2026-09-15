@@ -22,7 +22,6 @@ import { parseHex, toHex } from "@/design/color";
 
 export type LightingId =
   | "studio"
-  | "soft"
   | "dramatic"
   | "top"
   | "high-key"
@@ -42,9 +41,6 @@ export type LightingPreset = {
 
 export const LIGHTING_PRESETS: LightingPreset[] = [
   { id: "studio", label: "Studio", key: 1, edge: 1, fill: 1, bounce: 1, warmth: 0 },
-  // Lift the fill and pull the edges back: the highlights stop being lines and
-  // become gradients. Nothing to catch the eye, which is the point.
-  { id: "soft", label: "Soft", key: 0.8, edge: 0.55, fill: 1.7, bounce: 1.35, warmth: 0.1 },
   // Edges at their brightest over almost nothing: a black body cut out by two
   // hard lines of light.
   { id: "dramatic", label: "Dramatic", key: 0.55, edge: 2.2, fill: 0.08, bounce: 0.15, warmth: -0.1 },
