@@ -968,7 +968,10 @@ export const DEVICES: Device[] = [
     // parts are matched by name — so each name here is the suffixed copy.
     id: "apple-iphone-17-pro",
     label: "Apple iPhone 17 Pro",
-    modelPath: `${MODELS}/apple-iphone-17-pro.glb`,
+    // A new filename, not the old one reused: `public/` is served immutable for
+    // a year, so browsers that had the previous 17 Pro kept loading it under
+    // this entry's part names, which it does not have.
+    modelPath: `${MODELS}/apple-iphone-17-pro-v2.glb`,
     hideHints: [],
     // The LiDAR window sat at the bottom of its barrel, 1.2mm inside the body
     // while the flash beside it is flush. Brought up to the barrel's rim, level
