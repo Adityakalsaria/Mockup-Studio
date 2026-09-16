@@ -4,7 +4,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { RoundedBox, useGLTF } from "@react-three/drei";
 import { withModelToken } from "@/lib/modelToken";
-import { Box3, CanvasTexture, ClampToEdgeWrapping, Color, RepeatWrapping, DoubleSide, ExtrudeGeometry, Group, Object3D, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
+import { Box3, CanvasTexture, ClampToEdgeWrapping, Color, RepeatWrapping, DirectionalLight, DoubleSide, ExtrudeGeometry, Group, Object3D, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
 import type { Texture } from "three";
 import { AnimationMixer } from "three";
 // Not Object3D.clone(): that copies a SkinnedMesh but leaves it pointing at
@@ -1611,11 +1611,18 @@ function GLBPhoneScene({
         material?: { name?: string } | Array<{ name?: string }>;
       };
       if (!m.isMesh) return;
-      // The phone casts; it does not receive. Self-shadowing a slab lit
-      // almost entirely by an environment map buys nothing and costs a
-      // shadow-acne pass on the one surface anyone looks at.
+      /*
+       * The phone casts; it does not receive -- self-shadowing a slab lit
+       * almost entirely by an environment map buys nothing and costs a
+       * shadow-acne pass on the one surface anyone looks at.
+       *
+       * Unless the model is more than the phone. A hand holding one has to
+       * take the phone's shadow across its fingers or the two read as
+       * separate objects photographed apart, so `selfShadow` turns receiving
+       * back on and `SelfShadowLight` gives it something to receive from.
+       */
       m.castShadow = true;
-      m.receiveShadow = false;
+      m.receiveShadow = device.selfShadow === true;
       const names: string[] = [];
       if (typeof m.name === "string") names.push(m.name);
       const mat = m.material;
@@ -3400,6 +3407,98 @@ function PhoneScene({
  * Sampled from the clip each frame so a keyed angle plays; otherwise the value
  * as dialled.
  */
+/**
+ * The one real light in the scene, and only for models that need one.
+ *
+ * Everything here is lit by an environment cube map, which casts nothing: an
+ * environment is light arriving from every direction at once, so there is no
+ * direction for a shadow to fall in. That is the right trade for a phone
+ * floating on its own -- see `shadow.ts` for why the drop shadow is drawn as
+ * a silhouette rather than cast -- but it falls down the moment a model has
+ * two parts that should shade each other. A phone held in a hand casts
+ * nothing on the fingers holding it, and the hand reads as pasted on behind.
+ *
+ * So: mounted only where a device asks for it, aimed along the same angle and
+ * elevation the environment is turned to, so the shadow agrees with the light
+ * everything else is reading. It brings its own modest intensity because a
+ * shadow is an absence of light and a light at zero has none to take away.
+ */
+function SelfShadowLight({
+  angle,
+  elevation,
+  animation,
+  timeRef,
+}: {
+  angle: number;
+  elevation: number;
+  animation?: Animation;
+  timeRef?: React.RefObject<number>;
+}) {
+  const ref = useRef<DirectionalLight>(null);
+  useFrame(() => {
+    const light = ref.current;
+    if (!light) return;
+    const pose = animation && timeRef ? sampleAnimation(animation, timeRef.current) : {};
+    /*
+     * Offset from the dialled direction, not equal to it.
+     *
+     * The light control opens at 0, 0 -- straight down the lens -- which is a
+     * flattering place for an environment and the one place a cast shadow
+     * cannot be seen, because every shadow lands exactly behind the thing
+     * casting it. Lifting the key up and round puts the phone's shadow across
+     * the fingers where it belongs, and the offset is carried rather than
+     * fixed so turning the light still moves the shadow with it.
+     */
+    const a = ((((pose.lightAngle ?? angle) as number) + 32) * Math.PI) / 180;
+    const e = ((((pose.lightElevation ?? elevation) as number) + 34) * Math.PI) / 180;
+    // Far enough back that the orthographic shadow camera below covers the
+    // model whatever way it is turned; the fit puts a phone at PHONE_HEIGHT.
+    const d = 4;
+    light.position.set(
+      Math.sin(a) * Math.cos(e) * d,
+      Math.sin(e) * d,
+      Math.cos(a) * Math.cos(e) * d,
+    );
+  });
+  /*
+   * `normalBias` rather than a large depth bias: the hand is a curved,
+   * smooth-shaded surface, which is exactly where a flat bias either leaves
+   * acne across the knuckles or floats the shadow off the fingers holding
+   * the phone. The target is left at the origin, where the fitted model is.
+   */
+  return (
+    <directionalLight
+      ref={ref}
+      intensity={1.4}
+      castShadow
+      /*
+       * Soft, because nothing in this scene is lit by a point source.
+       *
+       * The rest of the studio is an environment map -- light from a large
+       * soft source in every direction -- and a hard-edged shadow under it
+       * looks like it was composited in from a different photograph. VSM
+       * blurs in the shadow map itself rather than smudging its edge on
+       * lookup, so the penumbra stays even across the fingers instead of
+       * breaking into the stair-steps a wide PCF radius gives.
+       *
+       * 1024 rather than 2048: the map is about to be blurred heavily, so the
+       * extra resolution buys nothing but bandwidth.
+       */
+      shadow-mapSize-width={1024}
+      shadow-mapSize-height={1024}
+      shadow-radius={7}
+      shadow-bias={-0.0006}
+      shadow-normalBias={0.02}
+      shadow-camera-near={0.5}
+      shadow-camera-far={9}
+      shadow-camera-left={-1.2}
+      shadow-camera-right={1.2}
+      shadow-camera-top={1.2}
+      shadow-camera-bottom={-1.2}
+    />
+  );
+}
+
 function LightTurn({
   angle,
   elevation,
@@ -3537,6 +3636,12 @@ export default function PhoneStage3D({
       <Canvas
         className="!h-full !w-full"
         /*
+         * Shadow maps on. Nothing casts unless a device mounts
+         * `SelfShadowLight`, so for every other model this is a flag the
+         * renderer never acts on.
+         */
+        shadows
+        /*
          * The drop shadow is a CSS filter on the canvas, and it works because
          * the stage renders transparent over the background: the only opaque
          * thing in the canvas is the phone, so `drop-shadow` reads its
@@ -3593,6 +3698,14 @@ export default function PhoneStage3D({
           animation={animation}
           timeRef={timeRef}
         />
+        {device.selfShadow ? (
+          <SelfShadowLight
+            angle={lightAngle}
+            elevation={lightElevation}
+            animation={animation}
+            timeRef={timeRef}
+          />
+        ) : null}
         {/*
           No surface bench. `MaterialLab` was mounted here for the 18s while
           their materials were being tuned; the numbers it found now live in

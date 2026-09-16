@@ -230,6 +230,18 @@ export interface Device {
    * Meshes moved by hand, in the file's own units and world axes, before the
    * model is posed or measured. For a part an export left in the wrong place.
    */
+  /**
+   * Light this model with a real light as well, so its parts shadow each
+   * other.
+   *
+   * For models that are more than a device. The scene is lit by an
+   * environment map, which casts nothing -- light from every direction at
+   * once leaves no direction for a shadow -- and that is right for a phone on
+   * its own. A phone held in a hand is not on its own: without this the hand
+   * takes no shadow from the phone it is gripping and the two read as
+   * photographed separately. See `SelfShadowLight`.
+   */
+  selfShadow?: boolean;
   meshNudges?: Record<string, [number, number, number]>;
   fold?: {
     openSec: number;
@@ -1058,6 +1070,8 @@ export const DEVICES: Device[] = [
      */
     id: "apple-iphone-17-pro-hand",
     label: "iPhone 17 Pro in hand",
+    // The phone has to shade the fingers holding it.
+    selfShadow: true,
     // Same file, same correction as the 17 Pro: it opens on its back.
     modelYawDeg: 180,
     modelPath: `${MODELS}/m-e1abbe683597d9ea.glb`,
