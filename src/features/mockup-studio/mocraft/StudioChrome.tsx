@@ -1505,7 +1505,6 @@ const DEVICE_ICONS: Record<string, string> = {
   "apple-iphone-17-pro": "iphone",
   "apple-iphone-17-pro-max": "iphone",
   "apple-iphone-air": "iphone",
-  "iphone-fold": "iphone",
   "apple-ipad-pro": "ipad-pro",
   "apple-macbook-neo": "laptop",
   "apple-macbook-pro-14": "macbook",

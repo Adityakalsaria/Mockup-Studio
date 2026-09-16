@@ -2443,7 +2443,22 @@ export const DEVICES: Device[] = [
   {
     id: "apple-ipad-pro",
     label: "Apple iPad Pro",
-    modelPath: `${MODELS}/m-dea304d7de1c3ee1.glb`,
+    /*
+     * The one model still shipped uncompressed.
+     *
+     * Meshopt quantisation rewrites each mesh's geometry into its own
+     * normalised space and puts the difference on the node, which is
+     * invisible to anything that renders and fatal to `cameraCopies` below:
+     * `radialSpan` measures the rim in LOCAL coordinates and compares it
+     * against every other mesh's, so once those spaces stop agreeing it
+     * matches the wrong parts and copies them at the wrong size. On the live
+     * site that came out as a single lens the size of the whole tablet.
+     *
+     * ponytail: costs ~2.6MB against the other twelve. The fix is to measure
+     * in world space in `addCameraCopies`; worth doing when something else
+     * needs that code opened anyway.
+     */
+    modelPath: `${MODELS}/m-6ac055b703108758.glb`,
     hideHints: [],
     /*
      * 264.4 x 198.0mm, aspect 1.3356 against the real 13-inch panel's 1.3333
@@ -2975,75 +2990,6 @@ export const DEVICES: Device[] = [
      * naming rather than a Pro Display XDR, whose panel is 717.9mm across.
      */
     credit: "Apple — design resources (studio-display-xdr.usdz)",
-  },
-  {
-    id: "iphone-fold",
-    label: "iPhone Fold",
-    modelPath: `${MODELS}/m-77e43d630f9bbb48.glb`,
-    hideHints: [],
-    // Two screens in this model: "OLED" is the outer cover display and
-    // "OLED IN" the inner one that folds. The match is exact, so naming one
-    // binds only that one -- the other keeps the model's own wallpaper.
-    screenMaterial: "OLED IN",
-    // Just the mirror. An earlier reading added a 90 degree turn as well, on
-    // the strength of test cards that could not tell the two apart -- a square
-    // card is rotation-blind, and a portrait one came back upright either way.
-    // A card carrying a CIRCLE settled it: the panel maps the source upright,
-    // so the turn was doing nothing except sending the crop to the wrong axis,
-    // which is what stretched every portrait source across the panel.
-    screenRotateDeg: 90,
-    screenFlipX: true,
-    // TEXCOORD_0 on the inner panel spans u 0..1, v 0..1 -- a square, over a
-    // 1.42 mesh.
-    screenUvAspect: 1,
-    // Black at 0.336 alpha, laid straight over the OLED prim on the same mesh.
-    // "Glass flex" veils the inner panel, "Glass" the cover one -- black at
-    // 0.336 and 0.211 alpha respectively, both sitting directly over their
-    // screen. Measured with a step wedge: the inner one multiplied everything
-    // by a flat 0.686, and a constant ratio across the range is what says
-    // "layer on top" rather than "tone curve".
-    screenOverlayHide: ["Glass flex", "Glass"],
-    // The back panel. Transparent in the file, body in every other sense.
-    // The back panel and the camera island. Both authored as a 0.84 grey with
-    // an alpha of 0.94, so both fell through the finish pass as glass.
-    bodyMaterials: ["Frosted glass", "Tinted glass"],
-    logoMaterials: ["Metal tint"],
-    // Matched to the side button in the same model, which is the look this is
-    // after: a light grey that reads as milled metal rather than as paint.
-    logoColor: "#9c9c9c",
-    // The outer panel, measured at 77.2 x 115.1mm in the file. Upright and
-    // the right way round without help, unlike the inner one.
-    coverScreen: {
-      material: "OLED",
-      native: { width: 772, height: 1151 },
-      // TEXCOORD_0 on the cover panel: u 0..1, v 0.3138..1.0.
-      uvRect: { y: 0.3138, h: 0.6862 },
-      // Its UVs run right to left, like the inner panel's: text bound to it
-      // came back reversed when read from outside the closed phone, which is
-      // the only side this screen is ever seen from.
-      flipX: true,
-    },
-    // The clip closes the phone: the leaves are parallel at t=0 and have swung
-    // 180 degrees onto each other by t=2, holding shut to 5. Rendering both
-    // ends settled which way round it goes -- "parallel leaves" describes
-    // flat-open and folded-shut equally well, so the angle alone cannot say.
-    fold: { openSec: 0, closedSec: 2 },
-    // Open, this model puts its inner screen on the face the stage's default
-    // yaw turns AWAY from -- so it opened showing the back, and the big screen
-    // the device exists for was behind it. Half a turn here rather than a new
-    // camera default, so one convention still holds across the registry.
-    modelYawDeg: 180,
-    // The inner panel measures 158.9 x 111.9mm in the file, so the mockup is
-    // authored landscape. Portrait would letterbox against the mesh.
-    screenNative: { width: 1589, height: 1119 },
-    screenCornerRadiusPct: 0.045,
-    screenInsetPct: 1,
-    // A book fold has no notch on the inner panel; the cameras sit in the
-    // outer half.
-    notch: null,
-    // TODO: unconfirmed. Supplied as `iPhone fold.glb`; provenance and licence
-    // still to be established before this ships anywhere public.
-    credit: "UNKNOWN — provenance not yet confirmed",
   },
   {
     /*
