@@ -968,6 +968,11 @@ export const DEVICES: Device[] = [
     // parts are matched by name — so each name here is the suffixed copy.
     id: "apple-iphone-17-pro",
     label: "Apple iPhone 17 Pro",
+    /*
+     * Turned to face the camera. The stage's default yaw shows this file's
+     * back, and the screen is the side worth opening on.
+     */
+    modelYawDeg: 180,
     // A new filename, not the old one reused: `public/` is served immutable for
     // a year, so browsers that had the previous 17 Pro kept loading it under
     // this entry's part names, which it does not have.
@@ -2533,7 +2538,12 @@ export const DEVICES: Device[] = [
   },
   {
     id: "apple-macbook-neo",
-    label: "Apple MacBook",
+    label: "MacBook Neo",
+    /*
+     * Turned to face the camera. The stage's default yaw shows this file's
+     * back, and the screen is the side worth opening on.
+     */
+    modelYawDeg: 180,
     modelPath: `${MODELS}/m-baecd0e112e97dca.glb`,
     hideHints: [],
     /*
@@ -2638,6 +2648,11 @@ export const DEVICES: Device[] = [
   {
     id: "apple-macbook-pro-14",
     label: "Apple MacBook Pro 14\"",
+    /*
+     * Turned to face the camera. The stage's default yaw shows this file's
+     * back, and the screen is the side worth opening on.
+     */
+    modelYawDeg: 180,
     modelPath: `${MODELS}/m-ddbfa960dc4cc05d.glb`,
     hideHints: [],
     /*
@@ -2779,6 +2794,11 @@ export const DEVICES: Device[] = [
   {
     id: "apple-imac-24",
     label: "Apple iMac 24\"",
+    /*
+     * Turned to face the camera. The stage's default yaw shows this file's
+     * back, and the screen is the side worth opening on.
+     */
+    modelYawDeg: 180,
     modelPath: `${MODELS}/m-812007bce13a9c7c.glb`,
     hideHints: [],
     /*
