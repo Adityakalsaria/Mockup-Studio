@@ -1041,6 +1041,99 @@ export const DEVICES: Device[] = [
     credit: "Apple — design resources, re-exported from Blender",
   },
   {
+    /*
+     * The same 17 Pro, held.
+     *
+     * One file: a hand and the phone it is holding, so the "device" the studio
+     * poses and fits is the pair of them. Every tuned surface carries over
+     * unchanged because it IS the same export -- Blender just suffixed this
+     * copy's parts three higher (".032" became ".035"), so the names below are
+     * the 17 Pro's with that shift applied.
+     *
+     * The hand itself is a single mesh on an UNNAMED material, which is what
+     * keeps the finish pass off it: every rule here matches by name, so there
+     * is nothing for the repaint to catch hold of. It stays the colour it was
+     * authored whichever finish is picked, which is what you want -- the
+     * finish is the phone's, not the skin's.
+     */
+    id: "apple-iphone-17-pro-hand",
+    label: "iPhone 17 Pro in hand",
+    // Same file, same correction as the 17 Pro: it opens on its back.
+    modelYawDeg: 180,
+    modelPath: `${MODELS}/m-006348f7756c72de.glb`,
+    hideHints: [],
+    // As on the 17 Pro: the LiDAR window sits 1.2mm down its barrel.
+    meshNudges: { CUXydfOmpZTOIwn003: [0, 0, -0.0012] },
+    finishIds: [
+      "cosmic-orange",
+      "deep-blue",
+      "silver",
+      "pro-burgundy",
+      "pro-sky-blue",
+    ],
+    screenMaterial: "BsXHDwLKqtDOfrW.007",
+    authoredBodyColor: "#e47a44",
+    plainMaterials: ["SMUhrjUPCjJkPUK.011"],
+    bodyMaterials: ["PJgHvfOhNXkxvzq.007", "iAKEWdNafBldSCV.007"],
+    materialColors: {
+      "YQFhPSFSryEqJMp.015": "#0d0d0f",
+      "edDerJJLuuabITp.015": "#0d0d0f",
+      // The frame, the back glass and the antenna bands, at the values tuned
+      // on the Surface bench for the 17 Pro.
+      "SLmJkLdkhbbuEfG.035": {
+        lighten: 0,
+        roughness: 0.76,
+        metalness: 0.61,
+        envMapIntensity: 1.65,
+      },
+      "SMUhrjUPCjJkPUK.011": {
+        lighten: 0.07,
+        roughness: 0.14,
+        metalness: 0,
+        envMapIntensity: 2.6,
+      },
+      "sJxAokqqlZYuwzy.011": { lighten: 0, roughness: 0.52, metalness: 0.08 },
+      "yPEFElLJTRhfWfw.007": { darken: 0.12 },
+      "awYxKfiOpRgQIxD.007": { darken: 0.12 },
+      /*
+       * The hand.
+       *
+       * It arrives with NO material and eight vertex-colour sets that are all
+       * pure white, so the file says nothing at all about what colour skin is
+       * -- unmodified it took the glTF default, which the finish pass then
+       * read as body and painted to match the phone, arm and all. The
+       * material was named `hand-skin` in the file so there is something to
+       * address; the tone lives here rather than in the .glb so it can be
+       * changed without re-exporting. Stated rather than kept, because
+       * `keepMaterials` wins over a colour and white is not a skin.
+       */
+      "hand-skin": {
+        color: "#d3a082",
+        roughness: 0.62,
+        metalness: 0,
+        envMapIntensity: 0.9,
+      },
+    },
+    meshColors: {
+      IvdeSiYDweqsnZm005: "#0d0d0f",
+      RhBESHcBbtHIQyo003: "#0d0d0f",
+      yTmdRacfvebHTTS028: "#101013",
+    },
+    keepMaterials: [
+      "uFgsppDNoPNkBqW.063",
+      "nypJRzXNHbmJCqR.014",
+      "ieDmCkHnOnSIOcm.008",
+      "LqxrKBoiOXSOFqs.011",
+      "JKTmNomFyvfvVAj.015",
+      "QEOvfSZiwySWiUk.007",
+    ],
+    screenCornerRadiusPct: 0.135,
+    screenInsetPct: 1,
+    screenNative: { width: 1206, height: 2622 },
+    notch: null,
+    credit: "Apple — design resources, re-exported from Blender",
+  },
+  {
     id: "apple-iphone-17-pro-max",
     label: "Apple iPhone 17 Pro Max",
     modelPath: `${MODELS}/m-432f2a96ef902e9c.glb`,

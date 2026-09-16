@@ -1503,6 +1503,7 @@ const HISTORY = [
 const DEVICE_ICONS: Record<string, string> = {
   "apple-iphone-17": "iphone",
   "apple-iphone-17-pro": "iphone",
+  "apple-iphone-17-pro-hand": "iphone",
   "apple-iphone-17-pro-max": "iphone",
   "apple-iphone-air": "iphone",
   "apple-ipad-pro": "ipad-pro",
