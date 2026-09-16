@@ -2472,6 +2472,13 @@ export const DEVICES: Device[] = [
      */
     finishIds: ["silver", "space-black"],
     screenMaterial: "dUmOgLJvvBzDJsS",
+    /*
+     * The panel is landscape -- 264.4 x 198.0mm -- but its UVs are not: U runs
+     * along the 198mm side and V along the 264mm one, measured off the mesh.
+     * So a screenshot bound to it arrives lying on its side, which is the
+     * exact case `screenRotateDeg` exists for.
+     */
+    screenRotateDeg: -90,
     screenCornerRadiusPct: 0.03,
     screenInsetPct: 1,
     screenNative: { width: 2064, height: 2752 },
