@@ -698,7 +698,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-17",
     label: "Apple iPhone 17",
-    modelPath: `${MODELS}/m-9129752a52b468eb.glb`,
+    modelPath: `${MODELS}/m-3463a6858cfef1fd.glb`,
     hideHints: [],
     /*
      * 66.5 x 144.9mm, aspect 0.4587 against 1206 x 2622's 0.4600.
@@ -971,7 +971,7 @@ export const DEVICES: Device[] = [
     // A new filename, not the old one reused: `public/` is served immutable for
     // a year, so browsers that had the previous 17 Pro kept loading it under
     // this entry's part names, which it does not have.
-    modelPath: `${MODELS}/m-3c95f6b5efdc66d4.glb`,
+    modelPath: `${MODELS}/m-54874f8214482e51.glb`,
     hideHints: [],
     // The LiDAR window sat at the bottom of its barrel, 1.2mm inside the body
     // while the flash beside it is flush. Brought up to the barrel's rim, level
@@ -1038,7 +1038,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-17-pro-max",
     label: "Apple iPhone 17 Pro Max",
-    modelPath: `${MODELS}/m-dfe2bb8479bc362c.glb`,
+    modelPath: `${MODELS}/m-432f2a96ef902e9c.glb`,
     hideHints: [],
     finishIds: [
       "cosmic-orange",
@@ -1276,7 +1276,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-18-pro",
     label: "Apple iPhone 18 Pro",
-    modelPath: `${MODELS}/m-b21df234d0fa84bc.glb`,
+    modelPath: `${MODELS}/m-4e890183b312676b.glb`,
     hideHints: [],
     // The archive's own variant data names these three, which is also where
     // Burgundy came from — a real colour on this device rather than a guess.
@@ -1547,7 +1547,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-18-pro-max",
     label: "Apple iPhone 18 Pro Max",
-    modelPath: `${MODELS}/m-414e5025c7e4550b.glb`,
+    modelPath: `${MODELS}/m-205521341af2ef23.glb`,
     hideHints: [],
     finishIds: [
       "iphone18-black",
@@ -1844,7 +1844,7 @@ export const DEVICES: Device[] = [
      * the first copy and every fix looked like it had done nothing. A new name
      * is the only way to be sure which file is on screen.
      */
-    modelPath: `${MODELS}/m-c0f1d2346a6ff5f0.glb`,
+    modelPath: `${MODELS}/m-3fe00b563e718862.glb`,
     hideHints: [],
     finishIds: ["cloud-white", "duo-night-sky"],
     /*
@@ -2186,7 +2186,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-air",
     label: "Apple iPhone Air",
-    modelPath: `${MODELS}/m-796b1fa12d7f3353.glb`,
+    modelPath: `${MODELS}/m-30685fd59ff29dbc.glb`,
     hideHints: [],
     /*
      * Identified by geometry, like the Pro pair -- Apple obfuscates every prim
@@ -2443,7 +2443,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-ipad-pro",
     label: "Apple iPad Pro",
-    modelPath: `${MODELS}/m-6ac055b703108758.glb`,
+    modelPath: `${MODELS}/m-dea304d7de1c3ee1.glb`,
     hideHints: [],
     /*
      * 264.4 x 198.0mm, aspect 1.3356 against the real 13-inch panel's 1.3333
@@ -2512,7 +2512,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-macbook-neo",
     label: "Apple MacBook",
-    modelPath: `${MODELS}/m-ce1df1e576e81bc2.glb`,
+    modelPath: `${MODELS}/m-baecd0e112e97dca.glb`,
     hideHints: [],
     /*
      * 278.2 x 174.2mm measured in the lid's plane, aspect 1.5966 -- 16:10,
@@ -2616,7 +2616,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-macbook-pro-14",
     label: "Apple MacBook Pro 14\"",
-    modelPath: `${MODELS}/m-ebab853b837a11c7.glb`,
+    modelPath: `${MODELS}/m-ddbfa960dc4cc05d.glb`,
     hideHints: [],
     /*
      * Measured IN THE LID'S OWN PLANE, not from the bounding box.
@@ -2757,7 +2757,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-imac-24",
     label: "Apple iMac 24\"",
-    modelPath: `${MODELS}/m-db9d981cbd59372a.glb`,
+    modelPath: `${MODELS}/m-812007bce13a9c7c.glb`,
     hideHints: [],
     /*
      * 520.1 x 292.0mm in the panel's own plane, aspect 1.7811 against
@@ -2899,7 +2899,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-studio-display",
     label: "Apple Studio Display",
-    modelPath: `${MODELS}/m-713ffa6bac5b87b5.glb`,
+    modelPath: `${MODELS}/m-9113e92474234ca9.glb`,
     hideHints: [],
     /*
      * 595.2 x 334.3mm, aspect 1.7803 against 5120 x 2880's 1.7778.
@@ -2979,7 +2979,7 @@ export const DEVICES: Device[] = [
   {
     id: "iphone-fold",
     label: "iPhone Fold",
-    modelPath: `${MODELS}/m-39fd14a0a65c6d5b.glb`,
+    modelPath: `${MODELS}/m-77e43d630f9bbb48.glb`,
     hideHints: [],
     // Two screens in this model: "OLED" is the outer cover display and
     // "OLED IN" the inner one that folds. The match is exact, so naming one
