@@ -1559,7 +1559,12 @@ const CUSTOM_IDS = new Set(STORE_RATIOS.map((r) => r.id));
  * page, so the account menu follows a sign-in or sign-out made anywhere --
  * another tab, the profile panel -- without the page being rendered again.
  */
-export default function StudioChrome() {
+export default function StudioChrome({
+  modelToken = null,
+}: {
+  /** Signed link for the device models — see `lib/modelToken`. */
+  modelToken?: string | null;
+}) {
   const { user } = useUser();
   const { signOut, openUserProfile } = useClerk();
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
@@ -1928,7 +1933,7 @@ export default function StudioChrome() {
           className="absolute"
           style={{ inset: 0, bottom: "var(--mo-reserve)" }}
         >
-          <Stage studio={studio} />
+          <Stage studio={studio} modelToken={modelToken} />
         </div>
 
         <div className="pointer-events-none absolute inset-0">

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { auth } from "@clerk/nextjs/server";
 import StudioChrome from "@/features/mockup-studio/mocraft/StudioChrome";
+import { signModelToken } from "@/lib/modelToken";
 
 export const metadata: Metadata = { title: "Mocraft" };
 
@@ -28,5 +29,11 @@ export const viewport: Viewport = {
 export default async function MocraftPage() {
   const { userId, redirectToSignIn } = await auth();
   if (!userId) return redirectToSignIn();
-  return <StudioChrome />;
+  /*
+   * The signed link the stage loads its models through. Minted here because
+   * this is where the session has already been established, and handed down
+   * rather than fetched, so the first model request carries it. See
+   * `lib/modelToken`.
+   */
+  return <StudioChrome modelToken={await signModelToken()} />;
 }

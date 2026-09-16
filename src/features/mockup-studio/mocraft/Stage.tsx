@@ -54,7 +54,14 @@ const INSET = 40;
  */
 const FRAME = 0.82;
 
-function StageInner({ studio }: { studio: Studio }) {
+function StageInner({
+  studio,
+  modelToken = null,
+}: {
+  studio: Studio;
+  /** Signed link for the device models — see `lib/modelToken`. */
+  modelToken?: string | null;
+}) {
   const {
     state,
     ratio,
@@ -132,6 +139,7 @@ function StageInner({ studio }: { studio: Studio }) {
           screenTexture={screenTexture}
           coverTexture={coverTexture}
           deviceId={state.deviceId}
+          modelToken={modelToken}
           finishId={state.finishId}
           blur={state.blur}
           rotateX={state.xAxis}

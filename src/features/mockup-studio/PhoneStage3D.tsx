@@ -3,6 +3,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { RoundedBox, useGLTF } from "@react-three/drei";
+import { withModelToken } from "@/lib/modelToken";
 import { Box3, CanvasTexture, ClampToEdgeWrapping, Color, RepeatWrapping, DoubleSide, ExtrudeGeometry, Group, Object3D, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
 import type { Texture } from "three";
 import { AnimationMixer } from "three";
@@ -1329,11 +1330,19 @@ function NotchPlane({
  * The others load when they are chosen, which is what the loading capsule over
  * the stage is for.
  */
-useGLTF.preload(getDevice(DEFAULT_DEVICE_ID).modelPath as string);
+function PreloadDefaultModel({ modelToken }: { modelToken: string | null }) {
+  useEffect(() => {
+    useGLTF.preload(
+      withModelToken(getDevice(DEFAULT_DEVICE_ID).modelPath as string, modelToken),
+    );
+  }, [modelToken]);
+  return null;
+}
 
 function GLBPhoneScene({
   screenTexture,
   device,
+  modelToken,
   finishId,
   screenFit,
   fold,
@@ -1346,6 +1355,8 @@ function GLBPhoneScene({
 }: {
   screenTexture: Texture | null;
   device: Device;
+  /** Signed link for the device models — see `lib/modelToken`. */
+  modelToken: string | null;
   finishId?: string;
   screenFit?: ScreenFit;
   /** 0-100, how far the hinge is closed. Unused by rigid devices. */
@@ -1382,7 +1393,13 @@ function GLBPhoneScene({
 
   // Only ever mounted for a device that has one; the branch that chooses
   // between this and the generated bodies is in PhoneScene.
-  const gltf = useGLTF(device.modelPath as string);
+  /*
+   * The signed link, not the bare path: the models are served only to a
+   * request carrying one. See `lib/modelToken`. `useGLTF` caches per URL, so
+   * the token has to be on every call that asks for this file, or the same
+   * model downloads twice under two keys.
+   */
+  const gltf = useGLTF(withModelToken(device.modelPath as string, modelToken));
   const {
     scene, width, height, depth, screen, screenMaterials, coverMaterials,
     mixer, leafRest, hinge, foldRoot, foldCentres,
@@ -3040,6 +3057,7 @@ function PhoneScene({
   rail,
   screenTexture,
   device,
+  modelToken,
   rotateX,
   rotateY,
   rotateZ,
@@ -3068,6 +3086,8 @@ function PhoneScene({
   rail: Phone3DRail | undefined;
   screenTexture: Texture | null;
   device: Device;
+  /** Signed link for the device models — see `lib/modelToken`. */
+  modelToken: string | null;
   finishId?: string;
   immediate?: boolean;
   animation?: Animation;
@@ -3348,6 +3368,7 @@ function PhoneScene({
           <GLBPhoneScene
             screenTexture={screenTexture}
             device={device}
+            modelToken={modelToken}
             finishId={finishId}
             screenFit={screenFit}
             fold={fold}
@@ -3408,6 +3429,7 @@ export default function PhoneStage3D({
   rail,
   screenTexture,
   deviceId,
+  modelToken = null,
   blur,
   rotateX,
   rotateY,
@@ -3449,6 +3471,8 @@ export default function PhoneStage3D({
   screenTexture: Texture | null;
   /** Registry id; falls back to the first device if unrecognised. */
   deviceId?: string;
+  /** Signed link for the device models — see `lib/modelToken`. */
+  modelToken?: string | null;
   /** Lens settings; mode "off" or zero strength renders no composer at all. */
   blur: BlurSettings;
   rotateX: number;
@@ -3509,6 +3533,7 @@ export default function PhoneStage3D({
     <>
       {shadowDefs}
       <StageLoader />
+      <PreloadDefaultModel modelToken={modelToken} />
       <Canvas
         className="!h-full !w-full"
         /*
@@ -3581,6 +3606,7 @@ export default function PhoneStage3D({
           rail={rail}
           screenTexture={screenTexture}
           device={device}
+          modelToken={modelToken}
           rotateX={rotateX}
           rotateY={rotateY}
           rotateZ={rotateZ}
