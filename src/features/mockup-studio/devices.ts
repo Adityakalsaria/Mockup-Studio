@@ -1060,7 +1060,7 @@ export const DEVICES: Device[] = [
     label: "iPhone 17 Pro in hand",
     // Same file, same correction as the 17 Pro: it opens on its back.
     modelYawDeg: 180,
-    modelPath: `${MODELS}/m-006348f7756c72de.glb`,
+    modelPath: `${MODELS}/m-342a52c7d3cf952f.glb`,
     hideHints: [],
     // As on the 17 Pro: the LiDAR window sits 1.2mm down its barrel.
     meshNudges: { CUXydfOmpZTOIwn003: [0, 0, -0.0012] },
