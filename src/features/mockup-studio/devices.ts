@@ -1060,7 +1060,7 @@ export const DEVICES: Device[] = [
     label: "iPhone 17 Pro in hand",
     // Same file, same correction as the 17 Pro: it opens on its back.
     modelYawDeg: 180,
-    modelPath: `${MODELS}/m-b17c4823682b495b.glb`,
+    modelPath: `${MODELS}/m-e1abbe683597d9ea.glb`,
     hideHints: [],
     // As on the 17 Pro: the LiDAR window sits 1.2mm down its barrel.
     meshNudges: { CUXydfOmpZTOIwn003: [0, 0, -0.0012] },
@@ -1095,24 +1095,6 @@ export const DEVICES: Device[] = [
       "sJxAokqqlZYuwzy.011": { lighten: 0, roughness: 0.52, metalness: 0.08 },
       "yPEFElLJTRhfWfw.007": { darken: 0.12 },
       "awYxKfiOpRgQIxD.007": { darken: 0.12 },
-      /*
-       * The hand.
-       *
-       * It arrives with NO material and eight vertex-colour sets that are all
-       * pure white, so the file says nothing at all about what colour skin is
-       * -- unmodified it took the glTF default, which the finish pass then
-       * read as body and painted to match the phone, arm and all. The
-       * material was named `hand-skin` in the file so there is something to
-       * address; the tone lives here rather than in the .glb so it can be
-       * changed without re-exporting. Stated rather than kept, because
-       * `keepMaterials` wins over a colour and white is not a skin.
-       */
-      "hand-skin": {
-        color: "#d3a082",
-        roughness: 0.62,
-        metalness: 0,
-        envMapIntensity: 0.9,
-      },
     },
     meshColors: {
       IvdeSiYDweqsnZm005: "#0d0d0f",
@@ -1120,6 +1102,17 @@ export const DEVICES: Device[] = [
       yTmdRacfvebHTTS028: "#101013",
     },
     keepMaterials: [
+      /*
+       * The hand and the forearm, left exactly as the file authored them.
+       *
+       * This export carries real skin: a 2K colour map and a 2K roughness map
+       * each, with nails and knuckles in them. Nothing here should touch that
+       * -- the finish is the phone's, and a repaint would drag the skin along
+       * with it, which is what happened to the first hand when it arrived
+       * with no material at all.
+       */
+      "Skin.001",
+      "Skin.002",
       "uFgsppDNoPNkBqW.063",
       "nypJRzXNHbmJCqR.014",
       "ieDmCkHnOnSIOcm.008",
