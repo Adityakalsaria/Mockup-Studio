@@ -128,6 +128,7 @@ const BLUR_FRAGMENT = /* glsl */ `
   precision highp float;
   uniform sampler2D uSource;
   uniform float uAmount;
+  uniform float uEdge;
   uniform float uPosition;
   uniform vec2 uBounds;
   in vec2 vQuadUv;
@@ -183,15 +184,22 @@ const BLUR_FRAGMENT = /* glsl */ `
       clamp(remapTo(uBounds.x, uBounds.y, distanceToWipe) * uAmount * 2.5, 0.0, 1.0)
     );
     /*
-     * Their edge falloff, and only their edge falloff.
+     * Their edge falloff, brought in with the hinge.
      *
-     * distance(vQuadUv.y, 0.5) * 2.0 is 0 down the middle of the panel and
-     * 1 at the top and bottom edges, so this fades the outer ~5% of each end
-     * to black. It does not reference the fold at all -- the panel carries it
-     * open, shut and everywhere between, which is what the reference does and
-     * what the hardware looks like under its own glass.
+     * distance(vQuadUv.y, 0.5) * 2.0 is 0 down the middle of the panel and 1
+     * at the top and bottom edges, so this fades the outer ~5% of each end to
+     * black. The reference leaves it ungated and carries it open, shut and
+     * everywhere between; we do not, because a Duo sitting fully open is the
+     * shot people are actually composing, and a dark band across the top and
+     * bottom of their screenshot is damage to it rather than realism. Applied
+     * in both passes, so uEdge squares along with the fade -- it arrives as
+     * the panel starts to turn and is gone by the time it is flat.
      */
-    float edgeFade = smoothstep(1.0, 0.9, distance(vQuadUv.y, 0.5) * 2.0);
+    float edgeFade = mix(
+      1.0,
+      smoothstep(1.0, 0.9, distance(vQuadUv.y, 0.5) * 2.0),
+      clamp(uEdge, 0.0, 1.0)
+    );
     fragColor =
       textureBicubic(uSource, vQuadUv, blurArea * ${MAX_BLUR}.0) *
       vec4(vec3(edgeFade), 1.0);
@@ -261,6 +269,7 @@ export function createFoldBlur(kind: FoldScreenKind, aspect: number): FoldBlur {
     uniforms: {
       uSource: { value: fitted.texture },
       uAmount: { value: 0 },
+      uEdge: { value: 0 },
       uPosition: { value: kind === "inner" ? 1 : 0 },
       // Theirs, per panel: nothing happens across the first 45% of the inner
       // display, which is what makes the effect read as a fold rather than as
@@ -300,6 +309,18 @@ export function createFoldBlur(kind: FoldScreenKind, aspect: number): FoldBlur {
             // you are turning away from as the device opens.
             Math.max(0, Math.min(1, 1 - 2 * Math.abs(shut - 0.5))) * 0.5;
       blurMaterial.uniforms.uAmount.value = amount;
+      /*
+       * How much edge darkening, separately from how much blur.
+       *
+       * Both panels are at rest at 0 and 1 -- one open, one shut -- and the
+       * band belongs to neither. Peaking mid-fold for the cover mirrors its
+       * blur; the inner panel takes `shut` directly, which is 0 open and 1
+       * closed, where it cannot be seen anyway.
+       */
+      blurMaterial.uniforms.uEdge.value =
+        kind === "inner"
+          ? shut
+          : Math.max(0, Math.min(1, 1 - 2 * Math.abs(shut - 0.5)));
 
       const previous = renderer.getRenderTarget();
       quad.material = fitMaterial;
