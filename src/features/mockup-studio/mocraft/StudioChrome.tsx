@@ -883,6 +883,111 @@ const SHORTCUTS: { title: string; items: [string[], string][] }[] = [
   },
 ];
 
+/**
+ * What has shipped, newest first. Written for the people using the studio --
+ * what they can now do -- not as a commit log; drawn from the repository's
+ * history, one entry per release worth telling someone about.
+ */
+const CHANGELOG: { date: string; title: string; items: string[] }[] = [
+  {
+    date: "19 Sep 2026",
+    title: "Focus camera, and a sharper Motion",
+    items: [
+      "Focus points: draw areas on the shot and Compose turns them into one camera move — leaning toward each area, with Zoom, Depth and Tilt controls.",
+      "Depth of field follows the areas through the move and fades in and out with the clip, with its own setting in Motion.",
+      "A cleaner timeline: a full-width time ruler, lanes that colour as you work in them, and drag a lane's bar to move it.",
+      "Crafting keeps the phone at rest; keyframes live in Motion, and editing waits while a clip plays.",
+      "Devices grouped by category, a Canvas color tool with transparency, your account photo, and a shortcuts sheet.",
+    ],
+  },
+  {
+    date: "18 Sep 2026",
+    title: "Crafting and Motion",
+    items: [
+      "The studio splits in two: Crafting for the pose and the still, Motion for presets, keyframes and video.",
+      "A rebuilt timeline with coloured lanes, per-span easing and a global curve.",
+      "Video export with its own size and frame rate; 3x and 4x exports fixed; watermark on or off.",
+    ],
+  },
+  {
+    date: "16–17 Sep 2026",
+    title: "iPhone 17 Pro in hand, and faster loading",
+    items: [
+      "A new device: the iPhone 17 Pro held in a hand, with real skin and shadows.",
+      "Device models compressed from 105MB to 42MB, so the studio opens faster.",
+    ],
+  },
+  {
+    date: "15 Sep 2026",
+    title: "Studio refresh",
+    items: [
+      "A responsive studio, Figma-style effects, screen-space depth of field, snapping and new lighting.",
+      "Light keyframes, a pan shortcut, and a watermark on exports.",
+    ],
+  },
+  {
+    date: "13 Sep 2026",
+    title: "Multi-select and new moves",
+    items: [
+      "Select several keyframes — or drag a box around them — and move them as one.",
+      "Two new presets: Slide up and Rotation slide up.",
+    ],
+  },
+  {
+    date: "12 Sep 2026",
+    title: "Mocraft launches",
+    items: ["Mocraft opens at mocraft.app, with sign-in."],
+  },
+  {
+    date: "11 Sep 2026",
+    title: "iPhone Duo",
+    items: [
+      "The iPhone Duo arrives, with fold effects that follow the hinge.",
+      "Type straight into any value readout.",
+    ],
+  },
+  {
+    date: "10 Sep 2026",
+    title: "Timeline and depth of field",
+    items: ["A timeline for motion, depth of field, and three new devices."],
+  },
+];
+
+/** The changelog, in the shortcuts' sheet: one entry per release, newest
+    first, scrolling inside the sheet when it is taller than the window. */
+function ChangelogSheet({ onClose }: { onClose: () => void }) {
+  return (
+    <Glass width={560} style={{ maxHeight: "80dvh" }}>
+      <Header closeIcon={<Icon name="close-rounded" />} onClose={onClose}>
+        Changelog
+      </Header>
+      <div
+        className="mo-noscroll flex min-h-0 flex-col overflow-y-auto"
+        style={{ gap: 20, padding: "4px var(--mo-space-2) var(--mo-space-2)" }}
+      >
+        {CHANGELOG.map((entry) => (
+          <div key={entry.date} className="flex flex-col" style={{ gap: 6 }}>
+            <span className="mo-code" style={{ color: "var(--mo-ink-muted)" }}>
+              {entry.date}
+            </span>
+            <span className="mo-title">{entry.title}</span>
+            <ul
+              className="mo-label flex flex-col"
+              style={{ gap: 4, paddingLeft: 16, listStyle: "disc" }}
+            >
+              {entry.items.map((item) => (
+                <li key={item} style={{ color: "var(--mo-ink-muted)" }}>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </Glass>
+  );
+}
+
 /** The shortcuts, laid out as a sheet: a section per place they work. */
 function ShortcutsSheet({ onClose }: { onClose: () => void }) {
   return (
@@ -2120,8 +2225,11 @@ export default function StudioChrome({
   /** The glass sliders -- development only; G shows them. */
   const [tunerOpen, setTunerOpen] = useState(false);
   /** The shortcuts sheet, opened from the button beside the account chip. */
-  const [keysOpen, setKeysOpen] = useState(false);
-  const closeKeys = useCallback(() => setKeysOpen(false), []);
+  /** Which sheet is over the studio: the shortcuts (from the button beside
+      the account chip) or the changelog (from the account menu). */
+  const [sheet, setSheet] = useState<"shortcuts" | "changelog" | null>(null);
+  const keysOpen = sheet !== null;
+  const closeKeys = useCallback(() => setSheet(null), []);
   /** The Devices panel's open category, whose models show in a side menu. */
   const [deviceGroup, setDeviceGroup] = useState<string | null>(null);
   const closeDeviceGroup = useCallback(() => setDeviceGroup(null), []);
@@ -2244,7 +2352,7 @@ export default function StudioChrome({
   useEffect(() => {
     if (!keysOpen) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setKeysOpen(false);
+      if (event.key === "Escape") setSheet(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -2824,8 +2932,12 @@ export default function StudioChrome({
                 <button
                   type="button"
                   aria-label="Keyboard shortcuts"
-                  aria-expanded={keysOpen}
-                  onClick={() => setKeysOpen((was) => !was)}
+                  aria-expanded={sheet === "shortcuts"}
+                  onClick={() =>
+                    setSheet((was) =>
+                      was === "shortcuts" ? null : "shortcuts",
+                    )
+                  }
                   className="grid cursor-pointer place-items-center"
                 >
                   <Glass
@@ -2868,7 +2980,11 @@ export default function StudioChrome({
                 />
                 <div className="pointer-events-none absolute inset-0 grid place-items-center">
                   <div className="pointer-events-auto">
-                    <ShortcutsSheet onClose={closeKeys} />
+                    {sheet === "changelog" ? (
+                      <ChangelogSheet onClose={closeKeys} />
+                    ) : (
+                      <ShortcutsSheet onClose={closeKeys} />
+                    )}
                   </div>
                 </div>
               </>
@@ -2904,6 +3020,16 @@ export default function StudioChrome({
                     }}
                   >
                     Account
+                  </Row>
+                  {/* What has shipped, in the same sheet the shortcuts use. */}
+                  <Row
+                    icon={<Icon name="effects" />}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setSheet("changelog");
+                    }}
+                  >
+                    Changelog
                   </Row>
                   {/*
                     Clerk's sign-out: it ends the session with Clerk and
