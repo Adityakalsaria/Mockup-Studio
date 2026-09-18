@@ -1074,10 +1074,20 @@ export const DEVICES: Device[] = [
     selfShadow: true,
     // Same file, same correction as the 17 Pro: it opens on its back.
     modelYawDeg: 180,
-    modelPath: `${MODELS}/m-e1abbe683597d9ea.glb`,
+    modelPath: `${MODELS}/m-72c952ad7f57b763.glb`,
     hideHints: [],
-    // As on the 17 Pro: the LiDAR window sits 1.2mm down its barrel.
-    meshNudges: { CUXydfOmpZTOIwn003: [0, 0, -0.0012] },
+    meshNudges: {
+      // As on the 17 Pro: the LiDAR window sits 1.2mm down its barrel.
+      CUXydfOmpZTOIwn003: [0, 0, -0.0012],
+      /*
+       * The hand, 4.2mm back from the phone. This export sank the palm up to
+       * 4mm through the back glass -- 216 vertices inside the body -- so skin
+       * showed through the frame where the palm meets it. Measured against
+       * the back glass below the camera plateau: at 4.2 nothing is inside and
+       * the palm sits 0.15mm under the glass, touching, not cutting in.
+       */
+      Body: [0, 0, -0.0042],
+    },
     finishIds: [
       "cosmic-orange",
       "deep-blue",

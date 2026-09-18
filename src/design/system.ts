@@ -291,7 +291,7 @@ export const material = {
    * the point of having both on one page is the comparison.
    */
   button: {
-    blur: 7.5,
+    blur: 7,
     tones: BUTTON_TONES,
     /** A 1px gradient edge, drawn as a padded background through a mask —
         light at both ends and dark through the middle, so the rim reads as a
@@ -355,7 +355,10 @@ export const material = {
      * carried it was `surface`, a real fill. So the blur comes back down to
      * theirs and `veil` does the work it was always doing on their side.
      */
-    blur: 7.5,
+    /* Locked 2026-09-18 from the Glass tuner, on the real interface: a much
+       deeper frost, with the veil, base and top eased back so the panels
+       read as glass over the shot rather than white plates. */
+    blur: 34,
     /**
      * How much of the panel is panel, rather than what is behind it.
      *
@@ -384,11 +387,11 @@ export const material = {
      * pill is tuned, sits ON a panel rather than on the composition, and its
      * complaint was never this one.
      */
-    veil: 0.75,
+    veil: 0.67,
     /** `Main base bottom` — two fills, the rim, and the cast. */
     base: {
       /** The layer's own opacity, above whatever its fills carry. */
-      opacity: 1,
+      opacity: 0.48,
       /**
        * Both fills went grey and subtractive. They were white-lighten and
        * grey-darken, which is the file's own pair — but once the whole
@@ -412,7 +415,7 @@ export const material = {
        * layer underneath — which is the reason the frost reads softer here
        * than the blur alone would give.
        */
-      opacity: 0.62,
+      opacity: 0.2,
       fill: "rgb(255 255 255)",
       fillBlend: "multiply",
       depthBlend: "plus-darker",

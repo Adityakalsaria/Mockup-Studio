@@ -63,6 +63,8 @@ import {
 } from "@/design/ui";
 import { control, radius } from "@/design/system";
 import { Stage } from "./Stage";
+import { GlassTuner } from "./GlassTuner";
+import { backgroundCss } from "../backgrounds";
 import { PANEL_H as TIMELINE_H, Timeline } from "./Timeline";
 import { DEFAULT_RATIO_ID, useStudio, type Studio } from "./useStudio";
 import {
@@ -88,14 +90,6 @@ import type { BroadcastState } from "../broadcast/useBroadcastLink";
 
 const ICONS = "/figma-assets/mockup-studio/icons";
 
-/**
- * How tall the right-hand panel is, in either tab.
- *
- * Fixed, and shared: the two tabs are one surface with two contents, so a
- * height that followed the contents would make the panel jump on every switch
- * — and grow and shrink under the popup beside it as effects come and go.
- */
-const STACK_HEIGHT = 600;
 
 /**
  * Where the side clusters start: under the top bar, whose tallest piece is the
@@ -110,6 +104,20 @@ const SIDE_TOP = 16 + 44 + 16;
  */
 const BASE_IDS = ["transform", "camera", "lighting", "background"];
 const BASE_LAYERS = BASE_IDS.map((id) => LAYERS.find((l) => l.id === id)!);
+/** The rows the Motion tab carries above its presets: the channels a preset
+    animates, so a picked move can be adjusted without leaving the tab. */
+const MOTION_IDS = ["transform", "camera", "lighting"];
+const MOTION_LAYERS = BASE_LAYERS.filter((l) => MOTION_IDS.includes(l.id));
+/** The Motion tab's fourth row, which opens the preset grid in the popup's
+    place. Not a layer -- it edits nothing -- but selected and opened the same
+    way, so it lights, toggles and dismisses like its neighbours. */
+const PRESETS_ID = "presets";
+/** The timeline's slide in and out of the bottom edge. */
+const TIMELINE_MS = 320;
+const TIMELINE_CURVE = "cubic-bezier(0.32, 0.72, 0, 1)";
+/** For everything positioned off the timeline's reserve, so it moves with
+    the slide instead of jumping ahead of it. */
+const RESERVE_EASE = `bottom ${TIMELINE_MS}ms ${TIMELINE_CURVE}`;
 const EFFECT_LAYERS = LAYERS.filter((l) => !BASE_IDS.includes(l.id));
 
 /**
@@ -166,9 +174,12 @@ function MenuPopover({
         const w = control.panelW;
         const panel =
           trigger.closest(".mo-glass")?.getBoundingClientRect() ?? rect;
+        // Level with the trigger, but never hanging below the panel it
+        // came from -- a row near the foot of the panel opened a menu that
+        // ran on past it.
         const top = Math.max(
           M,
-          Math.min(rect.top - 8, window.innerHeight - M - h),
+          Math.min(rect.top - 8, panel.bottom - h, window.innerHeight - M - h),
         );
         const left = Math.max(M, panel.left - 16 - w);
         setPos({
@@ -805,8 +816,14 @@ function PresetTile({
   playing,
   onHover,
   onClick,
+  glyph,
+  width = "calc(50% - 8px)",
 }: {
   preset: Preset;
+  /** Half the panel in the Presets popup; a fixed size in the timeline. */
+  width?: number | string;
+  /** The current device's icon, drawn as the tile's subject. */
+  glyph: string;
   label: string;
   selected: boolean;
   /** Hovered — play the move on the drawing. See `usePresetPreview`. */
@@ -825,7 +842,7 @@ function PresetTile({
       data-preset-tile
       // A basis of "half the row minus the gap", so two per line — `flex-1`
       // in a wrapping container would put all eight on one line first.
-      style={{ width: "calc(50% - 8px)" }}
+      style={{ width }}
       className="flex cursor-pointer flex-col items-center justify-end"
     >
       {/*
@@ -844,41 +861,41 @@ function PresetTile({
         {/* What the preview moves: the whole drawing, about the tile's
             centre, so the art's own centring transform stays untouched. */}
         <div ref={art} className="absolute inset-0 grid place-items-center">
-          {"art" in preset ? (
-            <Image
-              src={`/figma-assets/mockup-studio/presets/${preset.art}.svg`}
-              alt=""
-              width={preset.w}
-              height={preset.h}
-              unoptimized
-              className="pointer-events-none absolute max-w-none"
+          {/* The device being animated, not a fixed phone: a move shown
+              on an iPhone reads wrong when the shot is a Studio Display. */}
+          {/*
+            The device glyph is a 20px symbol; at 80 its 1.1px outline turns
+            into 4.4px of solid ink. The filter erodes it back to the ~1.8px
+            line the preset artwork was drawn with, and the mask paints it in
+            muted ink rather than the icon's full grey. Two spans because a
+            filter runs BEFORE a mask on one element -- it would erode the
+            unmasked square and thin nothing.
+          */}
+          <span
+            aria-hidden
+            className="pointer-events-none relative"
+            style={{
+              transform:
+                "rotate" in preset ? `rotate(${preset.rotate}deg)` : undefined,
+              filter: "url(#mo-glyph-thin) drop-shadow(0 0 30px rgb(0 0 0 / 0.12))",
+              zIndex: 1,
+            }}
+          >
+            <span
+              className="block"
               style={{
-                left: "50%",
-                top: "50%",
-                transform: "translate(-50%, -50%)",
-                zIndex: 1,
+                width: 80,
+                height: 80,
+                background: "var(--mo-ink-muted)",
+                WebkitMaskImage: `url(${ICONS}/${glyph}.svg)`,
+                maskImage: `url(${ICONS}/${glyph}.svg)`,
+                WebkitMaskSize: "contain",
+                maskSize: "contain",
+                WebkitMaskRepeat: "no-repeat",
+                maskRepeat: "no-repeat",
               }}
             />
-          ) : (
-            <Image
-              src={`${ICONS}/${preset.icon}.svg`}
-              alt=""
-              width={72}
-              height={72}
-              unoptimized
-              className="pointer-events-none relative"
-              style={{
-                // The frame tilts this one, and its shadow is a filter on the
-                // symbol rather than baked into an export — there is no export.
-                transform:
-                  "rotate" in preset
-                    ? `rotate(${preset.rotate}deg)`
-                    : undefined,
-                filter: "drop-shadow(0 0 40px rgb(0 0 0 / 0.3))",
-                zIndex: 1,
-              }}
-            />
-          )}
+          </span>
         </div>
       </div>
       <span
@@ -1115,14 +1132,26 @@ function ToggleGlyph({ on }: { on: boolean }) {
  * a percentage because it takes seconds; the still does not, because it does
  * not.
  */
-function ExportRow({ studio }: { studio: Studio }) {
+function ExportRow({
+  studio,
+  kind,
+}: {
+  studio: Studio;
+  /** Crafting exports the still; Presets exports the clip. */
+  kind: "image" | "video";
+}) {
   const busy = studio.exporting;
   const pct = busy?.kind === "video" ? Math.round(busy.done * 100) : null;
+  const working =
+    busy?.kind === kind ? (kind === "video" ? `${pct}%` : "Saving") : null;
 
   return (
     <div
       className="mt-auto flex w-full shrink-0 flex-col"
-      style={{ gap: "var(--mo-space-2)" }}
+      // Air between the rows and the export, now the panel is its rows'
+      // height and nothing else separates them. Padding, not margin, so
+      // `mt-auto` still pins it to the foot of a capped panel.
+      style={{ gap: "var(--mo-space-2)", paddingTop: 80 }}
     >
       <Divider />
       {/* The same title treatment a popup's sections get — `ParamGroup`'s own
@@ -1135,23 +1164,123 @@ function ExportRow({ studio }: { studio: Studio }) {
           filter: "var(--mo-text-shadow)",
         }}
       >
-        Export craft
+        Export
       </span>
-      <div className="flex w-full items-center" style={{ gap: 6 }}>
+      {/* The export's size, beside the button it applies to. Shared by both
+          exports -- it is one setting, shown wherever you export from. */}
+      <ToggleRow
+        label="Watermark"
+        value={studio.watermark}
+        onChange={studio.setWatermark}
+      />
+      <Segmented
+        width="100%"
+        height={32}
+        value={String(studio.exportScale)}
+        onChange={(id) => studio.setExportScale(Number(id))}
+        options={EXPORT_SCALES.map((n) => ({ id: String(n), label: `${n}x` }))}
+      />
+      {/* Full width, not `grow`: grow is flex-1, which in this column
+          squeezed the button's HEIGHT instead of filling the width. */}
+      <Button
+        width="100%"
+        onClick={
+          busy
+            ? undefined
+            : kind === "image"
+              ? studio.exportImage
+              : studio.exportVideo
+        }
+        title={kind === "image" ? "Export a PNG" : "Export a video"}
+      >
+        <MorphText>
+          {working ?? (kind === "image" ? "Export image" : "Export video")}
+        </MorphText>
+      </Button>
+    </div>
+  );
+}
+
+/** Export sizes, as the old editor offered them. */
+const EXPORT_SCALES = [1, 2, 3, 4];
+const EXPORT_RATES = [30, 60];
+
+/**
+ * The Motion tab's export: the clip, and what it is written at.
+ * Frame rate lives here rather than in the timeline because it describes the
+ * file, not the clip.
+ */
+function MotionExportRow({ studio }: { studio: Studio }) {
+  const busy = studio.exporting;
+  const pct = busy?.kind === "video" ? Math.round(busy.done * 100) : null;
+
+  return (
+    <div
+      className="mt-auto flex w-full shrink-0 flex-col"
+      // Air between the rows and the export, now the panel is its rows'
+      // height and nothing else separates them. Padding, not margin, so
+      // `mt-auto` still pins it to the foot of a capped panel.
+      style={{ gap: "var(--mo-space-2)", paddingTop: 80 }}
+    >
+      <Divider />
+      <span
+        className="mo-title"
+        style={{
+          padding: "0 var(--mo-space-2)",
+          filter: "var(--mo-text-shadow)",
+        }}
+      >
+        Export
+      </span>
+      <ToggleRow
+        label="Watermark"
+        value={studio.watermark}
+        onChange={studio.setWatermark}
+      />
+      <SelectRow
+        label="Size"
+        value={String(studio.exportScale)}
+        options={EXPORT_SCALES.map((n) => ({ id: String(n), label: `${n}x` }))}
+        onChange={(id) => studio.setExportScale(Number(id))}
+      />
+      <SelectRow
+        label="Frame rate"
+        value={String(studio.exportFps)}
+        options={EXPORT_RATES.map((n) => ({ id: String(n), label: `${n} fps` }))}
+        onChange={(id) => studio.setExportFps(Number(id))}
+      />
+      {/*
+        The button fills as the clip renders. A percentage alone read as a
+        label that had changed, not as work happening; a bar sweeping across
+        the thing you pressed says both that it is going and how far.
+      */}
+      <div className="relative w-full">
         <Button
-          grow
-          onClick={busy ? undefined : studio.exportImage}
-          title="Export a PNG"
-        >
-          <MorphText>{busy?.kind === "image" ? "Saving" : "Image"}</MorphText>
-        </Button>
-        <Button
-          grow
+          width="100%"
           onClick={busy ? undefined : studio.exportVideo}
-          title="Export a video"
+          title="Export an MP4"
         >
-          <MorphText>{busy?.kind === "video" ? `${pct}%` : "Video"}</MorphText>
+          <MorphText>
+            {pct !== null ? `Exporting ${pct}%` : "Export video"}
+          </MorphText>
         </Button>
+        {pct !== null ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 overflow-hidden"
+            style={{ borderRadius: "var(--mo-r-selected)" }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${pct}%`,
+                background:
+                  "color-mix(in srgb, var(--mo-ink) 14%, transparent)",
+                transition: "width 160ms linear",
+              }}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -1345,6 +1474,110 @@ const TIMELINE_GLYPHS = "/figma-assets/mockup-studio/timeline";
  */
 const GIZMO_SIZE = 112;
 const GIZMO_CANVAS = Math.round(GIZMO_SIZE * 0.75);
+
+/** Width of the live shot preview card's picture. */
+const PREVIEW_W = 168;
+
+/**
+ * A small live copy of the whole shot, shown while the model is being moved.
+ *
+ * In Motion the timeline takes the bottom of the window, and moving the phone
+ * low in the frame puts it where you cannot follow it. This shows the entire
+ * frame -- background and all -- for as long as the pose is changing, by any
+ * route: a drag on the canvas, the gizmo, the wheel or a slider. It fades
+ * once the pose has been still for a moment.
+ *
+ * Always mounted, so the stage has a canvas to mirror into the instant it is
+ * needed; only its opacity comes and goes.
+ */
+function ShotPreview({
+  studio,
+  stageCanvasRef,
+  active,
+}: {
+  studio: Studio;
+  /** The stage's canvas. Passed on its own: read off `studio` it would make
+      every other read of `studio` here look like a ref access. */
+  stageCanvasRef: RefObject<HTMLCanvasElement | null>;
+  active: boolean;
+}) {
+  const { xAxis, yAxis, zAxis, zoom, panX, panY, panZ, fov } = studio.state;
+  const pose = [xAxis, yAxis, zAxis, zoom, panX, panY, panZ, fov].join();
+  // Compared during render, React's pattern for "state from a changing
+  // prop" -- and never on mount: a preview that greets you is noise.
+  const [seenPose, setSeenPose] = useState(pose);
+  const [moving, setMoving] = useState(false);
+  if (pose !== seenPose) {
+    setSeenPose(pose);
+    setMoving(true);
+  }
+  // Every change restarts the countdown, so it fades only once you stop.
+  useEffect(() => {
+    if (!moving) return;
+    const t = window.setTimeout(() => setMoving(false), 1200);
+    return () => window.clearTimeout(t);
+  }, [moving, seenPose]);
+  const visible = active && moving;
+
+  /*
+   * A live stream of the stage canvas, scaled by the compositor.
+   *
+   * It was a `drawImage` of every rendered frame, which makes the GPU finish
+   * and hand the pixels over -- cheap for a small ratio, and a stall at Fill,
+   * where the canvas is the whole window. `captureStream` keeps the frames on
+   * the GPU and keeps the canvas's transparency, so the shot's background
+   * still shows through. Open only while the card is showing, and held a
+   * beat after, so the fade-out still has the phone in it.
+   */
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    const video = videoRef.current;
+    const canvas = stageCanvasRef.current;
+    if (!visible || !video || !canvas) return;
+    const stream = canvas.captureStream();
+    video.srcObject = stream;
+    void video.play().catch(() => {});
+    return () => {
+      window.setTimeout(() => {
+        stream.getTracks().forEach((track) => track.stop());
+        if (video.srcObject === stream) video.srcObject = null;
+      }, 250);
+    };
+  }, [visible, stageCanvasRef]);
+
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? "none" : "translateY(8px)",
+        transition: "opacity 180ms ease-out, transform 180ms ease-out",
+      }}
+    >
+      {/* The shot IS the card: no glass padding around it, so there is one
+          rounded shape rather than a frame inside a frame. */}
+      <Glass width={PREVIEW_W} style={{ padding: 0 }}>
+        {/* Clipped here, not on the glass, which would clip its own shadow. */}
+        <div
+          className="overflow-hidden"
+          style={{
+            borderRadius: "inherit",
+            ...backgroundCss(studio.state.background),
+          }}
+        >
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            autoPlay
+            style={{ display: "block", width: PREVIEW_W }}
+          />
+        </div>
+      </Glass>
+    </div>
+  );
+}
 
 function Gizmo({ studio }: { studio: Studio }) {
   /*
@@ -1621,7 +1854,21 @@ export default function StudioChrome({
   /* It is only really there when there is a clip to show — which is the same
      condition `Timeline` renders on, hoisted so the layout can reserve its
      room. */
-  const showTimeline = timelineOpen && studio.presetId !== null;
+  const [tab, setTab] = useState<"crafting" | "motion">("crafting");
+  /** The glass sliders -- development only; G shows them. */
+  const [tunerOpen, setTunerOpen] = useState(false);
+  // And only in Motion: the timeline is how a move is edited, and Crafting
+  // is about the pose, so it slides away there.
+  const showTimeline = tab === "motion" && timelineOpen;
+  /* Held for the length of the exit, so leaving Motion slides the timeline
+     down instead of cutting it. */
+  const [timelineMounted, setTimelineMounted] = useState(showTimeline);
+  if (showTimeline && !timelineMounted) setTimelineMounted(true);
+  useEffect(() => {
+    if (showTimeline) return;
+    const t = window.setTimeout(() => setTimelineMounted(false), TIMELINE_MS);
+    return () => window.clearTimeout(t);
+  }, [showTimeline]);
 
   /*
    * The keyboard, matching the old editor key for key.
@@ -1629,6 +1876,7 @@ export default function StudioChrome({
    *   Space   play / pause
    *   B / E   playhead to the beginning, to the end
    *   T       show or hide the timeline
+   *   G       show or hide the glass sliders (development only)
    *   ⌘Z ⇧⌘Z  undo, redo
    *
    * Two guards run through all of them, and both are the old editor's
@@ -1666,15 +1914,6 @@ export default function StudioChrome({
       }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
 
-      if (event.key === " " || event.code === "Space") {
-        const tag = (event.target as HTMLElement | null)?.tagName;
-        if (typing(event.target) || tag === "BUTTON" || tag === "SELECT")
-          return;
-        event.preventDefault();
-        studio.togglePlay();
-        return;
-      }
-
       if (typing(event.target)) return;
       const key = event.key.toLowerCase();
       if (key === "b") {
@@ -1686,12 +1925,48 @@ export default function StudioChrome({
       } else if (key === "t") {
         event.preventDefault();
         setTimelineOpen((was) => !was);
+      } else if (key === "g" && process.env.NODE_ENV === "development") {
+        event.preventDefault();
+        setTunerOpen((was) => !was);
       }
     };
 
+    /*
+     * Space is play/pause everywhere in the studio, whatever has focus.
+     *
+     * It used to stand down for any focused button -- and nearly everything
+     * you click here is one, a tab, a row, a preset tile -- so it only worked
+     * after clicking somewhere inert like the timeline. Taken in the CAPTURE
+     * phase at the window, before a focused control sees it, and stopped
+     * there, so a row does not also open and a tile does not also re-pick.
+     * Keyup too: that is where a button would fire its click. Text fields
+     * keep it, since there a space is a character.
+     */
+    // Motion only: Crafting has no clip running, and a Space there would
+    // start one behind a panel that is about the pose.
+    const isSpace = (event: KeyboardEvent) =>
+      tab === "motion" &&
+      (event.key === " " || event.code === "Space") &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !typing(event.target);
+    const onSpace = (event: KeyboardEvent) => {
+      if (!isSpace(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.type === "keydown" && !event.repeat) studio.togglePlay();
+    };
+
+    window.addEventListener("keydown", onSpace, true);
+    window.addEventListener("keyup", onSpace, true);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [studio]);
+    return () => {
+      window.removeEventListener("keydown", onSpace, true);
+      window.removeEventListener("keyup", onSpace, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [studio, tab]);
 
   const closePanel = useCallback(() => setPanelOpen(false), []);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -1745,7 +2020,6 @@ export default function StudioChrome({
     return () => stopPairing.current();
   }, [pairing, startPairing]);
 
-  const [tab, setTab] = useState<"crafting" | "presets">("crafting");
 
   /**
    * Undo, reset, redo — three acts, run on the press.
@@ -1846,7 +2120,10 @@ export default function StudioChrome({
   // Presets would close a popup nobody can see, and switching back would find
   // it shut.
   const popupRef = useDismiss<HTMLDivElement>(
-    popupOpen && tab === "crafting",
+    popupOpen &&
+      (tab === "crafting" ||
+        MOTION_IDS.includes(selectedLayer) ||
+        selectedLayer === PRESETS_ID),
     closePopup,
   );
 
@@ -1876,12 +2153,20 @@ export default function StudioChrome({
    * The popup belongs to the crafting tab, and `popupOpen` outlives the switch.
    *
    * Gating it here rather than closing it on the way out is what makes coming
-   * back feel like returning: Presets hides the popup, and Crafting brings back
+   * back feel like returning: Motion hides an effect popup, and Crafting brings back
    * the same effect still open. Closing it would have thrown that away, and
    * leaving it ungated showed a Drop Shadow panel next to a grid of camera
    * moves, which belongs to neither.
    */
-  const open = popupOpen && tab === "crafting" ? selected : null;
+  const presetsShown =
+    popupOpen && tab === "motion" && selectedLayer === PRESETS_ID;
+  // Motion shows only its own three rows' popups.
+  const open =
+    popupOpen &&
+    selected &&
+    (tab === "crafting" || MOTION_IDS.includes(selected.id))
+      ? selected
+      : null;
   // The open popup's field when it has exactly one and it is a colour.
   const onlyField =
     open?.sections.length === 1 && open.sections[0].fields.length === 1
@@ -1889,9 +2174,110 @@ export default function StudioChrome({
       : null;
   const soloColor = onlyField?.kind === "color" ? onlyField : null;
 
+  /**
+   * The preset tiles, shared by the Presets popup and the empty timeline.
+   *
+   * One group, not rows of two: the lens travels between whichever tile is
+   * selected, and it can only do that if every tile is its sibling. Wrapping
+   * turns the column into a grid, and the lens follows sideways as readily as
+   * down.
+   */
+  const presetGrid = (tileWidth?: number) => (
+    <RowGroup wrap gap={16} radius={radius.well}>
+      {PRESETS.map((preset) => (
+        <PresetTile
+          key={preset.id}
+          preset={preset}
+          glyph={DEVICE_ICONS[state.deviceId] ?? "iphone"}
+          width={tileWidth}
+          label={getMotionPreset(preset.id)?.label ?? preset.id}
+          selected={preset.id === studio.presetId}
+          // Held here, not in the tile: the lens draws every tile twice, and
+          // the copy under a selected tile has to play the same move as the
+          // tile it covers.
+          playing={preset.id === hoveredPreset}
+          onHover={setHoveredPreset}
+          // Applies the move AND plays it once.
+          onClick={() => studio.pickPreset(preset.id)}
+        />
+      ))}
+    </RowGroup>
+  );
+
+  /** One stage row: shared by the Crafting stack and the Motion tab. */
+  const stageRow = (l: Layer) => {
+    const on = l.isOn(state);
+    return (
+      <Row
+        key={l.id}
+        icon={<Icon name={l.icon} />}
+        /*
+        The box says whether the effect is IN the shot, and
+        nothing else — not whether its popup happens to be
+        open, which is what the old plus-and-minus tracked.
+        Those were two different facts wearing one glyph:
+        you could be editing a shadow that was switched off
+        and the row would offer to remove it.
+
+        `Checkbox` takes its own press, so opening the row
+        and toggling it stay separate acts.
+      */
+        trailing={
+          l.removable === false ? (
+            /* Nothing to check: see `ToggleGlyph`. The press
+             still has to stop here, or clearing a transform
+             would also open its popup. */
+            <button
+              type="button"
+              aria-label={`Reset ${l.name}`}
+              className="grid cursor-pointer place-items-center"
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleLayer(l);
+              }}
+            >
+              <ToggleGlyph on={l.id === selectedLayer} />
+            </button>
+          ) : (
+            <Checkbox
+              checked={on}
+              label={`${l.name} in the shot`}
+              icon={<Icon name="checkbox" />}
+              checkedIcon={<Icon name="checkbox-checked" />}
+              onChange={() => toggleLayer(l)}
+            />
+          )
+        }
+        selected={l.id === selectedLayer}
+        onClick={() => openLayer(l)}
+      >
+        {l.name}
+      </Row>
+    );
+  };
+
   return (
     <>
       <DesignSystem />
+      {process.env.NODE_ENV === "development" ? (
+        <GlassTuner open={tunerOpen} />
+      ) : null}
+      {/* Thins the enlarged device glyphs on the preset tiles. */}
+      <svg aria-hidden width="0" height="0" style={{ position: "absolute" }}>
+        <filter id="mo-glyph-thin">
+          <feMorphology operator="erode" radius="1.3" />
+        </filter>
+      </svg>
+      <style>{`
+        @keyframes mo-timeline-in {
+          from { transform: translateY(calc(100% + 16px)); opacity: 0; }
+          to { transform: none; opacity: 1; }
+        }
+        @keyframes mo-timeline-out {
+          from { transform: none; opacity: 1; }
+          to { transform: translateY(calc(100% + 16px)); opacity: 0; }
+        }
+      `}</style>
       <div
         className="relative h-dvh w-full overflow-hidden"
         style={
@@ -1929,9 +2315,30 @@ export default function StudioChrome({
           the composition means the bottom of the phone is behind a panel while
           you judge the framing — and framing is most of what this tool is for.
         */}
+        {/* At Fill the shot IS the window, so its ground runs on under the
+            timeline too -- otherwise the bar sits on a band of workspace grey
+            instead of floating over the shot like every other panel. */}
+        {studio.ratio === null ? (
+          <div
+            className="absolute inset-0"
+            style={backgroundCss(studio.state.background)}
+          />
+        ) : null}
         <div
           className="absolute"
-          style={{ inset: 0, bottom: "var(--mo-reserve)" }}
+          // Eased with the timeline's slide, so the shot grows and shrinks
+          // with it rather than jumping when the tab changes.
+          //
+          // Except at Fill, where the shot IS the window: it runs the full
+          // height and the timeline floats over it, so the phone can travel
+          // behind the timeline and still be in the shot -- which is what the
+          // preview card then shows. Shrunk, Fill was cut off at the
+          // timeline's edge, a frame that was not the one selected.
+          style={{
+            inset: 0,
+            bottom: studio.ratio === null ? 0 : "var(--mo-reserve)",
+            transition: RESERVE_EASE,
+          }}
         >
           <Stage studio={studio} modelToken={modelToken} />
         </div>
@@ -1954,13 +2361,64 @@ export default function StudioChrome({
             simply the row above, and it drops back to the corner on its own
             when there is no preset and the timeline renders nothing.
           */}
+          {/*
+            Positioned off the reserve rather than stacked on the timeline:
+            stacked, the gizmo could only move when the timeline mounted or
+            unmounted, so it snapped while everything else eased. The timeline
+            is a fixed height now, so the reserve is exactly the room it takes.
+          */}
           <div
-            className="absolute flex flex-col"
-            style={{ left: 16, right: 16, bottom: 16, gap: 16 }}
+            className="absolute"
+            style={{
+              left: 16,
+              bottom: "calc(var(--mo-reserve) + 16px)",
+              transition: RESERVE_EASE,
+            }}
           >
             <Gizmo studio={studio} />
-            {showTimeline ? <Timeline studio={studio} /> : null}
           </div>
+          {/* Beside the gizmo, the control that most often moves the phone. */}
+          <div
+            className="absolute"
+            style={{
+              left: 16 + GIZMO_SIZE + 16,
+              bottom: "calc(var(--mo-reserve) + 16px)",
+              transition: RESERVE_EASE,
+            }}
+          >
+            <ShotPreview
+              studio={studio}
+              stageCanvasRef={studio.stageCanvasRef}
+              active={tab === "motion"}
+            />
+          </div>
+          {timelineMounted ? (
+            <div
+              className="absolute"
+              style={{
+                left: 16,
+                right: 16,
+                bottom: 16,
+                /*
+                  Not `both`. An animation still in effect -- which `both`
+                  keeps it, forever -- makes this wrapper a backdrop root in
+                  Chrome, and the glass inside then blurs only what is in here:
+                  nothing, so the timeline rendered as a flat white slab where
+                  every other panel frosts the shot. The way in stops applying
+                  once it lands; only the way out holds its end, and that lasts
+                  just until the timeline unmounts.
+                */
+                animation: showTimeline
+                  ? `mo-timeline-in ${TIMELINE_MS}ms ${TIMELINE_CURVE} backwards`
+                  : `mo-timeline-out ${TIMELINE_MS}ms ${TIMELINE_CURVE} forwards`,
+              }}
+            >
+              <Timeline
+                studio={studio}
+                suggestions={PRESETS.length ? presetGrid(88) : null}
+              />
+            </div>
+          ) : null}
 
           {/*
             The wordmark is an alpha MASK in the frame, filled with #595959 —
@@ -2157,6 +2615,7 @@ export default function StudioChrome({
               // Clear of the gizmo standing on the timeline, rather than
               // painting over it once the window is too short for both.
               bottom: `calc(var(--mo-reserve) + ${GIZMO_SIZE + 32}px)`,
+              transition: RESERVE_EASE,
             }}
           >
             {/* Quiet while a panel is open: the panel opens into the space the
@@ -2480,16 +2939,22 @@ export default function StudioChrome({
               right: 16,
               top: SIDE_TOP,
               bottom: "calc(var(--mo-reserve) + 16px)",
+              transition: RESERVE_EASE,
               rowGap: 16,
               gridTemplateRows: "auto minmax(0, max-content)",
             }}
           >
             <Segmented
               value={tab}
-              onChange={setTab}
+              onChange={(next) => {
+                setTab(next);
+                // Leaving Motion stops the clip where it is: Crafting edits
+                // the pose, and a moving phone is the wrong thing to edit.
+                if (next === "crafting" && studio.playing) studio.togglePlay();
+              }}
               options={[
                 { id: "crafting", label: "Crafting" },
-                { id: "presets", label: "Presets" },
+                { id: "motion", label: "Motion" },
               ]}
             />
 
@@ -2503,7 +2968,37 @@ export default function StudioChrome({
                 fixed panel with a changing title: close it and there is no
                 popup, which is why `openLayer` can be null.
               */}
-              {open ? (
+              {presetsShown ? (
+                <Glass width={control.panelW} style={{ maxHeight: "100%" }}>
+                  <div
+                    className="flex min-h-0 flex-col"
+                    style={{ gap: "var(--mo-space-4)" }}
+                  >
+                    <Header
+                      icon={<Icon name="styles" />}
+                      closeIcon={<Icon name="close-rounded" />}
+                      onClose={closePopup}
+                    >
+                      Presets
+                    </Header>
+                    {/*
+                      One group, not rows of two: the lens travels between
+                      whichever tile is selected, and it can only do that if
+                      every tile is its sibling. Wrapping turns the column into
+                      a grid, and the lens follows sideways as readily as down.
+                    */}
+                    {PRESETS.length === 0 ? (
+                      <div
+                        className="mo-title grid w-full place-items-center"
+                        style={{ color: "var(--mo-ink-muted)", height: 120 }}
+                      >
+                        No presets yet
+                      </div>
+                    ) : null}
+                    <PresetScroller gap={16}>{presetGrid()}</PresetScroller>
+                  </div>
+                </Glass>
+              ) : open ? (
                 /* 250 stated, not inherited: every popup on this side is the
                    panel width whatever it holds, so a one-colour Background
                    and a three-group Transform are the same object resizing
@@ -2640,9 +3135,13 @@ export default function StudioChrome({
                                         a light is a thing you do by comparing,
                                         which a closed menu will not let you do.
                                       */
-                                        <RowGroup key={f.key}>
+                                        /* Chips that wrap, not a column of
+                                           full-width rows: the pill hugs the
+                                           name it selects. */
+                                        <RowGroup key={f.key} wrap gap={4}>
                                           {f.options.map((option) => (
                                             <Row
+                                              hug
                                               key={option.id}
                                               selected={
                                                 option.id === f.get(effective)
@@ -2691,7 +3190,12 @@ export default function StudioChrome({
                                             over the whole panel, and that is
                                             the gesture people reach for.
                                           */
-                                            f.channel ? (
+                                            // Keyframes are Motion's: Crafting
+                                            // sets the pose, Motion animates it.
+                                            // Nothing trails a row there -- the
+                                            // reset glyph is a diamond too, and
+                                            // read as the keyframe still there.
+                                            tab !== "motion" ? undefined : f.channel ? (
                                               <KeyframeDot
                                                 studio={studio}
                                                 channel={f.channel}
@@ -2754,8 +3258,6 @@ export default function StudioChrome({
 
               {tab === "crafting" ? (
                 /*
-                  Fixed, not the height of eight rows — see `STACK_HEIGHT`.
-
                   `key` is what makes the tab switch a switch. Both tabs render
                   a `Glass` holding a `RowGroup` at the same position, so React
                   reuses the instance rather than replacing it — and the lens
@@ -2766,7 +3268,9 @@ export default function StudioChrome({
                 */
                 <Glass
                   key="crafting"
-                  style={{ height: STACK_HEIGHT, maxHeight: "100%" }}
+                  // Sized to its rows, so it grows only as effects are added; the
+                  // band caps it, and the rows scroll past that.
+                  style={{ maxHeight: "100%" }}
                 >
                   <PanelScroll>
                     <RowGroup>
@@ -2782,54 +3286,7 @@ export default function StudioChrome({
                       in both places and stays in step.
                     */}
                       {[...BASE_LAYERS].flatMap((l) => {
-                        const on = l.isOn(state);
-                        const row = (
-                          <Row
-                            key={l.id}
-                            icon={<Icon name={l.icon} />}
-                            /*
-                            The box says whether the effect is IN the shot, and
-                            nothing else — not whether its popup happens to be
-                            open, which is what the old plus-and-minus tracked.
-                            Those were two different facts wearing one glyph:
-                            you could be editing a shadow that was switched off
-                            and the row would offer to remove it.
-
-                            `Checkbox` takes its own press, so opening the row
-                            and toggling it stay separate acts.
-                          */
-                            trailing={
-                              l.removable === false ? (
-                                /* Nothing to check: see `ToggleGlyph`. The press
-                                 still has to stop here, or clearing a transform
-                                 would also open its popup. */
-                                <button
-                                  type="button"
-                                  aria-label={`Reset ${l.name}`}
-                                  className="grid cursor-pointer place-items-center"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    toggleLayer(l);
-                                  }}
-                                >
-                                  <ToggleGlyph on={l.id === selectedLayer} />
-                                </button>
-                              ) : (
-                                <Checkbox
-                                  checked={on}
-                                  label={`${l.name} in the shot`}
-                                  icon={<Icon name="checkbox" />}
-                                  checkedIcon={<Icon name="checkbox-checked" />}
-                                  onChange={() => toggleLayer(l)}
-                                />
-                              )
-                            }
-                            selected={l.id === selectedLayer}
-                            onClick={() => openLayer(l)}
-                          >
-                            {l.name}
-                          </Row>
-                        );
+                        const row = stageRow(l);
                         // Background Color is its own block, between the stage
                         // rows and Effects, so it gets a rule of its own.
                         return l.id === "background"
@@ -2910,54 +3367,41 @@ export default function StudioChrome({
                       />
                     ) : null}
                   </PanelScroll>
-                  <ExportRow studio={studio} />
+                  <ExportRow studio={studio} kind="image" />
                 </Glass>
               ) : (
-                /* Presets replaces the stack, not the column — the switch and
-                   any open popup stay put. The system's 250, same as the
-                   stack it replaces — the tiles share what is left. */
+                /* Motion replaces the stack, not the column — the switch and
+                   any open popup stay put. The three stage rows on top, so a
+                   picked move is tuned from here; the tiles share what is
+                   left. */
                 <Glass
-                  key="presets"
-                  style={{ height: STACK_HEIGHT, maxHeight: "100%" }}
+                  key="motion"
+                  // Sized to its rows, so it grows only as effects are added; the
+                  // band caps it, and the rows scroll past that.
+                  style={{ maxHeight: "100%" }}
                 >
-                  {/*
-                    One group, not four rows of two: the lens travels between
-                    whichever tiles are selected, and it can only do that if
-                    every tile is its sibling. Wrapping turns the same column
-                    into a grid, and the lens follows sideways as readily as
-                    down because it goes to a measured box either way.
-                  */}
-                  {/* Nothing to show yet, and saying so beats an empty box that
-                      reads as a panel that failed to load. */}
-                  {PRESETS.length === 0 ? (
-                    <div
-                      className="mo-title grid h-full w-full place-items-center"
-                      style={{ color: "var(--mo-ink-muted)" }}
-                    >
-                      No presets yet
-                    </div>
-                  ) : null}
-                  <PresetScroller gap={16}>
-                    <RowGroup wrap gap={16} radius={radius.well}>
-                      {PRESETS.map((preset) => (
-                        <PresetTile
-                          key={preset.id}
-                          preset={preset}
-                          label={getMotionPreset(preset.id)?.label ?? preset.id}
-                          selected={preset.id === studio.presetId}
-                          // Held here, not in the tile: the lens draws every
-                          // tile twice, and the copy under a selected tile has
-                          // to play the same move as the tile it covers.
-                          playing={preset.id === hoveredPreset}
-                          onHover={setHoveredPreset}
-                          // Applies the move AND plays it once. This shell has no
-                          // transport, so a preset that only loaded keyframes
-                          // would look like a tile that does nothing.
-                          onClick={() => studio.pickPreset(preset.id)}
-                        />
-                      ))}
-                    </RowGroup>
-                  </PresetScroller>
+                  <RowGroup>
+                    {[
+                      <Row
+                        key={PRESETS_ID}
+                        icon={<Icon name="styles" />}
+                        trailing={
+                          <ToggleGlyph on={selectedLayer === PRESETS_ID} />
+                        }
+                        selected={selectedLayer === PRESETS_ID}
+                        onClick={() => {
+                          setPopupOpen(
+                            selectedLayer === PRESETS_ID ? !popupOpen : true,
+                          );
+                          setSelectedLayer(PRESETS_ID);
+                        }}
+                      >
+                        Presets
+                      </Row>,
+                      ...MOTION_LAYERS.map(stageRow),
+                    ]}
+                  </RowGroup>
+                  <MotionExportRow studio={studio} />
                 </Glass>
               )}
             </div>

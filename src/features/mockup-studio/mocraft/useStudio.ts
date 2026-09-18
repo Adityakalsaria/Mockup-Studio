@@ -655,6 +655,8 @@ export function useStudio() {
    * Mocraft chrome.
    */
   const captureRef = useRef<StageCapture | null>(null);
+  /** The stage's WebGL canvas, which the preview card streams from. */
+  const stageCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const recorderRef = useRef<StageRecorder | null>(null);
   const [exporting, setExporting] = useState<null | {
     kind: "image" | "video";
@@ -674,6 +676,8 @@ export function useStudio() {
      touches what is on screen. */
   const [exportScale, setExportScale] = useState(EXPORT_SCALE);
   const [exportFps, setExportFps] = useState(EXPORT_FPS);
+  /** Whether exports carry the Mocraft mark. */
+  const [watermark, setWatermark] = useState(true);
 
   const exportImage = useCallback(async () => {
     const shot = stateRef.current;
@@ -720,15 +724,27 @@ export function useStudio() {
     // After the phone: the layer sits over the shot, which is the order the
     // live stage renders in.
     paintOverlay(ctx, shot.overlay, out.width, out.height);
-    const mark = await loadWatermark();
+    const mark = watermark ? await loadWatermark() : null;
     if (mark) paintWatermark(ctx, out.width, out.height, mark);
 
+    /*
+     * A Blob, not a data URL. Chrome quietly refuses to download a large
+     * `data:` link, and a 3x or 4x PNG is past that line -- the click did
+     * nothing at all. The video export already goes this way.
+     */
+    const blob = await new Promise<Blob | null>((resolve) =>
+      out.toBlob(resolve, "image/png"),
+    );
+    setExporting(null);
+    if (!blob) return;
+    const href = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = out.toDataURL("image/png");
+    link.href = href;
     link.download = "mocraft.png";
     link.click();
-    setExporting(null);
-  }, [exportScale]);
+    // Revoking at once cancels the download in some browsers.
+    setTimeout(() => URL.revokeObjectURL(href), 10_000);
+  }, [exportScale, watermark]);
 
   /**
    * The clip.
@@ -779,6 +795,7 @@ export function useStudio() {
           overlay: shot.overlay,
           shadow: shot.shadow,
           scale: exportScale,
+          watermark,
           durationSec,
           fps: exportFps,
           onTime,
@@ -792,6 +809,7 @@ export function useStudio() {
           overlay: shot.overlay,
           shadow: shot.shadow,
           scale: exportScale,
+          watermark,
           durationSec,
           fps: exportFps,
           onTime,
@@ -815,7 +833,7 @@ export function useStudio() {
       setExporting(null);
       playheadRef.current = 0;
     }
-  }, [exporting, exportScale, exportFps]);
+  }, [exporting, exportScale, exportFps, watermark]);
 
   /* --------------------------------------------------------------- the frame */
 
@@ -1152,7 +1170,17 @@ export function useStudio() {
    */
   const setEasing = useCallback(
     (easing: Easing) => {
-      edit((prev) => ({ ...prev, animation: { ...prev.animation, easing } }));
+      // Global means every span: drop each key's own easing so none of them
+      // keeps overriding the default it was just set to. One undo step.
+      edit((prev) => {
+        const tracks = Object.fromEntries(
+          Object.entries(prev.animation.tracks).map(([key, keys]) => [
+            key,
+            keys?.map((frame) => ({ ...frame, easing: undefined })),
+          ]),
+        ) as typeof prev.animation.tracks;
+        return { ...prev, animation: { ...prev.animation, easing, tracks } };
+      });
     },
     [edit],
   );
@@ -1282,6 +1310,7 @@ export function useStudio() {
       // Export
       captureRef,
       recorderRef,
+      stageCanvasRef,
       exportImage,
       exportVideo,
       exporting,
@@ -1336,6 +1365,8 @@ export function useStudio() {
       setExportScale,
       exportFps,
       setExportFps,
+      watermark,
+      setWatermark,
     }),
     [
       state,
@@ -1394,6 +1425,7 @@ export function useStudio() {
       setEasing,
       exportScale,
       exportFps,
+      watermark,
     ],
   );
 }

@@ -112,8 +112,23 @@ function StageInner({
        */
       style={{ containerType: "size", padding: ratio === null ? 0 : INSET }}
     >
+      {/*
+        The canvas fills its frame by CSS, not by the pixel size R3F last
+        measured. The frame changes size -- eased when the timeline comes and
+        goes, at once when the ratio changes -- and R3F's measurement trails it
+        by a few frames; sized in pixels, the canvas sat at the OLD size inside
+        the new frame for those frames, cropped and off centre, then snapped.
+
+        CONTAIN, not stretch: stretched, the last render took the new frame's
+        proportions and a ratio change squashed the phone flat for those
+        frames. Contained, it keeps its shape and is only scaled until the new
+        render lands. The canvas is transparent, so the space around it is the
+        frame's own background and shows nothing. Exports read the drawing
+        buffer, so they are untouched.
+      */}
+      <style>{`.mo-shot canvas { width: 100% !important; height: 100% !important; object-fit: contain; }`}</style>
       <div
-        className="relative overflow-hidden"
+        className="mo-shot relative overflow-hidden"
         style={{
           // Square at Fill: a corner is what tells you where a shot ends, and
           // at Fill it ends at the window.
@@ -136,6 +151,7 @@ function StageInner({
              scene fills in — see `CaptureBridge` and `RecorderBridge`. */
           captureRef={studio.captureRef}
           recorderRef={studio.recorderRef}
+          canvasRef={studio.stageCanvasRef}
           screenTexture={screenTexture}
           coverTexture={coverTexture}
           deviceId={state.deviceId}

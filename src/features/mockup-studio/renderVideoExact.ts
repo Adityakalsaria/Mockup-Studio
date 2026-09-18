@@ -38,6 +38,8 @@ export interface ExactRenderOptions {
   /** Composited behind the stage on every frame, as the live preview does. */
   shadow: ShadowSettings;
   scale: number;
+  /** Paint the Mocraft mark over each frame. On unless turned off. */
+  watermark?: boolean;
   durationSec: number;
   fps: number;
   /** Stepped frame by frame rather than played. */
@@ -95,6 +97,7 @@ export async function renderVideoExact({
   overlay,
   shadow,
   scale,
+  watermark = true,
   durationSec,
   fps,
   video,
@@ -107,8 +110,58 @@ export async function renderVideoExact({
   if (!supportsExactRender()) throw new Error("WebCodecs is not available.");
 
   const size = recorder.begin(scale);
-  const width = evenDown(size.width);
-  const height = evenDown(size.height);
+  let width = evenDown(size.width);
+  let height = evenDown(size.height);
+
+  // High profile, level 5.2, then 4.0, then baseline. See `findCodec`.
+  const candidates = ["avc1.640034", "avc1.640028", "avc1.42E01E"];
+  // Hardware first, and asked for by name.
+  //
+  // Left at the default of "no-preference" the browser is free to pick its
+  // software encoder, and on a long export it usually does — libx264 on the
+  // CPU while a media engine that does this in silicon sits idle. Asking for
+  // hardware is only a preference either way, so the whole search runs again
+  // without it rather than failing: a machine with no hardware H.264 still
+  // exports.
+  const findCodec = async (w: number, h: number) => {
+    for (const preference of ["prefer-hardware", "no-preference"] as const) {
+      for (const candidate of candidates) {
+        const support = await VideoEncoder.isConfigSupported({
+          codec: candidate,
+          width: w,
+          height: h,
+          framerate: fps,
+          hardwareAcceleration: preference,
+        });
+        if (support.supported)
+          return { codec: candidate, acceleration: preference };
+      }
+    }
+    return null;
+  };
+
+  /*
+   * The largest frame an encoder will take, at or under the one asked for.
+   *
+   * 3x and 4x of a large stage run past what H.264 encoders accept -- a Mac's
+   * hardware encoder stops around 4096 wide -- and the export used to throw
+   * there, which reached nobody but the console. So the frame steps down until
+   * one says yes; the stage still renders at full scale and is drawn down into
+   * it, so it is the sharpest file this machine can write.
+   */
+  let fit = 1;
+  let found = await findCodec(width, height);
+  while (!found && width > 320) {
+    fit *= 0.9;
+    width = evenDown(size.width * fit);
+    height = evenDown(size.height * fit);
+    found = await findCodec(width, height);
+  }
+  if (!found) {
+    recorder.end();
+    throw new Error("No supported H.264 encoder configuration.");
+  }
+  const { codec, acceleration } = found;
 
   const composite = document.createElement("canvas");
   composite.width = width;
@@ -117,42 +170,6 @@ export async function renderVideoExact({
   if (!ctx) {
     recorder.end();
     throw new Error("Could not open a compositing canvas.");
-  }
-
-  // High profile, level 4.2 — enough for 4K30 or 1080p120, and the level is
-  // stated rather than guessed so the encoder does not silently refuse a
-  // large frame. Falls back to baseline where High is unsupported.
-  const candidates = ["avc1.640034", "avc1.640028", "avc1.42E01E"];
-  let codec = "";
-  let acceleration: HardwareAcceleration = "prefer-hardware";
-  // Hardware first, and asked for by name.
-  //
-  // Left at the default of "no-preference" the browser is free to pick its
-  // software encoder, and on a long export it usually does — libx264 on the
-  // CPU while a media engine that does this in silicon sits idle. Asking for
-  // hardware is only a preference either way, so the whole search runs again
-  // without it rather than failing: a machine with no hardware H.264, or a
-  // resolution its encoder will not take, still exports.
-  for (const preference of ["prefer-hardware", "no-preference"] as const) {
-    for (const candidate of candidates) {
-      const support = await VideoEncoder.isConfigSupported({
-        codec: candidate,
-        width,
-        height,
-        framerate: fps,
-        hardwareAcceleration: preference,
-      });
-      if (support.supported) {
-        codec = candidate;
-        acceleration = preference;
-        break;
-      }
-    }
-    if (codec) break;
-  }
-  if (!codec) {
-    recorder.end();
-    throw new Error("No supported H.264 encoder configuration.");
   }
 
   const muxer = new Muxer({
@@ -193,7 +210,7 @@ export async function renderVideoExact({
   video?.pause();
 
   const frameCount = Math.max(1, Math.round(durationSec * fps));
-  const mark = await loadWatermark();
+  const mark = watermark ? await loadWatermark() : null;
   const markCache = {};
   const frameDurationUs = 1_000_000 / fps;
   const clipLength =
@@ -213,10 +230,10 @@ export async function renderVideoExact({
       }
 
       ctx.clearRect(0, 0, width, height);
-      paintBackground(ctx, background, width, height, scale);
+      paintBackground(ctx, background, width, height, scale * fit);
       // Same reason as the still export: the shadow lives in a CSS filter on
       // the live canvas and has to be re-laid here to reach the file.
-      applyCanvasShadow(ctx, shadow, scale);
+      applyCanvasShadow(ctx, shadow, scale * fit);
       recorder.frame((source) => {
         ctx.drawImage(source, 0, 0, width, height);
         if (overlay) paintOverlay(ctx, overlay, width, height);

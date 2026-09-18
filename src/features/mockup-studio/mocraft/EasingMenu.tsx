@@ -50,9 +50,12 @@ const SPRING_FALLBACK = {
 export function CurveThumb({
   easing,
   active,
+  color,
 }: {
   easing: Easing;
   active?: boolean;
+  /** Stroke override for a coloured chip; drops the dotted box with it. */
+  color?: string;
 }) {
   const d = useMemo(() => curvePath(easing, THUMB, THUMB_PAD), [easing]);
   return (
@@ -63,7 +66,7 @@ export function CurveThumb({
       aria-hidden
       className="shrink-0"
     >
-      <rect
+      {color ? null : <rect
         x={THUMB_PAD}
         y={THUMB_PAD}
         width={THUMB - THUMB_PAD * 2}
@@ -71,11 +74,11 @@ export function CurveThumb({
         fill="none"
         stroke="var(--mo-field)"
         strokeDasharray="1 2"
-      />
+      />}
       <path
         d={d}
         fill="none"
-        stroke={active ? "var(--mo-ink)" : "var(--mo-ink-muted)"}
+        stroke={color ?? (active ? "var(--mo-ink)" : "var(--mo-ink-muted)")}
         strokeWidth={1.4}
         strokeLinecap="round"
         strokeLinejoin="round"

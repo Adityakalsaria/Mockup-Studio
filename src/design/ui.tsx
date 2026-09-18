@@ -134,13 +134,26 @@ export type GlassProps = {
  * placed inside the frost has nothing beneath it to blend against and its
  * blend mode silently does nothing. See the long note in `system.ts`.
  */
+/*
+ * The pane multiplies its fill over the frost -- and multiplying by white
+ * changes nothing. It still made Chrome blend the glass against the page layer
+ * by layer, and over a dark shot every compositor boundary behind a panel
+ * showed through as a faint hard-edged rectangle. So a white multiply pane is
+ * not drawn; tune the fill to anything else and it comes back.
+ */
+const PANE_IS_NOOP =
+  material.glass.top.fill.replace(/\s+/g, "") === "rgb(255255255)" &&
+  material.glass.top.fillBlend === "multiply";
+
 export function Material() {
   return (
     <>
       <div aria-hidden className="mo-mat-layer mo-mat-base" />
       <div aria-hidden className="mo-mat-layer mo-mat-rim" />
       <div aria-hidden className="mo-mat-layer mo-mat-frost" />
-      <div aria-hidden className="mo-mat-layer mo-mat-pane" />
+      {PANE_IS_NOOP ? null : (
+        <div aria-hidden className="mo-mat-layer mo-mat-pane" />
+      )}
       <div aria-hidden className="mo-mat-layer mo-mat-depth mo-mat-depth-1" />
       <div aria-hidden className="mo-mat-layer mo-mat-depth mo-mat-depth-2" />
       <div aria-hidden className="mo-mat-layer mo-mat-depth mo-mat-depth-3" />
@@ -348,6 +361,12 @@ export type RowProps = {
   selected?: boolean;
   onClick?: () => void;
   title?: string;
+  /**
+   * As wide as its label rather than the column: a chip in a wrapping
+   * `RowGroup`, where the selection is a pill around the word, not a band
+   * across the panel.
+   */
+  hug?: boolean;
 };
 
 /**
@@ -396,7 +415,7 @@ function pressKeys(onClick?: () => void) {
  * used on its own wraps itself in a one-item group so there is exactly one
  * implementation of the selected look rather than two that can drift.
  */
-export function Row({ icon, children, trailing, value, selected, onClick, title }: RowProps) {
+export function Row({ icon, children, trailing, value, selected, onClick, title, hug }: RowProps) {
   const { grouped, strong: selectedInk, interactive } = useRowState(selected, onClick);
   /*
    * Hover borrows the selected INK, not the lens: text and glyphs go to full
@@ -416,6 +435,7 @@ export function Row({ icon, children, trailing, value, selected, onClick, title 
           selected={selected}
           onClick={onClick}
           title={title}
+          hug={hug}
         >
           {children}
         </Row>
@@ -432,7 +452,7 @@ export function Row({ icon, children, trailing, value, selected, onClick, title 
       onKeyDown={interactive ? pressKeys(onClick) : undefined}
       onPointerEnter={interactive ? () => setHovered(true) : undefined}
       onPointerLeave={interactive ? () => setHovered(false) : undefined}
-      className={`relative flex w-full items-center ${interactive ? "cursor-pointer" : ""}`}
+      className={`relative flex items-center ${hug ? "" : "w-full"} ${interactive ? "cursor-pointer" : ""}`}
       style={{
         gap: "var(--mo-space-2)",
         padding: "10px var(--mo-space-3)",
@@ -445,7 +465,7 @@ export function Row({ icon, children, trailing, value, selected, onClick, title 
         </span>
       ) : null}
       <span
-        className="mo-title relative min-w-0 flex-1 truncate"
+        className={`mo-title relative ${hug ? "whitespace-nowrap" : "min-w-0 flex-1 truncate"}`}
         style={{
           zIndex: 1,
           color: strong ? "var(--mo-ink)" : "var(--mo-ink-muted)",

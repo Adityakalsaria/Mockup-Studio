@@ -81,6 +81,8 @@ export interface RecordOptions {
   shadow?: ShadowSettings;
   /** Resolution multiplier over the on-screen canvas. */
   scale: number;
+  /** Paint the Mocraft mark over each frame. On unless turned off. */
+  watermark?: boolean;
   durationSec: number;
   fps: number;
   /** Played from the start so the capture begins on a clean loop. */
@@ -102,6 +104,7 @@ export async function recordStageVideo({
   overlay,
   shadow,
   scale,
+  watermark = true,
   durationSec,
   fps,
   video,
@@ -154,7 +157,7 @@ export async function recordStageVideo({
     }
   }
 
-  const mark = await loadWatermark();
+  const mark = watermark ? await loadWatermark() : null;
   const markCache = {};
   const composeFrame = () => {
     // Clear first: "None" paints nothing, and without this the previous frame

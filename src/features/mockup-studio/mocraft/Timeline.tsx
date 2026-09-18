@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The timeline, for when a preset is applied.
+ * The timeline, shown in the Motion tab.
  *
  * The old editor's version is the reference — play button, `0:03.8 / 0:06.0`,
  * a ruler, a lane per animated channel with its keyframes on it, and a
@@ -38,11 +38,10 @@ import {
   PauseIcon,
   PlayIcon,
   RepeatIcon,
-  Segmented,
   Slider,
   useDismiss,
 } from "@/design/ui";
-import { control, radius } from "@/design/system";
+import { control } from "@/design/system";
 import {
   ANIMATABLE,
   KEY_EPSILON,
@@ -104,13 +103,36 @@ const MARK = 20;
 const KEY_GAP_PX = MARK * 2 + SAFE;
 const KEYFRAMES = "/figma-assets/mockup-studio/timeline";
 /** Every control in the toolbar is this tall, so one of them can set the row. */
-const CONTROL_H = 28;
-/** Wide enough for "Pan X", which is the longest label a lane can carry. */
-const LABEL_W = 52;
-/* One lane per channel, exactly as tall as the mark it carries. Flush rows are
-   the frame's own rhythm — the marks are what you read down a lane, and space
-   between them was space spent on nothing. */
-const LANE_H = MARK;
+const CONTROL_H = 32;
+/** Room for "Pan X" at title size, plus the gutter either side of it. */
+const LABEL_W = 84;
+/** Between the label column and the panel edge on the left, and the tracks on
+    the right. */
+const LABEL_PAD = 12;
+/* One lane per channel: a tinted track holding a clip bar, the marks riding
+   inside the bar. The track is the lane; the gap keeps two tracks apart. */
+const LANE_H = 36;
+const LANE_GAP = 6;
+/** Between the track's edge and the clip bar inside it. */
+const TRACK_PAD = 4;
+/** How far the clip bar reaches past its first and last key, so the end
+    diamonds sit inside it rather than on its edge. */
+const CLIP_REACH = MARK / 2 + 6;
+/**
+ * One hue per channel, fixed by its place in `ANIMATABLE` so the same channel
+ * is always the same colour whichever preset is loaded.
+ */
+const HUES = [265, 130, 18, 215, 330, 45, 175, 0, 240, 85];
+function laneColors(channel: AnimatableKey) {
+  const h = HUES[ANIMATABLE.findIndex((a) => a.key === channel) % HUES.length];
+  return {
+    track: `hsl(${h} 45% 50% / 0.14)`,
+    clip: `linear-gradient(hsl(${h} 50% 36%), hsl(${h} 50% 42%))`,
+    edge: `hsl(${h} 55% 55%)`,
+    chip: `hsl(${h} 50% 50%)`,
+    key: `hsl(${h} 65% 66%)`,
+  };
+}
 const RULER_H = 20;
 /**
  * Breathing room at each end of the time axis.
@@ -122,7 +144,7 @@ const RULER_H = 20;
  * as a percentage of it, so the ruler, the marks and the playhead all move
  * together and nothing else has to know.
  */
-const LEAD = 10;
+const LEAD = CLIP_REACH + TRACK_PAD;
 
 /**
  * Ruler spacing that lands on round numbers at any clip length.
@@ -134,10 +156,6 @@ const STEPS = [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30];
 function tickStep(duration: number): number {
   return STEPS.find((step) => step >= duration / 10) ?? STEPS[STEPS.length - 1];
 }
-
-/** Export sizes and frame rates, as the old editor offered them. */
-const SCALES = [1, 2, 3, 4];
-const RATES = [30, 60];
 
 /** Between toolbar groups. A gap alone says "these are apart"; a rule says
     "and they are about different things". */
@@ -160,7 +178,7 @@ function Rule() {
 function Labelled({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label
-      className="mo-label flex items-center"
+      className="mo-title flex items-center"
       style={{ gap: SAFE, color: "var(--mo-ink-muted)" }}
     >
       {label}
@@ -169,7 +187,15 @@ function Labelled({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-export function Timeline({ studio }: { studio: Studio }) {
+export function Timeline({
+  studio,
+  suggestions,
+}: {
+  studio: Studio;
+  /** The preset tiles, offered on an empty timeline so a first visit to
+      Motion has somewhere to start rather than a bare ruler. */
+  suggestions?: ReactNode;
+}) {
   const { playing, playheadRef, duration, seek, parkedAt, presetId } = studio;
   const animation = studio.state.animation;
 
@@ -207,9 +233,7 @@ export function Timeline({ studio }: { studio: Studio }) {
     panelW: number;
   } | null>(null);
   const isSelected = (channel: AnimatableKey, time: number) =>
-    selection.some(
-      (s) => s.key === channel && Math.abs(s.time - time) < 1e-6,
-    );
+    selection.some((s) => s.key === channel && Math.abs(s.time - time) < 1e-6);
   /** Which span's easing menu is open, and where to hang it. `x` is measured
       from the panel's left edge at the moment of the click, so the menu is not
       trapped inside the lanes' horizontal scroller. */
@@ -237,6 +261,32 @@ export function Timeline({ studio }: { studio: Studio }) {
     segment !== null || selected !== null || selection.length > 0,
     closeMenus,
   );
+  /*
+   * A press anywhere outside the open menu closes it -- the toolbar, the
+   * ruler, the stage. `panelRef` only caught presses outside the WHOLE
+   * timeline, so a menu stayed up while you went on working in the panel it
+   * hangs over. The selection is kept: that is still the panel's business.
+   * Keys and easing chips are left alone because they open, switch or close
+   * the menu themselves.
+   */
+  const menuOpen = segment !== null || selected !== null;
+  useEffect(() => {
+    if (!menuOpen) return;
+    const away = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (
+        target?.closest?.(
+          "[data-timeline-menu], [data-keyframe], [data-span-chip]",
+        )
+      )
+        return;
+      setSegment(null);
+      setSelected(null);
+    };
+    document.addEventListener("pointerdown", away, true);
+    return () => document.removeEventListener("pointerdown", away, true);
+  }, [menuOpen]);
+
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const laneRef = useRef<HTMLDivElement | null>(null);
   const markerRef = useRef<HTMLDivElement | null>(null);
@@ -365,8 +415,6 @@ export function Timeline({ studio }: { studio: Studio }) {
   // to write its tracks in, so the same channel is always on the same row.
   const lanes = ANIMATABLE.filter(({ key }) => (tracks[key]?.length ?? 0) > 0);
 
-  if (!presetId) return null;
-
   /** Where in the clip a screen x lands. The lane box is the one that grows
       with zoom, and its rect already accounts for the scroll. */
   const timeAt = (clientX: number): number | null => {
@@ -478,7 +526,7 @@ export function Timeline({ studio }: { studio: Studio }) {
     const bottom = Math.max(y0, y1);
     const found: Array<{ key: AnimatableKey; time: number }> = [];
     lanes.forEach(({ key }, i) => {
-      const bandTop = RULER_H + i * LANE_H;
+      const bandTop = RULER_H + i * (LANE_H + LANE_GAP);
       const bandBottom = bandTop + LANE_H;
       if (bandBottom < top || bandTop > bottom) return;
       for (const frame of tracks[key] ?? [])
@@ -548,199 +596,191 @@ export function Timeline({ studio }: { studio: Studio }) {
             things".
         */}
         {/*
-          Centred as one group, not run from the left with the last two pushed
-          right. The old editor learned this the same way: with the tail on
-          `ml-auto` it read as two unrelated toolbars with a gulf between them
-          rather than one set of controls for one clip.
+          Two groups at the two ends: playing the clip and its length on the
+          left, how it is eased and looked at on the right.
         */}
         <div
-          className="flex flex-wrap items-center justify-center"
+          className="flex flex-wrap items-center justify-between"
           style={{
             minHeight: CONTROL_H + SAFE * 2,
-            columnGap: SAFE,
+            columnGap: SAFE * 2,
             rowGap: SAFE,
+            paddingInline: SAFE,
           }}
         >
-          <button
-            type="button"
-            aria-label={playing ? "Pause" : "Play"}
-            title={playing ? "Pause (Space)" : "Play (Space)"}
-            onClick={studio.togglePlay}
-            className="grid cursor-pointer place-items-center"
-            style={{ width: CONTROL_H, height: CONTROL_H }}
-          >
-            <Glyph>{playing ? <PauseIcon /> : <PlayIcon />}</Glyph>
-          </button>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={studio.looping}
-            aria-label="Repeat"
-            title={studio.looping ? "Repeat is on" : "Repeat is off"}
-            onClick={studio.toggleLoop}
-            className="grid cursor-pointer place-items-center"
-            style={{ width: CONTROL_H, height: CONTROL_H }}
-          >
-            {/* Muted when off, which is the same way every other glyph in this
+          <div className="flex items-center" style={{ gap: SAFE }}>
+            <button
+              type="button"
+              aria-label={playing ? "Pause" : "Play"}
+              title={playing ? "Pause (Space)" : "Play (Space)"}
+              onClick={studio.togglePlay}
+              className="grid cursor-pointer place-items-center"
+              style={{ width: CONTROL_H, height: CONTROL_H }}
+            >
+              <Glyph>{playing ? <PauseIcon /> : <PlayIcon />}</Glyph>
+            </button>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={studio.looping}
+              aria-label="Repeat"
+              title={studio.looping ? "Repeat is on" : "Repeat is off"}
+              onClick={studio.toggleLoop}
+              className="grid cursor-pointer place-items-center"
+              style={{ width: CONTROL_H, height: CONTROL_H }}
+            >
+              {/* Muted when off, which is the same way every other glyph in this
                 interface says "not in effect". */}
-            <Glyph muted={!studio.looping}>
-              <RepeatIcon />
-            </Glyph>
-          </button>
+              <Glyph muted={!studio.looping}>
+                <RepeatIcon />
+              </Glyph>
+            </button>
 
-          {/*
+            {/*
             Tabular figures, because this is a clock. With proportional ones the
             string changes width as the digits change and the whole readout
             jitters sixty times a second.
           */}
-          <span
-            className="mo-value"
-            style={{ fontVariantNumeric: "tabular-nums" }}
-          >
-            <span ref={readoutRef}>0:00.0</span>
-            <span style={{ color: "var(--mo-ink-muted)" }}>
-              {" "}
-              / {formatTime(duration)}
+            <span
+              className="mo-title"
+              style={{ fontVariantNumeric: "tabular-nums" }}
+            >
+              <span ref={readoutRef}>0:00.0</span>
+              <span style={{ color: "var(--mo-ink-muted)" }}>
+                {" "}
+                / {formatTime(duration)}
+              </span>
             </span>
-          </span>
 
-          <Rule />
+            <Rule />
 
-          <Labelled label="Res">
-            <Segmented
-              width={140}
-              height={CONTROL_H}
-              value={String(studio.exportScale)}
-              onChange={(id) => studio.setExportScale(Number(id))}
-              options={SCALES.map((n) => ({ id: String(n), label: `${n}x` }))}
-            />
-          </Labelled>
-          <Labelled label="FPS">
-            <Segmented
-              width={78}
-              height={CONTROL_H}
-              value={String(studio.exportFps)}
-              onChange={(id) => studio.setExportFps(Number(id))}
-              options={RATES.map((n) => ({ id: String(n), label: String(n) }))}
-            />
-          </Labelled>
-
-          <Rule />
-
-          {/*
+            {/*
             A text field with a forgiving parser, not `type="number"` — that is
             where the browser's little stepper arrows come from, and in a plate
             this narrow they sit on top of the value. "90", "1:30" and
             "00:01:30" all mean ninety seconds.
           */}
-          <Labelled label="Duration">
-            <input
-              type="text"
-              inputMode="numeric"
-              spellCheck={false}
-              aria-label="Duration"
-              value={durationDraft ?? formatClock(duration)}
-              onChange={(event) => setDurationDraft(event.currentTarget.value)}
-              onBlur={(event) => {
-                const parsed = parseClock(event.currentTarget.value);
-                // Unparseable leaves the clip alone rather than snapping it
-                // somewhere the typing did not ask for.
-                if (parsed !== null) studio.setDuration(parsed);
-                setDurationDraft(null);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") event.currentTarget.blur();
-                if (event.key === "Escape") {
-                  setDurationDraft(null);
-                  event.currentTarget.blur();
+            <Labelled label="Duration">
+              <input
+                type="text"
+                inputMode="numeric"
+                spellCheck={false}
+                aria-label="Duration"
+                value={durationDraft ?? formatClock(duration)}
+                onChange={(event) =>
+                  setDurationDraft(event.currentTarget.value)
                 }
-              }}
-              /* The readout plate from the system, in its editable form: same
-                 token, same corner, same figures — it just takes typing. */
-              className="mo-value text-center focus:outline-none"
-              style={{
-                width: 82,
-                height: CONTROL_H,
-                borderRadius: "var(--mo-r-field)",
-                background: "var(--mo-field)",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            />
-          </Labelled>
-
-          {/* The clip's default, for every span nobody has set individually.
-              A key's own easing beats it — that is what the preset curves are —
-              so this is the floor rather than an override. */}
-          <div ref={easingRef} className="relative">
-            <Button
-              height={CONTROL_H}
-              width={132}
-              onClick={() => setEasingOpen((was) => !was)}
-              title="Default easing for spans with no easing of their own"
-            >
-              {EASING_PRESETS.find(
-                (p) => p.id === easingPresetId(animation.easing),
-              )?.label ?? "Custom"}
-            </Button>
-            {easingOpen ? (
-              /* Upwards. The panel lives at the bottom of the window, so a
-                 menu opening downwards opens off the screen. */
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: 34,
-                  left: 0,
-                  zIndex: POPUP_Z,
+                onBlur={(event) => {
+                  const parsed = parseClock(event.currentTarget.value);
+                  // Unparseable leaves the clip alone rather than snapping it
+                  // somewhere the typing did not ask for.
+                  if (parsed !== null) studio.setDuration(parsed);
+                  setDurationDraft(null);
                 }}
-              >
-                <EasingMenu
-                  value={animation.easing}
-                  onChange={studio.setEasing}
-                />
-              </div>
-            ) : null}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") event.currentTarget.blur();
+                  if (event.key === "Escape") {
+                    setDurationDraft(null);
+                    event.currentTarget.blur();
+                  }
+                }}
+                /* The readout plate from the system, in its editable form: same
+                 token, same corner, same figures — it just takes typing. */
+                className="mo-title text-center focus:outline-none"
+                style={{
+                  width: 96,
+                  height: CONTROL_H,
+                  borderRadius: "var(--mo-r-field)",
+                  background: "var(--mo-field)",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              />
+            </Labelled>
           </div>
 
-          <Rule />
+          <div className="flex items-center" style={{ gap: SAFE }}>
+            {/* The clip's default, for every span nobody has set individually.
+              A key's own easing beats it — that is what the preset curves are —
+              so this is the floor rather than an override. */}
+            <div ref={easingRef} className="relative">
+              <Button
+                height={CONTROL_H}
+                width={132}
+                onClick={() => setEasingOpen((was) => !was)}
+                title="Default easing for spans with no easing of their own"
+              >
+                {EASING_PRESETS.find(
+                  (p) => p.id === easingPresetId(animation.easing),
+                )?.label ?? "Custom"}
+              </Button>
+              {easingOpen ? (
+                /* Upwards. The panel lives at the bottom of the window, so a
+                 menu opening downwards opens off the screen. */
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: CONTROL_H + 6,
+                    left: 0,
+                    zIndex: POPUP_Z,
+                  }}
+                >
+                  <EasingMenu
+                    value={animation.easing}
+                    onChange={studio.setEasing}
+                  />
+                </div>
+              ) : null}
+            </div>
 
-          {/* Zoom, as Figma puts it: a slider at the toolbar's end. Zooming
+            <Rule />
+
+            {/* Zoom, as Figma puts it: a slider at the toolbar's end. Zooming
               keeps the PLAYHEAD centred rather than the left edge, because the
               playhead is where you are working — anchoring to zero would push
               the thing you were looking at off screen every time. */}
-          <Labelled label="Zoom">
-            <div style={{ width: 96 }}>
-              <Slider
-                label="Timeline zoom"
-                value={zoom}
-                min={1}
-                max={12}
-                step={0.1}
-                onChange={setZoom}
-              />
-            </div>
-          </Labelled>
-          <Button
-            height={CONTROL_H}
-            width={54}
-            onClick={() => setZoom(1)}
-            title="Fit the whole clip"
-          >
-            Fit
-          </Button>
+            <Labelled label="Zoom">
+              <div style={{ width: 96 }}>
+                <Slider
+                  label="Timeline zoom"
+                  value={zoom}
+                  min={1}
+                  max={12}
+                  step={0.1}
+                  onChange={setZoom}
+                />
+              </div>
+            </Labelled>
+            <Button
+              height={CONTROL_H}
+              width={54}
+              onClick={() => setZoom(1)}
+              title="Fit the whole clip"
+            >
+              Fit
+            </Button>
 
-          <Rule />
-
-          <span className="mo-label" style={{ color: "var(--mo-ink-muted)" }}>
-            {getMotionPreset(presetId)?.label ?? presetId}
-          </span>
-          <Button
-            height={CONTROL_H}
-            width={62}
-            onClick={studio.clearPreset}
-            title="Remove the preset and give the pose back to the panels"
-          >
-            Clear
-          </Button>
+            {/* The preset's name and its Clear, only while one is loaded: the
+              timeline shows in Motion either way, empty until keys arrive. */}
+            {presetId ? (
+              <>
+                <Rule />
+                <span
+                  className="mo-title"
+                  style={{ color: "var(--mo-ink-muted)" }}
+                >
+                  {getMotionPreset(presetId)?.label ?? presetId}
+                </span>
+                <Button
+                  height={CONTROL_H}
+                  width={62}
+                  onClick={studio.clearPreset}
+                  title="Remove the preset and give the pose back to the panels"
+                >
+                  Clear
+                </Button>
+              </>
+            ) : null}
+          </div>
         </div>
 
         <Divider />
@@ -749,10 +789,34 @@ export function Timeline({ studio }: { studio: Studio }) {
         {/* `min-h-0`, or the flex child refuses to shrink below its content
             and the panel grows past its 250 instead of scrolling inside it. */}
         <div
-          className="mo-noscroll flex min-h-0 flex-1 overflow-y-auto"
+          className="mo-noscroll relative flex min-h-0 flex-1 overflow-y-auto"
           style={{ paddingTop: SAFE }}
         >
-          <div style={{ width: LABEL_W, flex: "none" }}>
+          {lanes.length === 0 && suggestions ? (
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center"
+              style={{ gap: SAFE, zIndex: 3 }}
+            >
+              <span
+                className="mo-label"
+                style={{ color: "var(--mo-ink-muted)" }}
+              >
+                Start with a preset
+              </span>
+              {/* Sized to its tiles and centred, not the panel's width. */}
+              <div style={{ width: "fit-content", maxWidth: "100%" }}>
+                {suggestions}
+              </div>
+            </div>
+          ) : null}
+          <div
+            style={{
+              width: LABEL_W,
+              flex: "none",
+              paddingLeft: LABEL_PAD,
+              paddingRight: LABEL_PAD,
+            }}
+          >
             <div style={{ height: RULER_H }} />
             {/*
               The lane's name selects the lane.
@@ -787,9 +851,10 @@ export function Timeline({ studio }: { studio: Studio }) {
                     setSelected(null);
                     setSegment(null);
                   }}
-                  className="mo-label flex cursor-pointer items-center text-left"
+                  className="mo-title flex w-full cursor-pointer items-center text-left whitespace-nowrap"
                   style={{
                     height: LANE_H,
+                    marginBottom: LANE_GAP,
                     color: whole ? "var(--mo-ink)" : "var(--mo-ink-muted)",
                   }}
                 >
@@ -1071,20 +1136,56 @@ export function Timeline({ studio }: { studio: Studio }) {
 
               {lanes.map(({ key }) => {
                 const keys = tracks[key] ?? [];
+                const c = laneColors(key);
+                const pct = (t: number) =>
+                  (t / Math.max(0.001, duration)) * 100;
+                const first = keys[0]?.time ?? 0;
+                const last = keys[keys.length - 1]?.time ?? 0;
                 return (
                   <div
                     key={key}
-                    className="relative flex items-center"
-                    style={{ height: LANE_H }}
+                    className="relative"
+                    style={{ height: LANE_H, marginBottom: LANE_GAP }}
                   >
+                    {/* The track, reaching out into the viewport's lead so
+                        the clip bar has room at either end of the clip. */}
                     <div
-                      className="w-full"
+                      className="pointer-events-none absolute"
                       style={{
-                        height: 6,
-                        borderRadius: radius.field,
-                        background: "var(--mo-field)",
+                        top: 0,
+                        bottom: 0,
+                        left: -LEAD,
+                        right: -LEAD,
+                        borderRadius: 12,
+                        background: c.track,
                       }}
                     />
+                    {/* The clip: first key to last, with the span line the
+                        diamonds and easing chips sit on. */}
+                    <div
+                      className="pointer-events-none absolute"
+                      style={{
+                        top: TRACK_PAD,
+                        bottom: TRACK_PAD,
+                        left: `calc(${pct(first)}% - ${CLIP_REACH}px)`,
+                        width: `calc(${pct(last - first)}% + ${CLIP_REACH * 2}px)`,
+                        borderRadius: 9,
+                        background: c.clip,
+                        boxShadow: `inset 0 0 0 1.5px ${c.edge}`,
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "50%",
+                          left: CLIP_REACH,
+                          right: CLIP_REACH,
+                          height: 1.5,
+                          marginTop: -0.75,
+                          background: c.edge,
+                        }}
+                      />
+                    </div>
 
                     {/*
                       The easing marker for each SPAN, sitting between the two
@@ -1106,6 +1207,7 @@ export function Timeline({ studio }: { studio: Studio }) {
                       return (
                         <button
                           key={`${from.time}-span`}
+                          data-span-chip
                           type="button"
                           title={`Easing from ${formatTime(from.time)} to ${formatTime(to.time)}`}
                           // The lane below must not take this as a scrub.
@@ -1137,17 +1239,14 @@ export function Timeline({ studio }: { studio: Studio }) {
                             marginLeft: -MARK / 2,
                             marginTop: -MARK / 2,
                             borderRadius: 6,
-                            background: "var(--mo-field)",
-                            // The selection ring, in this chrome's ink rather
-                            // than the old editor's blue.
-                            boxShadow: open
-                              ? "0 0 0 1.5px var(--mo-ink)"
-                              : "none",
+                            background: c.chip,
+                            boxShadow: open ? "0 0 0 1.5px #fff" : "none",
                           }}
                         >
                           <CurveThumb
                             easing={from.easing ?? animation.easing}
                             active={open}
+                            color="#fff"
                           />
                         </button>
                       );
@@ -1184,11 +1283,10 @@ export function Timeline({ studio }: { studio: Studio }) {
                               other glyph on the page. Hollow at rest, solid
                               when selected — the pair the frame draws.
                             */
-                            background: on
-                              ? "var(--mo-ink)"
-                              : "var(--mo-ink-muted)",
-                            WebkitMaskImage: `url(${KEYFRAMES}/${on ? "keyframe-selected" : "keyframe"}.svg)`,
-                            maskImage: `url(${KEYFRAMES}/${on ? "keyframe-selected" : "keyframe"}.svg)`,
+                            // Solid in the lane's colour, white when selected.
+                            background: on ? "#fff" : c.key,
+                            WebkitMaskImage: `url(${KEYFRAMES}/keyframe-selected.svg)`,
+                            maskImage: `url(${KEYFRAMES}/keyframe-selected.svg)`,
                             WebkitMaskSize: "contain",
                             maskSize: "contain",
                             WebkitMaskRepeat: "no-repeat",
@@ -1210,7 +1308,8 @@ export function Timeline({ studio }: { studio: Studio }) {
                     width: marquee.width,
                     height: marquee.height,
                     border: "1px solid var(--mo-ink)",
-                    background: "color-mix(in srgb, var(--mo-ink) 10%, transparent)",
+                    background:
+                      "color-mix(in srgb, var(--mo-ink) 10%, transparent)",
                     borderRadius: 2,
                     zIndex: 2,
                   }}
@@ -1239,6 +1338,7 @@ export function Timeline({ studio }: { studio: Studio }) {
                     bottom: 0,
                     width: 1,
                     background: "var(--mo-ink)",
+                    boxShadow: "0 0 0 0.5px rgb(255 255 255 / 0.6)",
                   }}
                 />
                 <div
@@ -1277,6 +1377,7 @@ export function Timeline({ studio }: { studio: Studio }) {
            they are two views of the same mark and stacking them would put
            one over the lane the other is about. */
         <div
+          data-timeline-menu
           style={{
             // Stated, not classed. This is the property whose absence squeezed
             // the lanes, so it does not get to depend on a utility class being
@@ -1349,6 +1450,7 @@ export function Timeline({ studio }: { studio: Studio }) {
           span near either end still opens a whole menu.
         */
         <div
+          data-timeline-menu
           style={{
             // Stated, not classed. This is the property whose absence squeezed
             // the lanes, so it does not get to depend on a utility class being

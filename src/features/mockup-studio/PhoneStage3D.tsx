@@ -329,6 +329,20 @@ function CaptureBridge({
       try {
         gl.setPixelRatio(scale);
         gl.setSize(size.width, size.height, false);
+        /*
+         * A canvas asked for more pixels than the GPU allows gets a SMALLER
+         * drawing buffer than its size, silently -- and the render then lands
+         * cropped in one corner of it. Drop to the largest scale that fits.
+         */
+        const buffer = gl.getContext();
+        const fit = Math.min(
+          buffer.drawingBufferWidth / gl.domElement.width,
+          buffer.drawingBufferHeight / gl.domElement.height,
+        );
+        if (fit < 1) {
+          gl.setPixelRatio(scale * fit * 0.999);
+          gl.setSize(size.width, size.height, false);
+        }
         advance(performance.now());
         return gl.domElement.toDataURL("image/png");
       } catch {
@@ -422,6 +436,24 @@ function RecorderBridge({
       recorderRef.current = null;
     };
   }, [gl, scene, camera, size, recorderRef, advance]);
+  return null;
+}
+
+/**
+ * Redraw whenever the canvas changes size.
+ *
+ * R3F resizes the drawing buffer on a size change -- which clears it -- but
+ * with `frameloop="demand"` it does not ask for a frame. So while the stage
+ * eased to make room for the timeline, the canvas kept resizing with nothing
+ * redrawn, and the phone snapped to its new place whenever something else
+ * happened to request one.
+ */
+function RedrawOnResize() {
+  const size = useThree((state) => state.size);
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    invalidate();
+  }, [size, invalidate]);
   return null;
 }
 
@@ -3680,6 +3712,7 @@ export default function PhoneStage3D({
         frameloop="demand"
       >
         <CanvasRefBridge canvasRef={canvasRef} />
+        <RedrawOnResize />
         <CaptureBridge captureRef={captureRef} />
         <RecorderBridge recorderRef={recorderRef} />
         <VideoFrameDriver texture={screenTexture} />
