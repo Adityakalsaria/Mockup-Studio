@@ -18,6 +18,14 @@ import {
   type Texture,
 } from "three";
 import type { BlurMode, BlurSettings } from "./blurStyles";
+import { sampleAnimation, type Animation } from "./animation";
+import {
+  followFade,
+  followPoint,
+  poseOf,
+  type FocusFollow,
+  type FocusPose,
+} from "./mocraft/focusMath";
 
 /**
  * The lens blur, as a SCREEN-SPACE pass over the finished frame.
@@ -88,6 +96,7 @@ const fragmentShader = /* glsl */ `
   uniform vec2 uDir;
   uniform float uBokeh;
   uniform float uGain;
+  uniform float uFade;
   varying vec2 vUv;
 
   float blurAmount(const in vec2 uv) {
@@ -113,7 +122,7 @@ const fragmentShader = /* glsl */ `
 
   void main() {
     vec4 sharp = texture2D(uSharp, vUv);
-    float amount = blurAmount(vUv) * uGain;
+    float amount = blurAmount(vUv) * uGain * uFade;
     if (amount <= 0.0) {
       gl_FragColor = sharp;
       return;
@@ -155,6 +164,8 @@ function createBlur() {
       uDir: { value: new Vector2(0, 1) },
       uBokeh: { value: 0 },
       uGain: { value: 1 },
+      // The follow envelope; 1 whenever there is no composed move.
+      uFade: { value: 1 },
     },
     // Replaces the canvas's pixels, alpha included: a blend would lay the
     // blur over the sharp phone it was copied from.
@@ -225,7 +236,23 @@ function fitResolution(blur: Blur) {
   });
 }
 
-export default function DepthOfFieldLayer({ blur }: { blur: BlurSettings }) {
+export default function DepthOfFieldLayer({
+  blur,
+  follow = null,
+}: {
+  blur: BlurSettings;
+  /**
+   * A composed focus move to follow. When set, the sharp spot is placed on
+   * every frame at the area the camera is on -- projected through the pose
+   * being drawn -- instead of where the blur panel put it.
+   */
+  follow?: {
+    schedule: FocusFollow;
+    animation: Animation;
+    timeRef: { current: number };
+    base: FocusPose;
+  } | null;
+}) {
   const { gl, scene, camera } = useThree();
   const state = useMemo(() => createBlur(), []);
 
@@ -269,6 +296,20 @@ export default function DepthOfFieldLayer({ blur }: { blur: BlurSettings }) {
    */
   useFrame(() => {
     const size = gl.getDrawingBufferSize(new Vector2());
+    state.material.uniforms.uFade.value = follow
+      ? followFade(follow.schedule, follow.timeRef.current)
+      : 1;
+    if (follow && size.y > 0) {
+      const t = follow.timeRef.current;
+      const pose = poseOf(follow.base, sampleAnimation(follow.animation, t));
+      const spot = followPoint(follow.schedule, t, pose, size.x / size.y);
+      // The pad measures from the top; uv from the bottom.
+      if (spot)
+        (state.material.uniforms.uCenter.value as Vector2).set(
+          spot.x,
+          1 - spot.y,
+        );
+    }
     if (!state.initialized) {
       state.passes.forEach((p) => p.initialize(gl, true, HalfFloatType));
       state.initialized = true;

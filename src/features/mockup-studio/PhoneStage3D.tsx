@@ -1,6 +1,14 @@
 "use client";
 
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { RoundedBox, useGLTF } from "@react-three/drei";
 import { withModelToken } from "@/lib/modelToken";
@@ -33,7 +41,12 @@ const DepthOfFieldLayer = lazy(() => import("./DepthOfFieldLayer"));
 
 import type React from "react";
 import { Mesh, MeshBasicMaterial, Quaternion } from "three";
-import type { MeshStandardMaterial, PerspectiveCamera } from "three";
+import type { FocusFollow } from "./mocraft/focusMath";
+import type {
+  Material,
+  MeshStandardMaterial,
+  PerspectiveCamera,
+} from "three";
 
 /**
  * Manual nudge on top of the automatic screen fit.
@@ -50,6 +63,8 @@ export type ScreenFit = {
   scale: number;
   offsetX: number;
   offsetY: number;
+  /** Cover the screen and crop (fill), or show the whole image (fit). */
+  mode?: "fill" | "fit";
   /**
    * True when the source is a mirror of a real device, whose capture already
    * contains the status bar and dynamic island. Drawing the model's own notch
@@ -1031,10 +1046,54 @@ function ImageCardScene({
 }) {
   const finish = getFinish(finishId);
 
+  /*
+   * The card's own copy of the upload, mapped once, uncropped.
+   *
+   * The phone and the card share one texture, and the phone's screen fit
+   * writes its crop straight onto it -- repeat, offset, rotation -- to cover
+   * a screen of a different shape. Switching to the card kept that crop, so
+   * the picture came out squeezed. A clone shares the pixels and owns its
+   * mapping, so the card always shows the whole image at its own aspect.
+   */
+  const own = useMemo(() => {
+    if (!texture) return null;
+    const t = texture.clone();
+    t.repeat.set(1, 1);
+    t.offset.set(0, 0);
+    t.center.set(0, 0);
+    t.rotation = 0;
+    // The phone sets flipY false for glTF's UV convention, on the shared
+    // texture; cloned after a phone, the card came out upside down. Its own
+    // UVs run bottom-up, which is the loader's default of true.
+    t.flipY = true;
+    t.needsUpdate = true;
+    return t;
+  }, [texture]);
+  useEffect(() => () => own?.dispose(), [own]);
+
+  /* A video only knows its size once its metadata has arrived; the card is
+     rebuilt then, or it would stay the square it started as. */
+  const [videoSize, setVideoSize] = useState<[number, number] | null>(null);
+  useEffect(() => {
+    const video = texture?.image as HTMLVideoElement | undefined;
+    if (!(video instanceof HTMLVideoElement) || video.videoWidth > 0) return;
+    const onMeta = () => setVideoSize([video.videoWidth, video.videoHeight]);
+    video.addEventListener("loadedmetadata", onMeta);
+    return () => video.removeEventListener("loadedmetadata", onMeta);
+  }, [texture]);
+
   const built = useMemo(() => {
-    const image = texture?.image as { width?: number; height?: number } | undefined;
-    const iw = image?.width ?? 0;
-    const ih = image?.height ?? 0;
+    const image = texture?.image as
+      | {
+          width?: number;
+          height?: number;
+          videoWidth?: number;
+          videoHeight?: number;
+        }
+      | undefined;
+    // A video's `width` is its attribute, usually 0; its real size is here.
+    const iw = image?.videoWidth || videoSize?.[0] || image?.width || 0;
+    const ih = image?.videoHeight || videoSize?.[1] || image?.height || 0;
     // Square until an image says otherwise, so the stage is never empty and
     // never guesses an aspect it has to correct a frame later.
     const aspect = iw > 0 && ih > 0 ? iw / ih : 1;
@@ -1124,16 +1183,16 @@ function ImageCardScene({
     const faceZ = halfDepth + 0.0004;
 
     return { geometry, faceGeometry, faceZ };
-  }, [texture, radius, depth]);
+  }, [texture, radius, depth, videoSize]);
 
   const face = useMemo(() => {
     const m = new MeshBasicMaterial({ toneMapped: false, side: DoubleSide });
-    m.map = texture ?? null;
+    m.map = own;
     // No artwork yet: the plane simply takes the finish, so an empty card is a
     // blank card rather than a black hole where the picture will go.
-    m.color.set(texture ? "#ffffff" : finish.color);
+    m.color.set(own ? "#ffffff" : finish.color);
     return m;
-  }, [texture, finish.color]);
+  }, [own, finish.color]);
 
   const edge = useMemo(() => {
     // Two-sided: an extruded card is a closed solid, but the caps are wound
@@ -1178,6 +1237,35 @@ function ImageCardScene({
       />
     </group>
   );
+}
+
+/**
+ * Black wherever the screen samples OUTSIDE the image.
+ *
+ * Fit leaves room around the picture, and the texture clamps to its edge, so
+ * that room would be the edge pixels smeared out to the bezel. This paints it
+ * black instead -- the colour of a screen with nothing on it -- for stills and
+ * video alike. Harmless under Fill, where a pan past the edge now reads as
+ * screen rather than a smear too.
+ */
+function clipMapToImage(material: Material) {
+  if (material.userData.clipsToImage) return;
+  material.userData.clipsToImage = true;
+  const previous = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    previous.call(material, shader, renderer);
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <map_fragment>",
+      `#include <map_fragment>
+#ifdef USE_MAP
+  if (any(lessThan(vMapUv, vec2(0.0))) || any(greaterThan(vMapUv, vec2(1.0))))
+    diffuseColor.rgb = vec3(0.0);
+#endif`,
+    );
+  };
+  const key = material.customProgramCacheKey.bind(material);
+  material.customProgramCacheKey = () => `${key()}|clip-to-image`;
+  material.needsUpdate = true;
 }
 
 /**
@@ -1239,7 +1327,14 @@ function ScreenPlane({
 
       const planeAspect = width / height;
       const srcAspect = srcWidth / srcHeight;
-      if (Math.abs(srcAspect - planeAspect) < 0.001) {
+      if (fit.mode === "fit") {
+        // The whole image, centred: the long way fills, the short way gets
+        // room either side (painted black -- see `clipMapToImage`).
+        const rx = Math.max(1, planeAspect / srcAspect);
+        const ry = Math.max(1, srcAspect / planeAspect);
+        texture.repeat.set(rx, ry);
+        texture.offset.set((1 - rx) / 2, (1 - ry) / 2);
+      } else if (Math.abs(srcAspect - planeAspect) < 0.001) {
         texture.repeat.set(1, 1);
         texture.offset.set(0, 0);
       } else if (srcAspect > planeAspect) {
@@ -1288,7 +1383,7 @@ function ScreenPlane({
       img.removeEventListener("loadedmetadata", applyFit);
       img.removeEventListener("resize", applyFit);
     };
-  }, [texture, width, height, fit.scale, fit.offsetX, fit.offsetY]);
+  }, [texture, width, height, fit.scale, fit.offsetX, fit.offsetY, fit.mode]);
 
   if (!texture) return null;
   return (
@@ -1299,7 +1394,14 @@ function ScreenPlane({
       // it faces into the phone and the texture reads mirrored.
       rotation={[0, facing === -1 ? Math.PI : 0, 0]}
     >
-      <meshBasicMaterial map={texture} toneMapped={false} transparent />
+      <meshBasicMaterial
+        map={texture}
+        toneMapped={false}
+        transparent
+        ref={(material: MeshBasicMaterial | null) => {
+          if (material) clipMapToImage(material);
+        }}
+      />
     </mesh>
   );
 }
@@ -2627,6 +2729,7 @@ function GLBPhoneScene({
   const fitScale = screenFit?.scale ?? DEFAULT_SCREEN_FIT.scale;
   const fitOffsetX = screenFit?.offsetX ?? DEFAULT_SCREEN_FIT.offsetX;
   const fitOffsetY = screenFit?.offsetY ?? DEFAULT_SCREEN_FIT.offsetY;
+  const fitMode = screenFit?.mode ?? "fill";
   useEffect(() => {
     if (!screenMaterials.length) return;
     /* eslint-disable react-hooks/immutability -- three.js state lives on the
@@ -2656,12 +2759,6 @@ function GLBPhoneScene({
       const flipV = device.screenFlipY ? -1 : 1;
       let fx = 1;
       let fy = 1;
-
-      // An odd number of quarter turns swaps which way the screen is long, so
-      // the crop has to be computed against the shape the source will occupy
-      // AFTER the turn, not before it.
-      const quarterTurned =
-        Math.abs(Math.round((device.screenRotateDeg ?? 0) / 90)) % 2 === 1;
 
       if (srcWidth && srcHeight) {
         /*
@@ -2695,29 +2792,31 @@ function GLBPhoneScene({
         // they are not, the mapping's own stretch has to be divided back out.
         const undistorted =
           device.screenUvAspect !== undefined ? device.screenUvAspect / flat : flat;
-        const screenAspect = quarterTurned ? 1 / undistorted : undistorted;
+        /*
+         * The panel's shape AS SEEN, whatever way its UVs run. three's
+         * `setUvTransform` rotates the UVs first and scales second, so fx and
+         * fy already act on the IMAGE's own axes after the turn -- the crop is
+         * simply the displayed panel against the source, turned or not.
+         */
+        const screenAspect = undistorted;
         const srcAspect = srcWidth / srcHeight;
-        if (srcAspect > screenAspect) fx = screenAspect / srcAspect;
+        if (fitMode === "fit") {
+          // The whole image: repeat above 1 on the short axis leaves room
+          // around it, which `clipMapToImage` paints black.
+          fx = Math.max(1, screenAspect / srcAspect);
+          fy = Math.max(1, srcAspect / screenAspect);
+        } else if (srcAspect > screenAspect) fx = screenAspect / srcAspect;
         else if (srcAspect < screenAspect) fy = srcAspect / screenAspect;
       }
 
       /*
-       * The crop is chosen against the turned aspect, but fx and fy scale the
-       * texture's OWN axes and three applies the scale BEFORE the rotation --
-       * so after a quarter turn the shrink meant for one axis lands on the
-       * other. Left alone, a square source came out pulled 2.1x sideways
-       * across the panel, which is a circle rendering as an ellipse twice as
-       * wide as it is tall.
-       *
-       * Verified with a test card carrying a circle and a square, because
-       * reasoning about it got the direction wrong twice: the matrix says one
-       * thing and the render says the other, and the render is what ships.
+       * No axis swap after a quarter turn. There used to be one, paired with
+       * inverting the panel's aspect above; the two cancel exactly for a
+       * SQUARE source, which is what they were verified with, and distort
+       * everything else. A phone screenshot on the iPad came out at a quarter
+       * of the aspect it should have had -- squeezed to a sliver. Worked
+       * through the matrix: rotate, then scale, so no swap belongs here.
        */
-      if (quarterTurned) {
-        const turned = fx;
-        fx = fy;
-        fy = turned;
-      }
 
       const zoom = fitScale > 0 ? fitScale : 1;
       fx /= zoom;
@@ -2736,17 +2835,16 @@ function GLBPhoneScene({
       screenTexture.wrapS = ClampToEdgeWrapping;
       screenTexture.wrapT = ClampToEdgeWrapping;
       screenTexture.repeat.set(fx * flip, fy * flipV);
-      // Nudges follow the turn, so Screen X still moves the image the way the
-      // screen looks rather than the way its UVs happen to run.
-      screenTexture.offset.set(
-        quarterTurned ? -fitOffsetY * fx : -fitOffsetX * fx,
-        quarterTurned ? fitOffsetX * fy : fitOffsetY * fy,
-      );
+      // In the image's own axes, like the crop: the offset is added after
+      // the rotation, so it needs no swap on a turned screen either -- with
+      // one, Horizontal moved the iPad's picture up and down.
+      screenTexture.offset.set(-fitOffsetX * fx, fitOffsetY * fy);
       screenTexture.needsUpdate = true;
       invalidate();
     };
 
     for (const material of screenMaterials) {
+      clipMapToImage(material);
       if (screenTexture) {
         screenTexture.flipY = false;
         // The renderer's maximum, not a guessed 4. The screen is the one
@@ -2797,6 +2895,7 @@ function GLBPhoneScene({
     fitScale,
     fitOffsetX,
     fitOffsetY,
+    fitMode,
   ]);
 
   /*
@@ -3594,6 +3693,7 @@ export default function PhoneStage3D({
   canvasRef,
   captureRef,
   recorderRef,
+  focusFollow = null,
   onRotateDrag,
   onScaleWheel,
   onPanDrag,
@@ -3652,6 +3752,8 @@ export default function PhoneStage3D({
   captureRef?: React.MutableRefObject<StageCapture | null>;
   /** Frame-by-frame access, for recording video. */
   recorderRef?: React.MutableRefObject<StageRecorder | null>;
+  /** A composed focus move's schedule; depth of field follows it. */
+  focusFollow?: FocusFollow | null;
   onRotateDrag?: (delta: { dx: number; dy: number }) => void;
   /** Wheel / trackpad pinch over the canvas, in scale percentage points. */
   onScaleWheel?: (deltaPct: number) => void;
@@ -3779,7 +3881,31 @@ export default function PhoneStage3D({
         />
         {isBlurActive(blur) ? (
           <Suspense fallback={null}>
-            <DepthOfFieldLayer blur={blur} />
+            <DepthOfFieldLayer
+              blur={blur}
+              follow={
+                focusFollow && animation && timeRef
+                  ? {
+                      schedule: focusFollow,
+                      animation,
+                      timeRef,
+                      base: {
+                        xAxis: rotateX,
+                        yAxis: rotateY,
+                        zAxis: rotateZ,
+                        zoom: (scale ?? 100) / 100,
+                        panX: (offsetX ?? 0) / 100,
+                        panY: (offsetY ?? 0) / 100,
+                        panZ: offsetZ ?? 0,
+                        fov,
+                        scaleX: scaleX ?? 1,
+                        scaleY: scaleY ?? 1,
+                        scaleZ: scaleZ ?? 1,
+                      },
+                    }
+                  : null
+              }
+            />
           </Suspense>
         ) : null}
       </Canvas>

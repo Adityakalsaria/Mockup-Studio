@@ -715,6 +715,70 @@ export function RailItem({
   );
 }
 
+/**
+ * A name on hover, in the selection's material -- the rail's tip, for any
+ * control, above or below it.
+ *
+ * Same rules as the rail's: CSS hover rather than state, so nothing
+ * re-renders on pointer-over; centred by a box that spans the anchor rather
+ * than by a transform, because a transform above the tip's backdrop filter
+ * would leave it frosting nothing. Shown on disabled controls too, where a
+ * native `title` never appears -- which is when "why is this grey?" is asked.
+ */
+export function Tip({
+  label,
+  placement = "below",
+  quiet,
+  offset = 8,
+  className = "",
+  children,
+}: {
+  label: ReactNode;
+  placement?: "above" | "below";
+  /** From the anchor's edge to the tip. More where the anchor sits inset in
+      a surface, so the gap is measured from the surface instead. */
+  offset?: number;
+  /** Hide it, e.g. while the control's own menu is open over the same spot. */
+  quiet?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span className={`group/tip relative ${className}`}>
+      {children}
+      {quiet ? null : (
+        <span
+          className={`pointer-events-none absolute inset-x-0 z-10 flex justify-center ${
+            placement === "below" ? "top-full" : "bottom-full"
+          }`}
+          style={
+            placement === "below"
+              ? { paddingTop: offset }
+              : { paddingBottom: offset }
+          }
+        >
+          <span
+            className="mo-mat-selection mo-title relative whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/tip:opacity-100"
+            style={{
+              padding: "6px 12px",
+              borderRadius: "var(--mo-r-selected)",
+              background: "var(--mo-selected)",
+              boxShadow: "var(--mo-selected-shadow)",
+              color: "var(--mo-ink)",
+              filter: "var(--mo-text-shadow)",
+            }}
+          >
+            <Material />
+            <span className="relative" style={{ zIndex: 1 }}>
+              {label}
+            </span>
+          </span>
+        </span>
+      )}
+    </span>
+  );
+}
+
 export type RowGroupProps = {
   children: ReactNode;
   /**
@@ -1689,6 +1753,7 @@ export function ParamRow({
   icon,
   trailing,
   bare,
+  hideValue,
   value,
   min,
   max,
@@ -1726,6 +1791,8 @@ export function ParamRow({
    * a 48px column. The label still reaches the slider's accessible name.
    */
   bare?: boolean;
+  /** Drop the number field, for a slider whose value needs no readout. */
+  hideValue?: boolean;
   value: number;
   min?: number;
   max?: number;
@@ -1765,15 +1832,17 @@ export function ParamRow({
         spring={spring}
         press={press}
       />
-      <EditableField
-        label={label}
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        format={format}
-        onChange={onChange}
-      />
+      {hideValue ? null : (
+        <EditableField
+          label={label}
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          format={format}
+          onChange={onChange}
+        />
+      )}
       {trailing ? <Glyph muted>{trailing}</Glyph> : null}
     </div>
   );

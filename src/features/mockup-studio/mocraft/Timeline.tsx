@@ -35,10 +35,8 @@ import {
   Divider,
   Glass,
   Glyph,
-  PauseIcon,
-  PlayIcon,
-  RepeatIcon,
   Slider,
+  Tip,
   useDismiss,
 } from "@/design/ui";
 import { control } from "@/design/system";
@@ -54,7 +52,6 @@ import {
 } from "../animation";
 import { CurveThumb, EasingMenu } from "./EasingMenu";
 import { KeyframeMenu } from "./KeyframeMenu";
-import { getMotionPreset } from "../editor/motionPresets";
 import type { Studio } from "./useStudio";
 
 /** Fixed, so the composition above does not jump every time a preset with a
@@ -105,7 +102,7 @@ const KEYFRAMES = "/figma-assets/mockup-studio/timeline";
 /** Every control in the toolbar is this tall, so one of them can set the row. */
 const CONTROL_H = 32;
 /** Room for "Pan X" at title size, plus the gutter either side of it. */
-const LABEL_W = 84;
+const LABEL_W = 104;
 /** Between the label column and the panel edge on the left, and the tracks on
     the right. */
 const LABEL_PAD = 12;
@@ -123,7 +120,20 @@ const CLIP_REACH = MARK / 2 + 6;
  * is always the same colour whichever preset is loaded.
  */
 const HUES = [265, 130, 18, 215, 330, 45, 175, 0, 240, 85];
-function laneColors(channel: AnimatableKey) {
+/**
+ * A lane's colours. Grey at rest; its own hue only while it is the lane being
+ * worked in -- a key on it selected, or its easing open -- so the one in hand
+ * stands out and the rest step back instead of every lane shouting at once.
+ */
+function laneColors(channel: AnimatableKey, active: boolean) {
+  if (!active)
+    return {
+      track: "hsl(0 0% 50% / 0.1)",
+      clip: "linear-gradient(hsl(0 0% 76%), hsl(0 0% 81%))",
+      edge: "hsl(0 0% 66%)",
+      chip: "hsl(0 0% 63%)",
+      key: "hsl(0 0% 46%)",
+    };
   const h = HUES[ANIMATABLE.findIndex((a) => a.key === channel) % HUES.length];
   return {
     track: `hsl(${h} 45% 50% / 0.14)`,
@@ -155,6 +165,34 @@ const LEAD = CLIP_REACH + TRACK_PAD;
 const STEPS = [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30];
 function tickStep(duration: number): number {
   return STEPS.find((step) => step >= duration / 10) ?? STEPS[STEPS.length - 1];
+}
+
+/**
+ * One of the frame's exported icons, painted in the text colour.
+ *
+ * As a mask rather than an `img`, so `Glyph` can mute it: the file draws the
+ * glyph in one grey, and an image would stay that grey with repeat switched
+ * off, where the mask takes the dimmed ink `Glyph` hands it.
+ */
+function MaskIcon({ name }: { name: string }) {
+  const url = `url(/figma-assets/mockup-studio/icons/${name}.svg)`;
+  return (
+    <span
+      aria-hidden
+      className="block"
+      style={{
+        width: 20,
+        height: 20,
+        background: "currentColor",
+        WebkitMaskImage: url,
+        maskImage: url,
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+      }}
+    />
+  );
 }
 
 /** Between toolbar groups. A gap alone says "these are apart"; a rule says
@@ -288,6 +326,37 @@ export function Timeline({
   }, [menuOpen]);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  /*
+   * The names' column ends where the word "Duration" begins in the toolbar
+   * above, so the rule under it continues that line. Measured, not guessed:
+   * the clock before it changes width with the clip's length.
+   */
+  const durationRef = useRef<HTMLDivElement | null>(null);
+  const lanesRowRef = useRef<HTMLDivElement | null>(null);
+  /** The time ruler's row, its inner strip, and the playhead's head on it. */
+  const rulerViewRef = useRef<HTMLDivElement | null>(null);
+  const rulerRef = useRef<HTMLDivElement | null>(null);
+  const rulerHeadRef = useRef<HTMLDivElement | null>(null);
+  const [labelW, setLabelW] = useState(LABEL_W);
+  useEffect(() => {
+    const measure = () => {
+      const label = durationRef.current;
+      const row = lanesRowRef.current;
+      if (!label || !row) return;
+      const x =
+        label.getBoundingClientRect().left - row.getBoundingClientRect().left;
+      if (x > 40) setLabelW(Math.round(x));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (durationRef.current) observer.observe(durationRef.current);
+    if (lanesRowRef.current) observer.observe(lanesRowRef.current);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [duration]);
   const laneRef = useRef<HTMLDivElement | null>(null);
   const markerRef = useRef<HTMLDivElement | null>(null);
   const readoutRef = useRef<HTMLSpanElement | null>(null);
@@ -345,14 +414,33 @@ export function Timeline({
     const readout = readoutRef.current;
     if (!lane || !marker || !readout) return;
 
+    const row = lanesRowRef.current;
     const paint = () => {
       const time = playheadRef.current;
-      marker.style.transform = `translateX(${(time / Math.max(0.001, duration)) * lane.clientWidth}px)`;
+      const x = (time / Math.max(0.001, duration)) * lane.clientWidth;
+      marker.style.transform = `translateX(${x}px)`;
+      const head = rulerHeadRef.current;
+      if (head) head.style.transform = `translateX(${x}px)`;
       readout.textContent = formatTime(time);
+      /*
+       * Pinned to what is in view, vertically. The lanes scroll up and down
+       * and the playhead lives among them; without this it scrolled away
+       * with them, head first. It spans the visible height, head at the top
+       * of the view (the row's top padding is where the lanes begin).
+       */
+      if (row) {
+        // The lanes start at the row's top, directly under the ruler, so the
+        // line continues from the head with no gap.
+        const hidden = row.scrollTop;
+        marker.style.top = `${hidden}px`;
+        marker.style.bottom = "auto";
+        marker.style.height = `${row.clientHeight}px`;
+      }
     };
 
     paint();
-    if (!playing) return;
+    row?.addEventListener("scroll", paint);
+    if (!playing) return () => row?.removeEventListener("scroll", paint);
 
     let raf = 0;
     const tick = () => {
@@ -360,7 +448,10 @@ export function Timeline({
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      row?.removeEventListener("scroll", paint);
+    };
   }, [playing, duration, playheadRef, parkedAt]);
 
   /*
@@ -391,6 +482,8 @@ export function Timeline({
     if (!selection.length) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Delete" && event.key !== "Backspace") return;
+      // Nothing is removed from a clip while it plays.
+      if (playing) return;
       const node = event.target as HTMLElement | null;
       const tag = node?.tagName;
       // Not while the Duration field has focus: Backspace is how you edit it.
@@ -408,7 +501,7 @@ export function Timeline({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selection, studio]);
+  }, [selection, studio, playing]);
 
   const tracks = studio.state.animation.tracks;
   // Ordered by `ANIMATABLE` rather than by whatever order the preset happened
@@ -526,7 +619,7 @@ export function Timeline({
     const bottom = Math.max(y0, y1);
     const found: Array<{ key: AnimatableKey; time: number }> = [];
     lanes.forEach(({ key }, i) => {
-      const bandTop = RULER_H + i * (LANE_H + LANE_GAP);
+      const bandTop = i * (LANE_H + LANE_GAP);
       const bandBottom = bandTop + LANE_H;
       if (bandBottom < top || bandTop > bottom) return;
       for (const frame of tracks[key] ?? [])
@@ -600,12 +693,19 @@ export function Timeline({
           left, how it is eased and looked at on the right.
         */}
         <div
-          className="flex flex-wrap items-center justify-between"
+          /* Three columns: transport left, the global easing dead centre,
+             view controls right. Equal outer columns are what keep the
+             middle one centred however wide the two sides are. */
+          className="grid items-center"
           style={{
+            gridTemplateColumns: "1fr auto 1fr",
             minHeight: CONTROL_H + SAFE * 2,
             columnGap: SAFE * 2,
-            rowGap: SAFE,
             paddingInline: SAFE,
+            // The glass pads its top by SAFE and nothing matches it above
+            // the divider, so the controls sat low. Giving that back centres
+            // them between the panel's edge and the rule.
+            marginTop: -SAFE,
           }}
         >
           <div className="flex items-center" style={{ gap: SAFE }}>
@@ -617,7 +717,9 @@ export function Timeline({
               className="grid cursor-pointer place-items-center"
               style={{ width: CONTROL_H, height: CONTROL_H }}
             >
-              <Glyph>{playing ? <PauseIcon /> : <PlayIcon />}</Glyph>
+              <Glyph>
+                <MaskIcon name={playing ? "pause" : "play"} />
+              </Glyph>
             </button>
             <button
               type="button"
@@ -632,7 +734,7 @@ export function Timeline({
               {/* Muted when off, which is the same way every other glyph in this
                 interface says "not in effect". */}
               <Glyph muted={!studio.looping}>
-                <RepeatIcon />
+                <MaskIcon name="repeat" />
               </Glyph>
             </button>
 
@@ -660,80 +762,93 @@ export function Timeline({
             this narrow they sit on top of the value. "90", "1:30" and
             "00:01:30" all mean ninety seconds.
           */}
-            <Labelled label="Duration">
-              <input
-                type="text"
-                inputMode="numeric"
-                spellCheck={false}
-                aria-label="Duration"
-                value={durationDraft ?? formatClock(duration)}
-                onChange={(event) =>
-                  setDurationDraft(event.currentTarget.value)
-                }
-                onBlur={(event) => {
-                  const parsed = parseClock(event.currentTarget.value);
-                  // Unparseable leaves the clip alone rather than snapping it
-                  // somewhere the typing did not ask for.
-                  if (parsed !== null) studio.setDuration(parsed);
-                  setDurationDraft(null);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") event.currentTarget.blur();
-                  if (event.key === "Escape") {
-                    setDurationDraft(null);
-                    event.currentTarget.blur();
+            <div ref={durationRef} className="flex items-center">
+              <Labelled label="Duration">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  spellCheck={false}
+                  aria-label="Duration"
+                  value={durationDraft ?? formatClock(duration)}
+                  onChange={(event) =>
+                    setDurationDraft(event.currentTarget.value)
                   }
-                }}
-                /* The readout plate from the system, in its editable form: same
+                  onBlur={(event) => {
+                    const parsed = parseClock(event.currentTarget.value);
+                    // Unparseable leaves the clip alone rather than snapping it
+                    // somewhere the typing did not ask for.
+                    if (parsed !== null) studio.setDuration(parsed);
+                    setDurationDraft(null);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") event.currentTarget.blur();
+                    if (event.key === "Escape") {
+                      setDurationDraft(null);
+                      event.currentTarget.blur();
+                    }
+                  }}
+                  /* The readout plate from the system, in its editable form: same
                  token, same corner, same figures — it just takes typing. */
-                className="mo-title text-center focus:outline-none"
-                style={{
-                  width: 96,
-                  height: CONTROL_H,
-                  borderRadius: "var(--mo-r-field)",
-                  background: "var(--mo-field)",
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              />
-            </Labelled>
+                  className="mo-title text-center focus:outline-none"
+                  style={{
+                    width: 96,
+                    height: CONTROL_H,
+                    borderRadius: "var(--mo-r-field)",
+                    background: "var(--mo-field)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                />
+              </Labelled>
+            </div>
           </div>
 
-          <div className="flex items-center" style={{ gap: SAFE }}>
-            {/* The clip's default, for every span nobody has set individually.
+          {/* The clip's default, for every span nobody has set individually.
               A key's own easing beats it — that is what the preset curves are —
               so this is the floor rather than an override. */}
-            <div ref={easingRef} className="relative">
+          <div ref={easingRef} className="relative">
+            <Tip
+              label="Global easing"
+              placement="above"
+              quiet={easingOpen}
+              // A flex box, not the inline default: an inline wrapper grows a
+              // line box around the button and pushes it below centre.
+              className="flex"
+            >
               <Button
                 height={CONTROL_H}
                 width={132}
                 onClick={() => setEasingOpen((was) => !was)}
-                title="Default easing for spans with no easing of their own"
               >
                 {EASING_PRESETS.find(
                   (p) => p.id === easingPresetId(animation.easing),
                 )?.label ?? "Custom"}
               </Button>
-              {easingOpen ? (
-                /* Upwards. The panel lives at the bottom of the window, so a
+            </Tip>
+            {easingOpen ? (
+              /* Upwards. The panel lives at the bottom of the window, so a
                  menu opening downwards opens off the screen. */
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: CONTROL_H + 6,
-                    left: 0,
-                    zIndex: POPUP_Z,
-                  }}
-                >
-                  <EasingMenu
-                    value={animation.easing}
-                    onChange={studio.setEasing}
-                  />
-                </div>
-              ) : null}
-            </div>
+              <div
+                // Centred over the button: a box the button's width, the
+                // wider menu centred in it and overflowing evenly. Layout,
+                // not a transform, so the menu's glass still frosts.
+                className="flex justify-center [&>*]:shrink-0"
+                style={{
+                  position: "absolute",
+                  bottom: CONTROL_H + 6,
+                  left: 0,
+                  right: 0,
+                  zIndex: POPUP_Z,
+                }}
+              >
+                <EasingMenu
+                  value={animation.easing}
+                  onChange={studio.setEasing}
+                />
+              </div>
+            ) : null}
+          </div>
 
-            <Rule />
-
+          <div className="flex items-center justify-end" style={{ gap: SAFE }}>
             {/* Zoom, as Figma puts it: a slider at the toolbar's end. Zooming
               keeps the PLAYHEAD centred rather than the left edge, because the
               playhead is where you are working — anchoring to zero would push
@@ -759,22 +874,17 @@ export function Timeline({
               Fit
             </Button>
 
-            {/* The preset's name and its Clear, only while one is loaded: the
-              timeline shows in Motion either way, empty until keys arrive. */}
-            {presetId ? (
+            {/* Clear whenever there is anything on the timeline, not only a
+              preset: a composed focus move or keys set by hand need a way off
+              too. The name only when a preset is what put them there. */}
+            {presetId || lanes.length > 0 ? (
               <>
                 <Rule />
-                <span
-                  className="mo-title"
-                  style={{ color: "var(--mo-ink-muted)" }}
-                >
-                  {getMotionPreset(presetId)?.label ?? presetId}
-                </span>
                 <Button
                   height={CONTROL_H}
                   width={62}
                   onClick={studio.clearPreset}
-                  title="Remove the preset and give the pose back to the panels"
+                  title="Remove the animation and give the pose back to the panels"
                 >
                   Clear
                 </Button>
@@ -785,12 +895,99 @@ export function Timeline({
 
         <Divider />
 
+        {/*
+          The time ruler, end to end across the timeline: an empty cell over
+          the names (carrying their rule) and the ruler over the lanes. Its
+          own row, outside the lanes' scroller, so it never scrolls away
+          vertically; it follows the lanes' sideways scroll and zoom (see
+          their onScroll). The playhead's head lives here, moved by the same
+          paint loop as its line. Pressing the ruler scrubs -- the one thing
+          that answers while the clip plays.
+        */}
+        <div className="flex" style={{ paddingTop: SAFE }}>
+          <div
+            style={{
+              width: labelW,
+              flex: "none",
+              borderRight: "1px solid var(--mo-field)",
+            }}
+          />
+          <div
+            ref={rulerViewRef}
+            className="mo-noscroll relative flex-1 overflow-hidden"
+            style={{ paddingInline: LEAD, marginLeft: 12 }}
+            onPointerDown={(event) => {
+              event.currentTarget.setPointerCapture(event.pointerId);
+              setSelected(null);
+              setSelection([]);
+              scrubRef.current = true;
+              scrubTo(event.clientX);
+            }}
+            onPointerMove={(event) => {
+              if (event.buttons && scrubRef.current) scrubTo(event.clientX);
+            }}
+            onPointerUp={() => {
+              scrubRef.current = false;
+            }}
+            onPointerCancel={() => {
+              scrubRef.current = false;
+            }}
+          >
+            <div
+              ref={rulerRef}
+              className="relative cursor-ew-resize"
+              style={{ width: `${zoom * 100}%`, height: RULER_H }}
+            >
+              {ticks.map((t) => (
+                <span
+                  key={t}
+                  className="mo-code absolute select-none"
+                  style={{
+                    left: `${(t / Math.max(0.001, duration)) * 100}%`,
+                    // Nudged in rather than centred: the first and last tick
+                    // would hang off the ends of the panel otherwise.
+                    transform:
+                      t === 0
+                        ? "none"
+                        : t >= duration - 1e-6
+                          ? "translateX(-100%)"
+                          : "translateX(-50%)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {Number(t.toFixed(2))}s
+                </span>
+              ))}
+              <div
+                ref={rulerHeadRef}
+                className="pointer-events-none absolute"
+                style={{ left: 0, bottom: 0 }}
+              >
+                <div
+                  style={{
+                    width: 13,
+                    height: 13,
+                    marginLeft: -6,
+                    borderRadius: 4,
+                    background: "var(--mo-ink)",
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* ------------------------------------------------ ruler + lanes */}
         {/* `min-h-0`, or the flex child refuses to shrink below its content
             and the panel grows past its 250 instead of scrolling inside it. */}
         <div
-          className="mo-noscroll relative flex min-h-0 flex-1 overflow-y-auto"
-          style={{ paddingTop: SAFE }}
+          ref={lanesRowRef}
+          // `items-start`: the names and the lanes each take their CONTENT's
+          // height, so both run the full list and this row scrolls them as
+          // one. Stretched, both were cut to the row's visible height --
+          // the lanes clipped short of the names, and the playhead with them.
+          className="mo-noscroll relative flex min-h-0 flex-1 items-start overflow-y-auto"
+          style={{ paddingTop: 0 }}
         >
           {lanes.length === 0 && suggestions ? (
             <div
@@ -811,13 +1008,18 @@ export function Timeline({
           ) : null}
           <div
             style={{
-              width: LABEL_W,
+              width: labelW,
+              // At least the visible height, so the rule reaches the bottom
+              // however few lanes there are.
+              minHeight: "100%",
               flex: "none",
               paddingLeft: LABEL_PAD,
               paddingRight: LABEL_PAD,
+              // The rule between names and lanes, full height, as a
+              // timeline's header column is drawn.
+              borderRight: "1px solid var(--mo-field)",
             }}
           >
-            <div style={{ height: RULER_H }} />
             {/*
               The lane's name selects the lane.
 
@@ -855,6 +1057,9 @@ export function Timeline({
                   style={{
                     height: LANE_H,
                     marginBottom: LANE_GAP,
+                    // A step up from the title size: the lane names are what
+                    // you read down the timeline.
+                    fontSize: 16,
                     color: whole ? "var(--mo-ink)" : "var(--mo-ink-muted)",
                   }}
                 >
@@ -866,10 +1071,27 @@ export function Timeline({
 
           <div
             ref={viewportRef}
+            onScroll={(event) => {
+              // The ruler row follows the lanes sideways.
+              const ruler = rulerViewRef.current;
+              if (ruler) ruler.scrollLeft = event.currentTarget.scrollLeft;
+            }}
             // Not `cursor-ew-resize` any more: that cursor promised a scrub on
             // a surface that now selects. The ruler keeps it.
             className="mo-noscroll relative flex-1 cursor-default overflow-x-auto"
-            style={{ paddingInline: LEAD }}
+            // Air between the names' rule and the tracks, which otherwise
+            // reach right up to it.
+            //
+            // Never scrolling vertically. Scrolling one axis makes an element
+            // scroll the other too, and the lanes drifted up and down on
+            // their own -- away from their names and past the last lane. The
+            // row around both is the one vertical scroller.
+            style={{
+              paddingInline: LEAD,
+              marginLeft: 12,
+              overflowY: "hidden",
+              minHeight: "100%",
+            }}
             /*
               EVERY pointer gesture in the lanes is handled here, on the
               viewport, and not on the thing being dragged.
@@ -886,6 +1108,43 @@ export function Timeline({
             */
             onPointerDown={(event) => {
               event.currentTarget.setPointerCapture(event.pointerId);
+              // Locked while playing: only the ruler answers, and scrubbing
+              // it pauses the clip -- which unlocks the rest.
+              // Locked while playing: the lanes take no presses. The ruler,
+              // in its own row above, still scrubs -- which pauses.
+              if (playing) return;
+              /*
+               * A press on a lane's bar, off its keys and chips: take the
+               * whole lane and slide it. Every key on the lane joins the
+               * selection -- added to it with Shift or Cmd, so several lanes
+               * travel together -- and the drag is the same group drag a
+               * key starts, anchored at the time under the pointer.
+               */
+              const bar = (event.target as HTMLElement).closest?.(
+                "[data-clip]",
+              ) as HTMLElement | null;
+              if (
+                bar &&
+                !(event.target as HTMLElement).closest?.("[data-keyframe]")
+              ) {
+                const lane = bar.dataset.clip as AnimatableKey;
+                const at = timeAt(event.clientX);
+                if (at !== null) {
+                  const whole = (tracks[lane] ?? []).map((frame) => ({
+                    key: lane,
+                    time: frame.time,
+                  }));
+                  const additive = event.shiftKey || event.metaKey;
+                  const next = additive
+                    ? [...selection.filter((sel) => sel.key !== lane), ...whole]
+                    : whole;
+                  setSelection(next);
+                  setSelected(null);
+                  setSegment(null);
+                  dragRef.current = { key: lane, time: at, items: next };
+                  return;
+                }
+              }
               const hit = (event.target as HTMLElement).closest?.(
                 "[data-keyframe]",
               ) as HTMLElement | null;
@@ -953,7 +1212,7 @@ export function Timeline({
                */
               const laneBox = laneRef.current?.getBoundingClientRect();
               const localY = laneBox ? event.clientY - laneBox.top : 0;
-              if (laneBox && localY > RULER_H) {
+              if (laneBox) {
                 const additive = event.shiftKey || event.metaKey;
                 marqueeRef.current = {
                   x: event.clientX,
@@ -969,12 +1228,7 @@ export function Timeline({
                   width: 0,
                   height: 0,
                 });
-                return;
               }
-              setSelected(null);
-              setSelection([]);
-              scrubRef.current = true;
-              scrubTo(event.clientX);
             }}
             onPointerMove={(event) => {
               if (!event.buttons) return;
@@ -1108,35 +1362,13 @@ export function Timeline({
               className="relative"
               style={{ width: `${zoom * 100}%`, minHeight: "100%" }}
             >
-              <div
-                className="relative cursor-ew-resize"
-                style={{ height: RULER_H }}
-              >
-                {ticks.map((t) => (
-                  <span
-                    key={t}
-                    className="mo-code absolute select-none"
-                    style={{
-                      left: `${(t / Math.max(0.001, duration)) * 100}%`,
-                      // Nudged in rather than centred: the first and last tick
-                      // would hang off the ends of the panel otherwise.
-                      transform:
-                        t === 0
-                          ? "none"
-                          : t >= duration - 1e-6
-                            ? "translateX(-100%)"
-                            : "translateX(-50%)",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {Number(t.toFixed(2))}s
-                  </span>
-                ))}
-              </div>
-
               {lanes.map(({ key }) => {
                 const keys = tracks[key] ?? [];
-                const c = laneColors(key);
+                const c = laneColors(
+                  key,
+                  selection.some((sel) => sel.key === key) ||
+                    segment?.key === key,
+                );
                 const pct = (t: number) =>
                   (t / Math.max(0.001, duration)) * 100;
                 const first = keys[0]?.time ?? 0;
@@ -1161,10 +1393,14 @@ export function Timeline({
                       }}
                     />
                     {/* The clip: first key to last, with the span line the
-                        diamonds and easing chips sit on. */}
+                        diamonds and easing chips sit on. Grabbing the bar
+                        itself, between its keys, moves the whole lane --
+                        see the viewport's press handler. */}
                     <div
-                      className="pointer-events-none absolute"
+                      data-clip={key}
+                      className="absolute"
                       style={{
+                        cursor: playing ? "default" : "grab",
                         top: TRACK_PAD,
                         bottom: TRACK_PAD,
                         left: `calc(${pct(first)}% - ${CLIP_REACH}px)`,
@@ -1213,6 +1449,7 @@ export function Timeline({
                           // The lane below must not take this as a scrub.
                           onPointerDown={(event) => event.stopPropagation()}
                           onClick={(event) => {
+                            if (playing) return;
                             const panel =
                               panelRef.current?.getBoundingClientRect();
                             const tile =
@@ -1265,7 +1502,7 @@ export function Timeline({
                           title={`${formatTime(frame.time)} — ${frame.value}\nDrag to move, double-click to delete`}
                           onDoubleClick={(event) => {
                             event.stopPropagation();
-                            studio.deleteKey(key, frame.time);
+                            if (!playing) studio.deleteKey(key, frame.time);
                           }}
                           className="absolute cursor-ew-resize"
                           style={{
@@ -1339,17 +1576,6 @@ export function Timeline({
                     width: 1,
                     background: "var(--mo-ink)",
                     boxShadow: "0 0 0 0.5px rgb(255 255 255 / 0.6)",
-                  }}
-                />
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    width: 7,
-                    height: 7,
-                    marginLeft: -3,
-                    borderRadius: 2,
-                    background: "var(--mo-ink)",
                   }}
                 />
               </div>

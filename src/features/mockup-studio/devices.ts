@@ -994,13 +994,9 @@ export const DEVICES: Device[] = [
     // while the flash beside it is flush. Brought up to the barrel's rim, level
     // with the flash cover (z -0.0068; the back faces -z).
     meshNudges: { CUXydfOmpZTOIwn: [0, 0, -0.0012] },
-    finishIds: [
-      "cosmic-orange",
-      "deep-blue",
-      "silver",
-      "pro-burgundy",
-      "pro-sky-blue",
-    ],
+    // The three the studio offers for the 17 Pro line: orange, silver and
+    // deep blue. Burgundy and sky blue are still defined, just not listed.
+    finishIds: ["cosmic-orange", "silver", "deep-blue"],
     screenMaterial: "BsXHDwLKqtDOfrW.004",
     authoredBodyColor: "#e47a44",
     plainMaterials: ["SMUhrjUPCjJkPUK.008"],
@@ -1088,13 +1084,9 @@ export const DEVICES: Device[] = [
        */
       Body: [0, 0, -0.0042],
     },
-    finishIds: [
-      "cosmic-orange",
-      "deep-blue",
-      "silver",
-      "pro-burgundy",
-      "pro-sky-blue",
-    ],
+    // The three the studio offers for the 17 Pro line: orange, silver and
+    // deep blue. Burgundy and sky blue are still defined, just not listed.
+    finishIds: ["cosmic-orange", "silver", "deep-blue"],
     screenMaterial: "BsXHDwLKqtDOfrW.007",
     authoredBodyColor: "#e47a44",
     plainMaterials: ["SMUhrjUPCjJkPUK.011"],
@@ -1155,13 +1147,9 @@ export const DEVICES: Device[] = [
     label: "Apple iPhone 17 Pro Max",
     modelPath: `${MODELS}/m-432f2a96ef902e9c.glb`,
     hideHints: [],
-    finishIds: [
-      "cosmic-orange",
-      "deep-blue",
-      "silver",
-      "pro-burgundy",
-      "pro-sky-blue",
-    ],
+    // The three the studio offers for the 17 Pro line: orange, silver and
+    // deep blue. Burgundy and sky blue are still defined, just not listed.
+    finishIds: ["cosmic-orange", "silver", "deep-blue"],
     screenMaterial: "BsXHDwLKqtDOfrW",
     /*
      * Apple ships these in Cosmic Orange, and the back glass is a solid

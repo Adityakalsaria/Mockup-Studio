@@ -25,8 +25,21 @@ import { OverlayLayer } from "../OverlayLayer";
 import { backgroundCss } from "../backgrounds";
 import { isOverlayActive } from "../overlay";
 import type { Studio } from "./useStudio";
+import { sampleAnimation } from "../animation";
+import {
+  poseOf,
+  toPhone,
+  toScreen,
+  type FocusArea,
+  type FocusPose,
+} from "./focusMath";
+import { Vector3 } from "three";
 import type { SnapGuides } from "./snapping";
-import { isBlurActive, type BlurSettings } from "../blurStyles";
+import {
+  DEFAULT_BLUR,
+  isBlurActive,
+  type BlurSettings,
+} from "../blurStyles";
 
 /**
  * How much workspace is left around the canvas.
@@ -35,7 +48,7 @@ import { isBlurActive, type BlurSettings } from "../blurStyles";
  * so much that the shot is a stamp in the middle of it. The panels overlap it
  * either way — see above.
  */
-const INSET = 40;
+export const INSET = 40;
 
 /**
  * How much of the room the frame actually takes.
@@ -52,15 +65,18 @@ const INSET = 40;
  * Fill is exempt: it is the one ratio whose name is a promise about the room it
  * takes.
  */
-const FRAME = 0.82;
+export const FRAME = 0.82;
 
 function StageInner({
   studio,
   modelToken = null,
+  focusDrawing = false,
 }: {
   studio: Studio;
   /** Signed link for the device models — see `lib/modelToken`. */
   modelToken?: string | null;
+  /** The Focus points panel is open: drags on the shot draw areas. */
+  focusDrawing?: boolean;
 }) {
   const {
     state,
@@ -71,6 +87,7 @@ function StageInner({
     playheadRef,
     exporting,
     presetId,
+    motionMode,
   } = studio;
 
   /*
@@ -96,8 +113,22 @@ function StageInner({
    * spring is a lag filter, and a filter on top of frame-exact export would
    * smear each keyframe a fifth of a second late.
    */
+  /* Motion is the only tab that shows the clip; Crafting shows the rest
+     pose, as the device was set before anything moved it. */
   const timeDriven =
-    playing || exporting?.kind === "video" || presetId !== null;
+    exporting?.kind === "video" ||
+    (motionMode &&
+      (playing ||
+        presetId !== null ||
+    // Any keys at all, not only a preset's: a composed focus move or keys
+    // set by hand have to follow a scrub too. Gated on the preset alone, a
+    // scrub moved the depth of field -- which samples the clip itself --
+    // and left the phone standing still.
+        Object.values(state.animation.tracks).some(
+          (keys) => keys && keys.length > 0,
+        )));
+  /* Each tab's own depth of field: Motion's travels with its moves. */
+  const blur = motionMode ? (state.motionBlur ?? DEFAULT_BLUR) : state.blur;
 
   return (
     <div
@@ -111,6 +142,10 @@ function StageInner({
        * for.
        */
       style={{ containerType: "size", padding: ratio === null ? 0 : INSET }}
+      // No browser menu over the shot: "Save Image As" / "Copy Image" would
+      // hand out the render outside the studio's export (and its
+      // watermark). Scoped to the stage -- text fields elsewhere keep theirs.
+      onContextMenu={(event) => event.preventDefault()}
     >
       {/*
         The canvas fills its frame by CSS, not by the pixel size R3F last
@@ -151,13 +186,14 @@ function StageInner({
              scene fills in — see `CaptureBridge` and `RecorderBridge`. */
           captureRef={studio.captureRef}
           recorderRef={studio.recorderRef}
+          focusFollow={motionMode ? (state.focusFollow ?? null) : null}
           canvasRef={studio.stageCanvasRef}
           screenTexture={screenTexture}
           coverTexture={coverTexture}
           deviceId={state.deviceId}
           modelToken={modelToken}
           finishId={state.finishId}
-          blur={state.blur}
+          blur={blur}
           rotateX={state.xAxis}
           rotateY={state.yAxis}
           rotateZ={state.zAxis}
@@ -222,8 +258,11 @@ function StageInner({
         ) : null}
 
         <SnapGuideLayer guides={studio.guides} />
-        {isBlurActive(state.blur) ? (
-          <FocusGuide blur={state.blur} />
+        {focusDrawing ? (
+          <FocusLayer studio={studio} />
+        ) : null}
+        {isBlurActive(blur) ? (
+          <FocusGuide blur={blur} />
         ) : null}
       </div>
     </div>
@@ -410,3 +449,280 @@ function FocusGuide({ blur }: { blur: BlurSettings }) {
  * selection travelling across a panel in front of it.
  */
 export const Stage = memo(StageInner);
+
+/**
+ * The focus areas, pinned to the phone, drawn over the shot while their
+ * panel is open.
+ *
+ * Each area lives in the phone's own coordinates (see `focusMath`), so it is
+ * drawn by projecting its corners through the pose the stage is showing --
+ * the animated one during playback -- and stays on the part of the device it
+ * was drawn over while the camera moves, the phone turns or a move plays. A
+ * tilted phone draws it as the tilted quad it really is.
+ *
+ * Every pointer gesture goes the other way, through `toPhone`: a new box is
+ * drawn on screen and its corners laid onto the phone; a move or a resize
+ * follows the pointer across the phone rather than across the screen.
+ */
+function FocusLayer({ studio }: { studio: Studio }) {
+  const { state, playing, playheadRef, parkedAt, focusPoints: points } = studio;
+  const onChange = studio.setFocusPoints;
+  const layerRef = useRef<HTMLDivElement | null>(null);
+  const [aspect, setAspect] = useState(1);
+  /* Where the playhead is, as state: copied off the ref on each animation
+     frame while playing, since a ref must not be read during render. */
+  const [liveTime, setLiveTime] = useState(0);
+  const [draft, setDraft] = useState<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
+  const gesture = useRef<
+    | { kind: "draw"; from: { x: number; y: number } }
+    | { kind: "move" | "resize"; index: number; from: Vector3; area: FocusArea }
+    | null
+  >(null);
+
+  // The frame's shape, for the projection.
+  useEffect(() => {
+    const node = layerRef.current;
+    if (!node) return;
+    const measure = () =>
+      setAspect(node.clientHeight ? node.clientWidth / node.clientHeight : 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  // While the clip plays the pose changes every frame and nothing in React
+  // hears of it; redraw on the animation frame so the boxes ride along.
+  useEffect(() => {
+    if (!playing) return;
+    let raf = 0;
+    const tick = () => {
+      setLiveTime(playheadRef.current);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, playheadRef]);
+  const time = playing ? liveTime : (parkedAt ?? 0);
+
+  const hasTracks = Object.values(state.animation.tracks).some(
+    (keys) => keys && keys.length > 0,
+  );
+  const pose: FocusPose = poseOf(
+    {
+      xAxis: state.xAxis,
+      yAxis: state.yAxis,
+      zAxis: state.zAxis,
+      zoom: state.zoom,
+      panX: state.panX,
+      panY: state.panY,
+      panZ: state.panZ,
+      fov: state.fov ?? 35,
+      scaleX: state.scaleX ?? 1,
+      scaleY: state.scaleY ?? 1,
+      scaleZ: state.scaleZ ?? 1,
+    },
+    hasTracks ? sampleAnimation(state.animation, time) : {},
+  );
+
+  const screenOf = (event: React.PointerEvent) => {
+    const box = layerRef.current!.getBoundingClientRect();
+    return {
+      x: (event.clientX - box.left) / box.width,
+      y: (event.clientY - box.top) / box.height,
+    };
+  };
+  const phoneOf = (event: React.PointerEvent) =>
+    toPhone(screenOf(event), pose, aspect);
+
+  const corners = (a: FocusArea) =>
+    [
+      [a.cx - a.w / 2, a.cy + a.h / 2],
+      [a.cx + a.w / 2, a.cy + a.h / 2],
+      [a.cx + a.w / 2, a.cy - a.h / 2],
+      [a.cx - a.w / 2, a.cy - a.h / 2],
+    ].map(([x, y]) => toScreen(new Vector3(x, y, 0), pose, aspect));
+
+  const grab = (
+    event: React.PointerEvent,
+    kind: "move" | "resize",
+    index: number,
+  ) => {
+    event.stopPropagation();
+    const from = phoneOf(event);
+    if (!from) return;
+    layerRef.current?.setPointerCapture(event.pointerId);
+    gesture.current = { kind, index, from, area: points[index] };
+  };
+
+  const MIN = 0.02;
+  return (
+    <div
+      ref={layerRef}
+      className="absolute inset-0"
+      // No z-index. The frame is not a stacking context, so a number here
+      // competed with the whole page -- and at Fill, where the frame is the
+      // window, it put this layer over every panel and took their clicks.
+      // After the canvas in the DOM, it already paints above it.
+      style={{ cursor: "crosshair", touchAction: "none" }}
+      onPointerDown={(event) => {
+        event.currentTarget.setPointerCapture(event.pointerId);
+        const from = screenOf(event);
+        gesture.current = { kind: "draw", from };
+        setDraft({ ...from, w: 0, h: 0 });
+        studio.setFocusDrafting(true);
+      }}
+      onPointerMove={(event) => {
+        const g = gesture.current;
+        if (!g) return;
+        if (g.kind === "draw") {
+          const now = screenOf(event);
+          setDraft({
+            x: Math.min(g.from.x, now.x),
+            y: Math.min(g.from.y, now.y),
+            w: Math.abs(now.x - g.from.x),
+            h: Math.abs(now.y - g.from.y),
+          });
+          return;
+        }
+        const now = phoneOf(event);
+        if (!now) return;
+        const a = g.area;
+        let next: FocusArea;
+        if (g.kind === "move") {
+          next = {
+            ...a,
+            cx: a.cx + (now.x - g.from.x),
+            cy: a.cy + (now.y - g.from.y),
+          };
+        } else {
+          // The corner under the pointer; the opposite corner stays put.
+          const left = a.cx - a.w / 2;
+          const top = a.cy + a.h / 2;
+          const w = Math.max(MIN, now.x - left);
+          const h = Math.max(MIN, top - now.y);
+          next = { cx: left + w / 2, cy: top - h / 2, w, h };
+        }
+        onChange(points.map((p, i) => (i === g.index ? next : p)));
+      }}
+      onPointerUp={() => {
+        const g = gesture.current;
+        gesture.current = null;
+        const box = draft;
+        setDraft(null);
+        studio.setFocusDrafting(false);
+        if (g?.kind !== "draw" || !box || box.w < 0.03 || box.h < 0.03) return;
+        // The drawn box's corners, laid onto the phone; the area is what
+        // they cover there.
+        const hits = [
+          { x: box.x, y: box.y },
+          { x: box.x + box.w, y: box.y },
+          { x: box.x + box.w, y: box.y + box.h },
+          { x: box.x, y: box.y + box.h },
+        ]
+          .map((c) => toPhone(c, pose, aspect))
+          .filter((p): p is Vector3 => p !== null);
+        if (hits.length < 4) return;
+        const xs = hits.map((p) => p.x);
+        const ys = hits.map((p) => p.y);
+        const [x0, x1, y0, y1] = [
+          Math.min(...xs),
+          Math.max(...xs),
+          Math.min(...ys),
+          Math.max(...ys),
+        ];
+        onChange([
+          ...points,
+          { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0 },
+        ]);
+      }}
+      onPointerCancel={() => {
+        gesture.current = null;
+        setDraft(null);
+        studio.setFocusDrafting(false);
+      }}
+    >
+      <svg
+        className="absolute inset-0 h-full w-full"
+        viewBox="0 0 1 1"
+        preserveAspectRatio="none"
+        style={{ overflow: "visible" }}
+      >
+        {points.map((a, i) => (
+          <polygon
+            key={i}
+            points={corners(a)
+              .map((c) => `${c.x},${c.y}`)
+              .join(" ")}
+            fill="rgb(59 130 246 / 0.1)"
+            stroke="#3b82f6"
+            strokeWidth={1.5}
+            vectorEffect="non-scaling-stroke"
+            style={{ cursor: "move" }}
+            onPointerDown={(event) => grab(event, "move", i)}
+          />
+        ))}
+      </svg>
+      {points.map((a, i) => {
+        const [, topRight, bottomRight] = corners(a);
+        return (
+          <div key={i}>
+            <button
+              type="button"
+              title="Remove this area"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={() => onChange(points.filter((_, j) => j !== i))}
+              className="mo-label absolute grid cursor-pointer place-items-center"
+              style={{
+                left: `calc(${topRight.x * 100}% - 11px)`,
+                top: `calc(${topRight.y * 100}% - 11px)`,
+                width: 22,
+                height: 22,
+                borderRadius: 11,
+                background: "#3b82f6",
+                color: "#fff",
+              }}
+            >
+              {i + 1}
+            </button>
+            {/* The corner: drag to resize. */}
+            <span
+              aria-hidden
+              onPointerDown={(event) => grab(event, "resize", i)}
+              className="absolute"
+              style={{
+                left: `calc(${bottomRight.x * 100}% - 6px)`,
+                top: `calc(${bottomRight.y * 100}% - 6px)`,
+                width: 12,
+                height: 12,
+                borderRadius: 3,
+                background: "#fff",
+                border: "1.5px solid #3b82f6",
+                cursor: "nwse-resize",
+              }}
+            />
+          </div>
+        );
+      })}
+      {draft ? (
+        <div
+          className="pointer-events-none absolute"
+          style={{
+            left: `${draft.x * 100}%`,
+            top: `${draft.y * 100}%`,
+            width: `${draft.w * 100}%`,
+            height: `${draft.h * 100}%`,
+            border: "1.5px solid #3b82f6",
+            background: "rgb(59 130 246 / 0.1)",
+            borderRadius: 6,
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}

@@ -36,6 +36,7 @@ import {
 import {
   applyMode,
   BLUR_MODES,
+  DEFAULT_BLUR,
   type BlurMode,
   type BlurSettings,
 } from "../blurStyles";
@@ -724,10 +725,7 @@ export const LAYERS: Layer[] = [
     // painted behind the phone: the blur is what the shot was TAKEN through.
     group: "stage",
     name: "Depth of Field",
-    // TODO: its own glyph. Sharing the camera's is honest about what this is
-    // -- both rows are the lens -- but two identical icons in a list of nine
-    // is a worse row to scan than it should be. Wants a Figma asset.
-    icon: "camera",
+    icon: "depth-of-field",
     sections: [
       {
         fields: [
@@ -850,7 +848,7 @@ export const LAYERS: Layer[] = [
      */
     group: "stage",
     name: "Lighting",
-    icon: "styles",
+    icon: "lighting",
     sections: [
       {
         fields: [
@@ -1179,4 +1177,44 @@ export type LayerId = string;
 
 export function getLayer(id: LayerId): Layer | undefined {
   return LAYERS.find((l) => l.id === id);
+}
+
+
+/**
+ * A layer read and written through Motion's own depth of field.
+ *
+ * The depth-of-field layer, with every get, set, test and toggle pointed at
+ * `motionBlur` instead of `blur`: the same popup, the same rules, a separate
+ * setting. Crafting keeps `blur` for its stills; Motion edits this one, and
+ * it is what a composed move uses and follows.
+ */
+export function motionBlurLayer(layer: Layer): Layer {
+  const view = (s: EditorState): EditorState => ({
+    ...s,
+    blur: s.motionBlur ?? DEFAULT_BLUR,
+  });
+  const back = (prev: EditorState, out: EditorState): EditorState => ({
+    ...prev,
+    motionBlur: out.blur,
+  });
+  const field = (f: Field): Field =>
+    ({
+      ...f,
+      get: (s: EditorState) => f.get(view(s) as never),
+      set: (s: EditorState, v: never) =>
+        back(s, (f.set as (s: EditorState, v: never) => EditorState)(view(s), v)),
+      when: f.when ? (s: EditorState) => f.when!(view(s)) : undefined,
+    }) as Field;
+  return {
+    ...layer,
+    id: `motion-${layer.id}`,
+    sections: layer.sections.map((section) => ({
+      ...section,
+      fields: section.fields.map(field),
+    })),
+    isOn: (s) => layer.isOn(view(s)),
+    toggle: (s, on) => back(s, layer.toggle(view(s), on)),
+    reset: layer.reset ? (s) => back(s, layer.reset!(view(s))) : undefined,
+    dirty: layer.dirty ? (s) => layer.dirty!(view(s)) : undefined,
+  };
 }

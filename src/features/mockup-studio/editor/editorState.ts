@@ -1,3 +1,4 @@
+import type { FocusFollow } from "../mocraft/focusMath";
 import { DEFAULT_BLUR, type BlurSettings } from "../blurStyles";
 import { DEFAULT_OVERLAY, type OverlaySettings } from "../overlay";
 import { DEFAULT_FINISH_ID } from "../finishes";
@@ -36,6 +37,17 @@ export interface EditorState {
   screenScale: number;
   screenOffsetX: number;
   screenOffsetY: number;
+  /** Fill covers the screen and crops; Fit shows the whole image, with black
+      where it does not reach. Absent is Fill, which is what every saved shot
+      before this was. */
+  screenFitMode?: "fill" | "fit";
+  /** A composed focus move's schedule, for depth of field to follow its
+      subject frame by frame. Absent when there is no such move. */
+  focusFollow?: FocusFollow | null;
+  /** Motion's own depth of field -- the one a composed move uses and the
+      Motion tab edits. Kept apart from `blur` so Crafting's still-shot blur
+      is untouched by it. Absent is off. */
+  motionBlur?: BlurSettings;
   /** The same three, for a device's second screen. */
   coverScale: number;
   coverOffsetX: number;

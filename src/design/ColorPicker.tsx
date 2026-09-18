@@ -29,9 +29,9 @@ import { hexToHsv, hsvToHex, isLight, parseHex, type Hsv } from "./color";
 import { control, radius } from "./system";
 import { Glass, Slider } from "./ui";
 
-/** The frame's own numbers: a 132 square, 6 between the rows. The hue's own
-    height is `control.paramH`, which is the frame's 24. */
-const SQUARE_H = 132;
+/* The saturation area is square at the panel's width (see its `aspectRatio`),
+   6 between the rows; the hue's own height is `control.paramH`, the frame's
+   24. */
 /**
  * Concentric with THIS panel, which is not the frame's panel.
  *
@@ -403,7 +403,10 @@ function Popover({
           onPointerDown={onSquare}
           className="relative w-full cursor-crosshair touch-none overflow-hidden"
           style={{
-            height: SQUARE_H,
+            // Square, as the name always said: as tall as the panel is wide,
+            // so saturation and value get the same room. It was a fixed 132
+            // across a 234-wide panel -- a rectangle.
+            aspectRatio: "1 / 1",
             borderRadius: SQUARE_R,
             background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${hsv.h} 100% 50%))`,
           }}

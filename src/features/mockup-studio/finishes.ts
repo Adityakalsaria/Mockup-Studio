@@ -218,6 +218,13 @@ export const FINISHES: Finish[] = [
 export const DEFAULT_FINISH_ID = FINISHES[0].id;
 
 export function getFinish(id: string | undefined): Finish {
+  /*
+   * A hex IS a finish: what the image card's colour picker stores. The card
+   * is not a product with a colourway, so its edge can be any colour -- a
+   * painted edge, satin rather than metal.
+   */
+  if (id && /^#[0-9a-f]{6}$/i.test(id))
+    return { id, label: "Custom", color: id, metalness: 0.15, roughness: 0.45 };
   return FINISHES.find((f) => f.id === id) ?? FINISHES[0];
 }
 

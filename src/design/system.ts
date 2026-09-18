@@ -660,7 +660,9 @@ export const surface = {
    * Still ink at low alpha rather than a grey of its own, so it tracks the
    * palette instead of drifting from it.
    */
-  dot: `rgb(${INK_RGB} / 0.12)`,
+  // 0.12 read as barely there on a large screen; 0.2 keeps it a texture
+  // rather than a pattern while the grid is plainly visible.
+  dot: `rgb(${INK_RGB} / 0.2)`,
   /** Spacing of the grid, both axes. */
   pitch: 22,
 } as const;

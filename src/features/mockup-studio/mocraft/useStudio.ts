@@ -20,12 +20,20 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Euler, Matrix4, Vector3 } from "three";
+import {
+  CAMERA_Z,
+  toScreen,
+  type FocusArea,
+  type FocusPose,
+} from "./focusMath";
 import { resetTransform } from "./bindings";
 import { NO_GUIDES, snap, type SnapGuides, type SnapKey } from "./snapping";
 import {
   ANIMATABLE,
   KEY_EPSILON,
   type Easing,
+  type Keyframe,
   keyAt,
   putKey,
   removeKey,
@@ -45,6 +53,7 @@ import { useScreenTexture } from "../useScreenTexture";
 import { useBroadcastLink } from "../broadcast/useBroadcastLink";
 import { fitToClip, getMotionPreset } from "../editor/motionPresets";
 import { getRatio } from "../editor/framing";
+import { DEFAULT_BLUR } from "../blurStyles";
 import {
   BROADCAST_SCREEN_FIT,
   DEFAULT_EDITOR_STATE,
@@ -87,6 +96,8 @@ function readFile(file: File, onLoad: (dataUrl: string) => void) {
 }
 
 export type Studio = ReturnType<typeof useStudio>;
+
+export type { FocusArea } from "./focusMath";
 
 export function useStudio() {
   /*
@@ -194,11 +205,41 @@ export function useStudio() {
    * reset, a slider, and a canvas drag all key themselves without any of them
    * having to say what they touched.
    */
+  /*
+   * Which tab is animating. Crafting sets the pose at rest: there, an edit
+   * changes the static value and never writes a key, and the sliders and the
+   * stage show the rest pose rather than wherever the clip was parked. Motion
+   * is where keys are made and the clip is looked at. A ref as well, so
+   * `edit` reads it without being rebuilt on every switch.
+   */
+  const [motionMode, setMotionModeState] = useState(false);
+  const motionModeRef = useRef(false);
+  /** Whether the clip is playing, for `edit` -- synced below, where `playing`
+      is declared. */
+  const playingRef = useRef(false);
+  const setMotionMode = useCallback((on: boolean) => {
+    motionModeRef.current = on;
+    setMotionModeState(on);
+  }, []);
+
   const edit = useCallback(
     (f: (prev: EditorState) => EditorState) => {
       record();
       setState((prev) => {
         const next = f(prev);
+        if (!motionModeRef.current) return next;
+        /*
+         * Locked while the clip plays. A drag during playback used to stamp
+         * a key at every playhead position it passed -- a pile of keys where
+         * one was meant -- so an animated channel ignores changes until the
+         * clip is paused. Channels with no keys still take them.
+         */
+        if (playingRef.current) {
+          const held = { ...next } as Record<string, unknown>;
+          for (const { key } of ANIMATABLE)
+            if (next.animation.tracks[key]?.length) held[key] = prev[key];
+          return held as unknown as EditorState;
+        }
         const tracks = { ...next.animation.tracks };
         let keyed = false;
         for (const { key } of ANIMATABLE) {
@@ -405,8 +446,16 @@ export function useStudio() {
       scale: fit.screenScale,
       offsetX: fit.screenOffsetX,
       offsetY: fit.screenOffsetY,
+      // A live mirror is always filled -- it is a screen, not a picture.
+      mode: liveStream ? "fill" : (state.screenFitMode ?? "fill"),
     };
-  }, [liveStream, state.screenScale, state.screenOffsetX, state.screenOffsetY]);
+  }, [
+    liveStream,
+    state.screenScale,
+    state.screenOffsetX,
+    state.screenOffsetY,
+    state.screenFitMode,
+  ]);
 
   /*
    * There are no built-in React screens in this shell, so the DOM-capture path
@@ -860,6 +909,9 @@ export function useStudio() {
    */
   const playheadRef = useRef(0);
   const [playing, setPlaying] = useState(false);
+  useEffect(() => {
+    playingRef.current = playing;
+  }, [playing]);
   /**
    * Whether the clip runs again when it reaches the end.
    *
@@ -903,11 +955,13 @@ export function useStudio() {
    */
   const effective = useMemo(
     () =>
-      ({
-        ...state,
-        ...sampleAnimation(state.animation, parkedAt),
-      }) as EditorState,
-    [state, parkedAt],
+      motionMode
+        ? ({
+            ...state,
+            ...sampleAnimation(state.animation, parkedAt),
+          } as EditorState)
+        : state,
+    [state, parkedAt, motionMode],
   );
 
   /**
@@ -1209,6 +1263,257 @@ export function useStudio() {
    * which is what makes `Stage` stop sampling and the transform rows mean
    * something again.
    */
+  /* ----------------------------------------------------------- focus camera */
+
+  /**
+   * Areas of the shot to visit, as fractions of the frame, in the order they
+   * were drawn. Not part of the shot's state: they are the brief for Compose,
+   * and what Compose writes -- keyframes -- is what the shot keeps and undo
+   * walks back.
+   */
+  const [focusPoints, setFocusPoints] = useState<FocusArea[]>([]);
+  /** A focus area is being dragged out right now -- the popup's picture of
+      what to do steps aside the moment you start doing it. */
+  const [focusDrafting, setFocusDrafting] = useState(false);
+
+  /** How hard Compose turns the phone toward each area, 0 (flat) to 1. */
+  const [focusTilt, setFocusTilt] = useState(0.6);
+  /** How far the camera pushes into each area: 1 fills the frame with it,
+      less stops part-way from the wide shot, more goes tighter than it. */
+  const [focusZoom, setFocusZoom] = useState(1);
+  /** Depth of field for the move, 0..1. 0 leaves the blur as it is. */
+  const [focusDof, setFocusDof] = useState(0);
+
+  /**
+   * Turn the areas into one camera move: wide, then each area in turn -- a
+   * travel and a hold apiece -- then wide again, over the clip's length.
+   *
+   * The rig is exact: the camera sits 1.8 back with a vertical fov, pan moves
+   * the phone `pan * 0.2` units and zoom scales it about its origin, inside
+   * the XYZ rotation. So a box's centre is a point on the phone, found by
+   * undoing the base pose, and framing it is re-posing the phone and panning
+   * that point onto the camera's axis.
+   *
+   * The smart part is the tilt. Arriving at an area, the phone turns so that
+   * area comes toward the camera -- top-left leans the top-left edge in --
+   * in proportion to how far off-centre it is, with a touch of roll, and it
+   * keeps drifting a little through the hold so a hold is never a still.
+   * Zoom is corrected for the depth the turn brings the area forward by, so
+   * the box still fills the frame.
+   */
+  const composeFocus = useCallback(
+    (frameAspect: number) => {
+      if (!focusPoints.length || !(frameAspect > 0)) return;
+      edit((prev) => {
+        const deg = Math.PI / 180;
+        const base: FocusPose = {
+          xAxis: prev.xAxis,
+          yAxis: prev.yAxis,
+          zAxis: prev.zAxis,
+          zoom: prev.zoom,
+          panX: prev.panX,
+          panY: prev.panY,
+          panZ: prev.panZ,
+          fov: prev.fov ?? 35,
+          scaleX: prev.scaleX ?? 1,
+          scaleY: prev.scaleY ?? 1,
+          scaleZ: prev.scaleZ ?? 1,
+        };
+        const halfTan = Math.tan((base.fov * deg) / 2);
+        const perAxis = new Vector3(base.scaleX, base.scaleY, base.scaleZ);
+
+        /*
+         * One area, framed. The area lives on the phone, so nothing here
+         * guesses from the screen: its centre and edges are points in the
+         * phone's own coordinates, turned by the new pose, and the pan puts
+         * the centre on the camera's axis.
+         */
+        const frame = (
+          a: FocusArea,
+          extraYaw: number,
+          push: number,
+          sideOf: number,
+        ) => {
+          const centre = new Vector3(a.cx, a.cy, 0);
+          // Where the area sits in the wide shot decides which way to lean.
+          const seen = toScreen(centre, base, frameAspect);
+          // With a FLOOR: proportional alone gave an area near the middle a
+          // few degrees, which reads as no tilt at all. Every area leans at
+          // least 12 degrees toward its side (36 at the edge); one almost
+          // dead centre takes the side its order gives it.
+          const t = focusTilt;
+          const lean = (
+            offset: number,
+            fallback: number,
+            floor: number,
+            span: number,
+          ) => {
+            const side =
+              Math.abs(offset) < 0.04 ? fallback : Math.sign(offset);
+            return (
+              side * (floor + span * Math.min(1, Math.abs(offset) * 2)) * t
+            );
+          };
+          // Screen y runs top-down: an area ABOVE centre has 0.5 - y > 0,
+          // and positive pitch brings the top edge toward the camera.
+          const pitch = base.xAxis + lean(0.5 - seen.y, 1, 6, 14);
+          const yaw = base.yAxis + lean(0.5 - seen.x, sideOf, 12, 24) + extraYaw;
+          const roll = base.zAxis - lean(0.5 - seen.x, sideOf, 1.5, 4);
+
+          const turn = new Matrix4().makeRotationFromEuler(
+            new Euler(pitch * deg, yaw * deg, roll * deg),
+          );
+          const turned = (x: number, y: number) =>
+            new Vector3(x, y, 0).multiply(perAxis).applyMatrix4(turn);
+          const mid = turned(a.cx, a.cy);
+          const edges = [
+            turned(a.cx - a.w / 2, a.cy),
+            turned(a.cx + a.w / 2, a.cy),
+            turned(a.cx, a.cy + a.h / 2),
+            turned(a.cx, a.cy - a.h / 2),
+          ];
+          // Relative to the centre, which the pan puts on the axis; depth
+          // measured from the camera.
+          const onFrame = (p: Vector3, zoom: number) => {
+            const depth = CAMERA_Z - base.panZ - zoom * p.z;
+            return {
+              u: (zoom * (p.x - mid.x)) / depth / (halfTan * frameAspect) / 2,
+              v: (zoom * (p.y - mid.y)) / depth / halfTan / 2,
+            };
+          };
+          // Fill the frame: scale until the area's edges meet it, and repeat
+          // -- the turn foreshortens and brings part of it nearer, so it is
+          // iterated against the camera until it lands within 0.1%.
+          let zoom = base.zoom;
+          for (let pass = 0; pass < 20; pass++) {
+            const [l, r, t2, b] = edges.map((p) => onFrame(p, zoom));
+            const fill = Math.max(Math.abs(r.u - l.u), Math.abs(t2.v - b.v));
+            if (!(fill > 0)) break;
+            zoom /= fill;
+            if (Math.abs(fill - 1) < 1e-3) break;
+          }
+          // Part of the way in, all of it, or past it -- measured from the
+          // wide shot, so 50% is halfway between the wide and a full frame.
+          zoom = base.zoom + (zoom - base.zoom) * focusZoom;
+          zoom = Math.min(
+            RANGES.zoom.max,
+            Math.max(RANGES.zoom.min, zoom * push),
+          );
+          return {
+            zoom,
+            panX: (-zoom * mid.x) / 0.2,
+            panY: (zoom * mid.y) / 0.2,
+            xAxis: pitch,
+            yAxis: yaw,
+            zAxis: roll,
+          };
+        };
+        const wide = {
+          zoom: base.zoom,
+          panX: base.panX,
+          panY: base.panY,
+          xAxis: base.xAxis,
+          yAxis: base.yAxis,
+          zAxis: base.zAxis,
+        };
+
+        /*
+         * Timed for the move, not squeezed into whatever the clip was: a
+         * travel of 1.4s and a hold of 1.2s per area. Three areas in the old
+         * 3s gave each move a third of a second, which is the snap.
+         */
+        const TRAVEL = 1.4;
+        const HOLD = 1.2;
+        const total = TRAVEL * (focusPoints.length + 1) + HOLD * focusPoints.length;
+        /*
+         * Per-span curves, not the spline. "Smooth" is one monotone spline
+         * through every key, and a hold's two nearly-equal keys pin it flat
+         * there -- so the camera stopped dead on arrival AND again leaving,
+         * which reads as stop-and-go. Travels get a long cinematic in-out,
+         * holds a straight line, so the push-in through a hold never stops.
+         */
+        const TRAVEL_EASE: Easing = { kind: "cubic", p: [0.45, 0, 0.2, 1] };
+        const HOLD_EASE: Easing = { kind: "cubic", p: [0, 0, 1, 1] };
+        const keys = {
+          zoom: [] as Keyframe[],
+          panX: [] as Keyframe[],
+          panY: [] as Keyframe[],
+          xAxis: [] as Keyframe[],
+          yAxis: [] as Keyframe[],
+          zAxis: [] as Keyframe[],
+        };
+        // The easing on a key is the curve of the span it STARTS.
+        const put = (time: number, shot: typeof wide, easing: Easing) => {
+          for (const k of Object.keys(keys) as (keyof typeof keys)[])
+            keys[k].push({ time, value: shot[k], easing });
+        };
+        put(0, wide, TRAVEL_EASE);
+        let at = 0;
+        const arrive: number[] = [];
+        const leave: number[] = [];
+        focusPoints.forEach((r, i) => {
+          const sideOf = i % 2 === 0 ? 1 : -1;
+          // Arrive, then drift: a little tighter and a little further round
+          // by the end of the hold, the way a hand-held camera settles in.
+          const seenX = toScreen(
+            new Vector3(r.cx, r.cy, 0),
+            base,
+            frameAspect,
+          ).x;
+          const drift =
+            focusTilt > 0
+              ? 3 *
+                (Math.abs(0.5 - seenX) < 0.04 ? sideOf : Math.sign(0.5 - seenX))
+              : 0;
+          at += TRAVEL;
+          arrive.push(at);
+          put(at, frame(r, 0, 1, sideOf), HOLD_EASE);
+          at += HOLD;
+          leave.push(at);
+          put(at, frame(r, drift, 1.05, sideOf), TRAVEL_EASE);
+        });
+        put(total, wide, TRAVEL_EASE);
+        return {
+          ...prev,
+          animation: {
+            ...prev.animation,
+            durationSec: Math.max(prev.animation.durationSec, total),
+            tracks: { ...prev.animation.tracks, ...keys },
+          },
+          /*
+           * Depth of field without keyframes. Blur cannot be keyed, and does
+           * not need to be: every area is brought to the MIDDLE of the frame,
+           * so a radial blur focused on the middle keeps whatever the camera
+           * is looking at sharp and softens the rest -- and follows the move
+           * from area to area on its own.
+           */
+          // With depth of field, the schedule it follows; without, none.
+          focusFollow:
+            focusDof > 0
+              ? { areas: focusPoints, arrive, leave, end: total }
+              : null,
+          ...(focusDof > 0
+            ? {
+                motionBlur: {
+                  ...(prev.motionBlur ?? DEFAULT_BLUR),
+                  mode: "radial" as const,
+                  strength: Math.round(focusDof * 100),
+                  focusX: 0.5,
+                  focusY: 0.5,
+                  focusSize: 0.35,
+                  falloff: 0.5,
+                },
+              }
+            : {}),
+        };
+      });
+      playheadRef.current = 0;
+      setParkedAt(0);
+      setPlaying(true);
+    },
+    [edit, focusPoints, focusTilt, focusZoom, focusDof],
+  );
+
   const clearPreset = useCallback(() => {
     lastEditAt.current = 0;
     record();
@@ -1219,6 +1524,8 @@ export function useStudio() {
     setState((prev) => ({
       ...prev,
       animation: { ...prev.animation, tracks: {} },
+      // The move it followed is gone, so is the schedule.
+      focusFollow: null,
     }));
   }, [record]);
 
@@ -1360,6 +1667,19 @@ export function useStudio() {
       setKeyEasing,
       setKeyValue,
       setDuration,
+      motionMode,
+      setMotionMode,
+      focusDrafting,
+      setFocusDrafting,
+      focusPoints,
+      setFocusPoints,
+      focusTilt,
+      setFocusTilt,
+      focusZoom,
+      setFocusZoom,
+      focusDof,
+      setFocusDof,
+      composeFocus,
       setEasing,
       exportScale,
       setExportScale,
@@ -1422,6 +1742,14 @@ export function useStudio() {
       setKeyEasing,
       setKeyValue,
       setDuration,
+      focusDrafting,
+      motionMode,
+      setMotionMode,
+      focusPoints,
+      focusTilt,
+      focusZoom,
+      focusDof,
+      composeFocus,
       setEasing,
       exportScale,
       exportFps,
