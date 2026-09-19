@@ -11,10 +11,10 @@ const FEATURES = [
   { icon: "effects", title: "Overlay", copy: "Lay an overlay across the whole shot." },
   { icon: "gradient", title: "Gradients", copy: "Two colours and an angle, behind any device." },
   { icon: "dots", title: "Dot pattern", copy: "Any colour, any spacing, for a designer's desk of a background." },
-  { icon: "image", title: "Custom image background", copy: "Use your own image as the ground the device stands on.", filled: true },
+  { icon: "image", title: "Custom image background", copy: "Use your own image as the ground the device stands on." },
 ] as const;
 
-/** All the features: a three-by-three of the studio's rows, each with its own icon. */
+/** All the features: a three-by-three of the studio's rows, each with its own icon. A card greys on hover. */
 export function Features() {
   return (
     <section id="features" className={`${COLUMN} flex flex-col gap-[56px]`}>
@@ -25,7 +25,7 @@ export function Features() {
         {FEATURES.map((f) => (
           <div
             key={f.title}
-            className={`flex flex-col gap-[15px] rounded-[24px] px-6 pb-7 pt-5 ${"filled" in f ? "bg-[#eee]" : "bg-[#fafafa]"}`}
+            className="flex flex-col gap-[15px] rounded-[24px] bg-[#fafafa] px-6 pb-7 pt-5 transition-colors duration-200 ease-out hover:bg-[#eee]"
           >
             <span className="grid h-[40px] w-[40px] place-items-center">
               <Ic name={f.icon} size={32} />
