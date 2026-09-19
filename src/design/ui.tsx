@@ -510,6 +510,8 @@ export function Button({
   height = control.rowH,
   grow,
   title,
+  href,
+  flat,
 }: {
   children: ReactNode;
   onClick?: () => void;
@@ -524,29 +526,47 @@ export function Button({
    */
   grow?: boolean;
   title?: string;
+  /** Renders a link wearing the same material -- a pill that navigates. */
+  href?: string;
+  /**
+   * The pill without its glass: no cast, no depth bands, no text shadow -- a
+   * light tinted fill. For open, bright pages, where the full material has
+   * nothing behind it to refract and reads as a dull grey lozenge.
+   */
+  flat?: boolean;
 }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      className={`mo-mat-selection mo-title relative grid cursor-pointer place-items-center ${
-        grow ? "min-w-0 flex-1" : "shrink-0"
-      }`}
-      style={{
-        width,
-        height,
-        borderRadius: "var(--mo-r-selected)",
-        background: "var(--mo-selected)",
-        boxShadow: "var(--mo-selected-shadow)",
-        color: "var(--mo-ink)",
-        filter: "var(--mo-text-shadow)",
-      }}
-    >
-      <Material />
+  const props = {
+    title,
+    className: `${flat ? "transition-[filter] hover:brightness-[0.96]" : "mo-mat-selection"} mo-title relative grid cursor-pointer place-items-center ${
+      grow ? "min-w-0 flex-1" : "shrink-0"
+    }`,
+    style: flat
+      ? { width, height, borderRadius: "var(--mo-r-selected)", background: "var(--mo-field)", color: "var(--mo-ink)" }
+      : {
+          width,
+          height,
+          borderRadius: "var(--mo-r-selected)",
+          background: "var(--mo-selected)",
+          boxShadow: "var(--mo-selected-shadow)",
+          color: "var(--mo-ink)",
+          filter: "var(--mo-text-shadow)",
+        },
+  };
+  const content = (
+    <>
+      {flat ? null : <Material />}
       <span className="relative grid place-items-center" style={{ zIndex: 1 }}>
         {children}
       </span>
+    </>
+  );
+  return href ? (
+    <a href={href} onClick={onClick} {...props}>
+      {content}
+    </a>
+  ) : (
+    <button type="button" onClick={onClick} {...props}>
+      {content}
     </button>
   );
 }

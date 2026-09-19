@@ -7,9 +7,9 @@ import type { Metadata } from "next";
  * copy of that site kept for the studio inside it. Everything Koshmoney is
  * gone; what is left describes the tool that is actually here.
  */
-export const SITE_NAME = "Mockup Studio";
+export const SITE_NAME = "Mocraft";
 export const SITE_DESCRIPTION =
-  "A 3D mockup studio: put a screenshot on a phone, frame the shot, and export a still or a video.";
+  "A studio for beautiful Apple mockups. Put your design on a real device, set the scene, and export a still or a video.";
 export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
 ).replace(/\/$/, "");
@@ -24,11 +24,9 @@ export const siteMetadata: Metadata = {
   description: SITE_DESCRIPTION,
   metadataBase: new URL(SITE_URL),
   /*
-   * Not indexed, at the root.
-   *
-   * The studio is behind a sign-in and there is nothing here for a search
-   * engine. `robots.ts` says the same at the origin; this is the per-page half
-   * of the same statement.
+   * Not indexed by default: everything but the landing page is a tool behind a
+   * sign-in. The landing page (`src/app/page.tsx`) opts back in, and
+   * `robots.ts` says the same at the origin.
    */
   robots: { index: false, follow: false },
 };

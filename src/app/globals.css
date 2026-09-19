@@ -49,6 +49,12 @@
 
   --color-button-secondary-dark-bg: rgba(39, 39, 39, 0.64);
 
+  /* Landing — the studio's own ground (DEFAULT_BACKGROUND in backgrounds.ts),
+     so the page and the product sit on the same grey. */
+  --color-surface-studio: #f4f4f5;
+  /* A warm panel, from the studio's own BACKGROUND_PRESETS. */
+  --color-surface-warm: #f7d9c4;
+
   --effect-header-blur: 16px;
   /* Material — glass */
   --material-glass-surface-dark: rgba(24, 24, 24, 0.62);
@@ -117,6 +123,23 @@
   --line-height-super-micro: 18px;
   --tracking-super-micro: 0px;
   --font-weight-super-micro: 500;
+
+  /* Typography — product page (landing). Apple's product-page scale, read off
+     apple.com at 1440: hero, chapter opener, gallery headline, eyebrow, lead,
+     card caption, spec figure, body, caption. */
+  --font-size-hero: 80px;       --line-height-hero: 84px;      --tracking-hero: -1.2px;
+  --font-size-section: 64px;    --line-height-section: 68px;   --tracking-section: -0.9px;
+  --font-size-headline: 40px;   --line-height-headline: 44px;  --tracking-headline: -0.4px;
+  --font-size-eyebrow: 21px;    --line-height-eyebrow: 25px;   --tracking-eyebrow: 0.2px;
+  --font-size-lead: 19px;       --line-height-lead: 27px;      --tracking-lead: 0.1px;
+  --font-size-tile: 24px;       --line-height-tile: 28px;      --tracking-tile: 0.1px;
+  --font-size-callout: 40px;    --line-height-callout: 44px;   --tracking-callout: -0.4px;
+  --font-size-copy: 17px;       --line-height-copy: 25px;      --tracking-copy: -0.37px;
+  --font-size-caption: 12px;    --line-height-caption: 16px;   --tracking-caption: 0px;
+  --font-size-overline: 11px;   --line-height-overline: 14px;  --tracking-overline: 0.9px;
+  /* Content columns of a product page: text, and the wider media track. */
+  --layout-product-max: 980px;
+  --layout-media-max: 1260px;
   /* Backwards-compatible aliases */
   --font-size-heading-lg: var(--font-size-display);
   --font-size-heading: var(--font-size-h1);
@@ -271,6 +294,33 @@ h6 {
   }
 }
 
+/* Product page typography — tablet (480–999px) */
+@media (min-width: 480px) and (max-width: 999px) {
+  :root {
+    --font-size-hero: 64px;     --line-height-hero: 68px;
+    --font-size-section: 48px;  --line-height-section: 52px;
+    --font-size-headline: 32px; --line-height-headline: 36px;
+    --font-size-eyebrow: 19px;  --line-height-eyebrow: 23px;
+    --font-size-lead: 17px;     --line-height-lead: 25px;
+    --font-size-tile: 21px;     --line-height-tile: 25px;
+    --font-size-callout: 32px;  --line-height-callout: 36px;
+    --layout-product-max: 692px;
+  }
+}
+
+/* Product page typography — mobile (≤479px) */
+@media (max-width: 479px) {
+  :root {
+    --font-size-hero: 48px;     --line-height-hero: 52px;     --tracking-hero: -0.6px;
+    --font-size-section: 40px;  --line-height-section: 44px;  --tracking-section: -0.4px;
+    --font-size-headline: 28px; --line-height-headline: 32px;
+    --font-size-eyebrow: 17px;  --line-height-eyebrow: 21px;
+    --font-size-lead: 17px;     --line-height-lead: 25px;
+    --font-size-tile: 21px;     --line-height-tile: 25px;
+    --font-size-callout: 28px;  --line-height-callout: 32px;
+  }
+}
+
 /* Mobile typography (≤479px) */
 @media (max-width: 479px) {
   :root {
@@ -382,6 +432,100 @@ h6 {
     line-height: var(--line-height-body-l);
     letter-spacing: var(--tracking-body-l);
     font-weight: var(--font-weight-body-l);
+  }
+
+  .type-hero {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-hero);
+    line-height: var(--line-height-hero);
+    letter-spacing: var(--tracking-hero);
+    font-weight: 600;
+  }
+
+  .type-section {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-section);
+    line-height: var(--line-height-section);
+    letter-spacing: var(--tracking-section);
+    font-weight: 600;
+  }
+
+  .type-headline {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-headline);
+    line-height: var(--line-height-headline);
+    letter-spacing: var(--tracking-headline);
+    font-weight: 600;
+  }
+
+  .type-eyebrow {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-eyebrow);
+    line-height: var(--line-height-eyebrow);
+    letter-spacing: var(--tracking-eyebrow);
+    font-weight: 600;
+  }
+
+  .type-lead {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-lead);
+    line-height: var(--line-height-lead);
+    letter-spacing: var(--tracking-lead);
+    font-weight: 400;
+  }
+
+  .type-tile {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-tile);
+    line-height: var(--line-height-tile);
+    letter-spacing: var(--tracking-tile);
+    font-weight: 600;
+  }
+
+  .type-callout {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-callout);
+    line-height: var(--line-height-callout);
+    letter-spacing: var(--tracking-callout);
+    font-weight: 600;
+  }
+
+  .type-copy {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-copy);
+    line-height: var(--line-height-copy);
+    letter-spacing: var(--tracking-copy);
+    font-weight: 400;
+  }
+
+  .type-caption {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-caption);
+    line-height: var(--line-height-caption);
+    letter-spacing: var(--tracking-caption);
+    font-weight: 400;
+  }
+
+  /* Small caps label over a panel headline. */
+  .type-overline {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-overline);
+    line-height: var(--line-height-overline);
+    letter-spacing: var(--tracking-overline);
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .layout-product {
+    width: 100%;
+    max-width: var(--layout-product-max);
+    margin-inline: auto;
+  }
+
+  .layout-media {
+    width: 100%;
+    max-width: var(--layout-media-max);
+    margin-inline: auto;
   }
 
   .type-body-m {

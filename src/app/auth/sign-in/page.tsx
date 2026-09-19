@@ -14,6 +14,6 @@ export default async function LegacySignIn({
   searchParams: Promise<{ next?: string }>;
 }) {
   const { next } = await searchParams;
-  const safe = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  const safe = next && next.startsWith("/") && !next.startsWith("//") ? next : "/studio";
   redirect(`/sign-in?redirect_url=${encodeURIComponent(safe)}`);
 }

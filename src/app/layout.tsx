@@ -38,12 +38,12 @@ export default function RootLayout({
       </head>
       <body className={`${saans.className} antialiased bg-black`} suppressHydrationWarning>
         {/* Inside <body>, as Clerk requires. The URLs keep sign-in on this
-            site's own pages, and a finished sign-in lands on Mocraft. */}
+            site's own pages, and a finished sign-in lands in the studio. */}
         <ClerkProvider
           signInUrl="/sign-in"
           signUpUrl="/sign-up"
-          signInFallbackRedirectUrl="/"
-          signUpFallbackRedirectUrl="/"
+          signInFallbackRedirectUrl="/studio"
+          signUpFallbackRedirectUrl="/studio"
         >
           {children}
         </ClerkProvider>
