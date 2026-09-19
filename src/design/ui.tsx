@@ -758,12 +758,19 @@ export function Tip({
           }
         >
           <span
-            className="mo-mat-selection mo-title relative whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/tip:opacity-100"
+            /*
+             * Panel glass, not the selected pill's tint: that tint is made to
+             * sit ON a panel, and a tip floats over the bare canvas, where it
+             * read grey. Long labels wrap to a second line rather than run
+             * past the window's edge.
+             */
+            className="mo-glass mo-title relative opacity-0 transition-opacity duration-150 group-hover/tip:opacity-100"
             style={{
+              width: "max-content",
+              maxWidth: 150,
+              textAlign: "center",
               padding: "6px 12px",
               borderRadius: "var(--mo-r-selected)",
-              background: "var(--mo-selected)",
-              boxShadow: "var(--mo-selected-shadow)",
               color: "var(--mo-ink)",
               filter: "var(--mo-text-shadow)",
             }}
