@@ -71,7 +71,8 @@ const GlassTuner =
         ssr: false,
       })
     : () => null;
-import { Tour } from "./Tour";
+import { MOTION_STEPS, Tour, type Step as TourStep } from "./Tour";
+import UpdateNotice from "./UpdateNotice";
 import { backgroundCss } from "../backgrounds";
 import { PANEL_H as TIMELINE_H, Timeline } from "./Timeline";
 import { useStudio, type Studio } from "./useStudio";
@@ -1707,6 +1708,7 @@ function MotionExportRow({ studio }: { studio: Studio }) {
     >
       <Divider />
       <span
+        data-tour="export"
         className="mo-title"
         style={{
           padding: "0 var(--mo-space-2)",
@@ -2271,6 +2273,8 @@ export default function StudioChrome({
   const keysOpen = sheet !== null;
   /** The first-run walkthrough; see `Tour`. */
   const [tourOpen, setTourOpen] = useState(false);
+  /** The Motion half of it, run once on the first switch to Motion. */
+  const [motionTourOpen, setMotionTourOpen] = useState(false);
   /*
    * The maker's welcome, once per account.
    *
@@ -2498,7 +2502,16 @@ export default function StudioChrome({
   const [popupOpen, setPopupOpen] = useState(false);
   // Due until an account has finished or skipped it once.
   const tourDue = !!user && !user.unsafeMetadata?.toured;
+  // Set once the Motion tour has opened, so it runs once per page load.
+  const motionTouredRef = useRef(false);
   const startTour = useCallback(() => {
+    // Asked for from Motion, it is Motion's tour -- not a jump back to Crafting.
+    if (tab === "motion") {
+      setSheet(null);
+      motionTouredRef.current = true;
+      setMotionTourOpen(true);
+      return;
+    }
     // From the top, in Crafting, with nothing open, so every step lights
     // something that is on the page.
     setTab("crafting");
@@ -2507,7 +2520,7 @@ export default function StudioChrome({
     setPanelOpen(false);
     setSheet(null);
     setTourOpen(true);
-  }, [studio]);
+  }, [studio, tab]);
   const endTour = useCallback(() => {
     setTourOpen(false);
     if (user && !user.unsafeMetadata?.toured)
@@ -2515,6 +2528,56 @@ export default function StudioChrome({
         .update({ unsafeMetadata: { ...user.unsafeMetadata, toured: true } })
         .catch(() => {});
   }, [user]);
+  /*
+   * The first switch to Motion runs its own walkthrough, once per account --
+   * marked on the Clerk user like the welcome, and the moment it opens, so a
+   * reload mid-tour does not bring it back. Held back until the timeline has
+   * slid in: a step measured mid-slide would light the wrong place. `?tour` or
+   * `?motiontour` runs it regardless, to preview it, and "Take the tour" in the
+   * account menu replays it from Motion.
+   */
+  const motionForced =
+    typeof window !== "undefined" &&
+    ["tour", "motiontour"].some((key) =>
+      new URLSearchParams(window.location.search).has(key),
+    );
+  useEffect(() => {
+    if (tab !== "motion" || !user || tourOpen || motionTouredRef.current) return;
+    if (user.unsafeMetadata?.touredMotion && !motionForced) return;
+    const timer = setTimeout(() => {
+      motionTouredRef.current = true;
+      setMotionTourOpen(true);
+      void user
+        .update({ unsafeMetadata: { ...user.unsafeMetadata, touredMotion: true } })
+        .catch(() => {});
+    }, TIMELINE_MS + 60);
+    return () => clearTimeout(timer);
+  }, [tab, user, tourOpen, motionForced]);
+  /*
+   * The Motion tour opens what a step lights: the focus and lighting popups,
+   * through the same state a click on their rows sets. Every other step leaves
+   * them closed, so going back or finishing tidies up.
+   */
+  // What was selected before the tour began picking rows to open, put back after.
+  const priorLayerRef = useRef<string | null>(null);
+  const onMotionStep = useCallback((step: TourStep) => {
+    if (step.open === "focus" || step.open === "lighting") {
+      const next = step.open === "focus" ? FOCUS_ID : "lighting";
+      setSelectedLayer((prev) => {
+        priorLayerRef.current ??= prev;
+        return next;
+      });
+      setPopupOpen(true);
+    } else setPopupOpen(false);
+  }, []);
+  const endMotionTour = useCallback(() => {
+    setMotionTourOpen(false);
+    setPopupOpen(false);
+    if (priorLayerRef.current !== null) {
+      setSelectedLayer(priorLayerRef.current);
+      priorLayerRef.current = null;
+    }
+  }, []);
   // Closing the welcome note hands a first-time user straight to the tour.
   const closeKeys = useCallback(() => {
     if (sheet === "welcome" && tourDue) startTour();
@@ -2751,6 +2814,13 @@ export default function StudioChrome({
     <>
       <DesignSystem />
       {tourOpen ? <Tour onDone={endTour} /> : null}
+      {motionTourOpen ? (
+        <Tour
+          steps={MOTION_STEPS}
+          onStep={onMotionStep}
+          onDone={endMotionTour}
+        />
+      ) : null}
       {process.env.NODE_ENV === "development" ? (
         <GlassTuner open={tunerOpen} />
       ) : null}
@@ -2890,6 +2960,7 @@ export default function StudioChrome({
           </div>
           {timelineMounted ? (
             <div
+              data-tour="timeline"
               className="absolute"
               style={{
                 left: 16,
@@ -2954,6 +3025,8 @@ export default function StudioChrome({
               WebkitMaskPosition: "left center",
             }}
           />
+          {/* Beside the wordmark, where a new version is easiest to see. */}
+          <UpdateNotice />
 
           {/* History. Three glyphs, one selected — which is a switch, so it is
               `Segmented` rather than three buttons that behave like one. */}
@@ -3751,6 +3824,7 @@ export default function StudioChrome({
                 hanging off the top or the bottom.
               */}
               <div
+                data-tour="popup"
                 className="absolute flex flex-col justify-center [&>*]:shrink-0"
                 style={{ top: 0, bottom: 0, right: "calc(100% + 16px)" }}
               >

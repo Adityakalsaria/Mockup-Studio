@@ -326,11 +326,15 @@ export function EasingMenu({
             clips horizontally as well as vertically whatever you asked it for,
             and the travelling selection is drawn slightly wider than the row
             it is on — so at the edge of the box its ends were being sliced off.
+            The same goes for the top and bottom: the first row's selection had
+            its upper edge cut flat. The 6 of gap above the rows now lives in
+            the padding, so the layout is where it was.
           */
           style={{
-            maxHeight: 260,
+            maxHeight: 272,
             overflowY: "auto",
-            marginTop: 6,
+            paddingBlock: 6,
+            marginBottom: -6,
             paddingInline: 6,
             marginInline: -6,
           }}

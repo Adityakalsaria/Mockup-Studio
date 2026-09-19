@@ -15,6 +15,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // The commit this build is made from, for `UpdateNotice` to compare with what
+  // is live. Empty off Vercel, which switches the notice off.
+  env: { NEXT_PUBLIC_BUILD_ID: process.env.VERCEL_GIT_COMMIT_SHA ?? "" },
   compress: true,
   poweredByHeader: false,
   turbopack: {

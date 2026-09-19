@@ -533,8 +533,11 @@ export const material = {
    * material at two sizes.
    */
   lens: {
-    row: { bend: 0.45, bevel: 8 },
-    segmented: { bend: 0.8, bevel: 8 },
+    // Zero, as the knob's is: no refraction, so the pill is a plain glass
+    // selection. Refracting bent a second copy of every label under the
+    // selection, which read as doubled text. Was row 0.45, segmented 0.8.
+    row: { bend: 0, bevel: 8 },
+    segmented: { bend: 0, bevel: 8 },
     /**
      * The knob does not refract at all — `bend` is zero, which `AaveGlass`
      * treats as an off switch rather than a weak bend, so no displacement
