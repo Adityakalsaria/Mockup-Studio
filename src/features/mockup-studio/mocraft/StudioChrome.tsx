@@ -1050,11 +1050,12 @@ function SignOutSheet({
           aria-label="Mocraft"
           style={{
             alignSelf: "center",
-            width: 88,
+            // 80, not 88: the old raster had padding, so its ink was 80 wide in this box.
+            width: 80,
             height: 30,
             background: "var(--mo-ink)",
-            maskImage: "url(/figma-assets/mockup-studio/wordmark.png)",
-            WebkitMaskImage: "url(/figma-assets/mockup-studio/wordmark.png)",
+            maskImage: "url(/figma-assets/mockup-studio/wordmark.svg)",
+            WebkitMaskImage: "url(/figma-assets/mockup-studio/wordmark.svg)",
             maskSize: "contain",
             WebkitMaskSize: "contain",
             maskRepeat: "no-repeat",
@@ -2938,15 +2939,18 @@ export default function StudioChrome({
             style={{
               left: 32,
               top: 16,
-              width: 110,
+              // 101 wide, not 110: the old raster's padding put its ink at 101 x 16 here.
+              width: 101,
               height: 38,
               background: "var(--mo-ink)",
-              maskImage: "url(/figma-assets/mockup-studio/wordmark.png)",
-              WebkitMaskImage: "url(/figma-assets/mockup-studio/wordmark.png)",
+              maskImage: "url(/figma-assets/mockup-studio/wordmark.svg)",
+              WebkitMaskImage: "url(/figma-assets/mockup-studio/wordmark.svg)",
               maskSize: "contain",
               WebkitMaskSize: "contain",
               maskRepeat: "no-repeat",
               WebkitMaskRepeat: "no-repeat",
+              maskPosition: "left center",
+              WebkitMaskPosition: "left center",
             }}
           />
 

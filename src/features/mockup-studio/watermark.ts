@@ -1,13 +1,13 @@
 /**
  * The Mocraft wordmark, bottom right of every export — stills and video.
  *
- * The asset is an alpha mask (the chrome fills it with ink), so it is tinted
+ * The asset is a vector alpha mask (the chrome fills it with ink), so it is tinted
  * where it lands: dark on a light corner, white on a dark one, judged from the
  * pixels it is about to cover — a fixed ink vanishes into a black background.
  * Sized off the frame's shorter side so it reads the same at any ratio.
  */
 
-const SRC = "/figma-assets/mockup-studio/wordmark.png";
+const SRC = "/figma-assets/mockup-studio/wordmark.svg";
 
 /** Loaded once per export, then drawn onto as many frames as it has. */
 export async function loadWatermark(): Promise<HTMLImageElement | null> {
