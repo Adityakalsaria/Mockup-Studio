@@ -1125,9 +1125,11 @@ function ChangelogSheet({ onClose }: { onClose: () => void }) {
         ))}
       </div>
       {/* Outside the scroll, so asking for the next thing is always in reach:
-          under a rule, at the content's own inset. */}
+          under a rule, at the content's own inset -- 12 on the sides and 12
+          below, so the buttons sit as far from the panel's foot as from its
+          edges (it was 4 below, which left them crowding the bottom). */}
       <Divider />
-      <div style={{ padding: "12px 12px 4px" }}>
+      <div style={{ padding: "12px" }}>
         <FeedbackButtons />
       </div>
     </Glass>

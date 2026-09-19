@@ -704,8 +704,9 @@ export function RailItem({
          */
         <span className="pointer-events-none absolute inset-y-0 left-full z-10 flex items-center">
           <span
-            className="mo-mat-selection mo-title relative whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+            className={`${TIP_CLASS} group-hover:opacity-100`}
             style={{
+              ...TIP_STYLE,
               /*
                * 24, to read as 16.
                *
@@ -716,12 +717,6 @@ export function RailItem({
                * tool panel does when it opens.
                */
               marginLeft: 24,
-              padding: "6px 12px",
-              borderRadius: "var(--mo-r-selected)",
-              background: "var(--mo-selected)",
-              boxShadow: "var(--mo-selected-shadow)",
-              color: "var(--mo-ink)",
-              filter: "var(--mo-text-shadow)",
             }}
           >
             <Material />
@@ -734,6 +729,39 @@ export function RailItem({
     </div>
   );
 }
+
+/**
+ * How every tooltip looks: the selection's material, a 6 x 12 pill, one line.
+ *
+ * The rail's tip and `Tip` each carried their own copy of this and drifted --
+ * `Tip` went to panel glass with wider padding and the two stopped matching.
+ * Both spread this now, so a change here changes them together.
+ */
+const TIP_CLASS = "mo-mat-selection mo-title relative whitespace-nowrap opacity-0 transition-opacity duration-150";
+/*
+ * `.mo-mat-selection` sets most of the material and leaves four values to be
+ * inherited from `.mo-glass`. The rail's tip is inside the rail's glass and gets
+ * them; a `Tip` out on the canvas gets none, and its material fell to the
+ * defaults. Stated here so a tip is the same wherever it is.
+ */
+const TIP_MATERIAL = {
+  // Higher than the panel's 0.67: the tip is a small translucent plate, and at 0.67
+  // whatever sits behind it -- the gizmo's cast shadow, say -- shows through and
+  // darkens it. Near-opaque, it reads the same on any ground.
+  "--mo-mat-veil": "0.88",
+  "--mo-mat-frost-opacity": "1",
+  "--mo-mat-base-opacity": "var(--mo-glass-base-opacity)",
+  "--mo-mat-top-opacity": "var(--mo-glass-top-opacity)",
+} as CSSProperties;
+const TIP_STYLE: CSSProperties = {
+  ...TIP_MATERIAL,
+  padding: "6px 12px",
+  borderRadius: "var(--mo-r-selected)",
+  background: "var(--mo-selected)",
+  boxShadow: "var(--mo-selected-shadow)",
+  color: "var(--mo-ink)",
+  filter: "var(--mo-text-shadow)",
+};
 
 /**
  * A name on hover, in the selection's material -- the rail's tip, for any
@@ -783,25 +811,7 @@ export function Tip({
                 : { paddingBottom: offset }
           }
         >
-          <span
-            /*
-             * Panel glass, not the selected pill's tint: that tint is made to
-             * sit ON a panel, and a tip floats over the bare canvas, where it
-             * read grey. Long labels wrap to a second line rather than run
-             * past the window's edge.
-             */
-            className="mo-glass mo-title relative opacity-0 transition-opacity duration-150 group-hover/tip:opacity-100"
-            style={{
-              width: "max-content",
-              // Beside its anchor there is room to stay on one line.
-              maxWidth: placement === "right" ? undefined : 150,
-              textAlign: "left",
-              padding: "10px 18px",
-              borderRadius: "var(--mo-r-selected)",
-              color: "var(--mo-ink)",
-              filter: "var(--mo-text-shadow)",
-            }}
-          >
+          <span className={`${TIP_CLASS} group-hover/tip:opacity-100`} style={TIP_STYLE}>
             <Material />
             <span className="relative" style={{ zIndex: 1 }}>
               {label}
