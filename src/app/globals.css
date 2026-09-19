@@ -246,7 +246,8 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  overflow-x: hidden;
+  /* `clip`, not `hidden`: hidden makes the body a scroll container, and a sticky child then sticks to it instead of the page. */
+  overflow-x: clip;
 }
 
 /* GSAP pin-spacer inherits body bg; force black for pinned sections */

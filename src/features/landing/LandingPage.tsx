@@ -1,41 +1,34 @@
-"use client";
-
-import { useState } from "react";
-import { DesignSystem } from "@/design/ui";
-import { ModelTokenContext, UserScreenContext } from "./LiveDevice";
 import { Nav } from "./sections/Nav";
 import { Hero } from "./sections/Hero";
 import { Craft } from "./sections/Craft";
 import { StepDemo } from "./sections/StepDemo";
 import { MotionFold } from "./sections/MotionFold";
-import { Bento } from "./sections/Bento";
+import { Features } from "./sections/Features";
+import { Gallery } from "./sections/Gallery";
 import { Faq } from "./sections/Faq";
 import { Footer } from "./sections/Footer";
+import { DesignSystem } from "@/design/ui";
 
 /*
- * Seven folds: the hero, the two halves of the studio, one device step by step,
- * the Motion tab with its focus points, what comes out, the questions, and the
- * footer. Layout and imagery first; interaction comes after.
+ * The page as the design lays it out: the hero, the two halves of the studio,
+ * one design step by step, the Motion band, every feature, a gallery, the
+ * questions, and the footer. Static; interaction comes after.
  */
-export default function LandingPage({ modelToken }: { modelToken: string | null }) {
-  const [screen, setScreen] = useState<string | null>(null);
+export default function LandingPage() {
   return (
-    <ModelTokenContext.Provider value={modelToken}>
-      <UserScreenContext.Provider value={{ screen, setScreen }}>
-        <div className="min-h-dvh bg-white text-text-primary-dark">
-          <DesignSystem />
-          <Nav />
-          <main>
-            <Hero />
-            <Craft />
-            <StepDemo />
-            <MotionFold />
-            <Bento />
-            <Faq />
-          </main>
-          <Footer />
-        </div>
-      </UserScreenContext.Provider>
-    </ModelTokenContext.Provider>
+    <div className="min-h-dvh bg-white text-[#282228]">
+      <DesignSystem />
+      <Nav />
+      <main className="flex flex-col items-center gap-[120px] pb-[160px] pt-[144px] laptop:gap-[296px] laptop:pt-[200px]">
+        <Hero />
+        <Craft />
+        <StepDemo />
+        <MotionFold />
+        <Features />
+        <Gallery />
+        <Faq />
+      </main>
+      <Footer />
+    </div>
   );
 }
