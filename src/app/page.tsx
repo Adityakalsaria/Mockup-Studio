@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { auth } from "@clerk/nextjs/server";
 import StudioChrome from "@/features/mockup-studio/mocraft/StudioChrome";
+import { isMobileUA } from "@/lib/isMobile";
 import { signModelToken } from "@/lib/modelToken";
+import DesktopOnly from "./DesktopOnly";
 
 export const metadata: Metadata = { title: "Mocraft" };
 
@@ -27,6 +30,8 @@ export const viewport: Viewport = {
  * the return URL, so signing in comes straight back.
  */
 export default async function MocraftPage() {
+  // Before auth, so a signed-out phone sees the note, not a sign-in form.
+  if (isMobileUA((await headers()).get("user-agent"))) return <DesktopOnly />;
   const { userId, redirectToSignIn } = await auth();
   if (!userId) return redirectToSignIn();
   /*
