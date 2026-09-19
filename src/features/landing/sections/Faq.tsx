@@ -2,7 +2,6 @@
 
 import { DEVICES } from "@/features/mockup-studio/devices";
 import { LIGHTING_PRESETS } from "@/features/mockup-studio/lighting";
-import { GalleryHead, Section } from "../Chapter";
 
 const deviceNames = DEVICES.filter((d) => d.label.startsWith("Apple ")).map((d) => d.label.replace(/^Apple /, ""));
 
@@ -34,24 +33,32 @@ const QUESTIONS = [
   },
 ];
 
-/** "Questions? Answers." Native disclosure elements, so it works without script. */
+/**
+ * "Questions? Answers." in two columns, the heading on the left and the list on
+ * the right, each question ruled off by a hairline. Native disclosure elements,
+ * so it works without script; the springs come with the interaction pass.
+ */
 export function Faq() {
   return (
-    <Section id="faq" className="bg-surface-studio">
-      <GalleryHead title="Questions? Answers." />
-      <div className="layout-media mt-[var(--space-40)] border-t border-black/10">
-        {QUESTIONS.map(({ q, a }) => (
-          <details key={q} className="group border-b border-black/10">
-            <summary className="type-tile flex cursor-pointer list-none items-center justify-between gap-[var(--space-24)] py-[var(--space-24)] text-text-primary-dark [&::-webkit-details-marker]:hidden">
-              {q}
-              <span aria-hidden className="text-text-muted-dark transition-transform duration-[var(--duration-normal)] group-open:rotate-45">
-                <svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
-              </span>
-            </summary>
-            <p className="type-copy max-w-[720px] pb-[var(--space-32)] text-text-secondary-dark">{a}</p>
-          </details>
-        ))}
+    <section id="faq" className="bg-white ds-page-gutter py-[var(--spacing-section)]">
+      <div className="layout-product flex flex-col gap-[var(--space-32)] laptop:flex-row laptop:items-start laptop:justify-between laptop:gap-[4.5rem]">
+        <h2 className="type-headline whitespace-pre-line text-text-primary-dark laptop:min-w-[11rem]">{"Questions?\nAnswers."}</h2>
+        <div className="w-full laptop:w-[630px] laptop:max-w-full">
+          {QUESTIONS.map(({ q, a }) => (
+            <details key={q} className="group border-b border-black/[0.06] first:border-t">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-[var(--space-24)] py-[var(--space-20)] text-[18px] font-[450] leading-[1.35] tracking-[-0.33px] text-text-primary-dark [&::-webkit-details-marker]:hidden">
+                {q}
+                <span aria-hidden className="shrink-0 text-[#8075ff] transition-transform duration-[var(--duration-normal)] ease-[var(--ease-swift)] group-open:rotate-45">
+                  <svg width="20" height="20" viewBox="0 0 20 20">
+                    <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  </svg>
+                </span>
+              </summary>
+              <p className="max-w-[560px] pb-[var(--space-24)] text-[16px] leading-[1.5] tracking-[-0.18px] text-text-secondary-dark">{a}</p>
+            </details>
+          ))}
+        </div>
       </div>
-    </Section>
+    </section>
   );
 }

@@ -11,10 +11,10 @@ export function Wordmark({ width = 96 }: { width?: number }) {
       className="block"
       style={{
         width,
-        height: Math.round((width * 82) / 220),
+        height: Math.round((width * 40) / 253),
         background: "currentColor",
-        maskImage: "url(/figma-assets/mockup-studio/wordmark.png)",
-        WebkitMaskImage: "url(/figma-assets/mockup-studio/wordmark.png)",
+        maskImage: "url(/figma-assets/mockup-studio/wordmark.svg)",
+        WebkitMaskImage: "url(/figma-assets/mockup-studio/wordmark.svg)",
         maskSize: "contain",
         WebkitMaskSize: "contain",
         maskRepeat: "no-repeat",

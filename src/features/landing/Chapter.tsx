@@ -1,10 +1,48 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { motion } from "motion/react";
+import { Fragment, useRef, type ReactNode } from "react";
+import { motion, useInView, useReducedMotion } from "motion/react";
 
 /** `--ease-out` from globals.css, for the motion library. */
 export const EASE_OUT = [0.16, 1, 0.3, 1] as const;
+/** `--ease-swift`: a steeper ease-out, for headlines and anything large. */
+export const EASE_SWIFT = [0.19, 1, 0.22, 1] as const;
+
+/**
+ * A headline that arrives word by word: each word tips up out of a half-turn on
+ * X while it rises and fades in, 0.05s after the one before, once, when the
+ * heading is first seen. The numbers are Aave's. A "\n" starts a new line.
+ * Reduced motion shows the words as they are.
+ */
+export function TextReveal({ children, delay = 0.3 }: { children: string; delay?: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const seen = useInView(ref, { once: true });
+  const reduced = useReducedMotion();
+  let n = 0;
+  return (
+    <span ref={ref} aria-label={children.replace(/\n/g, " ")}>
+      {children.split("\n").map((line, l) => (
+        <Fragment key={l}>
+          {l > 0 ? <br /> : null}
+          {line.split(/\s+/).filter(Boolean).map((word, i) => (
+            <Fragment key={i}>
+              {i > 0 ? " " : null}
+              <motion.span
+                aria-hidden
+                style={{ display: "inline-block", position: "relative" }}
+                initial={reduced ? false : { opacity: 0, rotateX: -45, y: "50%" }}
+                animate={seen || reduced ? { opacity: 1, rotateX: 0, y: "0%" } : undefined}
+                transition={{ duration: 0.937, ease: EASE_SWIFT, delay: delay + 0.05 * n++ }}
+              >
+                {word}
+              </motion.span>
+            </Fragment>
+          ))}
+        </Fragment>
+      ))}
+    </span>
+  );
+}
 
 /** Rises into place once, when it first enters the viewport. */
 export function Reveal({

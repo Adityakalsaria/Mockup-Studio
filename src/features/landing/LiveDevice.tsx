@@ -13,7 +13,7 @@
  */
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useReducedMotion } from "motion/react";
+import { useReducedMotion, type MotionValue } from "motion/react";
 import PhoneStage3D from "@/features/mockup-studio/PhoneStage3D";
 import { useScreenTexture } from "@/features/mockup-studio/useScreenTexture";
 import { DEFAULT_BLUR, type BlurSettings } from "@/features/mockup-studio/blurStyles";
@@ -84,6 +84,13 @@ export type LiveDeviceProps = {
   preset?: string;
   /** Replay the preset for as long as the stage stays in view. */
   loop?: boolean;
+  /**
+   * Scrub the preset instead of playing it: a 0-1 value (a scroll position, say)
+   * is the playhead, across `scrubSpan` seconds -- by default the whole preset.
+   * The preset, its easing and the pose it lands on are still the studio's own.
+   */
+  scrub?: MotionValue<number>;
+  scrubSpan?: number;
   /** Pause between loops, in seconds. */
   rest?: number;
   /** Degrees added to the pose after any preset -- pointer parallax, a scroll turn. */
@@ -103,6 +110,8 @@ export function LiveDevice({
   shadow = DEFAULT_SHADOW,
   preset,
   loop = false,
+  scrub,
+  scrubSpan,
   rest = 1.2,
   tilt,
   blur,
@@ -124,6 +133,8 @@ export function LiveDevice({
           shadow={shadow}
           preset={preset}
           loop={loop}
+          scrub={scrub}
+          scrubSpan={scrubSpan}
           rest={rest}
           tilt={tilt}
           blur={blur}
@@ -144,6 +155,8 @@ function Stage({
   shadow,
   preset,
   loop,
+  scrub,
+  scrubSpan,
   rest,
   tilt,
   blur = DEFAULT_BLUR,
@@ -169,8 +182,20 @@ function Stage({
     return found ? { ...found.build(JSON.parse(poseKey) as Pose), easing: { kind: "smooth" } } : undefined;
   }, [presetKey, poseKey]);
 
+  // Scrubbing: the playhead follows the value, and the stage draws every frame.
   useEffect(() => {
-    if (!animation) return;
+    if (!animation || !scrub) return;
+    const follow = (value: number) => {
+      timeRef.current = value * (scrubSpan ?? animation.durationSec);
+    };
+    const start = () => setRunning(true);
+    follow(scrub.get());
+    start();
+    return scrub.on("change", follow);
+  }, [animation, scrub, scrubSpan]);
+
+  useEffect(() => {
+    if (!animation || scrub) return;
     let raf = 0;
     let last = 0;
     const cycle = animation.durationSec + (loop ? (rest ?? 0) : 0);
@@ -194,7 +219,7 @@ function Stage({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [animation, loop, rest]);
+  }, [animation, scrub, loop, rest]);
 
   const playing = running && animation !== undefined;
 

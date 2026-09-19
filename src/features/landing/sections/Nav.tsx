@@ -1,44 +1,28 @@
 "use client";
 
-import { Glass } from "@/design/ui";
-import { Cta } from "../Cta";
 import { Wordmark } from "../Wordmark";
 
 export const STUDIO = "/studio";
 
-const LINKS = [
-  { href: "#highlights", label: "Highlights" },
-  { href: "#closer-look", label: "Closer look" },
-  { href: "#devices", label: "Devices" },
-  { href: "#faq", label: "FAQ" },
-];
-
 /**
- * The floating local nav of a product page, made of the studio's own glass:
- * the name on the left, the chapters and one pill on the right.
+ * The top of the page: the wordmark on the left and one blue pill on the right,
+ * over whatever ground the page has -- no bar, no links to wander off on.
  */
 export function Nav() {
   return (
-    <header className="pointer-events-none fixed inset-x-0 top-[var(--space-12)] z-[var(--z-navbar)] ds-page-gutter">
-      <Glass shape="pill" width="100%" className="pointer-events-auto mx-auto max-w-[1040px]">
-        <nav className="relative z-[1] flex h-[36px] items-center justify-between pl-[var(--space-12)]">
-          <a href="#top" aria-label="Mocraft" style={{ color: "var(--mo-ink)" }}>
-            <Wordmark width={80} />
-          </a>
-          <div className="flex items-center gap-[var(--space-24)]">
-            <div className="hidden items-center gap-[var(--space-24)] laptop:flex">
-              {LINKS.map((l) => (
-                <a key={l.href} href={l.href} className="type-caption text-text-secondary-dark transition-colors hover:text-text-primary-dark">
-                  {l.label}
-                </a>
-              ))}
-            </div>
-            <Cta href={STUDIO} icon={null} chevron={false} height={36}>
-              Start creating
-            </Cta>
-          </div>
-        </nav>
-      </Glass>
+    <header className="pointer-events-none fixed inset-x-0 top-0 z-[var(--z-navbar)] ds-page-gutter">
+      <nav className="pointer-events-auto mx-auto flex h-[88px] max-w-[1260px] items-center justify-between">
+        <a href="#top" aria-label="Mocraft" className="text-text-primary-dark">
+          <Wordmark width={120} />
+        </a>
+        <a
+          href={STUDIO}
+          className="type-caption inline-flex h-[40px] items-center rounded-full px-[var(--space-24)] font-medium text-white transition-[transform,background-color] duration-[var(--duration-fast)] ease-[var(--ease-out)] hover:bg-[#1a8fff] active:scale-[0.99]"
+          style={{ background: "#0a84ff", boxShadow: "inset 0 1px 0 rgb(255 255 255 / 0.28), 0 6px 18px rgb(10 132 255 / 0.28)" }}
+        >
+          Start crafting
+        </a>
+      </nav>
     </header>
   );
 }
