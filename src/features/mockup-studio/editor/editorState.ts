@@ -241,9 +241,9 @@ export const RANGES = {
   fold: { min: 0, max: 100, step: 1 },
   cardRadius: { min: 0, max: 0.5, step: 0.005 },
   cardDepth: { min: 0, max: 0.08, step: 0.001 },
-  // 14 is very wide and 90 is nearly fisheye. Below 14 a phone at this
-  // distance stops being recognisable as one.
-  fov: { min: 14, max: 90, step: 1 },
+  // The vertical angles of a 120mm and a 1mm lens on a full-frame sensor's
+  // 24mm height -- the Focal Length row's 1..120 mm (see `bindings.ts`).
+  fov: { min: 11.4, max: 170.5, step: 1 },
   lightAngle: { min: -180, max: 180, step: 1 },
   lightElevation: { min: -60, max: 60, step: 1 },
   /*

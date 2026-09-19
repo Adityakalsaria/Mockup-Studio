@@ -46,8 +46,6 @@ import { paintBackground, preloadBackgroundImage } from "../backgrounds";
 import { paintOverlay } from "../overlay";
 import { loadWatermark, paintWatermark } from "../watermark";
 import { applyCanvasShadow, clearCanvasShadow } from "../shadow";
-import { recordStageVideo } from "../recordVideo";
-import { renderVideoExact, supportsExactRender } from "../renderVideoExact";
 import type { StageCapture, StageRecorder } from "../PhoneStage3D";
 import { useScreenTexture } from "../useScreenTexture";
 import { useBroadcastLink } from "../broadcast/useBroadcastLink";
@@ -655,16 +653,35 @@ export function useStudio() {
   /** Cmd+Shift+drag on the stage: Location X and Y, from where the phone is. */
   const nudgePan = useCallback(
     ({ dx, dy }: { dx: number; dy: number }) => {
+      // Snapped to the centre like the turn is -- once per event, off the
+      // gesture's unsnapped total; see `turn`.
+      let answer: { panX: number; panY: number } | null = null;
+      const snapPan = (x0: number, y0: number) => {
+        if (answer) return answer;
+        const rawX = dragBase("panX", x0) + dx;
+        const rawY = dragBase("panY", y0) + dy;
+        rawDrag.current.values.panX = rawX;
+        rawDrag.current.values.panY = rawY;
+        const x = snap("panX", rawX);
+        const y = snap("panY", rawY);
+        queueMicrotask(() =>
+          showGuides([
+            { key: "panX", ...x },
+            { key: "panY", ...y },
+          ]),
+        );
+        answer = { panX: x.value, panY: y.value };
+        return answer;
+      };
       edit((prev) => {
         const now = sampleAnimation(prev.animation, playheadRef.current);
         return {
           ...prev,
-          panX: (now.panX ?? prev.panX) + dx,
-          panY: (now.panY ?? prev.panY) + dy,
+          ...snapPan(now.panX ?? prev.panX, now.panY ?? prev.panY),
         };
       });
     },
-    [edit],
+    [edit, showGuides],
   );
 
   const nudgeZoom = useCallback(
@@ -835,6 +852,10 @@ export function useStudio() {
     try {
       let blob: Blob;
       let extension: string;
+      // The encoders load on the first video export, not with the studio:
+      // most visits never export one.
+      const { renderVideoExact, supportsExactRender } =
+        await import("../renderVideoExact");
       if (supportsExactRender()) {
         // Frame by frame, with timestamps we choose, so the file does not
         // inherit this machine's stutters. See `renderVideoExact`.
@@ -852,6 +873,7 @@ export function useStudio() {
         });
         extension = "mp4";
       } else {
+        const { recordStageVideo } = await import("../recordVideo");
         const result = await recordStageVideo({
           recorder,
           background: shot.background,
@@ -1348,8 +1370,7 @@ export function useStudio() {
             floor: number,
             span: number,
           ) => {
-            const side =
-              Math.abs(offset) < 0.04 ? fallback : Math.sign(offset);
+            const side = Math.abs(offset) < 0.04 ? fallback : Math.sign(offset);
             return (
               side * (floor + span * Math.min(1, Math.abs(offset) * 2)) * t
             );
@@ -1357,7 +1378,8 @@ export function useStudio() {
           // Screen y runs top-down: an area ABOVE centre has 0.5 - y > 0,
           // and positive pitch brings the top edge toward the camera.
           const pitch = base.xAxis + lean(0.5 - seen.y, 1, 6, 14);
-          const yaw = base.yAxis + lean(0.5 - seen.x, sideOf, 12, 24) + extraYaw;
+          const yaw =
+            base.yAxis + lean(0.5 - seen.x, sideOf, 12, 24) + extraYaw;
           const roll = base.zAxis - lean(0.5 - seen.x, sideOf, 1.5, 4);
 
           const turn = new Matrix4().makeRotationFromEuler(
@@ -1424,7 +1446,8 @@ export function useStudio() {
          */
         const TRAVEL = 1.4;
         const HOLD = 1.2;
-        const total = TRAVEL * (focusPoints.length + 1) + HOLD * focusPoints.length;
+        const total =
+          TRAVEL * (focusPoints.length + 1) + HOLD * focusPoints.length;
         /*
          * Per-span curves, not the spline. "Smooth" is one monotone spline
          * through every key, and a hold's two nearly-equal keys pin it flat

@@ -520,7 +520,11 @@ export default function GizmoCanvas({
          * dropped to begin with. `Rig` asks for a frame while it is moving.
          */
         frameloop="demand"
-        camera={{ position: [2.2, 1.8, 2.6], zoom: size / 3.4 }}
+        // Straight on, so a gizmo at rest is a plus: X right, Y up, and Z
+        // pointing at you -- its blue cap over the centre. Zoomed out from
+        // the old three-quarter view, where every arm was foreshortened, so
+        // the full-length arms reach halfway to the surface's rim.
+        camera={{ position: [0, 0, 5], zoom: size / 4.6 }}
         gl={{ alpha: true, antialias: true }}
         style={{
           width: size,

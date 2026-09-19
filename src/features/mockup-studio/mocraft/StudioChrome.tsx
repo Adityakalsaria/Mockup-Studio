@@ -64,7 +64,14 @@ import {
 } from "@/design/ui";
 import { control, radius } from "@/design/system";
 import { FRAME, INSET, Stage } from "./Stage";
-import { GlassTuner } from "./GlassTuner";
+/* A development tool (G in dev), so production never downloads leva. */
+const GlassTuner =
+  process.env.NODE_ENV === "development"
+    ? dynamic(() => import("./GlassTuner").then((m) => m.GlassTuner), {
+        ssr: false,
+      })
+    : () => null;
+import { Tour } from "./Tour";
 import { backgroundCss } from "../backgrounds";
 import { PANEL_H as TIMELINE_H, Timeline } from "./Timeline";
 import { useStudio, type Studio } from "./useStudio";
@@ -104,7 +111,7 @@ const SIDE_TOP = 16 + 44 + 16;
  * the phone is, the lens, the light — and its background colour. Everything
  * else is an effect, listed only once it is added from the Effects menu.
  */
-const BASE_IDS = ["transform", "camera", "lighting"];
+const BASE_IDS = ["transform", "camera", "lighting", "background"];
 const BASE_LAYERS = BASE_IDS.map((id) => LAYERS.find((l) => l.id === id)!);
 /** The rows the Motion tab carries above its presets: the channels a preset
     animates, so a picked move can be adjusted without leaving the tab. */
@@ -131,11 +138,8 @@ const TIMELINE_CURVE = "cubic-bezier(0.32, 0.72, 0, 1)";
 /** For everything positioned off the timeline's reserve, so it moves with
     the slide instead of jumping ahead of it. */
 const RESERVE_EASE = `bottom ${TIMELINE_MS}ms ${TIMELINE_CURVE}`;
-/** Everything else the stack can add -- except the canvas colour, which is
-    the rail's Canvas color tool and nowhere else. */
-const EFFECT_LAYERS = LAYERS.filter(
-  (l) => !BASE_IDS.includes(l.id) && l.id !== "background",
-);
+/** Everything else the stack can add. */
+const EFFECT_LAYERS = LAYERS.filter((l) => !BASE_IDS.includes(l.id));
 
 /**
  * A menu of rows, opened from a trigger: the Effects plus and the dropdowns in
@@ -1024,6 +1028,67 @@ function WelcomeSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** Asked before signing out: one tap on the menu row should not end a
+    session with a shot mid-craft. */
+function SignOutSheet({
+  email,
+  onConfirm,
+  onClose,
+}: {
+  email: string;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Glass width={340}>
+      <div
+        className="flex flex-col"
+        style={{ gap: 20, padding: "20px 12px 12px" }}
+      >
+        <div
+          role="img"
+          aria-label="Mocraft"
+          style={{
+            alignSelf: "center",
+            width: 88,
+            height: 30,
+            background: "var(--mo-ink)",
+            maskImage: "url(/figma-assets/mockup-studio/wordmark.png)",
+            WebkitMaskImage: "url(/figma-assets/mockup-studio/wordmark.png)",
+            maskSize: "contain",
+            WebkitMaskSize: "contain",
+            maskRepeat: "no-repeat",
+            WebkitMaskRepeat: "no-repeat",
+            maskPosition: "center",
+            WebkitMaskPosition: "center",
+          }}
+        />
+        <div className="flex flex-col" style={{ gap: 6 }}>
+          <span className="mo-title" style={{ overflowWrap: "anywhere" }}>
+            Sign out of {email}?
+          </span>
+          <p className="mo-label" style={{ color: "var(--mo-ink-muted)" }}>
+            You’ll need to sign in again to get back to the studio.
+          </p>
+        </div>
+        <div className="flex flex-col" style={{ gap: 8 }}>
+          <Button width="100%" onClick={onConfirm}>
+            Sign out
+          </Button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mo-title cursor-pointer"
+            style={{ height: 32, color: "var(--mo-ink-muted)" }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </Glass>
+  );
+}
+
 /** The changelog, in the shortcuts' sheet: one entry per release, newest
     first, scrolling inside the sheet when it is taller than the window. */
 function ChangelogSheet({ onClose }: { onClose: () => void }) {
@@ -1579,6 +1644,7 @@ function ExportRow({
           class and inset, so a heading in the stack and a heading in a panel
           are one thing rather than two that resemble each other. */}
       <span
+        data-tour="export"
         className="mo-title"
         style={{
           padding: "0 var(--mo-space-2)",
@@ -1893,111 +1959,6 @@ const TIMELINE_GLYPHS = "/figma-assets/mockup-studio/timeline";
 const GIZMO_SIZE = 112;
 const GIZMO_CANVAS = Math.round(GIZMO_SIZE * 0.75);
 
-/** Width of the live shot preview card's picture. */
-const PREVIEW_W = 168;
-
-/**
- * A small live copy of the whole shot, shown while the model is being moved.
- *
- * In Motion the timeline takes the bottom of the window, and moving the phone
- * low in the frame puts it where you cannot follow it. This shows the entire
- * frame -- background and all -- for as long as the pose is changing, by any
- * route: a drag on the canvas, the gizmo, the wheel or a slider. It fades
- * once the pose has been still for a moment.
- *
- * Always mounted, so the stage has a canvas to mirror into the instant it is
- * needed; only its opacity comes and goes.
- */
-function ShotPreview({
-  studio,
-  stageCanvasRef,
-  active,
-}: {
-  studio: Studio;
-  /** The stage's canvas. Passed on its own: read off `studio` it would make
-      every other read of `studio` here look like a ref access. */
-  stageCanvasRef: RefObject<HTMLCanvasElement | null>;
-  active: boolean;
-}) {
-  const { xAxis, yAxis, zAxis, zoom, panX, panY, panZ, fov } = studio.state;
-  const pose = [xAxis, yAxis, zAxis, zoom, panX, panY, panZ, fov].join();
-  // Compared during render, React's pattern for "state from a changing
-  // prop" -- and never on mount: a preview that greets you is noise.
-  const [seenPose, setSeenPose] = useState(pose);
-  const [moving, setMoving] = useState(false);
-  if (pose !== seenPose) {
-    setSeenPose(pose);
-    setMoving(true);
-  }
-  // Every change restarts the countdown, so it fades only once you stop.
-  useEffect(() => {
-    if (!moving) return;
-    const t = window.setTimeout(() => setMoving(false), 1200);
-    return () => window.clearTimeout(t);
-  }, [moving, seenPose]);
-  const visible = active && moving;
-
-  /*
-   * A live stream of the stage canvas, scaled by the compositor.
-   *
-   * It was a `drawImage` of every rendered frame, which makes the GPU finish
-   * and hand the pixels over -- cheap for a small ratio, and a stall at Fill,
-   * where the canvas is the whole window. `captureStream` keeps the frames on
-   * the GPU and keeps the canvas's transparency, so the shot's background
-   * still shows through. Open only while the card is showing, and held a
-   * beat after, so the fade-out still has the phone in it.
-   */
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  useEffect(() => {
-    const video = videoRef.current;
-    const canvas = stageCanvasRef.current;
-    if (!visible || !video || !canvas) return;
-    const stream = canvas.captureStream();
-    video.srcObject = stream;
-    void video.play().catch(() => {});
-    return () => {
-      window.setTimeout(() => {
-        stream.getTracks().forEach((track) => track.stop());
-        if (video.srcObject === stream) video.srcObject = null;
-      }, 250);
-    };
-  }, [visible, stageCanvasRef]);
-
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none"
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? "none" : "translateY(8px)",
-        transition: "opacity 180ms ease-out, transform 180ms ease-out",
-      }}
-    >
-      {/* The shot IS the card: no glass padding around it, so there is one
-          rounded shape rather than a frame inside a frame. */}
-      <Glass width={PREVIEW_W} style={{ padding: 0 }}>
-        {/* Clipped here, not on the glass, which would clip its own shadow. */}
-        <div
-          className="overflow-hidden"
-          style={{
-            borderRadius: "inherit",
-            ...backgroundCss(studio.state.background),
-          }}
-        >
-          <video
-            ref={videoRef}
-            onContextMenu={(event) => event.preventDefault()}
-            muted
-            playsInline
-            autoPlay
-            style={{ display: "block", width: PREVIEW_W }}
-          />
-        </div>
-      </Glass>
-    </div>
-  );
-}
-
 function Gizmo({ studio }: { studio: Studio }) {
   /*
    * The three angles the phone is actually at — the same fields the Transform
@@ -2119,10 +2080,7 @@ const TOOLS = [
    * `/mockup-studio/join` and `/remote` are all still here.
    */
   // { id: "remote", icon: "duplicate", title: "Connect a phone" },
-  // The flat colour behind the shot, beside the frame's size: both are about
-  // the canvas rather than the device, so they sit with the rail's tools.
   { id: "canvas", icon: "layout", title: "Canvas size" },
-  { id: "background", icon: "canvas-color", title: "Canvas color" },
 ] as const;
 
 /*
@@ -2307,10 +2265,11 @@ export default function StudioChrome({
   /** Which sheet is over the studio: the shortcuts (from the button beside
       the account chip) or the changelog (from the account menu). */
   const [sheet, setSheet] = useState<
-    "shortcuts" | "changelog" | "welcome" | null
+    "shortcuts" | "changelog" | "welcome" | "signout" | null
   >(null);
   const keysOpen = sheet !== null;
-  const closeKeys = useCallback(() => setSheet(null), []);
+  /** The first-run walkthrough; see `Tour`. */
+  const [tourOpen, setTourOpen] = useState(false);
   /*
    * The maker's welcome, once per account.
    *
@@ -2330,6 +2289,12 @@ export default function StudioChrome({
       typeof window !== "undefined" &&
       new URLSearchParams(window.location.search).has("welcome");
     if (forced || !user.unsafeMetadata?.welcomed) setSheet("welcome");
+    // `?tour` runs the walkthrough on demand, to preview it.
+    else if (
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).has("tour")
+    )
+      setTourOpen(true);
   }
   const welcomedRef = useRef(false);
   useEffect(() => {
@@ -2455,17 +2420,6 @@ export default function StudioChrome({
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const toolRef = useDismiss<HTMLDivElement>(panelOpen, closePanel);
   const menuRef = useDismiss<HTMLDivElement>(menuOpen, closeMenu);
-  // The button and the sheet share one boundary, so pressing the button
-  // again closes the sheet rather than closing and reopening it.
-  const keysRef = useDismiss<HTMLDivElement>(keysOpen, closeKeys);
-  useEffect(() => {
-    if (!keysOpen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSheet(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [keysOpen]);
 
   /*
    * Pick a tab; pressing the one already selected toggles its panel.
@@ -2541,6 +2495,41 @@ export default function StudioChrome({
   // Closed on arrival — see the note on `panelOpen`. The stack still opens on
   // Drop Shadow, so the first press on it is one press rather than two.
   const [popupOpen, setPopupOpen] = useState(false);
+  // Due until an account has finished or skipped it once.
+  const tourDue = !!user && !user.unsafeMetadata?.toured;
+  const startTour = useCallback(() => {
+    // From the top, in Crafting, with nothing open, so every step lights
+    // something that is on the page.
+    setTab("crafting");
+    studio.setMotionMode(false);
+    setPopupOpen(false);
+    setPanelOpen(false);
+    setSheet(null);
+    setTourOpen(true);
+  }, [studio]);
+  const endTour = useCallback(() => {
+    setTourOpen(false);
+    if (user && !user.unsafeMetadata?.toured)
+      void user
+        .update({ unsafeMetadata: { ...user.unsafeMetadata, toured: true } })
+        .catch(() => {});
+  }, [user]);
+  // Closing the welcome note hands a first-time user straight to the tour.
+  const closeKeys = useCallback(() => {
+    if (sheet === "welcome" && tourDue) startTour();
+    else setSheet(null);
+  }, [sheet, tourDue, startTour]);
+  // The button and the sheet share one boundary, so pressing the button
+  // again closes the sheet rather than closing and reopening it.
+  const keysRef = useDismiss<HTMLDivElement>(keysOpen, closeKeys);
+  useEffect(() => {
+    if (!keysOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSheet(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [keysOpen]);
 
   /**
    * Add an effect or take it away — for real, now.
@@ -2760,6 +2749,7 @@ export default function StudioChrome({
   return (
     <>
       <DesignSystem />
+      {tourOpen ? <Tour onDone={endTour} /> : null}
       {process.env.NODE_ENV === "development" ? (
         <GlassTuner open={tunerOpen} />
       ) : null}
@@ -2885,22 +2875,16 @@ export default function StudioChrome({
               transition: RESERVE_EASE,
             }}
           >
-            <Gizmo studio={studio} />
-          </div>
-          {/* Beside the gizmo, the control that most often moves the phone. */}
-          <div
-            className="absolute"
-            style={{
-              left: 16 + GIZMO_SIZE + 16,
-              bottom: "calc(var(--mo-reserve) + 16px)",
-              transition: RESERVE_EASE,
-            }}
-          >
-            <ShotPreview
-              studio={studio}
-              stageCanvasRef={studio.stageCanvasRef}
-              active={tab === "motion"}
-            />
+            <div data-tour="gizmo">
+              {/* Above: the gizmo sits at the foot of the window. */}
+              <Tip
+                label="Double tap to reposition"
+                placement="above"
+                className="block"
+              >
+                <Gizmo studio={studio} />
+              </Tip>
+            </div>
           </div>
           {timelineMounted ? (
             <div
@@ -2992,7 +2976,7 @@ export default function StudioChrome({
             className="pointer-events-none absolute inset-x-0 flex justify-center"
             style={{ top: 16 }}
           >
-            <div className="pointer-events-auto">
+            <div className="pointer-events-auto" data-tour="mode">
               {/* The mode switch, top and centre: which half of the studio
                   you are in is the first thing on the page. */}
               <Segmented
@@ -3027,6 +3011,7 @@ export default function StudioChrome({
             {/* Stepping aside while the account menu is open: that menu
                 opens over this spot. */}
             <div
+              data-tour="shortcuts"
               className="pointer-events-auto absolute"
               style={{
                 right: 16 + 44 + 12,
@@ -3091,6 +3076,14 @@ export default function StudioChrome({
                   <div className="pointer-events-auto">
                     {sheet === "welcome" ? (
                       <WelcomeSheet onClose={closeKeys} />
+                    ) : sheet === "signout" ? (
+                      <SignOutSheet
+                        email={userEmail ?? ""}
+                        onClose={closeKeys}
+                        onConfirm={() =>
+                          void signOut({ redirectUrl: "/sign-in" })
+                        }
+                      />
                     ) : sheet === "changelog" ? (
                       <ChangelogSheet onClose={closeKeys} />
                     ) : (
@@ -3104,6 +3097,7 @@ export default function StudioChrome({
 
           <div
             ref={menuRef}
+            data-tour="account"
             className="pointer-events-auto absolute flex items-start"
             // Over everything: the menu opens down into the band the mode
             // switch and the panels sit in, and on a short window it reached
@@ -3142,6 +3136,15 @@ export default function StudioChrome({
                   >
                     Changelog
                   </Row>
+                  <Row
+                    icon={<Icon name="focus-point" />}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      startTour();
+                    }}
+                  >
+                    Take the tour
+                  </Row>
                   {/*
                     Clerk's sign-out: it ends the session with Clerk and
                     clears the cookie the server reads, so the next render of
@@ -3150,7 +3153,10 @@ export default function StudioChrome({
                   {userEmail ? (
                     <Row
                       icon={<Icon name="sign-out" />}
-                      onClick={() => void signOut({ redirectUrl: "/sign-in" })}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setSheet("signout");
+                      }}
                     >
                       Sign out
                     </Row>
@@ -3327,46 +3333,6 @@ export default function StudioChrome({
                               onClose={closeDeviceGroup}
                             />
                           ) : null}
-                        </div>
-                      ) : null}
-
-                      {tool === "background" ? (
-                        <div className="flex flex-col">
-                          <Header
-                            icon={<Icon name="canvas-color" />}
-                            closeIcon={<Icon name="close-rounded" />}
-                            onClose={closePanel}
-                          >
-                            Canvas color
-                          </Header>
-                          {/* Picking a colour is choosing a solid canvas, so
-                              it also turns Transparent off. */}
-                          <ColorPickerPanel
-                            value={state.background.color}
-                            onChange={(hex) =>
-                              edit((prev) => ({
-                                ...prev,
-                                background: {
-                                  ...prev.background,
-                                  kind: "solid",
-                                  color: hex,
-                                },
-                              }))
-                            }
-                          />
-                          <ToggleRow
-                            label="Transparent"
-                            value={state.background.kind === "transparent"}
-                            onChange={(on) =>
-                              edit((prev) => ({
-                                ...prev,
-                                background: {
-                                  ...prev.background,
-                                  kind: on ? "transparent" : "solid",
-                                },
-                              }))
-                            }
-                          />
                         </div>
                       ) : null}
 
@@ -3672,7 +3638,7 @@ export default function StudioChrome({
                   }
             }
           >
-            <div className="pointer-events-auto">
+            <div className="pointer-events-auto" data-tour="history">
               {/*
                 THREE BUTTONS, not a switch.
 
@@ -3759,7 +3725,11 @@ export default function StudioChrome({
               gridTemplateRows: "minmax(0, max-content)",
             }}
           >
-            <div ref={popupRef} className="relative flex min-h-0 items-start">
+            <div
+              ref={popupRef}
+              data-tour="panel"
+              className="relative flex min-h-0 items-start"
+            >
               {/*
                 One popup, belonging to whichever effect is open. It is not a
                 fixed panel with a changing title: close it and there is no
@@ -4221,18 +4191,28 @@ export default function StudioChrome({
                       touching whichever row is lit next to it.
                     */}
                       <Divider key="effects-rule" inset={8} />
-                      <div key="effects-head" ref={addRef}>
+                      {/* The whole heading opens the menu, not only its
+                          plus: the plus's own click bubbles up to here. */}
+                      <div
+                        key="effects-head"
+                        ref={addRef}
+                        onClick={() => {
+                          if (addable.length === 0) return;
+                          // The menu opens in the popup's place, so the popup
+                          // steps aside rather than sitting under it.
+                          if (!addOpen) setPopupOpen(false);
+                          setAddOpen(!addOpen);
+                        }}
+                        style={{
+                          cursor: addable.length === 0 ? "default" : "pointer",
+                        }}
+                      >
                         <Header
                           trailing={
                             <HeaderButton
                               label="Add effect"
                               disabled={addable.length === 0}
-                              onClick={() => {
-                                // The menu opens in the popup's place, so the
-                                // popup steps aside rather than sitting under it.
-                                if (!addOpen) setPopupOpen(false);
-                                setAddOpen(!addOpen);
-                              }}
+                              onClick={() => {}}
                             >
                               <ToggleGlyph on={false} />
                             </HeaderButton>

@@ -347,8 +347,27 @@ const wrapInto = (v: number, r: Range) => {
   while (x < r.min) x += 360;
   return x;
 };
-const nearestTurn = (target: number, current: number) =>
-  target + 360 * Math.round((current - target) / 360);
+/*
+ * Of the angles equal to `target` whole turns apart, the nearest to what is
+ * stored -- among those that READ BACK as `target`. On a narrow range that is
+ * plain nearest-turn. On Y's ±360 it matters: 0 typed with the phone at 180
+ * would otherwise be written as 360, which is in range, so the row showed 360
+ * and the typed number looked ignored.
+ */
+const nearestTurn = (target: number, current: number, r: Range) => {
+  const k0 = Math.round((current - target) / 360);
+  let best = target;
+  for (let k = k0 - 2; k <= k0 + 2; k++) {
+    const c = target + 360 * k;
+    if (wrapInto(c, r) !== target) continue;
+    if (
+      wrapInto(best, r) !== target ||
+      Math.abs(c - current) < Math.abs(best - current)
+    )
+      best = c;
+  }
+  return best;
+};
 
 const triple = (
   prefix: string,
@@ -370,7 +389,7 @@ const triple = (
             get: (s: EditorState) => wrapInto(s[key] as number, ranges[i]),
             set: (s: EditorState, n: number) => ({
               ...s,
-              [key]: nearestTurn(n, s[key] as number),
+              [key]: nearestTurn(n, s[key] as number, ranges[i]),
             }),
           }
         : {}),
@@ -982,9 +1001,39 @@ export const LAYERS: Layer[] = [
     // Named for what it holds. Four rows in this stack paint a background —
     // this one, Gradient, Dots and Image — so "Background" alone said the
     // category rather than which of the four you were opening.
-    name: "Background Color",
-    icon: "background",
-    sections: [{ fields: [bgColor("Color", "color")] }],
+    name: "Canvas color",
+    icon: "canvas-color",
+    sections: [
+      {
+        fields: [
+          {
+            // Picking a colour is choosing a solid canvas, so it also turns
+            // Transparent off.
+            kind: "color",
+            label: "Color",
+            key: "color",
+            get: (s) => s.background.color,
+            set: (s, hex) => ({
+              ...s,
+              background: { ...s.background, kind: "solid", color: hex },
+            }),
+          },
+          {
+            kind: "toggle",
+            label: "Transparent",
+            key: "transparent",
+            get: (s) => s.background.kind === "transparent",
+            set: (s, on) => ({
+              ...s,
+              background: {
+                ...s.background,
+                kind: on ? "transparent" : "solid",
+              },
+            }),
+          },
+        ],
+      },
+    ],
     isOn: (s) => s.background.kind === "solid",
     toggle: (s, on) => ({
       ...s,
@@ -1179,7 +1228,6 @@ export function getLayer(id: LayerId): Layer | undefined {
   return LAYERS.find((l) => l.id === id);
 }
 
-
 /**
  * A layer read and written through Motion's own depth of field.
  *
@@ -1202,7 +1250,10 @@ export function motionBlurLayer(layer: Layer): Layer {
       ...f,
       get: (s: EditorState) => f.get(view(s) as never),
       set: (s: EditorState, v: never) =>
-        back(s, (f.set as (s: EditorState, v: never) => EditorState)(view(s), v)),
+        back(
+          s,
+          (f.set as (s: EditorState, v: never) => EditorState)(view(s), v),
+        ),
       when: f.when ? (s: EditorState) => f.when!(view(s)) : undefined,
     }) as Field;
   return {
