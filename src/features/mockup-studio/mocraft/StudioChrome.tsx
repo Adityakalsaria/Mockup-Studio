@@ -953,6 +953,77 @@ const CHANGELOG: { date: string; title: string; items: string[] }[] = [
   },
 ];
 
+/** Where feature requests and feedback go. */
+const FEEDBACK_EMAIL = "mocraft.app@gmail.com";
+
+/**
+ * Two ways to write to us: a feature request and general feedback. Each is a
+ * mail to the one address, with a subject saying which it is so the inbox can
+ * sort them.
+ */
+function FeedbackButtons() {
+  const mail = (subject: string) => () => {
+    window.location.href = `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}`;
+  };
+  return (
+    <div className="flex w-full" style={{ gap: 8 }}>
+      <Button grow onClick={mail("Mocraft — feature request")}>
+        Request a feature
+      </Button>
+      <Button grow onClick={mail("Mocraft — feedback")}>
+        Share feedback
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * The maker's note, shown once on an account's first sign-in (see the
+ * effect beside `user`). The same sheet as the changelog, ending on the
+ * signature.
+ */
+function WelcomeSheet({ onClose }: { onClose: () => void }) {
+  return (
+    <Glass width={520} style={{ maxHeight: "80dvh" }}>
+      <Header closeIcon={<Icon name="close-rounded" />} onClose={onClose}>
+        Welcome to Mocraft
+      </Header>
+      <div
+        className="mo-noscroll flex min-h-0 flex-col overflow-y-auto"
+        style={{ gap: 16, padding: "8px 12px 16px" }}
+      >
+        <p className="mo-label" style={{ color: "var(--mo-ink-muted)" }}>
+          Thanks for being here. I built Mocraft because making a good product
+          shot shouldn’t take a 3D app and an afternoon — pick a device, drop in
+          your screen, and turn it into a still or a short film in a few
+          minutes.
+        </p>
+        <p className="mo-label" style={{ color: "var(--mo-ink-muted)" }}>
+          Craft the pose in Crafting, then bring it to life in Motion: start
+          from a preset, or draw focus points and let the camera find them.
+          Everything is early and moving fast, so if something feels off, or
+          there is a thing you wish it did, tell me — I read every message.
+        </p>
+        {/* Signed by hand: the note is a person's, not the product's. 120
+            clear of the text -- the column's own 16 plus this. */}
+        <div className="flex flex-col" style={{ gap: 2, marginTop: 104 }}>
+          <Image
+            src="/figma-assets/mockup-studio/signature.png"
+            alt="Aditya Kalsaria"
+            width={105}
+            height={120}
+            unoptimized
+            style={{ width: 105, height: 120, objectFit: "contain" }}
+          />
+          <span className="mo-label" style={{ color: "var(--mo-ink-muted)" }}>
+            Aditya Kalsaria, Maker of Mocraft
+          </span>
+        </div>
+      </div>
+    </Glass>
+  );
+}
+
 /** The changelog, in the shortcuts' sheet: one entry per release, newest
     first, scrolling inside the sheet when it is taller than the window. */
 function ChangelogSheet({ onClose }: { onClose: () => void }) {
@@ -963,17 +1034,19 @@ function ChangelogSheet({ onClose }: { onClose: () => void }) {
       </Header>
       <div
         className="mo-noscroll flex min-h-0 flex-col overflow-y-auto"
-        style={{ gap: 20, padding: "4px var(--mo-space-2) var(--mo-space-2)" }}
+        // Indented to the header's title, with room between releases so each
+        // reads as its own block.
+        style={{ gap: 28, padding: "8px 12px 16px" }}
       >
         {CHANGELOG.map((entry) => (
-          <div key={entry.date} className="flex flex-col" style={{ gap: 6 }}>
+          <div key={entry.date} className="flex flex-col" style={{ gap: 8 }}>
             <span className="mo-code" style={{ color: "var(--mo-ink-muted)" }}>
               {entry.date}
             </span>
             <span className="mo-title">{entry.title}</span>
             <ul
               className="mo-label flex flex-col"
-              style={{ gap: 4, paddingLeft: 16, listStyle: "disc" }}
+              style={{ gap: 6, paddingLeft: 18, listStyle: "disc" }}
             >
               {entry.items.map((item) => (
                 <li key={item} style={{ color: "var(--mo-ink-muted)" }}>
@@ -983,6 +1056,12 @@ function ChangelogSheet({ onClose }: { onClose: () => void }) {
             </ul>
           </div>
         ))}
+      </div>
+      {/* Outside the scroll, so asking for the next thing is always in reach:
+          under a rule, at the content's own inset. */}
+      <Divider />
+      <div style={{ padding: "12px 12px 4px" }}>
+        <FeedbackButtons />
       </div>
     </Glass>
   );
@@ -2227,9 +2306,39 @@ export default function StudioChrome({
   /** The shortcuts sheet, opened from the button beside the account chip. */
   /** Which sheet is over the studio: the shortcuts (from the button beside
       the account chip) or the changelog (from the account menu). */
-  const [sheet, setSheet] = useState<"shortcuts" | "changelog" | null>(null);
+  const [sheet, setSheet] = useState<
+    "shortcuts" | "changelog" | "welcome" | null
+  >(null);
   const keysOpen = sheet !== null;
   const closeKeys = useCallback(() => setSheet(null), []);
+  /*
+   * The maker's welcome, once per account.
+   *
+   * Remembered on the Clerk user itself (`unsafeMetadata`, which the client
+   * may write) rather than in this browser, so a new device does not greet a
+   * returning user a second time. Marked as seen the moment it opens, so a
+   * reload before closing it does not bring it back either.
+   */
+  // Decided once, the first render the user is known -- React's pattern for
+  // state that follows from a prop, rather than a setState in an effect.
+  const [welcomeChecked, setWelcomeChecked] = useState(false);
+  if (user && !welcomeChecked) {
+    setWelcomeChecked(true);
+    // `?welcome` opens it regardless, to preview the note after it has
+    // been seen once.
+    const forced =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).has("welcome");
+    if (forced || !user.unsafeMetadata?.welcomed) setSheet("welcome");
+  }
+  const welcomedRef = useRef(false);
+  useEffect(() => {
+    if (sheet !== "welcome" || !user || welcomedRef.current) return;
+    welcomedRef.current = true;
+    void user
+      .update({ unsafeMetadata: { ...user.unsafeMetadata, welcomed: true } })
+      .catch(() => {});
+  }, [sheet, user]);
   /** The Devices panel's open category, whose models show in a side menu. */
   const [deviceGroup, setDeviceGroup] = useState<string | null>(null);
   const closeDeviceGroup = useCallback(() => setDeviceGroup(null), []);
@@ -2980,7 +3089,9 @@ export default function StudioChrome({
                 />
                 <div className="pointer-events-none absolute inset-0 grid place-items-center">
                   <div className="pointer-events-auto">
-                    {sheet === "changelog" ? (
+                    {sheet === "welcome" ? (
+                      <WelcomeSheet onClose={closeKeys} />
+                    ) : sheet === "changelog" ? (
                       <ChangelogSheet onClose={closeKeys} />
                     ) : (
                       <ShortcutsSheet onClose={closeKeys} />
