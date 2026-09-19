@@ -20,6 +20,9 @@ import { finishesFor, getFinish } from "@/features/mockup-studio/finishes";
 
 export const SCREEN_DIR = "/figma-assets/mockup-studio/screen-presets";
 
+/** A still of the studio's own UI, for a laptop or a display to show. */
+const STUDIO_UI = "/landing/screens/mocraft-studio.png";
+
 /** A board of phone screens, for the devices whose panel is landscape. */
 export const BOARD = "board";
 /** The same board a quarter turn round, for the iPad, whose screen UVs run portrait. */
@@ -165,6 +168,14 @@ export const SHOTS: Shot[] = [
   { id: "mu-reel-6", width: 720, height: 900, deviceId: "apple-ipad-pro", finishId: "space-black", pose: { yAxis: 196, xAxis: 30, zAxis: 18, zoom: 1.35 }, lighting: "studio", background: solid("#e8a87c"), screen: "graphic-mac-turned" },
   { id: "mu-reel-7", width: 720, height: 900, deviceId: "apple-iphone-17-pro", finishId: "silver", pose: { yAxis: 206, zAxis: -8, zoom: 1.2 }, lighting: "high-key", background: solid("#cfe3d4"), screen: "graphic-phone-blue" },
   { id: "mu-reel-8", width: 720, height: 900, deviceId: "apple-macbook-neo", finishId: "macbook-indigo", pose: { yAxis: -30, xAxis: 20, zoom: 1.4 }, lighting: "studio", background: solid("#d4f33a"), screen: "graphic-mac-lime" },
+
+  /* The gallery: clean grounds, the studio's own UI or a real app screen, close crops. */
+  { id: "gal-mac-front", width: 513, height: 448, deviceId: "apple-macbook-pro-14", finishId: "space-black", pose: { yAxis: 192, xAxis: 2, zoom: 1.75, panY: 0.05 }, lighting: "studio", background: solid("#f4f4f5"), screen: STUDIO_UI },
+  { id: "gal-mac-corner", width: 448, height: 448, deviceId: "apple-macbook-pro-14", finishId: "space-black", pose: { yAxis: 196, xAxis: -14, zoom: 2.5, panX: 0.4, panY: 0.55 }, lighting: "studio", background: solid("#f4f4f5"), screen: STUDIO_UI },
+  { id: "gal-phone-front", width: 305, height: 446, deviceId: "apple-iphone-17-pro", finishId: "deep-blue", pose: { yAxis: 180, zoom: 1.05 }, lighting: "studio", background: solid("#f4f4f5"), screen: "dark.png" },
+  { id: "gal-phone-tilt", width: 297, height: 446, deviceId: "apple-iphone-17-pro", finishId: "cosmic-orange", pose: { yAxis: 200, xAxis: 12, zAxis: -14, zoom: 1.1 }, lighting: "dramatic", background: solid("#0b0b0c"), screen: "dark-5.png" },
+  { id: "gal-phone-air", width: 337, height: 446, deviceId: "apple-iphone-air", finishId: "sky-blue", pose: { yAxis: 160, xAxis: 8, zAxis: 8, zoom: 1.2 }, lighting: "high-key", background: solid("#e9e9ec"), screen: "dark-3.png" },
+  { id: "gal-display", width: 986, height: 448, deviceId: "apple-studio-display", finishId: "silver", pose: { yAxis: 180, xAxis: 12, zoom: 1.45, panY: 0.05 }, lighting: "dramatic", background: solid("#0b0b0c"), screen: STUDIO_UI },
 
   /* Set the scene -- one tile per control. */
   { id: "tile-gradient", width: 640, height: 640, deviceId: "apple-iphone-air", finishId: "sky-blue", pose: { yAxis: 160, zAxis: -12, zoom: 0.7 }, lighting: "high-key", background: gradient("#8fa3e8", "#2a2f6b", 200), screen: "dark-3.png" },

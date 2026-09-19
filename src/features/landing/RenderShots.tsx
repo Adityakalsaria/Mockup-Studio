@@ -19,7 +19,7 @@ import { BOARD, BOARD_TURNED, COMPOSITES, SCREEN_DIR, SHOTS, shotSrc, type Compo
 
 const SCALE = 2;
 
-export default function RenderShots() {
+export default function RenderShots({ modelToken = null }: { modelToken?: string | null }) {
   const only = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("only");
   const wanted = (id: string) => !only || only.split(",").includes(id);
   const queue = SHOTS.filter((s) => wanted(s.id));
@@ -45,6 +45,7 @@ export default function RenderShots() {
         key={current.id}
         shot={current}
         board={board}
+        modelToken={modelToken}
         onDone={(ok) => {
           setLog((l) => [...l, `${current.id}:${ok ? "ok" : "fail"}`]);
           setIndex((i) => i + 1);
@@ -57,15 +58,17 @@ export default function RenderShots() {
 function ShotStage({
   shot,
   board,
+  modelToken,
   onDone,
 }: {
   shot: Shot;
   board: Screens;
+  modelToken: string | null;
   onDone: (ok: boolean) => void;
 }) {
   const captureRef = useRef<StageCapture | null>(null);
   const noSource = useRef<HTMLElement>(null);
-  const texture = useScreenTexture(noSource, board[shot.screen] ?? `${SCREEN_DIR}/${shot.screen}`);
+  const texture = useScreenTexture(noSource, board[shot.screen] ?? (shot.screen.startsWith("/") ? shot.screen : `${SCREEN_DIR}/${shot.screen}`));
   const { active } = useProgress();
   const pose = { ...FRONT, ...shot.pose };
 
@@ -93,6 +96,7 @@ function ShotStage({
       <PhoneStage3D
         rail={undefined}
         captureRef={captureRef}
+        modelToken={modelToken}
         screenTexture={texture}
         deviceId={shot.deviceId}
         finishId={shot.finishId}
