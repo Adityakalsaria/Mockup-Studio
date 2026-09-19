@@ -23,7 +23,8 @@ export default function DesktopOnly() {
         }}
       />
       <h1 className="text-xl font-medium">Mocraft is on the web for now</h1>
-      <p className="max-w-xs opacity-60">
+      {/* Not `max-w-xs`: this theme's `--spacing-xs` is 12px, and that is what it compiles to. */}
+      <p className="opacity-60" style={{ maxWidth: 320 }}>
         Open mocraft.app on a computer to craft and export your shots.
       </p>
     </main>
