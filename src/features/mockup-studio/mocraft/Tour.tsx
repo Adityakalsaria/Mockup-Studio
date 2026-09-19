@@ -15,8 +15,20 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import { Button, Glass, Header } from "@/design/ui";
 
-/** One selector, or several lit as one box around them all. */
-type Step = { target: string | string[]; title: string; body: string };
+/**
+ * One selector, or several lit as one box around them all.
+ *
+ * `shape` is the lit box's corner: "round" is a circle or a pill, whichever the
+ * box is, for round and pill-shaped controls; "match" is the element's own
+ * corner grown by the margin, so the lit box sits concentric with it and its
+ * corner is not cut. Left out, the corner is a plain 16.
+ */
+type Step = {
+  target: string | string[];
+  title: string;
+  body: string;
+  shape?: "round" | "match";
+};
 
 /**
  * What a first-time user needs, in the order they will reach for it. Each
@@ -26,26 +38,31 @@ type Step = { target: string | string[]; title: string; body: string };
 const STEPS: Step[] = [
   {
     target: '[aria-label="Devices"]',
+    shape: "round",
     title: "Pick a device",
     body: "Phones, tablets, laptops and displays, grouped by kind. Choose the one your shot is about.",
   },
   {
     target: '[aria-label="Screen image"]',
+    shape: "round",
     title: "Drop in your screen",
     body: "Upload a screenshot or a video and it lands on the device's screen. Zoom and Fill or Fit decide what shows.",
   },
   {
     target: ".mo-shot",
+    shape: "match",
     title: "This is your shot",
     body: "Drag to turn the device, scroll to zoom, and ⌘⇧-drag to move it. What you see here is what you export.",
   },
   {
     target: '[data-tour="gizmo"]',
+    shape: "round",
     title: "Fine rotation",
     body: "Drag the gizmo, or use the arrow keys on it, to turn by a step. Double-click to put the pose back.",
   },
   {
     target: '[data-tour="panel"]',
+    shape: "match",
     title: "Craft the pose",
     body: "Transform, camera and lighting, plus effects like shadow and depth of field.",
   },
@@ -56,16 +73,19 @@ const STEPS: Step[] = [
   },
   {
     target: '[data-tour="mode"]',
+    shape: "round",
     title: "Then bring it to life",
     body: "Switch to Motion for presets, focus points that move the camera for you, a timeline to fine-tune it, and video export.",
   },
   {
     target: '[data-tour="history"]',
+    shape: "round",
     title: "Undo, reset, redo",
     body: "Every change can be stepped back. Reset returns the shot to where it started.",
   },
   {
     target: ['[data-tour="shortcuts"]', '[data-tour="account"]'],
+    shape: "round",
     title: "Shortcuts and what's new",
     body: "⌘ lists every shortcut. Your profile holds the changelog — and a way to tell us what to build next.",
   },
@@ -76,10 +96,22 @@ const PAD = 8;
 const GAP = 16;
 const CARD_W = 300;
 
+/**
+ * An element's corner radius. The wrapper a step marks is often square and the
+ * glass inside it is what has the corner, so look there when it has none.
+ */
+const cornerOf = (el: Element) =>
+  parseFloat(getComputedStyle(el).borderTopLeftRadius) ||
+  parseFloat(
+    getComputedStyle(el.querySelector(".mo-glass") ?? el).borderTopLeftRadius,
+  ) ||
+  0;
+
 export function Tour({ onDone }: { onDone: () => void }) {
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [cardH, setCardH] = useState(0);
+  const [matchR, setMatchR] = useState(0);
   const step = STEPS[index];
   const last = index === STEPS.length - 1;
 
@@ -87,11 +119,14 @@ export function Tour({ onDone }: { onDone: () => void }) {
   useLayoutEffect(() => {
     const measure = () => {
       // Several targets light as one: the box around all of them.
-      const boxes = [step.target]
+      const els = [step.target]
         .flat()
-        .map((sel) => document.querySelector(sel)?.getBoundingClientRect())
-        .filter((b): b is DOMRect => !!b);
+        .map((sel) => document.querySelector(sel))
+        .filter((e): e is Element => !!e);
+      const boxes = els.map((e) => e.getBoundingClientRect());
       if (!boxes.length) return setRect(null);
+      const r = cornerOf(els[0]);
+      setMatchR(r ? r + PAD : 0);
       const left = Math.min(...boxes.map((b) => b.left));
       const top = Math.min(...boxes.map((b) => b.top));
       const right = Math.max(...boxes.map((b) => b.right));
@@ -126,6 +161,14 @@ export function Tour({ onDone }: { onDone: () => void }) {
         height: rect.height + PAD * 2,
       }
     : null;
+
+  const radius = !hole
+    ? 0
+    : step.shape === "round"
+      ? Math.min(hole.width, hole.height) / 2
+      : step.shape === "match"
+        ? matchR
+        : 16;
 
   /*
    * The card goes beside the element on whichever side has room -- right of
@@ -168,11 +211,11 @@ export function Tour({ onDone }: { onDone: () => void }) {
           className="pointer-events-none absolute"
           style={{
             ...hole,
-            borderRadius: 16,
+            borderRadius: radius,
             boxShadow: "0 0 0 9999px rgb(20 20 22 / 0.42)",
             outline: "1.5px solid rgb(255 255 255 / 0.9)",
             transition:
-              "left 280ms cubic-bezier(0.32,0.72,0,1), top 280ms cubic-bezier(0.32,0.72,0,1), width 280ms cubic-bezier(0.32,0.72,0,1), height 280ms cubic-bezier(0.32,0.72,0,1)",
+              "left 280ms cubic-bezier(0.32,0.72,0,1), top 280ms cubic-bezier(0.32,0.72,0,1), width 280ms cubic-bezier(0.32,0.72,0,1), height 280ms cubic-bezier(0.32,0.72,0,1), border-radius 280ms cubic-bezier(0.32,0.72,0,1)",
           }}
         />
       ) : (

@@ -2877,19 +2877,11 @@ export default function StudioChrome({
             }}
           >
             <div data-tour="gizmo">
-              {/* Above: the gizmo sits at the foot of the window. */}
+              {/* To the right, centred on the gizmo: it is 16 from the window's
+                  left edge, so a tip centred above it ran past that edge. */}
               <Tip
-                // Broken by hand so the tip is only as wide as its longer
-                // line: the gizmo is 16 from the window's edge, and a wider
-                // box centred on it ran past that edge.
-                label={
-                  <>
-                    Double tap to
-                    <br />
-                    reposition
-                  </>
-                }
-                placement="above"
+                label="Double tap to reposition"
+                placement="right"
                 className="block"
               >
                 <Gizmo studio={studio} />

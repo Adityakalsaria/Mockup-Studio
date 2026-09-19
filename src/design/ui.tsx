@@ -734,7 +734,7 @@ export function Tip({
   children,
 }: {
   label: ReactNode;
-  placement?: "above" | "below";
+  placement?: "above" | "below" | "right";
   /** From the anchor's edge to the tip. More where the anchor sits inset in
       a surface, so the gap is measured from the surface instead. */
   offset?: number;
@@ -748,13 +748,19 @@ export function Tip({
       {children}
       {quiet ? null : (
         <span
-          className={`pointer-events-none absolute inset-x-0 z-10 flex justify-center ${
-            placement === "below" ? "top-full" : "bottom-full"
+          className={`pointer-events-none absolute z-10 flex ${
+            placement === "right"
+              ? "inset-y-0 left-full w-max items-center"
+              : `inset-x-0 justify-center ${
+                  placement === "below" ? "top-full" : "bottom-full"
+                }`
           }`}
           style={
-            placement === "below"
-              ? { paddingTop: offset }
-              : { paddingBottom: offset }
+            placement === "right"
+              ? { paddingLeft: offset }
+              : placement === "below"
+                ? { paddingTop: offset }
+                : { paddingBottom: offset }
           }
         >
           <span
@@ -767,9 +773,10 @@ export function Tip({
             className="mo-glass mo-title relative opacity-0 transition-opacity duration-150 group-hover/tip:opacity-100"
             style={{
               width: "max-content",
-              maxWidth: 150,
-              textAlign: "center",
-              padding: "6px 12px",
+              // Beside its anchor there is room to stay on one line.
+              maxWidth: placement === "right" ? undefined : 150,
+              textAlign: "left",
+              padding: "10px 18px",
               borderRadius: "var(--mo-r-selected)",
               color: "var(--mo-ink)",
               filter: "var(--mo-text-shadow)",
