@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { DesignSystem } from "@/design/ui";
-import { UserScreenContext } from "./LiveDevice";
+import { ModelTokenContext, UserScreenContext } from "./LiveDevice";
 import { Nav } from "./sections/Nav";
 import { Hero } from "./sections/Hero";
 import { Categories } from "./sections/Categories";
@@ -26,9 +26,10 @@ import { FinalCta, Footer } from "./sections/Closing";
  * the highlights gallery, the finish trio, the closer-look viewer, the lineup
  * and the figures. Chapters alternate white and light grey.
  */
-export default function LandingPage() {
+export default function LandingPage({ modelToken }: { modelToken: string | null }) {
   const [screen, setScreen] = useState<string | null>(null);
   return (
+    <ModelTokenContext.Provider value={modelToken}>
     <UserScreenContext.Provider value={{ screen, setScreen }}>
       <div className="min-h-dvh bg-black text-text-primary-dark">
         <DesignSystem />
@@ -51,5 +52,6 @@ export default function LandingPage() {
         <Footer />
       </div>
     </UserScreenContext.Provider>
+    </ModelTokenContext.Provider>
   );
 }

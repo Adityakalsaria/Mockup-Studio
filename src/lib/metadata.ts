@@ -10,8 +10,16 @@ import type { Metadata } from "next";
 export const SITE_NAME = "Mocraft";
 export const SITE_DESCRIPTION =
   "A studio for beautiful Apple mockups. Put your design on a real device, set the scene, and export a still or a video.";
+/*
+ * Vercel sets VERCEL_PROJECT_PRODUCTION_URL (mocraft.app) at build time, so
+ * production needs no env var. Without this fallback `metadataBase` was
+ * localhost and the og:image URL pointed at it.
+ */
 export const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : "http://localhost:3000")
 ).replace(/\/$/, "");
 
 export function absoluteUrl(path = "/") {
@@ -23,6 +31,8 @@ export const siteMetadata: Metadata = {
   title: { default: SITE_NAME, template: `%s | ${SITE_NAME}` },
   description: SITE_DESCRIPTION,
   metadataBase: new URL(SITE_URL),
+  // X falls back to og:image (from app/opengraph-image.png) but needs the card type.
+  twitter: { card: "summary_large_image" },
   /*
    * Not indexed by default: everything but the landing page is a tool behind a
    * sign-in. The landing page (`src/app/page.tsx`) opts back in, and

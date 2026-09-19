@@ -29,11 +29,11 @@ const SLIDES: Slide[] = [
     title: `${LIGHTING_PRESETS.length} lighting presets.\nStudio light in a click.`,
     dark: true,
     media: () => (
-      <div className="absolute inset-x-0 bottom-0 top-[22%] grid grid-cols-4 bg-black">
-        {(["soft", "studio", "contrast", "product"] as const).map((id) => (
+      <div className="absolute inset-x-0 bottom-0 top-[22%] grid grid-cols-5 bg-black">
+        {LIGHTING_PRESETS.map(({ id, label }) => (
           <div key={id} className="relative">
-            <Image unoptimized src={shotSrc(`hl-light-${id}`)} alt={`${id} lighting`} fill sizes="25vw" className="object-cover object-top" />
-            <p className="type-caption absolute bottom-[var(--space-24)] w-full text-center capitalize text-text-muted">{id}</p>
+            <Image unoptimized src={shotSrc(`hl-light-${id}`)} alt={`${label} lighting`} fill sizes="20vw" className="object-cover object-top" />
+            <p className="type-caption absolute bottom-[var(--space-24)] w-full text-center text-text-muted">{label}</p>
           </div>
         ))}
       </div>
@@ -49,7 +49,7 @@ const SLIDES: Slide[] = [
           deviceId="apple-iphone-17-pro"
           finishId="silver"
           screen={`${SCREENS}/dark-5.png`}
-          lighting="product"
+          lighting="top"
           preset="rotation-slide-up"
           loop
           pose={{ zoom: 0.8 }}

@@ -34,7 +34,10 @@ export const FINISHES: Finish[] = [
   // iPhone 17 Pro / Pro Max.
   { id: "cosmic-orange", label: "Cosmic Orange", color: "#cf5f28", metalness: 0.6, roughness: 0.27 },
   { id: "deep-blue", label: "Deep Blue", color: "#3d4c6b", metalness: 0.66, roughness: 0.24 },
-  { id: "silver", label: "Silver", color: "#d8dade", metalness: 0.74, roughness: 0.16 },
+  // A grey, not a near-white: through the tone mapping and a bright studio
+  // #d8dade landed as white paint. Metal reads as silver when it is darker
+  // than white and reflective enough to carry the highlights.
+  { id: "silver", label: "Silver", color: "#b4b8be", metalness: 0.86, roughness: 0.18 },
   /*
    * Burgundy and Sky Blue, CHOSEN rather than measured.
    *
@@ -215,6 +218,13 @@ export const FINISHES: Finish[] = [
 export const DEFAULT_FINISH_ID = FINISHES[0].id;
 
 export function getFinish(id: string | undefined): Finish {
+  /*
+   * A hex IS a finish: what the image card's colour picker stores. The card
+   * is not a product with a colourway, so its edge can be any colour -- a
+   * painted edge, satin rather than metal.
+   */
+  if (id && /^#[0-9a-f]{6}$/i.test(id))
+    return { id, label: "Custom", color: id, metalness: 0.15, roughness: 0.45 };
   return FINISHES.find((f) => f.id === id) ?? FINISHES[0];
 }
 

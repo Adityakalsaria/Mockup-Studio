@@ -2,6 +2,7 @@
 
 import { paintBackground, type BackgroundSettings } from "./backgrounds";
 import { paintOverlay, type OverlaySettings } from "./overlay";
+import { loadWatermark, paintWatermark } from "./watermark";
 import { applyCanvasShadow, clearCanvasShadow, type ShadowSettings } from "./shadow";
 import type { StageRecorder } from "./PhoneStage3D";
 
@@ -80,6 +81,8 @@ export interface RecordOptions {
   shadow?: ShadowSettings;
   /** Resolution multiplier over the on-screen canvas. */
   scale: number;
+  /** Paint the Mocraft mark over each frame. On unless turned off. */
+  watermark?: boolean;
   durationSec: number;
   fps: number;
   /** Played from the start so the capture begins on a clean loop. */
@@ -101,6 +104,7 @@ export async function recordStageVideo({
   overlay,
   shadow,
   scale,
+  watermark = true,
   durationSec,
   fps,
   video,
@@ -153,6 +157,8 @@ export async function recordStageVideo({
     }
   }
 
+  const mark = watermark ? await loadWatermark() : null;
+  const markCache = {};
   const composeFrame = () => {
     // Clear first: "None" paints nothing, and without this the previous frame
     // would still be sitting there under the transparent phone.
@@ -167,6 +173,7 @@ export async function recordStageVideo({
     // After the phone: the layer sits over the shot, which is the order the
     // live stage uses and the order `renderVideoExact` uses.
     if (overlay) paintOverlay(ctx, overlay, width, height);
+    if (mark) paintWatermark(ctx, width, height, mark, markCache);
   };
 
   // Prime the canvas without pushing: the recorder is not running yet, so a

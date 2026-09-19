@@ -226,6 +226,23 @@ export interface Device {
    * the device renders exactly as authored and no mixer is built -- which is
    * every rigid phone.
    */
+  /**
+   * Meshes moved by hand, in the file's own units and world axes, before the
+   * model is posed or measured. For a part an export left in the wrong place.
+   */
+  /**
+   * Light this model with a real light as well, so its parts shadow each
+   * other.
+   *
+   * For models that are more than a device. The scene is lit by an
+   * environment map, which casts nothing -- light from every direction at
+   * once leaves no direction for a shadow -- and that is right for a phone on
+   * its own. A phone held in a hand is not on its own: without this the hand
+   * takes no shadow from the phone it is gripping and the two read as
+   * photographed separately. See `SelfShadowLight`.
+   */
+  selfShadow?: boolean;
+  meshNudges?: Record<string, [number, number, number]>;
   fold?: {
     openSec: number;
     closedSec: number;
@@ -693,7 +710,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-17",
     label: "Apple iPhone 17",
-    modelPath: `${MODELS}/apple-iphone-17.glb`,
+    modelPath: `${MODELS}/m-3463a6858cfef1fd.glb`,
     hideHints: [],
     /*
      * 66.5 x 144.9mm, aspect 0.4587 against 1206 x 2622's 0.4600.
@@ -958,231 +975,181 @@ export const DEVICES: Device[] = [
     credit: "Apple — design resources (iphone-17-e-sim.usdz)",
   },
   {
+    // A Blender re-export of Apple's iPhone 17 Pro (supplied as "test 4.glb",
+    // tuned as TEST 4, now the 17 Pro itself). Blender suffixed every part name (".004", ".008"…), and
+    // parts are matched by name — so each name here is the suffixed copy.
     id: "apple-iphone-17-pro",
     label: "Apple iPhone 17 Pro",
-    modelPath: `${MODELS}/apple-iphone-17-pro.glb`,
+    /*
+     * Turned to face the camera. The stage's default yaw shows this file's
+     * back, and the screen is the side worth opening on.
+     */
+    modelYawDeg: 180,
+    // A new filename, not the old one reused: `public/` is served immutable for
+    // a year, so browsers that had the previous 17 Pro kept loading it under
+    // this entry's part names, which it does not have.
+    modelPath: `${MODELS}/m-54874f8214482e51.glb`,
     hideHints: [],
-    finishIds: [
-      "cosmic-orange",
-      "deep-blue",
-      "silver",
-      "pro-burgundy",
-      "pro-sky-blue",
-    ],
-    screenMaterial: "BsXHDwLKqtDOfrW",
-    /*
-     * Apple ships these in Cosmic Orange, and the back glass is a solid
-     * 1024x1024 panel of it -- measured srgb(228,122,68) off the converted
-     * texture, not guessed. Without this the finish swatches change the body
-     * factor and leave the atlas alone, so every finish rendered as an orange
-     * back with a differently coloured rail: `recolorBodyTexture` matches
-     * texels by HUE against this value, and with nothing to match against it
-     * has nothing to do.
-     *
-     * Deliberately not the #e8712e on the Pro Max entry below. That is a
-     * different asset by a different author and its orange is its own; taking
-     * one model's authored colour as another's would put the hue window in the
-     * wrong place and half-retint the body.
-     */
+    // The LiDAR window sat at the bottom of its barrel, 1.2mm inside the body
+    // while the flash beside it is flush. Brought up to the barrel's rim, level
+    // with the flash cover (z -0.0068; the back faces -z).
+    meshNudges: { CUXydfOmpZTOIwn: [0, 0, -0.0012] },
+    // The three the studio offers for the 17 Pro line: orange, silver and
+    // deep blue. Burgundy and sky blue are still defined, just not listed.
+    finishIds: ["cosmic-orange", "silver", "deep-blue"],
+    screenMaterial: "BsXHDwLKqtDOfrW.004",
     authoredBodyColor: "#e47a44",
-    /*
-     * The Apple logo, as two coplanar layers.
-     *
-     * Both have to be named. `tintMaterial` treats any transparent material
-     * as glass and leaves its colour alone -- correct for a lens cover, wrong
-     * here -- so greying only the opaque layer left the translucent one
-     * sitting over it and the logo stayed Cosmic Orange on a deep blue phone.
-     * Whichever layer is missed is the one you end up looking at.
-     */
-    /*
-     * The logo is deliberately NOT in `logoMaterials`.
-     *
-     * That path exists for a mark printed on a panel: it forces a flat colour,
-     * roughness 0.55 and a quarter of the environment, which is right for a
-     * silkscreen and wrong for this. Apple mills its logo INTO the glass and
-     * models it as two shells 0.4mm apart, the front one clearcoated at
-     * roughness 0.1 -- and that gloss is the whole reason the mark has an edge
-     * highlight and reads as a recess rather than a sticker.
-     *
-     * Colouring it through `materialColors` instead leaves every one of those
-     * surface properties as Apple authored them, and changes only the hue. The
-     * depth was in the model all along; the etched-mark treatment was flattening
-     * it out.
-     */
-    /*
-     * The back glass, flattened.
-     *
-     * Its map is a painted vertical gradient, and retinting a gradient to a
-     * new finish is what put horizontal bands down the back of the phone --
-     * the retint mixes most of the way to a flat colour, which leaves the fade
-     * only a few 8-bit levels to live in. Flat, lit by the studio's own rig,
-     * is both cleaner and closer to the real panel.
-     */
-    plainMaterials: ["SMUhrjUPCjJkPUK"],
-    /*
-     * The Camera Control button, same story: `iAKEWdNafBldSCV` is opaque and
-     * already takes the finish, `PJgHvfOhNXkxvzq` is 70% and was reading as
-     * glass. Forced to body so the rail matches the phone it is set into.
-     *
-     * Only the translucent layers need naming -- the opaque ones are tinted
-     * anyway -- but the pair is listed together because they are one control,
-     * and a later reader should not have to rediscover why one of two
-     * identically-placed materials is here and the other is not.
-     */
-    bodyMaterials: ["PJgHvfOhNXkxvzq", "iAKEWdNafBldSCV"],
-    /*
-     * Everything Apple authored dead black: the three lens barrels, the LiDAR
-     * window, the mic port and the inner front pane. Found by reading the
-     * converted materials rather than by eye -- these are the six whose base
-     * colour is rgb(0,0,0), minus the screen, which the screen pass owns.
-     */
-    /*
-     * The one part of the bottom edge that is not body-coloured.
-     *
-     * The speaker grille and the screw heads were overridden here too at one
-     * point and should not be: on the real phone those ARE the finish, and
-     * what makes them read is their own mesh texture and the shadow in their
-     * recess, not a different colour.
-     */
+    plainMaterials: ["SMUhrjUPCjJkPUK.008"],
+    bodyMaterials: ["PJgHvfOhNXkxvzq.004", "iAKEWdNafBldSCV.004"],
     materialColors: {
-      /*
-       * Inside the USB-C shell, and only inside it.
-       *
-       * The port is a stack: `nwfiSfJrPZRLBAj` is the 9.0 x 4.4mm rim, and
-       * these two sit within it -- the 8.4mm inner wall and the 9.9mm shield.
-       * Apple's own render of this phone shows a body-coloured rim around a
-       * black cavity, so darkening the rim as well, which an earlier pass did,
-       * closed the opening up and lost the depth entirely.
-       *
-       * The deeper `nwfiSfJrPZRLBAj` pieces at 6.7 and 5.8mm are deliberately
-       * left alone: those are the connector tongue, and it really is
-       * body-coloured down there.
-       */
-      YQFhPSFSryEqJMp: "#0d0d0f",
-      edDerJJLuuabITp: "#0d0d0f",
-      /*
-       * The back glass, as a half-clear white sheet over the body.
-       *
-       * It is in `plainMaterials` as well, so the painted gradient map is
-       * dropped first -- white multiplied by that map would put the banding
-       * straight back. What is left is a flat pane, and at 50% the finish
-       * beneath reads through it exactly as glass over anodised metal does.
-       */
-      /*
-       * The back glass: the body's colour, lifted.
-       *
-       * Not a stated hex and not a white sheet -- either would look right in
-       * one finish and wrong in the rest. On the real phone the glass panel
-       * IS the anodised colour, just brighter, because a polished surface
-       * returns more of the light that a matte rail scatters. Deriving it from
-       * the finish keeps that true across all eight swatches.
-       *
-       * It is in `plainMaterials` too, so the painted gradient is dropped
-       * first and this lands on a flat panel rather than multiplying a fade.
-       *
-       * 0.07, and it is a LIGHTNESS lift rather than a mix toward white --
-       * see the note at the override. Mixing white in desaturates as it
-       * brightens, and the panel read as pale rather than as the same colour
-       * lit better.
-       */
-      SMUhrjUPCjJkPUK: {
+      "YQFhPSFSryEqJMp.012": "#0d0d0f",
+      "edDerJJLuuabITp.012": "#0d0d0f",
+      // Surfaces tuned by eye on the Surface bench and locked here.
+      // The frame.
+      "SLmJkLdkhbbuEfG.032": {
+        // `lighten: 0` is the finish colour itself. An override with only
+        // surfaces keeps the file's orange whatever finish is picked.
+        lighten: 0,
+        roughness: 0.76,
+        metalness: 0.61,
+        envMapIntensity: 1.65,
+      },
+      // The back glass, as it was before the bench.
+      "SMUhrjUPCjJkPUK.008": {
         lighten: 0.07,
-        /*
-         * Surface stated, so the panel actually reflects the studio.
-         *
-         * Roughness 0.14 is polished glass rather than the anodised rail
-         * beside it, and it is what makes the rig read across the back as a
-         * soft sweep instead of an even fill. The environment is pushed above
-         * the body's 2.1 because a back panel is the flattest, most mirror-
-         * like surface on the phone and takes the most sky.
-         *
-         * Non-metal on purpose: this is glass over metal, not metal. Raising
-         * metalness would tint every reflection with the body colour and the
-         * panel would go coppery in the highlights instead of white.
-         *
-         * The model's normal map survives all of this -- only the BASE map is
-         * dropped -- so the fine anodised grain still breaks the reflection up
-         * rather than leaving a mirror.
-         */
         roughness: 0.14,
         metalness: 0,
         envMapIntensity: 2.6,
       },
-      /*
-       * The two logo shells, the body's colour a step darker.
-       *
-       * Both, because the front one is 50% opaque and sits over the back one:
-       * colouring only the opaque layer leaves the translucent shell tinted as
-       * the file authored it. Their own alpha is left alone -- glass over
-       * glass is what gives the mark its depth.
-       */
-      yPEFElLJTRhfWfw: { darken: 0.12 },
-      awYxKfiOpRgQIxD: { darken: 0.12 },
+      // The antenna bands.
+      "sJxAokqqlZYuwzy.008": { lighten: 0, roughness: 0.52, metalness: 0.08 },
+      "yPEFElLJTRhfWfw.004": { darken: 0.12 },
+      "awYxKfiOpRgQIxD.004": { darken: 0.12 },
     },
-    /*
-     * The connector tongue and the two shells around it.
-     *
-     * All three share `nwfiSfJrPZRLBAj` with the port's outer rim, which is
-     * why they are named as MESHES: by material they cannot be told apart, and
-     * the rim has to stay body-coloured.
-     */
     meshColors: {
-      IvdeSiYDweqsnZm: "#0d0d0f",
-      RhBESHcBbtHIQyo: "#0d0d0f",
-      yTmdRacfvebHTTS: "#101013",
+      "IvdeSiYDweqsnZm.004": "#0d0d0f",
+      "RhBESHcBbtHIQyo.004": "#0d0d0f",
+      "yTmdRacfvebHTTS.004": "#101013",
     },
     keepMaterials: [
-      "uFgsppDNoPNkBqW",
-      "nypJRzXNHbmJCqR",
-      "CVcxUAKakDuRdCf",
-      "ieDmCkHnOnSIOcm",
-      "LqxrKBoiOXSOFqs",
-      /*
-       * Dark, but not dark enough to have been caught by reading the model for
-       * pure black. Each of these sits IN FRONT of one that was: the LiDAR
-       * window's visible face is #333333 over a black backing, and the lens
-       * barrel's is #393939 -- so exempting only the black layers left the
-       * orange one on top, which is the layer you actually see.
-       */
-      "jKYrqbVsPDbEaqj",
-      "JKTmNomFyvfvVAj",
-      // The flash. Near-white, and tinting it made the phone look like it had
-      // an orange bulb.
-      "QEOvfSZiwySWiUk",
+      "uFgsppDNoPNkBqW.060",
+      "nypJRzXNHbmJCqR.012",
+      "ieDmCkHnOnSIOcm.004",
+      "ieDmCkHnOnSIOcm.006",
+      "LqxrKBoiOXSOFqs.008",
+      "JKTmNomFyvfvVAj.012",
+      "QEOvfSZiwySWiUk.004",
     ],
-    /*
-     * V only.
-     *
-     * Reasoned wrong the first time and worth recording: the screenshot
-     * arrived looking upside down AND reversed, which reads as a 180 degree
-     * turn, so both flips went on. That produced an upright but left-right
-     * mirrored screen -- meaning the original error had been `flipY` alone,
-     * and `flipX` was adding a mirror rather than removing one. A vertical
-     * mirror of a page of text looks reversed too, which is what made the two
-     * cases hard to tell apart by eye.
-     */
-    screenFlipY: true,
+    // No screenFlipY, unlike the 17 Pro: Blender's glTF export already writes
+    // the screen UVs top-down; the USDZ conversion behind the 17 Pro did not.
     screenCornerRadiusPct: 0.135,
     screenInsetPct: 1,
-    // The real panel. This model ships no baked wallpaper to measure instead,
-    // and a screenshot off a 17 Pro is exactly this size.
     screenNative: { width: 1206, height: 2622 },
     notch: null,
-    // Measured 72.8 x 149.6 mm against Apple's published 71.9 x 150.0.
-    credit: "Apple — design resources (iphone-17-pro-e-sim.usdz)",
+    credit: "Apple — design resources, re-exported from Blender",
+  },
+  {
+    /*
+     * The same 17 Pro, held.
+     *
+     * One file: a hand and the phone it is holding, so the "device" the studio
+     * poses and fits is the pair of them. Every tuned surface carries over
+     * unchanged because it IS the same export -- Blender just suffixed this
+     * copy's parts three higher (".032" became ".035"), so the names below are
+     * the 17 Pro's with that shift applied.
+     *
+     * The hand itself is a single mesh on an UNNAMED material, which is what
+     * keeps the finish pass off it: every rule here matches by name, so there
+     * is nothing for the repaint to catch hold of. It stays the colour it was
+     * authored whichever finish is picked, which is what you want -- the
+     * finish is the phone's, not the skin's.
+     */
+    id: "apple-iphone-17-pro-hand",
+    label: "iPhone 17 Pro in hand",
+    // The phone has to shade the fingers holding it.
+    selfShadow: true,
+    // Same file, same correction as the 17 Pro: it opens on its back.
+    modelYawDeg: 180,
+    modelPath: `${MODELS}/m-72c952ad7f57b763.glb`,
+    hideHints: [],
+    meshNudges: {
+      // As on the 17 Pro: the LiDAR window sits 1.2mm down its barrel.
+      CUXydfOmpZTOIwn003: [0, 0, -0.0012],
+      /*
+       * The hand, 4.2mm back from the phone. This export sank the palm up to
+       * 4mm through the back glass -- 216 vertices inside the body -- so skin
+       * showed through the frame where the palm meets it. Measured against
+       * the back glass below the camera plateau: at 4.2 nothing is inside and
+       * the palm sits 0.15mm under the glass, touching, not cutting in.
+       */
+      Body: [0, 0, -0.0042],
+    },
+    // The three the studio offers for the 17 Pro line: orange, silver and
+    // deep blue. Burgundy and sky blue are still defined, just not listed.
+    finishIds: ["cosmic-orange", "silver", "deep-blue"],
+    screenMaterial: "BsXHDwLKqtDOfrW.007",
+    authoredBodyColor: "#e47a44",
+    plainMaterials: ["SMUhrjUPCjJkPUK.011"],
+    bodyMaterials: ["PJgHvfOhNXkxvzq.007", "iAKEWdNafBldSCV.007"],
+    materialColors: {
+      "YQFhPSFSryEqJMp.015": "#0d0d0f",
+      "edDerJJLuuabITp.015": "#0d0d0f",
+      // The frame, the back glass and the antenna bands, at the values tuned
+      // on the Surface bench for the 17 Pro.
+      "SLmJkLdkhbbuEfG.035": {
+        lighten: 0,
+        roughness: 0.76,
+        metalness: 0.61,
+        envMapIntensity: 1.65,
+      },
+      "SMUhrjUPCjJkPUK.011": {
+        lighten: 0.07,
+        roughness: 0.14,
+        metalness: 0,
+        envMapIntensity: 2.6,
+      },
+      "sJxAokqqlZYuwzy.011": { lighten: 0, roughness: 0.52, metalness: 0.08 },
+      "yPEFElLJTRhfWfw.007": { darken: 0.12 },
+      "awYxKfiOpRgQIxD.007": { darken: 0.12 },
+    },
+    meshColors: {
+      IvdeSiYDweqsnZm005: "#0d0d0f",
+      RhBESHcBbtHIQyo003: "#0d0d0f",
+      yTmdRacfvebHTTS028: "#101013",
+    },
+    keepMaterials: [
+      /*
+       * The hand and the forearm, left exactly as the file authored them.
+       *
+       * This export carries real skin: a 2K colour map and a 2K roughness map
+       * each, with nails and knuckles in them. Nothing here should touch that
+       * -- the finish is the phone's, and a repaint would drag the skin along
+       * with it, which is what happened to the first hand when it arrived
+       * with no material at all.
+       */
+      "Skin.001",
+      "Skin.002",
+      "uFgsppDNoPNkBqW.063",
+      "nypJRzXNHbmJCqR.014",
+      "ieDmCkHnOnSIOcm.008",
+      "LqxrKBoiOXSOFqs.011",
+      "JKTmNomFyvfvVAj.015",
+      "QEOvfSZiwySWiUk.007",
+    ],
+    screenCornerRadiusPct: 0.135,
+    screenInsetPct: 1,
+    screenNative: { width: 1206, height: 2622 },
+    notch: null,
+    credit: "Apple — design resources, re-exported from Blender",
   },
   {
     id: "apple-iphone-17-pro-max",
     label: "Apple iPhone 17 Pro Max",
-    modelPath: `${MODELS}/apple-iphone-17-pro-max.glb`,
+    modelPath: `${MODELS}/m-432f2a96ef902e9c.glb`,
     hideHints: [],
-    finishIds: [
-      "cosmic-orange",
-      "deep-blue",
-      "silver",
-      "pro-burgundy",
-      "pro-sky-blue",
-    ],
+    // The three the studio offers for the 17 Pro line: orange, silver and
+    // deep blue. Burgundy and sky blue are still defined, just not listed.
+    finishIds: ["cosmic-orange", "silver", "deep-blue"],
     screenMaterial: "BsXHDwLKqtDOfrW",
     /*
      * Apple ships these in Cosmic Orange, and the back glass is a solid
@@ -1412,7 +1379,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-18-pro",
     label: "Apple iPhone 18 Pro",
-    modelPath: `${MODELS}/apple-iphone-18-pro.glb`,
+    modelPath: `${MODELS}/m-4e890183b312676b.glb`,
     hideHints: [],
     // The archive's own variant data names these three, which is also where
     // Burgundy came from — a real colour on this device rather than a guess.
@@ -1683,7 +1650,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-18-pro-max",
     label: "Apple iPhone 18 Pro Max",
-    modelPath: `${MODELS}/apple-iphone-18-pro-max.glb`,
+    modelPath: `${MODELS}/m-205521341af2ef23.glb`,
     hideHints: [],
     finishIds: [
       "iphone18-black",
@@ -1980,7 +1947,7 @@ export const DEVICES: Device[] = [
      * the first copy and every fix looked like it had done nothing. A new name
      * is the only way to be sure which file is on screen.
      */
-    modelPath: `${MODELS}/apple-iphone-duo-viewer.glb`,
+    modelPath: `${MODELS}/m-3fe00b563e718862.glb`,
     hideHints: [],
     finishIds: ["cloud-white", "duo-night-sky"],
     /*
@@ -2322,7 +2289,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-air",
     label: "Apple iPhone Air",
-    modelPath: `${MODELS}/apple-iphone-air.glb`,
+    modelPath: `${MODELS}/m-30685fd59ff29dbc.glb`,
     hideHints: [],
     /*
      * Identified by geometry, like the Pro pair -- Apple obfuscates every prim
@@ -2579,7 +2546,22 @@ export const DEVICES: Device[] = [
   {
     id: "apple-ipad-pro",
     label: "Apple iPad Pro",
-    modelPath: `${MODELS}/apple-ipad-pro.glb`,
+    /*
+     * The one model still shipped uncompressed.
+     *
+     * Meshopt quantisation rewrites each mesh's geometry into its own
+     * normalised space and puts the difference on the node, which is
+     * invisible to anything that renders and fatal to `cameraCopies` below:
+     * `radialSpan` measures the rim in LOCAL coordinates and compares it
+     * against every other mesh's, so once those spaces stop agreeing it
+     * matches the wrong parts and copies them at the wrong size. On the live
+     * site that came out as a single lens the size of the whole tablet.
+     *
+     * ponytail: costs ~2.6MB against the other twelve. The fix is to measure
+     * in world space in `addCameraCopies`; worth doing when something else
+     * needs that code opened anyway.
+     */
+    modelPath: `${MODELS}/m-6ac055b703108758.glb`,
     hideHints: [],
     /*
      * 264.4 x 198.0mm, aspect 1.3356 against the real 13-inch panel's 1.3333
@@ -2593,6 +2575,13 @@ export const DEVICES: Device[] = [
      */
     finishIds: ["silver", "space-black"],
     screenMaterial: "dUmOgLJvvBzDJsS",
+    /*
+     * The panel is landscape -- 264.4 x 198.0mm -- but its UVs are not: U runs
+     * along the 198mm side and V along the 264mm one, measured off the mesh.
+     * So a screenshot bound to it arrives lying on its side, which is the
+     * exact case `screenRotateDeg` exists for.
+     */
+    screenRotateDeg: -90,
     screenCornerRadiusPct: 0.03,
     screenInsetPct: 1,
     screenNative: { width: 2064, height: 2752 },
@@ -2647,8 +2636,13 @@ export const DEVICES: Device[] = [
   },
   {
     id: "apple-macbook-neo",
-    label: "Apple MacBook",
-    modelPath: `${MODELS}/apple-macbook-neo.glb`,
+    label: "MacBook Neo",
+    /*
+     * Turned to face the camera. The stage's default yaw shows this file's
+     * back, and the screen is the side worth opening on.
+     */
+    modelYawDeg: 180,
+    modelPath: `${MODELS}/m-baecd0e112e97dca.glb`,
     hideHints: [],
     /*
      * 278.2 x 174.2mm measured in the lid's plane, aspect 1.5966 -- 16:10,
@@ -2752,7 +2746,12 @@ export const DEVICES: Device[] = [
   {
     id: "apple-macbook-pro-14",
     label: "Apple MacBook Pro 14\"",
-    modelPath: `${MODELS}/apple-macbook-pro-14.glb`,
+    /*
+     * Turned to face the camera. The stage's default yaw shows this file's
+     * back, and the screen is the side worth opening on.
+     */
+    modelYawDeg: 180,
+    modelPath: `${MODELS}/m-ddbfa960dc4cc05d.glb`,
     hideHints: [],
     /*
      * Measured IN THE LID'S OWN PLANE, not from the bounding box.
@@ -2893,7 +2892,12 @@ export const DEVICES: Device[] = [
   {
     id: "apple-imac-24",
     label: "Apple iMac 24\"",
-    modelPath: `${MODELS}/apple-imac-24.glb`,
+    /*
+     * Turned to face the camera. The stage's default yaw shows this file's
+     * back, and the screen is the side worth opening on.
+     */
+    modelYawDeg: 180,
+    modelPath: `${MODELS}/m-812007bce13a9c7c.glb`,
     hideHints: [],
     /*
      * 520.1 x 292.0mm in the panel's own plane, aspect 1.7811 against
@@ -3035,7 +3039,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-studio-display",
     label: "Apple Studio Display",
-    modelPath: `${MODELS}/apple-studio-display.glb`,
+    modelPath: `${MODELS}/m-9113e92474234ca9.glb`,
     hideHints: [],
     /*
      * 595.2 x 334.3mm, aspect 1.7803 against 5120 x 2880's 1.7778.
@@ -3111,75 +3115,6 @@ export const DEVICES: Device[] = [
      * naming rather than a Pro Display XDR, whose panel is 717.9mm across.
      */
     credit: "Apple — design resources (studio-display-xdr.usdz)",
-  },
-  {
-    id: "iphone-fold",
-    label: "iPhone Fold",
-    modelPath: `${MODELS}/iphone-fold.glb`,
-    hideHints: [],
-    // Two screens in this model: "OLED" is the outer cover display and
-    // "OLED IN" the inner one that folds. The match is exact, so naming one
-    // binds only that one -- the other keeps the model's own wallpaper.
-    screenMaterial: "OLED IN",
-    // Just the mirror. An earlier reading added a 90 degree turn as well, on
-    // the strength of test cards that could not tell the two apart -- a square
-    // card is rotation-blind, and a portrait one came back upright either way.
-    // A card carrying a CIRCLE settled it: the panel maps the source upright,
-    // so the turn was doing nothing except sending the crop to the wrong axis,
-    // which is what stretched every portrait source across the panel.
-    screenRotateDeg: 90,
-    screenFlipX: true,
-    // TEXCOORD_0 on the inner panel spans u 0..1, v 0..1 -- a square, over a
-    // 1.42 mesh.
-    screenUvAspect: 1,
-    // Black at 0.336 alpha, laid straight over the OLED prim on the same mesh.
-    // "Glass flex" veils the inner panel, "Glass" the cover one -- black at
-    // 0.336 and 0.211 alpha respectively, both sitting directly over their
-    // screen. Measured with a step wedge: the inner one multiplied everything
-    // by a flat 0.686, and a constant ratio across the range is what says
-    // "layer on top" rather than "tone curve".
-    screenOverlayHide: ["Glass flex", "Glass"],
-    // The back panel. Transparent in the file, body in every other sense.
-    // The back panel and the camera island. Both authored as a 0.84 grey with
-    // an alpha of 0.94, so both fell through the finish pass as glass.
-    bodyMaterials: ["Frosted glass", "Tinted glass"],
-    logoMaterials: ["Metal tint"],
-    // Matched to the side button in the same model, which is the look this is
-    // after: a light grey that reads as milled metal rather than as paint.
-    logoColor: "#9c9c9c",
-    // The outer panel, measured at 77.2 x 115.1mm in the file. Upright and
-    // the right way round without help, unlike the inner one.
-    coverScreen: {
-      material: "OLED",
-      native: { width: 772, height: 1151 },
-      // TEXCOORD_0 on the cover panel: u 0..1, v 0.3138..1.0.
-      uvRect: { y: 0.3138, h: 0.6862 },
-      // Its UVs run right to left, like the inner panel's: text bound to it
-      // came back reversed when read from outside the closed phone, which is
-      // the only side this screen is ever seen from.
-      flipX: true,
-    },
-    // The clip closes the phone: the leaves are parallel at t=0 and have swung
-    // 180 degrees onto each other by t=2, holding shut to 5. Rendering both
-    // ends settled which way round it goes -- "parallel leaves" describes
-    // flat-open and folded-shut equally well, so the angle alone cannot say.
-    fold: { openSec: 0, closedSec: 2 },
-    // Open, this model puts its inner screen on the face the stage's default
-    // yaw turns AWAY from -- so it opened showing the back, and the big screen
-    // the device exists for was behind it. Half a turn here rather than a new
-    // camera default, so one convention still holds across the registry.
-    modelYawDeg: 180,
-    // The inner panel measures 158.9 x 111.9mm in the file, so the mockup is
-    // authored landscape. Portrait would letterbox against the mesh.
-    screenNative: { width: 1589, height: 1119 },
-    screenCornerRadiusPct: 0.045,
-    screenInsetPct: 1,
-    // A book fold has no notch on the inner panel; the cameras sit in the
-    // outer half.
-    notch: null,
-    // TODO: unconfirmed. Supplied as `iPhone fold.glb`; provenance and licence
-    // still to be established before this ships anywhere public.
-    credit: "UNKNOWN — provenance not yet confirmed",
   },
   {
     /*

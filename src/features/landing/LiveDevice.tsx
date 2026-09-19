@@ -26,6 +26,13 @@ import { DEFAULT_EDITOR_STATE } from "@/features/mockup-studio/editor/editorStat
 export const SCREENS = "/figma-assets/mockup-studio/screen-presets";
 
 /**
+ * The signed link the device models load through -- see `lib/modelToken`. The
+ * landing page is public, so its server component mints one and hands it down
+ * here; without it every live device would be refused.
+ */
+export const ModelTokenContext = createContext<string | null>(null);
+
+/**
  * A design the visitor dropped onto the page, as a data URL -- the same form
  * the studio reads an upload into. While it is set, every live device on the
  * page shows it instead of its sample screen.
@@ -104,6 +111,7 @@ export function LiveDevice({
 }: LiveDeviceProps) {
   const [ref, near] = useNear<HTMLDivElement>();
   const { screen: userScreen } = useContext(UserScreenContext);
+  const modelToken = useContext(ModelTokenContext);
   return (
     <div ref={ref} className={`${/\babsolute\b/.test(className) ? "" : "relative"} ${className}`}>
       {near ? (
@@ -120,6 +128,7 @@ export function LiveDevice({
           tilt={tilt}
           blur={blur}
           onRotateDrag={onRotateDrag}
+          modelToken={modelToken}
         />
       ) : null}
     </div>
@@ -139,7 +148,8 @@ function Stage({
   tilt,
   blur = DEFAULT_BLUR,
   onRotateDrag,
-}: Omit<LiveDeviceProps, "pose" | "className"> & { pose: Pose; screen: string }) {
+  modelToken,
+}: Omit<LiveDeviceProps, "pose" | "className"> & { pose: Pose; screen: string; modelToken: string | null }) {
   const noSource = useRef<HTMLElement>(null);
   const screenTexture = useScreenTexture(noSource, screen);
   const reduced = usePrefersReducedMotion();
@@ -198,6 +208,7 @@ function Stage({
         blur={blur}
         fold={pose.fold}
         onRotateDrag={onRotateDrag}
+        modelToken={modelToken}
         rotateX={pose.xAxis + (tilt?.x ?? 0)}
         rotateY={pose.yAxis + (tilt?.y ?? 0)}
         rotateZ={pose.zAxis}

@@ -13,16 +13,16 @@ type Look = { ground: string; lighting: LightingId; fov: number; zoom: number; y
 
 /* Colours from the studio's own BACKGROUND_PRESETS. */
 const LOOKS: Look[] = [
-  { ground: "#cdd8f5", lighting: "soft", fov: 38, zoom: 0.84, y: 160, finish: "deep-blue", screen: "dark.png" },
-  { ground: "#121214", lighting: "product", fov: 24, zoom: 0.62, y: 204, finish: "silver", screen: "dark-2.png" },
+  { ground: "#cdd8f5", lighting: "high-key", fov: 38, zoom: 0.84, y: 160, finish: "deep-blue", screen: "dark.png" },
+  { ground: "#121214", lighting: "top", fov: 24, zoom: 0.62, y: 204, finish: "silver", screen: "dark-2.png" },
   { ground: "#f7d9c4", lighting: "studio", fov: 50, zoom: 0.76, y: 148, finish: "cosmic-orange", screen: "dark-4.png" },
-  { ground: "#cfe3d4", lighting: "soft", fov: 38, zoom: 0.9, y: 196, finish: "pro-sky-blue", screen: "confirm-payment.png" },
+  { ground: "#cfe3d4", lighting: "high-key", fov: 38, zoom: 0.9, y: 196, finish: "pro-sky-blue", screen: "confirm-payment.png" },
 ];
 
 const LIGHTS: { id: LightingId; label: string }[] = [
-  { id: "soft", label: "Soft" },
+  { id: "high-key", label: "High-key" },
   { id: "studio", label: "Studio" },
-  { id: "product", label: "Product" },
+  { id: "top", label: "Top light" },
 ];
 
 const TILES = [

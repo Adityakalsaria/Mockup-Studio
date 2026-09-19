@@ -15,12 +15,13 @@
  * not opened.
  */
 
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { Leva, useControls, folder } from "leva";
 import { SURFACE_DEFAULTS, writeSurface } from "./materialLabStore";
 
 export function MaterialLabPanel({ active }: { active: boolean }) {
-  const values = useControls("iPhone 18 surface", {
+  const values = useControls("Surface", {
     body: folder({
       bodyRoughness: { value: SURFACE_DEFAULTS.bodyRoughness, min: 0, max: 1, step: 0.01 },
       bodyMetalness: { value: SURFACE_DEFAULTS.bodyMetalness, min: 0, max: 1, step: 0.01 },
@@ -43,6 +44,10 @@ export function MaterialLabPanel({ active }: { active: boolean }) {
       restMetalness: { value: SURFACE_DEFAULTS.restMetalness, min: 0, max: 1, step: 0.01 },
       restEnv: { value: SURFACE_DEFAULTS.restEnv, min: 0, max: 4, step: 0.05 },
     }),
+    antenna: folder({
+      antennaRoughness: { value: SURFACE_DEFAULTS.antennaRoughness, min: 0, max: 1, step: 0.01 },
+      antennaMetalness: { value: SURFACE_DEFAULTS.antennaMetalness, min: 0, max: 1, step: 0.01 },
+    }),
     logo: folder({
       logoRoughness: { value: SURFACE_DEFAULTS.logoRoughness, min: 0, max: 1, step: 0.01 },
       logoMetalness: { value: SURFACE_DEFAULTS.logoMetalness, min: 0, max: 1, step: 0.01 },
@@ -62,12 +67,26 @@ export function MaterialLabPanel({ active }: { active: boolean }) {
    * in the registry. Keeping the element mounted and hidden is what actually
    * suppresses it.
    */
-  return (
+  /*
+   * Portalled to the body. Rendered where it is used, the panel sat inside the
+   * stage — under the crafting chrome, which took every click meant for a
+   * slider, so the bench looked open and did nothing.
+   */
+  // No body on the server; the client's first render has one.
+  const onClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+  if (!onClient) return null;
+
+  return createPortal(
     <Leva
       hidden={!active}
       titleBar={{ title: "Surface", position: { x: 0, y: 0 } }}
       theme={{ sizes: { rootWidth: "260px" } }}
       collapsed
-    />
+    />,
+    document.body,
   );
 }

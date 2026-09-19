@@ -13,7 +13,7 @@
  * `strength`, 0..100 to match the sliders) so a saved shot means the same
  * thing regardless of where the camera has since been moved.
  */
-export type BlurMode = "off" | "tilt-shift" | "radial";
+export type BlurMode = "off" | "radial" | "directional" | "tilt-shift";
 
 export interface BlurSettings {
   mode: BlurMode;
@@ -25,19 +25,24 @@ export interface BlurSettings {
   falloff: number;
   /** Larger, rounder highlights. Costs a second pass, so it is opt-in. */
   bokeh: boolean;
-  /** Degrees. Tilt shift only — the angle of the sharp band. */
+  /**
+   * Degrees. Tilt shift: the angle of the sharp band, 0 lying it flat.
+   * Directional: the way the blur grows, 90 toward the top of the frame.
+   */
   angle: number;
-  /** 0..1 across the frame. Tilt shift only — slides the band off centre. */
+  /** 0..1 across the frame. Unused since the focus pad; kept so saved shots load. */
   scan: number;
-  /** 0..1 across the frame. Radial only — where the sharp point sits. */
+  /** 0..1 across the frame, from the left and from the top. Every mode: where
+      the sharp point, or the middle of the sharp band, sits. */
   focusX: number;
   focusY: number;
 }
 
 export const BLUR_MODES: { id: BlurMode; label: string }[] = [
-  { id: "off", label: "Off" },
-  { id: "tilt-shift", label: "Tilt shift" },
+  { id: "off", label: "None" },
   { id: "radial", label: "Radial" },
+  { id: "directional", label: "Directional" },
+  { id: "tilt-shift", label: "Tilt shift" },
 ];
 
 export const DEFAULT_BLUR: BlurSettings = {
@@ -59,8 +64,11 @@ export const DEFAULT_BLUR: BlurSettings = {
  */
 export const MODE_DEFAULTS: Record<BlurMode, Partial<BlurSettings>> = {
   off: {},
-  "tilt-shift": { strength: 30, focusSize: 0.1, falloff: 0, angle: 45, scan: 0.5 },
-  radial: { strength: 10, focusSize: 0.52, falloff: 0, focusX: 0.5, focusY: 0.5 },
+  // Strong enough to read the moment the mode is picked: a 10 used to open
+  // onto a shot that looked unchanged, which reads as a control that is broken.
+  radial: { strength: 40, focusSize: 0.3, falloff: 0.3 },
+  directional: { strength: 40, focusSize: 0.1, falloff: 0.4, angle: 90 },
+  "tilt-shift": { strength: 40, focusSize: 0.2, falloff: 0.3, angle: 0 },
 };
 
 export function applyMode(current: BlurSettings, mode: BlurMode): BlurSettings {

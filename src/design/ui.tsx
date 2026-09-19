@@ -134,13 +134,26 @@ export type GlassProps = {
  * placed inside the frost has nothing beneath it to blend against and its
  * blend mode silently does nothing. See the long note in `system.ts`.
  */
+/*
+ * The pane multiplies its fill over the frost -- and multiplying by white
+ * changes nothing. It still made Chrome blend the glass against the page layer
+ * by layer, and over a dark shot every compositor boundary behind a panel
+ * showed through as a faint hard-edged rectangle. So a white multiply pane is
+ * not drawn; tune the fill to anything else and it comes back.
+ */
+const PANE_IS_NOOP =
+  material.glass.top.fill.replace(/\s+/g, "") === "rgb(255255255)" &&
+  material.glass.top.fillBlend === "multiply";
+
 export function Material() {
   return (
     <>
       <div aria-hidden className="mo-mat-layer mo-mat-base" />
       <div aria-hidden className="mo-mat-layer mo-mat-rim" />
       <div aria-hidden className="mo-mat-layer mo-mat-frost" />
-      <div aria-hidden className="mo-mat-layer mo-mat-pane" />
+      {PANE_IS_NOOP ? null : (
+        <div aria-hidden className="mo-mat-layer mo-mat-pane" />
+      )}
       <div aria-hidden className="mo-mat-layer mo-mat-depth mo-mat-depth-1" />
       <div aria-hidden className="mo-mat-layer mo-mat-depth mo-mat-depth-2" />
       <div aria-hidden className="mo-mat-layer mo-mat-depth mo-mat-depth-3" />
@@ -348,6 +361,12 @@ export type RowProps = {
   selected?: boolean;
   onClick?: () => void;
   title?: string;
+  /**
+   * As wide as its label rather than the column: a chip in a wrapping
+   * `RowGroup`, where the selection is a pill around the word, not a band
+   * across the panel.
+   */
+  hug?: boolean;
 };
 
 /**
@@ -396,8 +415,15 @@ function pressKeys(onClick?: () => void) {
  * used on its own wraps itself in a one-item group so there is exactly one
  * implementation of the selected look rather than two that can drift.
  */
-export function Row({ icon, children, trailing, value, selected, onClick, title }: RowProps) {
-  const { grouped, strong, interactive } = useRowState(selected, onClick);
+export function Row({ icon, children, trailing, value, selected, onClick, title, hug }: RowProps) {
+  const { grouped, strong: selectedInk, interactive } = useRowState(selected, onClick);
+  /*
+   * Hover borrows the selected INK, not the lens: text and glyphs go to full
+   * strength under the pointer so a row reads as reachable before it is
+   * pressed, while the pill stays with what is actually selected.
+   */
+  const [hovered, setHovered] = useState(false);
+  const strong = selectedInk || (interactive && hovered);
 
   if (!grouped) {
     return (
@@ -409,6 +435,7 @@ export function Row({ icon, children, trailing, value, selected, onClick, title 
           selected={selected}
           onClick={onClick}
           title={title}
+          hug={hug}
         >
           {children}
         </Row>
@@ -423,7 +450,9 @@ export function Row({ icon, children, trailing, value, selected, onClick, title 
       title={title}
       onClick={interactive ? onClick : undefined}
       onKeyDown={interactive ? pressKeys(onClick) : undefined}
-      className={`relative flex w-full items-center ${interactive ? "cursor-pointer" : ""}`}
+      onPointerEnter={interactive ? () => setHovered(true) : undefined}
+      onPointerLeave={interactive ? () => setHovered(false) : undefined}
+      className={`relative flex items-center ${hug ? "" : "w-full"} ${interactive ? "cursor-pointer" : ""}`}
       style={{
         gap: "var(--mo-space-2)",
         padding: "10px var(--mo-space-3)",
@@ -436,11 +465,12 @@ export function Row({ icon, children, trailing, value, selected, onClick, title 
         </span>
       ) : null}
       <span
-        className="mo-title relative min-w-0 flex-1 truncate"
+        className={`mo-title relative ${hug ? "whitespace-nowrap" : "min-w-0 flex-1 truncate"}`}
         style={{
           zIndex: 1,
           color: strong ? "var(--mo-ink)" : "var(--mo-ink-muted)",
           filter: "var(--mo-text-shadow)",
+          transition: "color 150ms ease-out",
         }}
       >
         {children}
@@ -705,6 +735,84 @@ export function RailItem({
   );
 }
 
+/**
+ * A name on hover, in the selection's material -- the rail's tip, for any
+ * control, above or below it.
+ *
+ * Same rules as the rail's: CSS hover rather than state, so nothing
+ * re-renders on pointer-over; centred by a box that spans the anchor rather
+ * than by a transform, because a transform above the tip's backdrop filter
+ * would leave it frosting nothing. Shown on disabled controls too, where a
+ * native `title` never appears -- which is when "why is this grey?" is asked.
+ */
+export function Tip({
+  label,
+  placement = "below",
+  quiet,
+  offset = 8,
+  className = "",
+  children,
+}: {
+  label: ReactNode;
+  placement?: "above" | "below" | "right";
+  /** From the anchor's edge to the tip. More where the anchor sits inset in
+      a surface, so the gap is measured from the surface instead. */
+  offset?: number;
+  /** Hide it, e.g. while the control's own menu is open over the same spot. */
+  quiet?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span className={`group/tip relative ${className}`}>
+      {children}
+      {quiet ? null : (
+        <span
+          className={`pointer-events-none absolute z-10 flex ${
+            placement === "right"
+              ? "inset-y-0 left-full w-max items-center"
+              : `inset-x-0 justify-center ${
+                  placement === "below" ? "top-full" : "bottom-full"
+                }`
+          }`}
+          style={
+            placement === "right"
+              ? { paddingLeft: offset }
+              : placement === "below"
+                ? { paddingTop: offset }
+                : { paddingBottom: offset }
+          }
+        >
+          <span
+            /*
+             * Panel glass, not the selected pill's tint: that tint is made to
+             * sit ON a panel, and a tip floats over the bare canvas, where it
+             * read grey. Long labels wrap to a second line rather than run
+             * past the window's edge.
+             */
+            className="mo-glass mo-title relative opacity-0 transition-opacity duration-150 group-hover/tip:opacity-100"
+            style={{
+              width: "max-content",
+              // Beside its anchor there is room to stay on one line.
+              maxWidth: placement === "right" ? undefined : 150,
+              textAlign: "left",
+              padding: "10px 18px",
+              borderRadius: "var(--mo-r-selected)",
+              color: "var(--mo-ink)",
+              filter: "var(--mo-text-shadow)",
+            }}
+          >
+            <Material />
+            <span className="relative" style={{ zIndex: 1 }}>
+              {label}
+            </span>
+          </span>
+        </span>
+      )}
+    </span>
+  );
+}
+
 export type RowGroupProps = {
   children: ReactNode;
   /**
@@ -938,6 +1046,7 @@ export function Glyph({ children, muted }: { children: ReactNode; muted?: boolea
         height: control.icon,
         color: "var(--mo-ink)",
         opacity: muted ? 0.5 : 1,
+        transition: "opacity 150ms ease-out",
       }}
     >
       {children}
@@ -1678,6 +1787,7 @@ export function ParamRow({
   icon,
   trailing,
   bare,
+  hideValue,
   value,
   min,
   max,
@@ -1687,8 +1797,14 @@ export function ParamRow({
   glass,
   spring,
   press,
+  snap,
 }: {
   label: string;
+  /**
+   * Pulls a DRAGGED value onto somewhere worth landing. The slider only: a
+   * number typed into the field is taken exactly as typed.
+   */
+  snap?: (n: number) => number;
   /**
    * Replaces the label column with a glyph box.
    *
@@ -1709,6 +1825,8 @@ export function ParamRow({
    * a 48px column. The label still reaches the slider's accessible name.
    */
   bare?: boolean;
+  /** Drop the number field, for a slider whose value needs no readout. */
+  hideValue?: boolean;
   value: number;
   min?: number;
   max?: number;
@@ -1743,20 +1861,22 @@ export function ParamRow({
         min={min}
         max={max}
         step={step}
-        onChange={onChange}
+        onChange={snap ? (n) => onChange(snap(n)) : onChange}
         glass={glass}
         spring={spring}
         press={press}
       />
-      <EditableField
-        label={label}
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        format={format}
-        onChange={onChange}
-      />
+      {hideValue ? null : (
+        <EditableField
+          label={label}
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          format={format}
+          onChange={onChange}
+        />
+      )}
       {trailing ? <Glyph muted>{trailing}</Glyph> : null}
     </div>
   );

@@ -3,7 +3,12 @@
 import { useEffect, useMemo } from "react";
 import { Environment, Lightformer } from "@react-three/drei";
 import { CanvasTexture, LinearFilter } from "three";
-import { DEFAULT_LIGHTING, getLighting, shiftTemperature, type LightingId } from "./lighting";
+import {
+  DEFAULT_LIGHTING,
+  getLighting,
+  shiftTemperature,
+  type LightingId,
+} from "./lighting";
 
 /**
  * The studio lighting rig.
@@ -59,7 +64,11 @@ function makeSoftboxTexture(): CanvasTexture {
   return texture;
 }
 
-export function StudioEnvironment({ lighting = DEFAULT_LIGHTING }: { lighting?: LightingId }) {
+export function StudioEnvironment({
+  lighting = DEFAULT_LIGHTING,
+}: {
+  lighting?: LightingId;
+}) {
   const softbox = useMemo(() => makeSoftboxTexture(), []);
   useEffect(() => () => softbox.dispose(), [softbox]);
 

@@ -1,3 +1,4 @@
+import type { FocusFollow } from "../mocraft/focusMath";
 import { DEFAULT_BLUR, type BlurSettings } from "../blurStyles";
 import { DEFAULT_OVERLAY, type OverlaySettings } from "../overlay";
 import { DEFAULT_FINISH_ID } from "../finishes";
@@ -36,6 +37,17 @@ export interface EditorState {
   screenScale: number;
   screenOffsetX: number;
   screenOffsetY: number;
+  /** Fill covers the screen and crops; Fit shows the whole image, with black
+      where it does not reach. Absent is Fill, which is what every saved shot
+      before this was. */
+  screenFitMode?: "fill" | "fit";
+  /** A composed focus move's schedule, for depth of field to follow its
+      subject frame by frame. Absent when there is no such move. */
+  focusFollow?: FocusFollow | null;
+  /** Motion's own depth of field -- the one a composed move uses and the
+      Motion tab edits. Kept apart from `blur` so Crafting's still-shot blur
+      is untouched by it. Absent is off. */
+  motionBlur?: BlurSettings;
   /** The same three, for a device's second screen. */
   coverScale: number;
   coverOffsetX: number;
@@ -88,6 +100,12 @@ export interface EditorState {
   shadow: ShadowSettings;
   /** Which lighting rig the environment builds. */
   lighting: LightingId;
+  /**
+   * Where the light comes from: degrees round the phone, and up (+) or down
+   * (−). 0 and 0 are the rig as authored. Absent on shots saved before them.
+   */
+  lightAngle: number;
+  lightElevation: number;
 
   /* TIMELINE */
   animation: Animation;
@@ -141,6 +159,8 @@ export const DEFAULT_EDITOR_STATE: EditorState = {
   background: DEFAULT_BACKGROUND,
   shadow: DEFAULT_SHADOW,
   lighting: DEFAULT_LIGHTING,
+  lightAngle: 0,
+  lightElevation: 0,
   animation: DEFAULT_ANIMATION,
 };
 
@@ -221,9 +241,11 @@ export const RANGES = {
   fold: { min: 0, max: 100, step: 1 },
   cardRadius: { min: 0, max: 0.5, step: 0.005 },
   cardDepth: { min: 0, max: 0.08, step: 0.001 },
-  // 14 is very wide and 90 is nearly fisheye. Below 14 a phone at this
-  // distance stops being recognisable as one.
-  fov: { min: 14, max: 90, step: 1 },
+  // The vertical angles of a 120mm and a 1mm lens on a full-frame sensor's
+  // 24mm height -- the Focal Length row's 1..120 mm (see `bindings.ts`).
+  fov: { min: 11.4, max: 170.5, step: 1 },
+  lightAngle: { min: -180, max: 180, step: 1 },
+  lightElevation: { min: -60, max: 60, step: 1 },
   /*
    * Pan is a fixed distance in world units while the FRAME grows with the
    * lens, so the same pan covers less and less of the shot as the lens widens.

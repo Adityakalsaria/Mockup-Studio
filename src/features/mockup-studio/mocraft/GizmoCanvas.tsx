@@ -356,7 +356,30 @@ export default function GizmoCanvas({
   playing?: boolean;
   timeRef?: { current: number };
 }) {
-  const [live, setLive] = useState(canRender3D);
+  /* Whether this browser can draw 3D at all -- asked once. Separate from a
+     context being LOST, which is temporary and must not be treated as "no". */
+  const [supported] = useState(canRender3D);
+  const [lost, setLost] = useState(false);
+  /** Bumped to rebuild the canvas with a fresh context. */
+  const [generation, setGeneration] = useState(0);
+
+  /*
+   * A lost context comes back one way or another.
+   *
+   * The browser may restore it (`webglcontextrestored`, below). If it has not
+   * within a moment -- after a hot reload it usually will not, the context
+   * belonged to a canvas from before -- the canvas is rebuilt, which asks for
+   * a brand-new context. Before this the gizmo waited for a restore event on a
+   * canvas it had already unmounted, so it never came back.
+   */
+  useEffect(() => {
+    if (!lost) return;
+    const t = window.setTimeout(() => {
+      setGeneration((g) => g + 1);
+      setLost(false);
+    }, 800);
+    return () => window.clearTimeout(t);
+  }, [lost]);
   const [dragging, setDragging] = useState(false);
 
   const pose = rotation ?? { x: 0, y: NEUTRAL_YAW, z: 0 };
@@ -452,7 +475,7 @@ export default function GizmoCanvas({
     [onTurn],
   );
 
-  if (!live) return <FlatGizmo size={size} />;
+  if (!supported) return <FlatGizmo size={size} />;
 
   return (
     <div
@@ -469,6 +492,7 @@ export default function GizmoCanvas({
       onDoubleClick={onDoubleClick}
       onKeyDown={onKeyDown}
       style={{
+        position: "relative",
         width: size,
         height: size,
         touchAction: "none",
@@ -476,7 +500,15 @@ export default function GizmoCanvas({
         outlineOffset: 4,
       }}
     >
+      {/* The flat mark covers a lost context; the canvas stays MOUNTED under it
+          so that a restore can actually arrive. */}
+      {lost ? (
+        <div className="absolute inset-0 grid place-items-center">
+          <FlatGizmo size={size} />
+        </div>
+      ) : null}
       <Canvas
+        key={generation}
         // Orthographic, because a gizmo reports direction and perspective would
         // make the near arm longer than the far one for reasons of distance
         // rather than of orientation.
@@ -488,9 +520,18 @@ export default function GizmoCanvas({
          * dropped to begin with. `Rig` asks for a frame while it is moving.
          */
         frameloop="demand"
-        camera={{ position: [2.2, 1.8, 2.6], zoom: size / 3.4 }}
+        // Straight on, so a gizmo at rest is a plus: X right, Y up, and Z
+        // pointing at you -- its blue cap over the centre. Zoomed out from
+        // the old three-quarter view, where every arm was foreshortened, so
+        // the full-length arms reach halfway to the surface's rim.
+        camera={{ position: [0, 0, 5], zoom: size / 4.6 }}
         gl={{ alpha: true, antialias: true }}
-        style={{ width: size, height: size, background: "transparent" }}
+        style={{
+          width: size,
+          height: size,
+          background: "transparent",
+          visibility: lost ? "hidden" : "visible",
+        }}
         dpr={[1, 2]}
         /*
          * A context can be taken away after it is granted, and given back.
@@ -509,9 +550,9 @@ export default function GizmoCanvas({
           const canvas = gl.domElement;
           canvas.addEventListener("webglcontextlost", (event) => {
             event.preventDefault();
-            setLive(false);
+            setLost(true);
           });
-          canvas.addEventListener("webglcontextrestored", () => setLive(true));
+          canvas.addEventListener("webglcontextrestored", () => setLost(false));
         }}
       >
         {/*

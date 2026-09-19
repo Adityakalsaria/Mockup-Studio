@@ -70,7 +70,7 @@ export function BringItToLife() {
               deviceId="apple-iphone-17-pro"
               finishId="deep-blue"
               screen={`${SCREENS}/dark-5.png`}
-              lighting="product"
+              lighting="top"
               preset={preset}
               pose={{ zoom: 1.0, yAxis: 180 }}
             />

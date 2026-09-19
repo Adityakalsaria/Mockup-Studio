@@ -28,8 +28,18 @@
 
 import { ANIMATABLE, type AnimatableKey } from "../animation";
 import { canFold, getDevice } from "../devices";
-import { DEFAULT_EDITOR_STATE, RANGES, type EditorState } from "../editor/editorState";
-import { applyMode, type BlurSettings } from "../blurStyles";
+import {
+  DEFAULT_EDITOR_STATE,
+  RANGES,
+  type EditorState,
+} from "../editor/editorState";
+import {
+  applyMode,
+  BLUR_MODES,
+  DEFAULT_BLUR,
+  type BlurMode,
+  type BlurSettings,
+} from "../blurStyles";
 import { LIGHTING_PRESETS } from "../lighting";
 import { OVERLAY_RANGES } from "../overlay";
 import { SHADOW_RANGES } from "../shadow";
@@ -68,8 +78,10 @@ const fmt = {
  * stage's own 14°-90° range actually lands.
  */
 const SENSOR_MM = 24;
-const degFromMm = (mm: number) => (2 * Math.atan(SENSOR_MM / 2 / mm) * 180) / Math.PI;
-const mmFromDeg = (deg: number) => SENSOR_MM / 2 / Math.tan((deg * Math.PI) / 360);
+const degFromMm = (mm: number) =>
+  (2 * Math.atan(SENSOR_MM / 2 / mm) * 180) / Math.PI;
+const mmFromDeg = (deg: number) =>
+  SENSOR_MM / 2 / Math.tan((deg * Math.PI) / 360);
 
 /** Widest lens first: a bigger fov is a shorter lens, so the range inverts. */
 const FOCAL = {
@@ -141,7 +153,50 @@ export type ChoiceField = Conditional & {
   set: (s: EditorState, id: string) => EditorState;
 };
 
-export type Field = NumberField | ColorField | ChoiceField;
+/**
+ * The same kind of answer as `ChoiceField`, as a dropdown: a value row that
+ * opens its options. For a mode that decides what the rest of the popup IS —
+ * the blur's — where a list of four rows would push the parameters it governs
+ * off the bottom of the panel.
+ */
+export type SelectField = Conditional & {
+  kind: "select";
+  label: string;
+  key: string;
+  options: { id: string; label: string }[];
+  get: (s: EditorState) => string;
+  set: (s: EditorState, id: string) => EditorState;
+};
+
+/** On or off, for a parameter that is a switch rather than an amount. */
+export type ToggleField = Conditional & {
+  kind: "toggle";
+  label: string;
+  key: string;
+  get: (s: EditorState) => boolean;
+  set: (s: EditorState, on: boolean) => EditorState;
+};
+
+/**
+ * A point in the frame, 0..1 from the left and from the top, placed on a pad
+ * shaped like the frame. Two sliders said the same thing, and nobody reads
+ * "where should the sharp part be" as two numbers.
+ */
+export type PointField = Conditional & {
+  kind: "point";
+  label: string;
+  key: string;
+  get: (s: EditorState) => { x: number; y: number };
+  set: (s: EditorState, p: { x: number; y: number }) => EditorState;
+};
+
+export type Field =
+  | NumberField
+  | ColorField
+  | ChoiceField
+  | SelectField
+  | ToggleField
+  | PointField;
 
 /**
  * Is this row worth drawing for the shot as it stands?
@@ -292,12 +347,35 @@ const wrapInto = (v: number, r: Range) => {
   while (x < r.min) x += 360;
   return x;
 };
-const nearestTurn = (target: number, current: number) =>
-  target + 360 * Math.round((current - target) / 360);
+/*
+ * Of the angles equal to `target` whole turns apart, the nearest to what is
+ * stored -- among those that READ BACK as `target`. On a narrow range that is
+ * plain nearest-turn. On Y's ±360 it matters: 0 typed with the phone at 180
+ * would otherwise be written as 360, which is in range, so the row showed 360
+ * and the typed number looked ignored.
+ */
+const nearestTurn = (target: number, current: number, r: Range) => {
+  const k0 = Math.round((current - target) / 360);
+  let best = target;
+  for (let k = k0 - 2; k <= k0 + 2; k++) {
+    const c = target + 360 * k;
+    if (wrapInto(c, r) !== target) continue;
+    if (
+      wrapInto(best, r) !== target ||
+      Math.abs(c - current) < Math.abs(best - current)
+    )
+      best = c;
+  }
+  return best;
+};
 
 const triple = (
   prefix: string,
-  keys: readonly [keyof EditorState & string, keyof EditorState & string, keyof EditorState & string],
+  keys: readonly [
+    keyof EditorState & string,
+    keyof EditorState & string,
+    keyof EditorState & string,
+  ],
   ranges: readonly [Range, Range, Range],
   format: (n: number) => string,
   angles = false,
@@ -311,7 +389,7 @@ const triple = (
             get: (s: EditorState) => wrapInto(s[key] as number, ranges[i]),
             set: (s: EditorState, n: number) => ({
               ...s,
-              [key]: nearestTurn(n, s[key] as number),
+              [key]: nearestTurn(n, s[key] as number, ranges[i]),
             }),
           }
         : {}),
@@ -395,19 +473,29 @@ const moved = (s: EditorState, keys: readonly (keyof EditorState)[]) =>
 
 /** Put them all back. What "remove" means for a transform: there is no
     transform to delete, only one to return to neutral. */
-const restore = (s: EditorState, keys: readonly (keyof EditorState)[]): EditorState => {
+const restore = (
+  s: EditorState,
+  keys: readonly (keyof EditorState)[],
+): EditorState => {
   const next = { ...s };
   for (const k of keys) (next[k] as EditorState[typeof k]) = D[k];
   return next;
 };
 
 const TRANSFORM_KEYS = [
-  "panX", "panY", "panZ",
-  "xAxis", "yAxis", "zAxis",
+  "panX",
+  "panY",
+  "panZ",
+  "xAxis",
+  "yAxis",
+  "zAxis",
   // `zoom` is the row the Scale group draws; the three axis scales are the
   // stretch behind it, which a preset can still have moved. Reset means all of
   // them, or a shot could return to neutral and stay stretched.
-  "zoom", "scaleX", "scaleY", "scaleZ",
+  "zoom",
+  "scaleX",
+  "scaleY",
+  "scaleZ",
   // Only some devices can be folded, but neutral is open for all of them.
   "fold",
 ] as const;
@@ -423,7 +511,8 @@ const CAMERA_KEYS = ["fov", "xAxis", "yAxis"] as const;
  * three groups one transform, and a reset that left the phone stretched or a
  * quarter-turn off would be resetting some of where it is.
  */
-export const resetTransform = (s: EditorState): EditorState => restore(s, TRANSFORM_KEYS);
+export const resetTransform = (s: EditorState): EditorState =>
+  restore(s, TRANSFORM_KEYS);
 
 /**
  * The crafting stack, straight off the file's nine frames — with the other
@@ -655,30 +744,71 @@ export const LAYERS: Layer[] = [
     // painted behind the phone: the blur is what the shot was TAKEN through.
     group: "stage",
     name: "Depth of Field",
-    // TODO: its own glyph. Sharing the camera's is honest about what this is
-    // -- both rows are the lens -- but two identical icons in a list of nine
-    // is a worse row to scan than it should be. Wants a Figma asset.
-    icon: "camera",
+    icon: "depth-of-field",
     sections: [
       {
         fields: [
-          /*
-           * Focus X and Y are the answer to "blur everywhere except HERE".
-           *
-           * They are a point in the FRAME, 0..1 across it, which the layer
-           * maps onto the phone's own plane to get a point in the scene. That
-           * indirection is why they are a pair of sliders rather than a depth
-           * in millimetres: you pick the part of the picture that should be
-           * sharp, and the distance falls out of where that lands.
-           */
-          blurNum("Focus X", "focusX", { min: 0, max: 1, step: 0.01 }, fmt.pct),
-          blurNum("Focus Y", "focusY", { min: 0, max: 1, step: 0.01 }, fmt.pct),
-          // "How much stays sharp", not "how far away the sharp bit is" --
-          // see the layer, which fixes distance with the target above and
-          // spends this on focusRange.
-          blurNum("Focus Size", "focusSize", { min: 0, max: 1, step: 0.01 }, fmt.pct),
-          blurNum("Falloff", "falloff", { min: 0, max: 1, step: 0.01 }, fmt.pct),
-          blurNum("Strength", "strength", { min: 0, max: 100, step: 1 }, fmt.plain),
+          {
+            kind: "select",
+            label: "Mode",
+            key: "mode",
+            options: BLUR_MODES,
+            get: (s) => s.blur.mode,
+            // Through `applyMode`, so a mode opens on numbers that read for it
+            // rather than on whatever the last mode left behind.
+            set: (s, id) => ({ ...s, blur: applyMode(s.blur, id as BlurMode) }),
+          },
+          blurNum(
+            "Strength",
+            "strength",
+            { min: 0, max: 100, step: 1 },
+            (n) => `${Math.round(n)}`,
+          ),
+          blurNum(
+            "Size",
+            "focusSize",
+            { min: 0, max: 1, step: 0.01 },
+            fmt.plain,
+          ),
+          blurNum(
+            "Falloff",
+            "falloff",
+            { min: 0, max: 1, step: 0.01 },
+            fmt.plain,
+          ),
+          {
+            ...blurNum(
+              "Angle",
+              "angle",
+              { min: 0, max: 360, step: 1 },
+              fmt.deg,
+            ),
+            // A circle has no direction.
+            when: (s) =>
+              s.blur.mode === "directional" || s.blur.mode === "tilt-shift",
+          },
+          {
+            kind: "toggle",
+            label: "Bokeh",
+            key: "bokeh",
+            get: (s) => s.blur.bokeh,
+            set: (s, on) => ({ ...s, blur: { ...s.blur, bokeh: on } }),
+          },
+        ],
+      },
+      {
+        title: "Focus Position",
+        fields: [
+          {
+            kind: "point",
+            label: "Focus Position",
+            key: "focus",
+            get: (s) => ({ x: s.blur.focusX, y: s.blur.focusY }),
+            set: (s, p) => ({
+              ...s,
+              blur: { ...s.blur, focusX: p.x, focusY: p.y },
+            }),
+          },
         ],
       },
     ],
@@ -689,36 +819,42 @@ export const LAYERS: Layer[] = [
      * you dragged strength to 0 would take its own sliders away mid-gesture.
      */
     isOn: (s) => s.blur.mode !== "off",
-    /*
-     * On means RADIAL. The model carries a tilt-shift pass too, and it is a
-     * genuinely different pass rather than a variant -- one blurs by screen
-     * position, the other by depth -- so it needs a mode control to choose
-     * between them, and the field vocabulary here is numbers and colours with
-     * nothing that renders a choice. Radial is the one that answers "depth of
-     * field"; tilt shift is reachable from the old editor until this panel
-     * grows a row that can express it.
-     *
-     * Bokeh goes on with it. The layer's own comment is that without it "the
-     * same strength reads as a plain defocus" -- and a defocus is not what
-     * anyone turning on depth of field in a mockup tool is after.
-     */
+    // On means radial -- the mode that answers "depth of field" -- and the
+    // mode dropdown is where the other two live.
     toggle: (s, on) =>
       on
-        ? { ...s, blur: { ...applyMode(s.blur, "radial"), bokeh: true } }
+        ? {
+            ...s,
+            blur: applyMode(
+              s.blur,
+              s.blur.mode === "off" ? "radial" : s.blur.mode,
+            ),
+          }
         : { ...s, blur: { ...s.blur, mode: "off" } },
     /*
-     * Reset and dirty both measure against the RADIAL defaults, not the
-     * global ones, and they have to be spelled out because the generic
-     * versions compare against `DEFAULT_EDITOR_STATE` -- which holds the
-     * mode-off numbers. Left generic, this row lit its reset glyph the moment
-     * you switched it on, having done nothing but switch it on, and resetting
-     * would have moved strength somewhere the radial pass never opens at.
+     * Reset and dirty measure against the CURRENT mode's defaults, not the
+     * global ones: those hold the mode-off numbers, so a generic reset would
+     * move strength somewhere no mode opens at, and the header would light
+     * its reset glyph the moment the effect was switched on.
      */
-    reset: (s) => ({ ...s, blur: { ...applyMode(s.blur, "radial"), bokeh: true } }),
+    reset: (s) => ({
+      ...s,
+      blur: {
+        ...applyMode(s.blur, s.blur.mode === "off" ? "radial" : s.blur.mode),
+        bokeh: false,
+        focusX: 0.5,
+        focusY: 0.5,
+      },
+    }),
     dirty: (s) => {
-      const base = applyMode(s.blur, "radial");
-      return (["focusX", "focusY", "focusSize", "falloff", "strength"] as const).some(
-        (k) => Math.abs(s.blur[k] - base[k]) > 1e-6,
+      const base = applyMode(s.blur, s.blur.mode);
+      return (
+        s.blur.bokeh ||
+        Math.abs(s.blur.focusX - 0.5) > 1e-6 ||
+        Math.abs(s.blur.focusY - 0.5) > 1e-6 ||
+        (["strength", "focusSize", "falloff", "angle"] as const).some(
+          (k) => Math.abs(s.blur[k] - base[k]) > 1e-6,
+        )
       );
     },
   },
@@ -731,7 +867,7 @@ export const LAYERS: Layer[] = [
      */
     group: "stage",
     name: "Lighting",
-    icon: "styles",
+    icon: "lighting",
     sections: [
       {
         fields: [
@@ -751,8 +887,37 @@ export const LAYERS: Layer[] = [
               label: preset.label,
             })),
             get: (s) => s.lighting,
+            // Only the rig: the direction it comes from is its own, and stays.
             set: (s, id) => ({ ...s, lighting: id as EditorState["lighting"] }),
           },
+        ],
+      },
+      {
+        title: "Light Direction",
+        fields: [
+          /*
+           * Where the light comes from, on the same pad as the blur's focus:
+           * across turns the rig round the phone (−180° to 180°), down tips it
+           * from above (+60°) to below (−60°). Centre is the rig as authored.
+           */
+          {
+            kind: "point",
+            label: "Light Direction",
+            key: "light-direction",
+            get: (s) => ({
+              x: ((s.lightAngle ?? 0) + 180) / 360,
+              y: (60 - (s.lightElevation ?? 0)) / 120,
+            }),
+            set: (s, p) => ({
+              ...s,
+              lightAngle: Math.round(p.x * 360 - 180),
+              lightElevation: Math.round(60 - p.y * 120),
+            }),
+          },
+          // The same two numbers as rows, which is where their keyframe
+          // diamonds live: a pad has no single value to key.
+          scalar("Angle", "lightAngle", RANGES.lightAngle, fmt.deg),
+          scalar("Height", "lightElevation", RANGES.lightElevation, fmt.deg),
         ],
       },
     ],
@@ -762,8 +927,16 @@ export const LAYERS: Layer[] = [
      * taking it out is going back to Studio.
      */
     removable: false,
-    isOn: (s) => s.lighting !== DEFAULT_EDITOR_STATE.lighting,
-    toggle: (s, on) => (on ? s : { ...s, lighting: DEFAULT_EDITOR_STATE.lighting }),
+    isOn: (s) => layerIsDirty(getLayer("lighting")!, s),
+    toggle: (s, on) =>
+      on
+        ? s
+        : {
+            ...s,
+            lighting: DEFAULT_EDITOR_STATE.lighting,
+            lightAngle: 0,
+            lightElevation: 0,
+          },
   },
   {
     id: "drop-shadow",
@@ -828,9 +1001,39 @@ export const LAYERS: Layer[] = [
     // Named for what it holds. Four rows in this stack paint a background —
     // this one, Gradient, Dots and Image — so "Background" alone said the
     // category rather than which of the four you were opening.
-    name: "Background Color",
-    icon: "background",
-    sections: [{ fields: [bgColor("Color", "color")] }],
+    name: "Canvas color",
+    icon: "canvas-color",
+    sections: [
+      {
+        fields: [
+          {
+            // Picking a colour is choosing a solid canvas, so it also turns
+            // Transparent off.
+            kind: "color",
+            label: "Color",
+            key: "color",
+            get: (s) => s.background.color,
+            set: (s, hex) => ({
+              ...s,
+              background: { ...s.background, kind: "solid", color: hex },
+            }),
+          },
+          {
+            kind: "toggle",
+            label: "Transparent",
+            key: "transparent",
+            get: (s) => s.background.kind === "transparent",
+            set: (s, on) => ({
+              ...s,
+              background: {
+                ...s.background,
+                kind: on ? "transparent" : "solid",
+              },
+            }),
+          },
+        ],
+      },
+    ],
     isOn: (s) => s.background.kind === "solid",
     toggle: (s, on) => ({
       ...s,
@@ -859,7 +1062,10 @@ export const LAYERS: Layer[] = [
             step: 1,
             format: fmt.deg,
             get: (s) => s.background.gradientAngle,
-            set: (s, n) => ({ ...s, background: { ...s.background, gradientAngle: n } }),
+            set: (s, n) => ({
+              ...s,
+              background: { ...s.background, gradientAngle: n },
+            }),
           },
         ],
       },
@@ -894,7 +1100,10 @@ export const LAYERS: Layer[] = [
             step: 1,
             format: fmt.px,
             get: (s) => s.background.dotSize,
-            set: (s, n) => ({ ...s, background: { ...s.background, dotSize: n } }),
+            set: (s, n) => ({
+              ...s,
+              background: { ...s.background, dotSize: n },
+            }),
           },
         ],
       },
@@ -913,7 +1122,8 @@ export const LAYERS: Layer[] = [
     // No sections: this one's body is the image well, which is a component
     // rather than a list of fields. The chrome special-cases it by id.
     sections: [],
-    isOn: (s) => s.background.kind === "image" && Boolean(s.background.imageSrc),
+    isOn: (s) =>
+      s.background.kind === "image" && Boolean(s.background.imageSrc),
     // Reset is the upload, because the upload is the whole layer. The kind
     // goes back with it: leaving `image` selected with nothing to draw would
     // paint an empty frame, which is the same trap `toggle` steps around.
@@ -929,7 +1139,12 @@ export const LAYERS: Layer[] = [
         // Switching it on with nothing uploaded would paint an empty frame, so
         // the kind only moves once there is an image to show. The popup opens
         // either way — that is where the upload button is.
-        kind: on && s.background.imageSrc ? "image" : on ? s.background.kind : "solid",
+        kind:
+          on && s.background.imageSrc
+            ? "image"
+            : on
+              ? s.background.kind
+              : "solid",
       },
     }),
   },
@@ -968,9 +1183,13 @@ export function resetLayer(layer: Layer, s: EditorState): EditorState {
         (acc, f) =>
           f.kind === "color"
             ? f.set(acc, f.get(DEFAULT_EDITOR_STATE))
-            : f.kind === "choice"
+            : f.kind === "choice" || f.kind === "select"
               ? f.set(acc, f.get(DEFAULT_EDITOR_STATE))
-              : f.set(acc, f.get(DEFAULT_EDITOR_STATE)),
+              : f.kind === "toggle"
+                ? f.set(acc, f.get(DEFAULT_EDITOR_STATE))
+                : f.kind === "point"
+                  ? f.set(acc, f.get(DEFAULT_EDITOR_STATE))
+                  : f.set(acc, f.get(DEFAULT_EDITOR_STATE)),
         state,
       ),
     s,
@@ -993,9 +1212,12 @@ export function layerIsDirty(layer: Layer, s: EditorState): boolean {
         ? f.get(s).toLowerCase() !== f.get(DEFAULT_EDITOR_STATE).toLowerCase()
         : // A named look is dirty or it is not; there is no tolerance to
           // apply to "Contrast" being a different answer from "Studio".
-          f.kind === "choice"
+          f.kind === "choice" || f.kind === "select" || f.kind === "toggle"
           ? f.get(s) !== f.get(DEFAULT_EDITOR_STATE)
-          : Math.abs(f.get(s) - f.get(DEFAULT_EDITOR_STATE)) > 1e-6,
+          : f.kind === "point"
+            ? Math.abs(f.get(s).x - f.get(DEFAULT_EDITOR_STATE).x) > 1e-6 ||
+              Math.abs(f.get(s).y - f.get(DEFAULT_EDITOR_STATE).y) > 1e-6
+            : Math.abs(f.get(s) - f.get(DEFAULT_EDITOR_STATE)) > 1e-6,
     ),
   );
 }
@@ -1004,4 +1226,46 @@ export type LayerId = string;
 
 export function getLayer(id: LayerId): Layer | undefined {
   return LAYERS.find((l) => l.id === id);
+}
+
+/**
+ * A layer read and written through Motion's own depth of field.
+ *
+ * The depth-of-field layer, with every get, set, test and toggle pointed at
+ * `motionBlur` instead of `blur`: the same popup, the same rules, a separate
+ * setting. Crafting keeps `blur` for its stills; Motion edits this one, and
+ * it is what a composed move uses and follows.
+ */
+export function motionBlurLayer(layer: Layer): Layer {
+  const view = (s: EditorState): EditorState => ({
+    ...s,
+    blur: s.motionBlur ?? DEFAULT_BLUR,
+  });
+  const back = (prev: EditorState, out: EditorState): EditorState => ({
+    ...prev,
+    motionBlur: out.blur,
+  });
+  const field = (f: Field): Field =>
+    ({
+      ...f,
+      get: (s: EditorState) => f.get(view(s) as never),
+      set: (s: EditorState, v: never) =>
+        back(
+          s,
+          (f.set as (s: EditorState, v: never) => EditorState)(view(s), v),
+        ),
+      when: f.when ? (s: EditorState) => f.when!(view(s)) : undefined,
+    }) as Field;
+  return {
+    ...layer,
+    id: `motion-${layer.id}`,
+    sections: layer.sections.map((section) => ({
+      ...section,
+      fields: section.fields.map(field),
+    })),
+    isOn: (s) => layer.isOn(view(s)),
+    toggle: (s, on) => back(s, layer.toggle(view(s), on)),
+    reset: layer.reset ? (s) => back(s, layer.reset!(view(s))) : undefined,
+    dirty: layer.dirty ? (s) => layer.dirty!(view(s)) : undefined,
+  };
 }
