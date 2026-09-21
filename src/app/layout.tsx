@@ -45,6 +45,12 @@ export default function RootLayout({
           waitlistUrl="/waitlist"
           signInFallbackRedirectUrl="/studio"
           signUpFallbackRedirectUrl="/studio"
+          // Clerk's modals sit 64px from the top by default; the sign-in that
+          // opens over the studio at export wants the middle. Auto margins,
+          // not `align-items: center`, so a tall one still scrolls from its top.
+          appearance={{
+            elements: { modalContent: { marginTop: "auto", marginBottom: "auto" } },
+          }}
         >
           {children}
         </ClerkProvider>

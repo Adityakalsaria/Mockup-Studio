@@ -95,6 +95,8 @@ import {
   type AnimatableKey,
 } from "../animation";
 import { useClerk, useUser } from "@clerk/nextjs";
+import { useProgress } from "@react-three/drei";
+import { stashExport, takeExport } from "./pendingExport";
 import { getMotionPreset } from "../editor/motionPresets";
 import { DEFAULT_EDITOR_STATE } from "../editor/editorState";
 import type { BroadcastState } from "../broadcast/useBroadcastLink";
@@ -1065,12 +1067,12 @@ function SignOutSheet({
             WebkitMaskPosition: "center",
           }}
         />
-        <div className="flex flex-col" style={{ gap: 6 }}>
+        <div className="flex flex-col" style={{ gap: 6, textAlign: "center" }}>
           <span className="mo-title" style={{ overflowWrap: "anywhere" }}>
             Sign out of {email}?
           </span>
           <p className="mo-label" style={{ color: "var(--mo-ink-muted)" }}>
-            You’ll need to sign in again to get back to the studio.
+            You’ll need to sign in again to export.
           </p>
         </div>
         <div className="flex flex-col" style={{ gap: 8 }}>
@@ -1386,6 +1388,66 @@ function PresetTile({
 }
 
 /**
+ * What an uploaded picture does on its screen: Fill or Fit, and how far in.
+ *
+ * One block under the well it belongs to -- no rule, no heading of its own --
+ * Fill or Fit first, then the zoom last, with the reset at the end of its row,
+ * beside the slider it undoes. Used
+ * for the inner screen and the cover alike, each with its own numbers.
+ */
+function ScreenAdjust({
+  scale,
+  mode,
+  canReset,
+  onScale,
+  onMode,
+  onReset,
+}: {
+  scale: number;
+  mode: "fill" | "fit";
+  canReset: boolean;
+  onScale: (n: number) => void;
+  onMode: (mode: "fill" | "fit") => void;
+  onReset: () => void;
+}) {
+  return (
+    <div style={{ paddingTop: "var(--mo-space-2)" }}>
+      <ParamGroup>
+        <Segmented
+          width="100%"
+          height={32}
+          value={mode}
+          onChange={(id) => onMode(id as "fill" | "fit")}
+          options={[
+            { id: "fill", label: "Fill" },
+            { id: "fit", label: "Fit" },
+          ]}
+        />
+        <ParamRow
+          hideValue
+          label="Zoom"
+          value={scale}
+          min={1}
+          max={4}
+          step={0.01}
+          format={(n) => `${n.toFixed(2)}×`}
+          onChange={onScale}
+          trailing={
+            <HeaderButton
+              label="Reset adjustments"
+              disabled={!canReset}
+              onClick={onReset}
+            >
+              <Icon name={HEADER_ICON.reset} />
+            </HeaderButton>
+          }
+        />
+      </ParamGroup>
+    </div>
+  );
+}
+
+/**
  * The image well: a preview, an upload, and a way to take it back off.
  *
  * The same body in two places — the rail's screen-image tool and the Image
@@ -1689,12 +1751,10 @@ function ExportRow({
 
 /** Export sizes, as the old editor offered them. */
 const EXPORT_SCALES = [1, 2, 3, 4];
-const EXPORT_RATES = [30, 60];
 
 /**
- * The Motion tab's export: the clip, and what it is written at.
- * Frame rate lives here rather than in the timeline because it describes the
- * file, not the clip.
+ * The Motion tab's export: the clip, and the size it is written at. The frame
+ * rate is not a choice -- it is always 60.
  */
 function MotionExportRow({ studio }: { studio: Studio }) {
   const busy = studio.exporting;
@@ -1727,16 +1787,6 @@ function MotionExportRow({ studio }: { studio: Studio }) {
         value={String(studio.exportScale)}
         onChange={(id) => studio.setExportScale(Number(id))}
         options={EXPORT_SCALES.map((n) => ({ id: String(n), label: `${n}x` }))}
-      />
-      <Segmented
-        width="100%"
-        height={32}
-        value={String(studio.exportFps)}
-        onChange={(id) => studio.setExportFps(Number(id))}
-        options={EXPORT_RATES.map((n) => ({
-          id: String(n),
-          label: `${n} fps`,
-        }))}
       />
       {/*
         The button fills as the clip renders. A percentage alone read as a
@@ -2212,8 +2262,8 @@ export default function StudioChrome({
   /** Signed link for the device models — see `lib/modelToken`. */
   modelToken?: string | null;
 }) {
-  const { user } = useUser();
-  const { signOut, openUserProfile } = useClerk();
+  const { user, isLoaded, isSignedIn } = useUser();
+  const { signOut, openUserProfile, openSignIn } = useClerk();
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
   /** The profile photo failed to load; the initial takes its place. */
   const [avatarFailed, setAvatarFailed] = useState(false);
@@ -2264,6 +2314,60 @@ export default function StudioChrome({
      condition `Timeline` renders on, hoisted so the layout can reserve its
      room. */
   const [tab, setTab] = useState<"crafting" | "motion">("crafting");
+
+  /*
+   * Signing in is asked for at the export, not at the door. A signed-out
+   * visitor gets Clerk's sign-in as a modal over the studio, and the shot is
+   * stashed first: Google leaves the site and comes back to a fresh studio, so
+   * the way back in is the stash, not this component's memory. Whichever way
+   * they return, the shot is put back and the export they pressed runs.
+   */
+  const askSignIn = useCallback(
+    () => openSignIn({ forceRedirectUrl: window.location.href }),
+    [openSignIn],
+  );
+  const gate =
+    (kind: "image" | "video", run: () => Promise<void>) => async () => {
+      if (isSignedIn) return run();
+      if (!isLoaded) return;
+      await stashExport(kind, studio.snapshot(), tab);
+      askSignIn();
+    };
+  const [resume, setResume] = useState<"image" | "video" | null>(null);
+  const resumeChecked = useRef(false);
+  const { restore, setMotionMode } = studio;
+  useEffect(() => {
+    if (!isSignedIn || resumeChecked.current) return;
+    resumeChecked.current = true;
+    void takeExport().then((pending) => {
+      if (!pending) return;
+      restore(pending.shot);
+      // Back on the tab they pressed export from, not the one a fresh load
+      // opens on.
+      setTab(pending.tab);
+      setMotionMode(pending.tab === "motion");
+      setResume(pending.kind);
+    });
+  }, [isSignedIn, restore, setMotionMode]);
+  // Not before the models are in: a capture taken mid-load is an empty desk.
+  // ponytail: a fixed settle after the loader goes quiet, for the frames that
+  // upload the textures -- a real "first frame drawn" signal if it ever misses.
+  const { active: stageLoading, progress: stageProgress } = useProgress();
+  const stageReady = !stageLoading && stageProgress === 100;
+  const { exportImage, exportVideo } = studio;
+  useEffect(() => {
+    if (!resume || !stageReady) return;
+    const timer = setTimeout(() => {
+      setResume(null);
+      void (resume === "image" ? exportImage() : exportVideo());
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [resume, stageReady, exportImage, exportVideo]);
+  const exportStudio = {
+    ...studio,
+    exportImage: gate("image", studio.exportImage),
+    exportVideo: gate("video", studio.exportVideo),
+  };
   /** The glass sliders -- development only; G shows them. */
   const [tunerOpen, setTunerOpen] = useState(false);
   /** The shortcuts sheet, opened from the button beside the account chip. */
@@ -2544,13 +2648,16 @@ export default function StudioChrome({
       new URLSearchParams(window.location.search).has(key),
     );
   useEffect(() => {
-    if (tab !== "motion" || !user || tourOpen || motionTouredRef.current) return;
+    if (tab !== "motion" || !user || tourOpen || motionTouredRef.current)
+      return;
     if (user.unsafeMetadata?.touredMotion && !motionForced) return;
     const timer = setTimeout(() => {
       motionTouredRef.current = true;
       setMotionTourOpen(true);
       void user
-        .update({ unsafeMetadata: { ...user.unsafeMetadata, touredMotion: true } })
+        .update({
+          unsafeMetadata: { ...user.unsafeMetadata, touredMotion: true },
+        })
         .catch(() => {});
     }, TIMELINE_MS + 60);
     return () => clearTimeout(timer);
@@ -3160,9 +3267,13 @@ export default function StudioChrome({
                       <SignOutSheet
                         email={userEmail ?? ""}
                         onClose={closeKeys}
-                        onConfirm={() =>
-                          void signOut({ redirectUrl: "/sign-in" })
-                        }
+                        // Closed first: signing out lands back on this page, and
+                        // the sheet would otherwise stay up, asking again with
+                        // no one to sign out.
+                        onConfirm={() => {
+                          setSheet(null);
+                          void signOut({ redirectUrl: "/studio" });
+                        }}
                       />
                     ) : sheet === "changelog" ? (
                       <ChangelogSheet onClose={closeKeys} />
@@ -3197,15 +3308,17 @@ export default function StudioChrome({
                   {/* Clerk's own profile panel: name, email, password, connected
                       accounts, sessions. This row was a mock that selected
                       itself; now it opens the real thing. */}
-                  <Row
-                    icon={<Icon name="settings" />}
-                    onClick={() => {
-                      setMenuOpen(false);
-                      openUserProfile();
-                    }}
-                  >
-                    Account
-                  </Row>
+                  {userEmail ? (
+                    <Row
+                      icon={<Icon name="settings" />}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        openUserProfile();
+                      }}
+                    >
+                      Account
+                    </Row>
+                  ) : null}
                   {/* What has shipped, in the same sheet the shortcuts use. */}
                   <Row
                     icon={<Icon name="effects" />}
@@ -3239,6 +3352,16 @@ export default function StudioChrome({
                       }}
                     >
                       Sign out
+                    </Row>
+                  ) : isLoaded ? (
+                    <Row
+                      icon={<Icon name="sign-out" />}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        askSignIn();
+                      }}
+                    >
+                      Sign in
                     </Row>
                   ) : null}
                 </RowGroup>
@@ -3470,87 +3593,36 @@ export default function StudioChrome({
                             onPick={studio.uploadScreen}
                             onClear={studio.clearScreen}
                           />
-                          {/*
-                            Which part of the image lands on the screen. The
-                            fit already covers the screen; these zoom into it
-                            and move the window around, so a tall capture can
-                            show its top, its middle or a detail.
-                          */}
-                          {studio.screenSrc ? (
-                            /* Air above the rule, so the Adjust group does
-                               not sit tight under the Upload row. */
-                            <div
-                              className="flex flex-col"
-                              style={{
-                                paddingTop: "var(--mo-space-3)",
-                                gap: "var(--mo-space-2)",
-                              }}
-                            >
-                              <Divider />
-                              {/* The section's own reset, in its header the
-                                  way every popup keeps what it can do to
-                                  itself: back to Fill, 1x, centred. */}
-                              <Header
-                                trailing={
-                                  <HeaderButton
-                                    label="Reset adjustments"
-                                    disabled={
-                                      (state.screenFitMode ?? "fill") ===
-                                        "fill" &&
-                                      state.screenScale === 1 &&
-                                      state.screenOffsetX === 0 &&
-                                      state.screenOffsetY === 0
-                                    }
-                                    onClick={() =>
-                                      edit((prev) => ({
-                                        ...prev,
-                                        screenFitMode: "fill",
-                                        screenScale: 1,
-                                        screenOffsetX: 0,
-                                        screenOffsetY: 0,
-                                      }))
-                                    }
-                                  >
-                                    <Icon name={HEADER_ICON.reset} />
-                                  </HeaderButton>
-                                }
-                              >
-                                Adjust
-                              </Header>
-                              <ParamGroup>
-                                <ParamRow
-                                  hideValue
-                                  label="Zoom"
-                                  value={state.screenScale}
-                                  min={1}
-                                  max={4}
-                                  step={0.01}
-                                  format={(n) => `${n.toFixed(2)}×`}
-                                  onChange={(n) =>
-                                    edit((prev) => ({
-                                      ...prev,
-                                      screenScale: n,
-                                    }))
-                                  }
-                                />
-                                <Segmented
-                                  width="100%"
-                                  height={32}
-                                  value={state.screenFitMode ?? "fill"}
-                                  onChange={(mode) =>
-                                    edit((prev) => ({
-                                      ...prev,
-                                      screenFitMode: mode,
-                                    }))
-                                  }
-                                  options={[
-                                    { id: "fill", label: "Fill" },
-                                    { id: "fit", label: "Fit" },
-                                  ]}
-                                />
-                              </ParamGroup>
-                            </div>
-                          ) : null}
+                          {/* Which part of the image lands on the screen: zoom into it,
+                              Fill or Fit. Always there, so the panel does not
+                              change height when an image arrives. */}
+                          {
+                            <ScreenAdjust
+                              scale={state.screenScale}
+                              mode={state.screenFitMode ?? "fill"}
+                              canReset={
+                                (state.screenFitMode ?? "fill") !== "fill" ||
+                                state.screenScale !== 1 ||
+                                state.screenOffsetX !== 0 ||
+                                state.screenOffsetY !== 0
+                              }
+                              onScale={(screenScale) =>
+                                edit((prev) => ({ ...prev, screenScale }))
+                              }
+                              onMode={(screenFitMode) =>
+                                edit((prev) => ({ ...prev, screenFitMode }))
+                              }
+                              onReset={() =>
+                                edit((prev) => ({
+                                  ...prev,
+                                  screenFitMode: "fill",
+                                  screenScale: 1,
+                                  screenOffsetX: 0,
+                                  screenOffsetY: 0,
+                                }))
+                              }
+                            />
+                          }
                           {/*
                           A second well, on a device with a second screen.
 
@@ -3566,7 +3638,16 @@ export default function StudioChrome({
                           frames. The cover is the other one.
                         */}
                           {getDevice(state.deviceId).coverScreen ? (
-                            <>
+                            /* Air either side of the rule: it used to sit
+                               flush on the Fill/Fit row above and on the
+                               title below. */
+                            <div
+                              className="flex flex-col"
+                              style={{
+                                paddingTop: "var(--mo-space-4)",
+                                gap: "var(--mo-space-4)",
+                              }}
+                            >
                               <Divider />
                               <ParamGroup title="Front screen">
                                 <ImageWell
@@ -3575,8 +3656,39 @@ export default function StudioChrome({
                                   onPick={studio.uploadCover}
                                   onClear={studio.clearCover}
                                 />
+                                {
+                                  <ScreenAdjust
+                                    scale={state.coverScale}
+                                    mode={state.coverFitMode ?? "fill"}
+                                    canReset={
+                                      (state.coverFitMode ?? "fill") !==
+                                        "fill" ||
+                                      state.coverScale !== 1 ||
+                                      state.coverOffsetX !== 0 ||
+                                      state.coverOffsetY !== 0
+                                    }
+                                    onScale={(coverScale) =>
+                                      edit((prev) => ({ ...prev, coverScale }))
+                                    }
+                                    onMode={(coverFitMode) =>
+                                      edit((prev) => ({
+                                        ...prev,
+                                        coverFitMode,
+                                      }))
+                                    }
+                                    onReset={() =>
+                                      edit((prev) => ({
+                                        ...prev,
+                                        coverFitMode: "fill",
+                                        coverScale: 1,
+                                        coverOffsetX: 0,
+                                        coverOffsetY: 0,
+                                      }))
+                                    }
+                                  />
+                                }
                               </ParamGroup>
-                            </>
+                            </div>
                           ) : null}
                         </div>
                       ) : null}
@@ -4345,7 +4457,7 @@ export default function StudioChrome({
                       />
                     ) : null}
                   </PanelScroll>
-                  <ExportRow studio={studio} kind="image" />
+                  <ExportRow studio={exportStudio} kind="image" />
                 </Glass>
               ) : (
                 /* Motion replaces the stack, not the column — the switch and
@@ -4358,45 +4470,50 @@ export default function StudioChrome({
                   // band caps it, and the rows scroll past that.
                   style={{ maxHeight: "100%" }}
                 >
-                  <RowGroup>
-                    {[
-                      <Row
-                        key={PRESETS_ID}
-                        icon={<Icon name="styles" />}
-                        trailing={
-                          <ToggleGlyph on={selectedLayer === PRESETS_ID} />
-                        }
-                        selected={selectedLayer === PRESETS_ID}
-                        onClick={() => {
-                          setPopupOpen(
-                            selectedLayer === PRESETS_ID ? !popupOpen : true,
-                          );
-                          setSelectedLayer(PRESETS_ID);
-                        }}
-                      >
-                        Presets
-                      </Row>,
-                      <Row
-                        key={FOCUS_ID}
-                        icon={<Icon name="focus-point" />}
-                        trailing={
-                          <ToggleGlyph on={selectedLayer === FOCUS_ID} />
-                        }
-                        selected={selectedLayer === FOCUS_ID}
-                        onClick={() => {
-                          setPopupOpen(
-                            selectedLayer === FOCUS_ID ? !popupOpen : true,
-                          );
-                          setSelectedLayer(FOCUS_ID);
-                        }}
-                      >
-                        Focus points
-                      </Row>,
-                      ...MOTION_LAYERS.map(stageRow),
-                      stageRow(MOTION_DOF),
-                    ]}
-                  </RowGroup>
-                  <MotionExportRow studio={studio} />
+                  {/* Scrolls when the window is short, like Crafting's: without it the
+                      rows and the export block ran out of the capped glass, and
+                      "Export video" hung below the panel. The export stays pinned. */}
+                  <PanelScroll>
+                    <RowGroup>
+                      {[
+                        <Row
+                          key={PRESETS_ID}
+                          icon={<Icon name="styles" />}
+                          trailing={
+                            <ToggleGlyph on={selectedLayer === PRESETS_ID} />
+                          }
+                          selected={selectedLayer === PRESETS_ID}
+                          onClick={() => {
+                            setPopupOpen(
+                              selectedLayer === PRESETS_ID ? !popupOpen : true,
+                            );
+                            setSelectedLayer(PRESETS_ID);
+                          }}
+                        >
+                          Presets
+                        </Row>,
+                        <Row
+                          key={FOCUS_ID}
+                          icon={<Icon name="focus-point" />}
+                          trailing={
+                            <ToggleGlyph on={selectedLayer === FOCUS_ID} />
+                          }
+                          selected={selectedLayer === FOCUS_ID}
+                          onClick={() => {
+                            setPopupOpen(
+                              selectedLayer === FOCUS_ID ? !popupOpen : true,
+                            );
+                            setSelectedLayer(FOCUS_ID);
+                          }}
+                        >
+                          Focus points
+                        </Row>,
+                        ...MOTION_LAYERS.map(stageRow),
+                        stageRow(MOTION_DOF),
+                      ]}
+                    </RowGroup>
+                  </PanelScroll>
+                  <MotionExportRow studio={exportStudio} />
                 </Glass>
               )}
             </div>

@@ -48,7 +48,9 @@ export interface EditorState {
       Motion tab edits. Kept apart from `blur` so Crafting's still-shot blur
       is untouched by it. Absent is off. */
   motionBlur?: BlurSettings;
-  /** The same three, for a device's second screen. */
+  /** The same, for a device's second screen: its Fill or Fit, and its three
+      numbers. Absent is Fill. */
+  coverFitMode?: "fill" | "fit";
   coverScale: number;
   coverOffsetX: number;
   coverOffsetY: number;

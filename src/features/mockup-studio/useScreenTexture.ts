@@ -199,7 +199,15 @@ export function useScreenTexture(
     if (liveStream) return;
     if (directSrc) return;
     const el = sourceRef.current;
-    if (!el) return;
+    if (!el) {
+      // No upload and nothing to capture: the screen is off. Without this the
+      // last upload stayed on the model after it was deleted, because nothing
+      // else ever replaces a texture with none.
+      liveRef.current?.dispose();
+      liveRef.current = null;
+      setTexture(null);
+      return;
+    }
 
     let disposed = false;
     let timer: number | undefined;
