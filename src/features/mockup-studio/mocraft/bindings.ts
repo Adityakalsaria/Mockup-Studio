@@ -787,13 +787,6 @@ export const LAYERS: Layer[] = [
             when: (s) =>
               s.blur.mode === "directional" || s.blur.mode === "tilt-shift",
           },
-          {
-            kind: "toggle",
-            label: "Bokeh",
-            key: "bokeh",
-            get: (s) => s.blur.bokeh,
-            set: (s, on) => ({ ...s, blur: { ...s.blur, bokeh: on } }),
-          },
         ],
       },
       {
@@ -849,7 +842,6 @@ export const LAYERS: Layer[] = [
     dirty: (s) => {
       const base = applyMode(s.blur, s.blur.mode);
       return (
-        s.blur.bokeh ||
         Math.abs(s.blur.focusX - 0.5) > 1e-6 ||
         Math.abs(s.blur.focusY - 0.5) > 1e-6 ||
         (["strength", "focusSize", "falloff", "angle"] as const).some(

@@ -2825,6 +2825,19 @@ export default function StudioChrome({
   // Closed on arrival — see the note on `panelOpen`. The stack still opens on
   // Drop Shadow, so the first press on it is one press rather than two.
   const [popupOpen, setPopupOpen] = useState(false);
+  // Aiming the blur by hand: click or drag on the shot to move the focus, pinch
+  // or scroll to size it -- for every blur mode, and only while the Depth of
+  // Field popup is open.
+  const { setFocusPicking } = studio;
+  const blurOn = studio.state.blur.mode !== "off";
+  useEffect(() => {
+    setFocusPicking(
+      popupOpen &&
+        tab === "crafting" &&
+        selectedLayer === "depth-of-field" &&
+        blurOn,
+    );
+  }, [popupOpen, tab, selectedLayer, blurOn, setFocusPicking]);
   // Due until an account has finished or skipped it once.
   const tourDue = !!user && !user.unsafeMetadata?.toured;
   // Set once the Motion tour has opened, so it runs once per page load.
@@ -2996,6 +3009,10 @@ export default function StudioChrome({
   // it shut.
   const popupRef = useDismiss<HTMLDivElement>(
     popupOpen &&
+      // The blur is aimed by pressing the shot, which is outside the panel;
+      // a dismiss there would close it on the very first click. The close
+      // button, or switching the blur off, ends it.
+      !studio.focusPicking &&
       (tab === "crafting" ||
         MOTION_POPUP_IDS.includes(selectedLayer) ||
         selectedLayer === PRESETS_ID),

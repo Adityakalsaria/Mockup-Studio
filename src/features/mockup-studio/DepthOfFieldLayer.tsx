@@ -2,7 +2,7 @@
 
 import { useFrame, useThree } from "@react-three/fiber";
 import { GaussianBlurPass } from "postprocessing";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   FramebufferTexture,
   HalfFloatType,
@@ -253,8 +253,19 @@ export default function DepthOfFieldLayer({
     base: FocusPose;
   } | null;
 }) {
-  const { gl, scene, camera } = useThree();
+  const { gl, scene, camera, invalidate } = useThree();
   const state = useMemo(() => createBlur(), []);
+  /**
+   * Where the sharp spot is heading, and how it gets there. The panel and the
+   * click-to-focus write a TARGET; the frame loop eases the shader's centre
+   * toward it, so a click glides and a drag trails the pointer softly instead of
+   * the blur jumping between samples of it.
+   */
+  const spot = useRef({
+    target: new Vector2(0.5, 0.5),
+    seeded: false,
+    last: 0,
+  });
 
   /* eslint-disable react-hooks/immutability -- three.js state lives on the
      objects it draws with: uniforms, render targets and the copied frame are
@@ -275,7 +286,14 @@ export default function DepthOfFieldLayer({
   useEffect(() => {
     const u = state.material.uniforms;
     // The pad measures from the top; uv from the bottom.
-    (u.uCenter.value as Vector2).set(blur.focusX, 1 - blur.focusY);
+    spot.current.target.set(blur.focusX, 1 - blur.focusY);
+    spot.current.last = performance.now();
+    if (spot.current.seeded) invalidate();
+    else {
+      // First arrival: already there, not gliding in from the middle.
+      (u.uCenter.value as Vector2).copy(spot.current.target);
+      spot.current.seeded = true;
+    }
     u.uMode.value = MODE_INDEX[blur.mode];
     // Focus size is the sharp region's radius (or the band's half-width) as a
     // share of half the frame; falloff is how far past it the blur takes to
@@ -287,7 +305,7 @@ export default function DepthOfFieldLayer({
     u.uBokeh.value = blur.bokeh ? 1 : 0;
     state.strength = blur.strength;
     if (state.frame) fitResolution(state);
-  }, [state, blur]);
+  }, [state, blur, invalidate]);
 
   /*
    * Priority 1 hands this layer the frame: r3f stops drawing on its own, so
@@ -309,6 +327,24 @@ export default function DepthOfFieldLayer({
           spot.x,
           1 - spot.y,
         );
+    }
+    if (!follow) {
+      const now = performance.now();
+      const dt = Math.min(
+        0.05,
+        Math.max(0.004, (now - spot.current.last) / 1000),
+      );
+      spot.current.last = now;
+      const c = state.material.uniforms.uCenter.value as Vector2;
+      const t = spot.current.target;
+      const dx = t.x - c.x;
+      const dy = t.y - c.y;
+      if (dx * dx + dy * dy > 1e-8) {
+        // Exponential ease, ~16/s: a tenth of a second to cover most of the way.
+        const k = 1 - Math.exp(-dt * 16);
+        c.set(c.x + dx * k, c.y + dy * k);
+        invalidate();
+      } else c.copy(t);
     }
     if (!state.initialized) {
       state.passes.forEach((p) => p.initialize(gl, true, HalfFloatType));
