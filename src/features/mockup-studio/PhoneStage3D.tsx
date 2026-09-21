@@ -1497,7 +1497,7 @@ function GLBPhoneScene({
   fold?: number;
   /** Source for the second screen, where the device has one. */
   coverTexture?: Texture | null;
-  coverScreenFit?: { scale: number; offsetX: number; offsetY: number };
+  coverScreenFit?: ScreenFit;
   /** The hinge is sampled in the frame loop, so playback and export drive it
       at render rate rather than at React's. */
   animation?: Animation;
@@ -2903,9 +2903,9 @@ function GLBPhoneScene({
    *
    * A separate effect rather than a second pass through the one above: that
    * path carries the Screen zoom / X / Y nudges, and those belong to the panel
-   * you are composing. The cover is a second, smaller screen -- it wants a
-   * plain cover-crop and nothing to tune, and giving it the same controls
-   * would mean one pair of sliders quietly moving two images at once.
+   * you are composing. The cover is a second, smaller screen with its own
+   * Zoom, X, Y and Fill/Fit (`coverScreenFit`), so the two images never move
+   * together.
    */
   const coverConfig = device.coverScreen;
   const coverFit = coverScreenFit ?? DEFAULT_SCREEN_FIT;
@@ -2929,7 +2929,12 @@ function GLBPhoneScene({
       let fy = 1;
       if (srcWidth && srcHeight) {
         const srcAspect = srcWidth / srcHeight;
-        if (srcAspect > panel) fx = panel / srcAspect;
+        if (coverFit.mode === "fit") {
+          // The whole image, with room round it that `clipMapToImage` paints
+          // black -- the same Fit as the main screen.
+          fx = Math.max(1, panel / srcAspect);
+          fy = Math.max(1, srcAspect / panel);
+        } else if (srcAspect > panel) fx = panel / srcAspect;
         else if (srcAspect < panel) fy = srcAspect / panel;
       }
       // Same reason as the main screen: the scale is applied before the
@@ -2939,6 +2944,9 @@ function GLBPhoneScene({
         fx = fy;
         fy = swap;
       }
+      const zoom = coverFit.scale > 0 ? coverFit.scale : 1;
+      fx /= zoom;
+      fy /= zoom;
 
       coverTexture.center.set(0.5, 0.5);
       coverTexture.rotation = ((coverConfig.rotateDeg ?? 0) * Math.PI) / 180;
@@ -2987,6 +2995,7 @@ function GLBPhoneScene({
     };
 
     for (const material of coverMaterials) {
+      clipMapToImage(material);
       if (coverTexture) {
         coverTexture.flipY = false;
         coverTexture.anisotropy = maxAnisotropy;
@@ -3014,7 +3023,8 @@ function GLBPhoneScene({
       image.removeEventListener("resize", fitCover);
     };
   }, [coverMaterials, coverTexture, coverConfig, foldBlur, invalidate,
-      maxAnisotropy, coverFit.scale, coverFit.offsetX, coverFit.offsetY]);
+      maxAnisotropy, coverFit.scale, coverFit.offsetX, coverFit.offsetY,
+      coverFit.mode]);
 
   // Placement comes from the model's own screen mesh where there is one, and
   // falls back to the old percentage guesses only if a model ships without a
@@ -3260,7 +3270,7 @@ function PhoneScene({
   heightPct: number;
   fold?: number;
   coverTexture?: Texture | null;
-  coverScreenFit?: { scale: number; offsetX: number; offsetY: number };
+  coverScreenFit?: ScreenFit;
   cardRadius: number;
   cardDepth: number;
 }) {
@@ -3739,7 +3749,7 @@ export default function PhoneStage3D({
   cardRadius?: number;
   cardDepth?: number;
   coverTexture?: Texture | null;
-  coverScreenFit?: { scale: number; offsetX: number; offsetY: number };
+  coverScreenFit?: ScreenFit;
   fov?: number;
   shadow?: ShadowSettings;
   lighting?: LightingId;

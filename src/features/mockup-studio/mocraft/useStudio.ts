@@ -75,7 +75,7 @@ const DRAG_DEG_PER_PX = 0.4;
     screenshot and the number the old editor settled on; both are settings
     rather than constants now, and these are their first values. */
 const EXPORT_SCALE = 3;
-const EXPORT_FPS = 30;
+const EXPORT_FPS = 60;
 
 /** What the Duration field will accept, from the old editor. */
 export const DURATION_MIN = 0.5;
@@ -94,6 +94,18 @@ function readFile(file: File, onLoad: (dataUrl: string) => void) {
 }
 
 export type Studio = ReturnType<typeof useStudio>;
+
+/** A shot as data: what `snapshot` reads out and `restore` puts back. */
+export interface ShotSnapshot {
+  state: EditorState;
+  screenSrc: string | null;
+  screenName: string | null;
+  coverSrc: string | null;
+  coverName: string | null;
+  ratioId: string;
+  presetId: string | null;
+  exportScale: number;
+}
 
 export type { FocusArea } from "./focusMath";
 
@@ -283,12 +295,20 @@ export function useStudio() {
 
   /** Back to defaults, and itself undoable — the watcher above records it like
       any other change, so a mis-click costs one undo. The uploaded image is
-      left alone: it is the one thing here a slider cannot recreate. */
+      left alone: it is the one thing here a slider cannot recreate. So is the
+      device: reset clears what was done to the one on the desk, it does not
+      swap it for the studio's opening phone. Its finish goes back to the
+      default, or to the device's first if it does not come in that one. */
   const reset = useCallback(() => {
     lastEditAt.current = 0;
     record();
     setState((prev) => ({
       ...DEFAULT_EDITOR_STATE,
+      deviceId: prev.deviceId,
+      finishId: finishForDevice(
+        getDevice(prev.deviceId).finishIds,
+        DEFAULT_EDITOR_STATE.finishId,
+      ).id,
       background: prev.background,
     }));
   }, [record]);
@@ -454,6 +474,18 @@ export function useStudio() {
     state.screenOffsetY,
     state.screenFitMode,
   ]);
+
+  /** The cover screen's own fit -- its own numbers, so the two images never
+      move together. */
+  const coverFit = useMemo(
+    () => ({
+      scale: state.coverScale,
+      offsetX: state.coverOffsetX,
+      offsetY: state.coverOffsetY,
+      mode: state.coverFitMode ?? "fill",
+    }),
+    [state.coverScale, state.coverOffsetX, state.coverOffsetY, state.coverFitMode],
+  );
 
   /*
    * There are no built-in React screens in this shell, so the DOM-capture path
@@ -1603,6 +1635,37 @@ export function useStudio() {
    * exactly when the stage genuinely has new work — and `memo(Stage)` can skip
    * everything else.
    */
+  /**
+   * The whole shot, as plain data, and the way back in.
+   *
+   * For the one moment a page load falls in the middle of making something:
+   * signing in with Google leaves the site and returns to a fresh studio. See
+   * `pendingExport`.
+   */
+  const snapshot = useCallback(
+    (): ShotSnapshot => ({
+      state: stateRef.current,
+      screenSrc,
+      screenName,
+      coverSrc,
+      coverName,
+      ratioId,
+      presetId,
+      exportScale,
+    }),
+    [screenSrc, screenName, coverSrc, coverName, ratioId, presetId, exportScale],
+  );
+  const restore = useCallback((shot: ShotSnapshot) => {
+    setState(shot.state);
+    setScreenSrc(shot.screenSrc);
+    setScreenName(shot.screenName);
+    setCoverSrc(shot.coverSrc);
+    setCoverName(shot.coverName);
+    setRatioId(shot.ratioId);
+    setPresetId(shot.presetId);
+    setExportScale(shot.exportScale);
+  }, []);
+
   return useMemo(
     () => ({
       state,
@@ -1637,6 +1700,7 @@ export function useStudio() {
       screenTexture,
       coverTexture,
       screenFit,
+      coverFit,
       // Export
       captureRef,
       recorderRef,
@@ -1710,6 +1774,8 @@ export function useStudio() {
       setExportFps,
       watermark,
       setWatermark,
+      snapshot,
+      restore,
     }),
     [
       state,
@@ -1740,6 +1806,7 @@ export function useStudio() {
       screenTexture,
       coverTexture,
       screenFit,
+      coverFit,
       exportImage,
       exportVideo,
       exporting,
@@ -1777,6 +1844,8 @@ export function useStudio() {
       exportScale,
       exportFps,
       watermark,
+      snapshot,
+      restore,
     ],
   );
 }

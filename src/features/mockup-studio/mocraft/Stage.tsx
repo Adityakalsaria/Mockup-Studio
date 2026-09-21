@@ -205,6 +205,7 @@ function StageInner({
           lighting={state.lighting}
           lightAngle={state.lightAngle ?? 0}
           lightElevation={state.lightElevation ?? 0}
+          coverScreenFit={studio.coverFit}
           screenFit={{
             ...studio.screenFit,
             // A mirrored device screen already contains its own island.
