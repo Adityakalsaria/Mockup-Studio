@@ -9,7 +9,8 @@
  * apart — the pair of functions below are written to be read side by side.
  */
 
-export type BackgroundKind = "solid" | "gradient" | "dots" | "image" | "transparent";
+export type BackgroundKind =
+  "solid" | "gradient" | "dots" | "image" | "transparent";
 
 export interface BackgroundSettings {
   kind: BackgroundKind;
@@ -29,6 +30,8 @@ export interface BackgroundSettings {
   imageSrc: string | null;
   /** Image only. "cover" fills the frame and crops; "contain" fits it whole. */
   imageFit: "cover" | "contain";
+  /** Image only. Zoom into the picture, 1-4; absent is 1. */
+  imageZoom?: number;
 }
 
 export const DEFAULT_BACKGROUND: BackgroundSettings = {
@@ -87,6 +90,12 @@ const CHECKER_DARK = "#e6e6e6";
 const CHECKER = 10;
 
 /** What the frame behind the WebGL canvas is styled with. */
+/** The class that goes with `backgroundCss` when the canvas shows an image:
+    the host isolates, so `BackgroundImage` sits under its contents. */
+export function backgroundClass(bg: BackgroundSettings): string {
+  return bg.kind === "image" && bg.imageSrc ? "isolate" : "";
+}
+
 export function backgroundCss(bg: BackgroundSettings): React.CSSProperties {
   switch (bg.kind) {
     case "solid":
@@ -105,15 +114,9 @@ export function backgroundCss(bg: BackgroundSettings): React.CSSProperties {
       // Falls back to the solid colour with no image chosen, rather than to
       // nothing — an empty frame reads as broken, a coloured one reads as
       // waiting.
-      return bg.imageSrc
-        ? {
-            backgroundColor: bg.color,
-            backgroundImage: `url(${bg.imageSrc})`,
-            backgroundSize: bg.imageFit,
-            backgroundPosition: "center",
-            backgroundRepeat: "no-repeat",
-          }
-        : { background: bg.color };
+      // The frame's own background is the colour behind the picture; the
+      // picture is a layer of its own -- see `BackgroundImage`.
+      return { background: bg.color };
     case "transparent":
       /*
        * One conic gradient, which is what a chessboard actually is.
@@ -157,8 +160,11 @@ export function backgroundCss(bg: BackgroundSettings): React.CSSProperties {
  */
 const imageCache = new Map<string, HTMLImageElement>();
 
-export async function preloadBackgroundImage(bg: BackgroundSettings): Promise<void> {
-  if (bg.kind !== "image" || !bg.imageSrc || imageCache.has(bg.imageSrc)) return;
+export async function preloadBackgroundImage(
+  bg: BackgroundSettings,
+): Promise<void> {
+  if (bg.kind !== "image" || !bg.imageSrc || imageCache.has(bg.imageSrc))
+    return;
   const src = bg.imageSrc;
   await new Promise<void>((resolve) => {
     const image = new Image();
@@ -179,11 +185,12 @@ function drawFitted(
   width: number,
   height: number,
   fit: "cover" | "contain",
+  zoom = 1,
 ): void {
   const scale =
-    fit === "cover"
+    (fit === "cover"
       ? Math.max(width / image.width, height / image.height)
-      : Math.min(width / image.width, height / image.height);
+      : Math.min(width / image.width, height / image.height)) * zoom;
   const w = image.width * scale;
   const h = image.height * scale;
   ctx.drawImage(image, (width - w) / 2, (height - h) / 2, w, h);
@@ -211,7 +218,8 @@ export function paintBackground(
     ctx.fillStyle = bg.color;
     ctx.fillRect(0, 0, width, height);
     const image = bg.imageSrc ? imageCache.get(bg.imageSrc) : undefined;
-    if (image) drawFitted(ctx, image, width, height, bg.imageFit);
+    if (image)
+      drawFitted(ctx, image, width, height, bg.imageFit, bg.imageZoom ?? 1);
     return;
   }
 
@@ -222,7 +230,8 @@ export function paintBackground(
     const rad = ((bg.gradientAngle - 90) * Math.PI) / 180;
     const cx = width / 2;
     const cy = height / 2;
-    const half = (Math.abs(width * Math.cos(rad)) + Math.abs(height * Math.sin(rad))) / 2;
+    const half =
+      (Math.abs(width * Math.cos(rad)) + Math.abs(height * Math.sin(rad))) / 2;
     const gradient = ctx.createLinearGradient(
       cx - Math.cos(rad) * half,
       cy - Math.sin(rad) * half,

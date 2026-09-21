@@ -73,7 +73,8 @@ const GlassTuner =
     : () => null;
 import { MOTION_STEPS, Tour, type Step as TourStep } from "./Tour";
 import UpdateNotice from "./UpdateNotice";
-import { backgroundCss } from "../backgrounds";
+import { backgroundClass, backgroundCss } from "../backgrounds";
+import BackgroundImage from "../BackgroundImage";
 import { PANEL_H as TIMELINE_H, Timeline } from "./Timeline";
 import { useStudio, type Studio } from "./useStudio";
 import {
@@ -1392,7 +1393,8 @@ function PresetTile({
  *
  * One block under the well it belongs to -- no rule, no heading of its own --
  * Fill or Fit first, then the zoom last, with the reset at the end of its row,
- * beside the slider it undoes. Used
+ * beside the slider it undoes -- so it resets the zoom and nothing else; Fill
+ * or Fit is a choice, not an adjustment, and stays where it was put. Used
  * for the inner screen and the cover alike, each with its own numbers.
  */
 function ScreenAdjust({
@@ -1923,7 +1925,9 @@ function LayerActions({
           <Icon name={HEADER_ICON.reset} />
         </HeaderButton>
       ) : null}
-      {layer.removable === false ? null : (
+      {/* The background's own Transparent switch is its delete, and the
+          title needs the room the button would take. */}
+      {layer.removable === false || layer.id === "background" ? null : (
         <HeaderButton
           label={`Delete ${layer.name}`}
           disabled={!layer.isOn(state)}
@@ -2996,9 +3000,11 @@ export default function StudioChrome({
             instead of floating over the shot like every other panel. */}
         {studio.ratio === null ? (
           <div
-            className="absolute inset-0"
+            className={`absolute inset-0 overflow-hidden ${backgroundClass(studio.state.background)}`}
             style={backgroundCss(studio.state.background)}
-          />
+          >
+            <BackgroundImage bg={studio.state.background} />
+          </div>
         ) : null}
         <div
           className="absolute"
@@ -3601,7 +3607,6 @@ export default function StudioChrome({
                               scale={state.screenScale}
                               mode={state.screenFitMode ?? "fill"}
                               canReset={
-                                (state.screenFitMode ?? "fill") !== "fill" ||
                                 state.screenScale !== 1 ||
                                 state.screenOffsetX !== 0 ||
                                 state.screenOffsetY !== 0
@@ -3615,7 +3620,6 @@ export default function StudioChrome({
                               onReset={() =>
                                 edit((prev) => ({
                                   ...prev,
-                                  screenFitMode: "fill",
                                   screenScale: 1,
                                   screenOffsetX: 0,
                                   screenOffsetY: 0,
@@ -3661,8 +3665,6 @@ export default function StudioChrome({
                                     scale={state.coverScale}
                                     mode={state.coverFitMode ?? "fill"}
                                     canReset={
-                                      (state.coverFitMode ?? "fill") !==
-                                        "fill" ||
                                       state.coverScale !== 1 ||
                                       state.coverOffsetX !== 0 ||
                                       state.coverOffsetY !== 0
@@ -3679,7 +3681,6 @@ export default function StudioChrome({
                                     onReset={() =>
                                       edit((prev) => ({
                                         ...prev,
-                                        coverFitMode: "fill",
                                         coverScale: 1,
                                         coverOffsetX: 0,
                                         coverOffsetY: 0,
@@ -4105,7 +4106,7 @@ export default function StudioChrome({
                         <div
                           className="flex flex-col"
                           style={{
-                            gap: open.id === "image" ? 0 : "var(--mo-space-4)",
+                            gap: "var(--mo-space-4)",
                           }}
                         >
                           <Header
@@ -4131,16 +4132,7 @@ export default function StudioChrome({
                     */}
                             <MorphText>{open.name}</MorphText>
                           </Header>
-                          {open.id === "image" ? (
-                            /* `Background image` in the file — the same well as the
-                       rail's tool, over the composition rather than the screen. */
-                            <ImageWell
-                              src={state.background.imageSrc}
-                              empty="No background image"
-                              onPick={studio.uploadBackground}
-                              onClear={studio.clearBackground}
-                            />
-                          ) : soloColor ? (
+                          {soloColor ? (
                             /* One colour and nothing else: the picker IS the
                              popup, under its header, rather than a row with a
                              chip that opens a second panel below this one. */
@@ -4155,7 +4147,11 @@ export default function StudioChrome({
                               className="flex flex-col"
                               style={{
                                 gap: "var(--mo-space-2)",
-                                paddingBottom: 10,
+                                // The background ends on a button row, which already sits flush
+                                // with the side inset; the slider popups' extra 10 is
+                                // for a row that has none.
+                                paddingBottom:
+                                  open.id === "background" ? 0 : 10,
                               }}
                             >
                               {open.sections
@@ -4334,6 +4330,67 @@ export default function StudioChrome({
                                     </ParamGroup>
                                   </Fragment>
                                 ))}
+                              {/* The canvas's picture, under its colour. Picking
+                                  a colour takes the canvas off the image, so the
+                                  well shows the image only while it is on it. */}
+                              {open.id === "background" ? (
+                                <>
+                                  <Divider />
+                                  <ParamGroup title="Image">
+                                    <ImageWell
+                                      src={
+                                        state.background.kind === "image"
+                                          ? state.background.imageSrc
+                                          : null
+                                      }
+                                      empty="No background image"
+                                      onPick={studio.uploadBackground}
+                                      onClear={studio.clearBackground}
+                                    />
+                                    <ScreenAdjust
+                                      scale={state.background.imageZoom ?? 1}
+                                      mode={
+                                        state.background.imageFit === "contain"
+                                          ? "fit"
+                                          : "fill"
+                                      }
+                                      canReset={
+                                        (state.background.imageZoom ?? 1) !== 1
+                                      }
+                                      onScale={(imageZoom) =>
+                                        edit((prev) => ({
+                                          ...prev,
+                                          background: {
+                                            ...prev.background,
+                                            imageZoom,
+                                          },
+                                        }))
+                                      }
+                                      onMode={(mode) =>
+                                        edit((prev) => ({
+                                          ...prev,
+                                          background: {
+                                            ...prev.background,
+                                            imageFit:
+                                              mode === "fit"
+                                                ? "contain"
+                                                : "cover",
+                                          },
+                                        }))
+                                      }
+                                      onReset={() =>
+                                        edit((prev) => ({
+                                          ...prev,
+                                          background: {
+                                            ...prev.background,
+                                            imageZoom: 1,
+                                          },
+                                        }))
+                                      }
+                                    />
+                                  </ParamGroup>
+                                </>
+                              ) : null}
                             </div>
                           )}
                         </div>

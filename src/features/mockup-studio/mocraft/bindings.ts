@@ -998,10 +998,9 @@ export const LAYERS: Layer[] = [
   {
     id: "background",
     group: "effect",
-    // Named for what it holds. Four rows in this stack paint a background —
-    // this one, Gradient, Dots and Image — so "Background" alone said the
-    // category rather than which of the four you were opening.
-    name: "Canvas color",
+    // The canvas itself: a colour or an image, and Transparent. Gradient and
+    // Dots stay their own rows; the image lives in this popup, under the colour.
+    name: "Canvas background",
     icon: "canvas-color",
     sections: [
       {
@@ -1034,13 +1033,21 @@ export const LAYERS: Layer[] = [
         ],
       },
     ],
-    isOn: (s) => s.background.kind === "solid",
+    isOn: (s) => s.background.kind === "solid" || s.background.kind === "image",
     toggle: (s, on) => ({
       ...s,
       // Off is not "no background" as a missing thing — it is the transparent
       // one, which is a real choice in the registry and the one an export with
-      // an alpha channel wants.
-      background: { ...s.background, kind: on ? "solid" : "transparent" },
+      // an alpha channel wants. On keeps an image if that is what the canvas
+      // was showing.
+      background: {
+        ...s.background,
+        kind: !on
+          ? "transparent"
+          : s.background.kind === "image"
+            ? "image"
+            : "solid",
+      },
     }),
   },
   {
@@ -1112,40 +1119,6 @@ export const LAYERS: Layer[] = [
     toggle: (s, on) => ({
       ...s,
       background: { ...s.background, kind: on ? "dots" : "solid" },
-    }),
-  },
-  {
-    id: "image",
-    group: "effect",
-    name: "Image",
-    icon: "image",
-    // No sections: this one's body is the image well, which is a component
-    // rather than a list of fields. The chrome special-cases it by id.
-    sections: [],
-    isOn: (s) =>
-      s.background.kind === "image" && Boolean(s.background.imageSrc),
-    // Reset is the upload, because the upload is the whole layer. The kind
-    // goes back with it: leaving `image` selected with nothing to draw would
-    // paint an empty frame, which is the same trap `toggle` steps around.
-    reset: (s) => ({
-      ...s,
-      background: { ...s.background, kind: "solid", imageSrc: null },
-    }),
-    dirty: (s) => Boolean(s.background.imageSrc),
-    toggle: (s, on) => ({
-      ...s,
-      background: {
-        ...s.background,
-        // Switching it on with nothing uploaded would paint an empty frame, so
-        // the kind only moves once there is an image to show. The popup opens
-        // either way — that is where the upload button is.
-        kind:
-          on && s.background.imageSrc
-            ? "image"
-            : on
-              ? s.background.kind
-              : "solid",
-      },
     }),
   },
 ];
