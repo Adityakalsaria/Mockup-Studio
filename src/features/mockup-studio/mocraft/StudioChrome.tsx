@@ -98,6 +98,7 @@ import {
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useProgress } from "@react-three/drei";
 import { stashExport, takeExport } from "./pendingExport";
+import { isPro } from "@/lib/plan";
 import { getMotionPreset } from "../editor/motionPresets";
 import { DEFAULT_EDITOR_STATE } from "../editor/editorState";
 import type { BroadcastState } from "../broadcast/useBroadcastLink";
@@ -1094,6 +1095,100 @@ function SignOutSheet({
   );
 }
 
+/**
+ * The Pro offer: what it unlocks, monthly or yearly, and on to Dodo's hosted
+ * checkout. Prices are Dodo's to show -- they live on the checkout, so changing
+ * one never means changing this. `activating` is the moment after paying, while
+ * the webhook that flips the account to Pro is still on its way.
+ */
+function UpgradeSheet({
+  signedIn,
+  activating,
+  busy,
+  error,
+  onCheckout,
+  onClose,
+}: {
+  signedIn: boolean;
+  activating: boolean;
+  busy: boolean;
+  error: string | null;
+  onCheckout: (interval: "monthly" | "yearly") => void;
+  onClose: () => void;
+}) {
+  const [interval, setInterval] = useState<"monthly" | "yearly">("yearly");
+  return (
+    <Glass width={340}>
+      <div
+        className="flex flex-col"
+        style={{ gap: 16, padding: "20px 12px 12px" }}
+      >
+        <span className="mo-title" style={{ textAlign: "center" }}>
+          {activating ? "Activating Pro…" : "Upgrade to Pro"}
+        </span>
+        {activating ? (
+          <p
+            className="mo-label"
+            style={{ color: "var(--mo-ink-muted)", textAlign: "center" }}
+          >
+            Payment received. This takes a few seconds.
+          </p>
+        ) : (
+          <>
+            <ul
+              className="mo-label flex flex-col"
+              style={{ gap: 6, padding: "0 var(--mo-space-2)" }}
+            >
+              <li>2x, 3x and 4x exports</li>
+              <li>No watermark</li>
+              <li>Video export</li>
+              <li>Library and version history, when it arrives</li>
+            </ul>
+            <Segmented
+              width="100%"
+              height={32}
+              value={interval}
+              onChange={setInterval}
+              options={[
+                { id: "monthly", label: "Monthly" },
+                { id: "yearly", label: "Yearly" },
+              ]}
+            />
+            {error ? (
+              <p
+                className="mo-label"
+                style={{ color: "var(--mo-ink-muted)", textAlign: "center" }}
+              >
+                {error}
+              </p>
+            ) : null}
+            <div className="flex flex-col" style={{ gap: 8 }}>
+              <Button
+                width="100%"
+                onClick={busy ? undefined : () => onCheckout(interval)}
+              >
+                {busy
+                  ? "Opening checkout…"
+                  : signedIn
+                    ? "Continue to checkout"
+                    : "Sign in to upgrade"}
+              </Button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="mo-title cursor-pointer"
+                style={{ height: 32, color: "var(--mo-ink-muted)" }}
+              >
+                Not now
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </Glass>
+  );
+}
+
 /** The changelog, in the shortcuts' sheet: one entry per release, newest
     first, scrolling inside the sheet when it is taller than the window. */
 function ChangelogSheet({ onClose }: { onClose: () => void }) {
@@ -1689,10 +1784,13 @@ function ToggleGlyph({ on }: { on: boolean }) {
 function ExportRow({
   studio,
   kind,
+  onUpgrade,
 }: {
   studio: Studio;
   /** Crafting exports the still; Presets exports the clip. */
   kind: "image" | "video";
+  /** A Pro-only choice was pressed on a free account. */
+  onUpgrade: () => void;
 }) {
   const busy = studio.exporting;
   const pct = busy?.kind === "video" ? Math.round(busy.done * 100) : null;
@@ -1727,8 +1825,14 @@ function ExportRow({
         width="100%"
         height={32}
         value={String(studio.exportScale)}
-        onChange={(id) => studio.setExportScale(Number(id))}
-        options={EXPORT_SCALES.map((n) => ({ id: String(n), label: `${n}x` }))}
+        // A size past 1x is Pro: pressing it on a free account offers the
+        // upgrade and leaves the selection where it was.
+        onChange={(id) =>
+          Number(id) > 1 && !studio.pro
+            ? onUpgrade()
+            : studio.setExportScale(Number(id))
+        }
+        options={exportScaleOptions(studio.pro)}
       />
       {/* Full width, not `grow`: grow is flex-1, which in this column
           squeezed the button's HEIGHT instead of filling the width. */}
@@ -1754,11 +1858,33 @@ function ExportRow({
 /** Export sizes, as the old editor offered them. */
 const EXPORT_SCALES = [1, 2, 3, 4];
 
+/** The sizes as pills. On a free account everything past 1x carries a small
+    "Pro" -- pressing it opens the upgrade rather than selecting it. */
+function exportScaleOptions(pro: boolean) {
+  return EXPORT_SCALES.map((n) => ({
+    id: String(n),
+    label:
+      n > 1 && !pro ? (
+        <span>
+          {n}x <span style={{ fontSize: 10, opacity: 0.55 }}>Pro</span>
+        </span>
+      ) : (
+        `${n}x`
+      ),
+  }));
+}
+
 /**
  * The Motion tab's export: the clip, and the size it is written at. The frame
  * rate is not a choice -- it is always 60.
  */
-function MotionExportRow({ studio }: { studio: Studio }) {
+function MotionExportRow({
+  studio,
+  onUpgrade,
+}: {
+  studio: Studio;
+  onUpgrade: () => void;
+}) {
   const busy = studio.exporting;
   const pct = busy?.kind === "video" ? Math.round(busy.done * 100) : null;
 
@@ -1787,8 +1913,12 @@ function MotionExportRow({ studio }: { studio: Studio }) {
         width="100%"
         height={32}
         value={String(studio.exportScale)}
-        onChange={(id) => studio.setExportScale(Number(id))}
-        options={EXPORT_SCALES.map((n) => ({ id: String(n), label: `${n}x` }))}
+        onChange={(id) =>
+          Number(id) > 1 && !studio.pro
+            ? onUpgrade()
+            : studio.setExportScale(Number(id))
+        }
+        options={exportScaleOptions(studio.pro)}
       />
       {/*
         The button fills as the clip renders. A percentage alone read as a
@@ -1798,11 +1928,18 @@ function MotionExportRow({ studio }: { studio: Studio }) {
       <div className="relative w-full">
         <Button
           width="100%"
-          onClick={busy ? undefined : studio.exportVideo}
+          // Video is Pro: on a free account the press offers the upgrade.
+          onClick={
+            !studio.pro ? onUpgrade : busy ? undefined : studio.exportVideo
+          }
           title="Export an MP4"
         >
           <MorphText>
-            {pct !== null ? `Exporting ${pct}%` : "Export video"}
+            {pct !== null
+              ? `Exporting ${pct}%`
+              : studio.pro
+                ? "Export video"
+                : "Export video · Pro"}
           </MorphText>
         </Button>
         {pct !== null ? (
@@ -2278,7 +2415,8 @@ export default function StudioChrome({
    * this — the chrome holds no copy of the shot, only of which parts of it are
    * on screen.
    */
-  const studio = useStudio();
+  const pro = isPro(user);
+  const studio = useStudio(pro);
   /*
    * `state` is the shot; `effective` is the shot with the animation laid over
    * it. Rows READ the second and WRITE through `edit`, which is what keeps a
@@ -2378,9 +2516,86 @@ export default function StudioChrome({
   /** Which sheet is over the studio: the shortcuts (from the button beside
       the account chip) or the changelog (from the account menu). */
   const [sheet, setSheet] = useState<
-    "shortcuts" | "changelog" | "welcome" | "signout" | null
+    "shortcuts" | "changelog" | "welcome" | "signout" | "upgrade" | null
   >(null);
   const keysOpen = sheet !== null;
+  /*
+   * Pro. Checkout and the billing portal are Dodo's hosted pages: this only
+   * asks our own routes for the address and goes there. The plan itself is on
+   * the Clerk user, written by the webhook -- so after paying, the studio
+   * waits (`activating`) for it to arrive rather than trusting the redirect.
+   */
+  const [upgrade, setUpgrade] = useState<{
+    busy: boolean;
+    error: string | null;
+    activating: boolean;
+  }>({ busy: false, error: null, activating: false });
+  const openUpgrade = useCallback(() => {
+    setUpgrade((u) => ({ ...u, error: null }));
+    setSheet("upgrade");
+  }, []);
+  const goTo = useCallback(
+    async (path: string, body?: object): Promise<string | null> => {
+      try {
+        const response = await fetch(path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body ?? {}),
+        });
+        const json = (await response.json()) as {
+          url?: string;
+          error?: string;
+        };
+        if (json.url) {
+          window.location.assign(json.url);
+          return null;
+        }
+        return response.status === 503
+          ? "Payments are not switched on yet."
+          : (json.error ?? "Something went wrong.");
+      } catch {
+        return "Could not reach the server.";
+      }
+    },
+    [],
+  );
+  const startCheckout = useCallback(
+    async (interval: "monthly" | "yearly") => {
+      if (!isSignedIn) {
+        askSignIn();
+        return;
+      }
+      setUpgrade((u) => ({ ...u, busy: true, error: null }));
+      const error = await goTo("/api/checkout", { interval });
+      setUpgrade((u) => ({ ...u, busy: false, error }));
+    },
+    [isSignedIn, askSignIn, goTo],
+  );
+  // Back from checkout (`?upgraded`): hold on "Activating" until the webhook has
+  // made the account Pro, checking every two seconds for up to a minute.
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("upgraded")) return;
+    if (pro) {
+      window.history.replaceState(null, "", window.location.pathname);
+      setUpgrade((u) => ({ ...u, activating: false }));
+      setSheet((current) => (current === "upgrade" ? null : current));
+      return;
+    }
+    setUpgrade((u) => ({ ...u, activating: true }));
+    setSheet("upgrade");
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      void user.reload();
+      if (++tries >= 30) {
+        window.clearInterval(timer);
+        setUpgrade((u) => ({ ...u, activating: false }));
+      }
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [isLoaded, user, pro]);
+
   /** The first-run walkthrough; see `Tour`. */
   const [tourOpen, setTourOpen] = useState(false);
   /** The Motion half of it, run once on the first switch to Motion. */
@@ -3269,6 +3484,15 @@ export default function StudioChrome({
                   <div className="pointer-events-auto">
                     {sheet === "welcome" ? (
                       <WelcomeSheet onClose={closeKeys} />
+                    ) : sheet === "upgrade" ? (
+                      <UpgradeSheet
+                        signedIn={Boolean(isSignedIn)}
+                        activating={upgrade.activating}
+                        busy={upgrade.busy}
+                        error={upgrade.error}
+                        onCheckout={(interval) => void startCheckout(interval)}
+                        onClose={closeKeys}
+                      />
                     ) : sheet === "signout" ? (
                       <SignOutSheet
                         email={userEmail ?? ""}
@@ -3325,6 +3549,29 @@ export default function StudioChrome({
                       Account
                     </Row>
                   ) : null}
+                  {/* The plan: manage it (cancel, card, invoices) on Pro, or
+                      see the offer on free. */}
+                  {pro ? (
+                    <Row
+                      icon={<Icon name="effects" />}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        void goTo("/api/portal");
+                      }}
+                    >
+                      Manage plan
+                    </Row>
+                  ) : (
+                    <Row
+                      icon={<Icon name="effects" />}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        openUpgrade();
+                      }}
+                    >
+                      Upgrade to Pro
+                    </Row>
+                  )}
                   {/* What has shipped, in the same sheet the shortcuts use. */}
                   <Row
                     icon={<Icon name="effects" />}
@@ -3776,9 +4023,11 @@ export default function StudioChrome({
                               exported frame carries: every image and video. */}
                           <Divider inset={8} />
                           <ToggleRow
-                            label="Watermark"
+                            label={pro ? "Watermark" : "Watermark · Pro"}
                             value={studio.watermark}
-                            onChange={studio.setWatermark}
+                            // On a free account the mark is fixed; pressing the
+                            // switch offers the upgrade instead.
+                            onChange={pro ? studio.setWatermark : openUpgrade}
                           />
                         </div>
                       ) : null}
@@ -4514,7 +4763,11 @@ export default function StudioChrome({
                       />
                     ) : null}
                   </PanelScroll>
-                  <ExportRow studio={exportStudio} kind="image" />
+                  <ExportRow
+                    studio={exportStudio}
+                    kind="image"
+                    onUpgrade={openUpgrade}
+                  />
                 </Glass>
               ) : (
                 /* Motion replaces the stack, not the column — the switch and
@@ -4570,7 +4823,10 @@ export default function StudioChrome({
                       ]}
                     </RowGroup>
                   </PanelScroll>
-                  <MotionExportRow studio={exportStudio} />
+                  <MotionExportRow
+                    studio={exportStudio}
+                    onUpgrade={openUpgrade}
+                  />
                 </Glass>
               )}
             </div>

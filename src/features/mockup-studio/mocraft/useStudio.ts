@@ -45,6 +45,7 @@ import { finishForDevice, finishesFor } from "../finishes";
 import { paintBackground, preloadBackgroundImage } from "../backgrounds";
 import { paintOverlay } from "../overlay";
 import { loadWatermark, paintWatermark } from "../watermark";
+import { FREE_EXPORT_SCALE } from "@/lib/plan";
 import { applyCanvasShadow, clearCanvasShadow } from "../shadow";
 import type { StageCapture, StageRecorder } from "../PhoneStage3D";
 import { useScreenTexture } from "../useScreenTexture";
@@ -109,7 +110,11 @@ export interface ShotSnapshot {
 
 export type { FocusArea } from "./focusMath";
 
-export function useStudio() {
+export function useStudio(
+  /** Whether the account is on Pro. Absent is Pro: the landing's render tool
+      and anything else without an account is not the thing being limited. */
+  pro = true,
+) {
   /*
    * Every load opens on the defaults.
    *
@@ -484,7 +489,12 @@ export function useStudio() {
       offsetY: state.coverOffsetY,
       mode: state.coverFitMode ?? "fill",
     }),
-    [state.coverScale, state.coverOffsetX, state.coverOffsetY, state.coverFitMode],
+    [
+      state.coverScale,
+      state.coverOffsetX,
+      state.coverOffsetY,
+      state.coverFitMode,
+    ],
   );
 
   /*
@@ -777,12 +787,21 @@ export function useStudio() {
   /** Whether exports carry the Mocraft mark. */
   const [watermark, setWatermark] = useState(true);
 
+  /*
+   * What an export is actually written at. The Pro-only choices -- sizes above
+   * 1x, no watermark, video -- are decided HERE, where every export passes, so
+   * a stale setting or a hand-edited state can never get past the plan. The
+   * controls only show the same rule.
+   */
+  const scale = pro ? exportScale : FREE_EXPORT_SCALE;
+  const marked = pro ? watermark : true;
+
   const exportImage = useCallback(async () => {
     const shot = stateRef.current;
     // The painter is synchronous, so an image background has to be decoded
     // before it runs or the export comes out with the base colour instead.
     await preloadBackgroundImage(shot.background);
-    const url = captureRef.current?.(exportScale);
+    const url = captureRef.current?.(scale);
     if (!url) return;
 
     const frame = new Image();
@@ -815,14 +834,14 @@ export function useStudio() {
     ctx.imageSmoothingQuality = "high";
 
     setExporting({ kind: "image", done: 0 });
-    paintBackground(ctx, shot.background, out.width, out.height, exportScale);
-    applyCanvasShadow(ctx, shot.shadow, exportScale);
+    paintBackground(ctx, shot.background, out.width, out.height, scale);
+    applyCanvasShadow(ctx, shot.shadow, scale);
     ctx.drawImage(frame, 0, 0);
     clearCanvasShadow(ctx);
     // After the phone: the layer sits over the shot, which is the order the
     // live stage renders in.
     paintOverlay(ctx, shot.overlay, out.width, out.height);
-    const mark = watermark ? await loadWatermark() : null;
+    const mark = marked ? await loadWatermark() : null;
     if (mark) paintWatermark(ctx, out.width, out.height, mark);
 
     /*
@@ -842,7 +861,7 @@ export function useStudio() {
     link.click();
     // Revoking at once cancels the download in some browsers.
     setTimeout(() => URL.revokeObjectURL(href), 10_000);
-  }, [exportScale, watermark]);
+  }, [scale, marked]);
 
   /**
    * The clip.
@@ -858,7 +877,7 @@ export function useStudio() {
    */
   const exportVideo = useCallback(async () => {
     const recorder = recorderRef.current;
-    if (!recorder || exporting) return;
+    if (!pro || !recorder || exporting) return;
     const shot = stateRef.current;
     await preloadBackgroundImage(shot.background);
 
@@ -896,8 +915,8 @@ export function useStudio() {
           background: shot.background,
           overlay: shot.overlay,
           shadow: shot.shadow,
-          scale: exportScale,
-          watermark,
+          scale: scale,
+          watermark: marked,
           durationSec,
           fps: exportFps,
           onTime,
@@ -911,8 +930,8 @@ export function useStudio() {
           background: shot.background,
           overlay: shot.overlay,
           shadow: shot.shadow,
-          scale: exportScale,
-          watermark,
+          scale: scale,
+          watermark: marked,
           durationSec,
           fps: exportFps,
           onTime,
@@ -936,7 +955,7 @@ export function useStudio() {
       setExporting(null);
       playheadRef.current = 0;
     }
-  }, [exporting, exportScale, exportFps, watermark]);
+  }, [pro, exporting, scale, exportFps, marked]);
 
   /* --------------------------------------------------------------- the frame */
 
@@ -1653,7 +1672,15 @@ export function useStudio() {
       presetId,
       exportScale,
     }),
-    [screenSrc, screenName, coverSrc, coverName, ratioId, presetId, exportScale],
+    [
+      screenSrc,
+      screenName,
+      coverSrc,
+      coverName,
+      ratioId,
+      presetId,
+      exportScale,
+    ],
   );
   const restore = useCallback((shot: ShotSnapshot) => {
     setState(shot.state);
@@ -1768,12 +1795,13 @@ export function useStudio() {
       setFocusDof,
       composeFocus,
       setEasing,
-      exportScale,
+      exportScale: scale,
       setExportScale,
       exportFps,
       setExportFps,
-      watermark,
+      watermark: marked,
       setWatermark,
+      pro,
       snapshot,
       restore,
     }),
@@ -1841,9 +1869,10 @@ export function useStudio() {
       focusDof,
       composeFocus,
       setEasing,
-      exportScale,
+      scale,
       exportFps,
-      watermark,
+      marked,
+      pro,
       snapshot,
       restore,
     ],
