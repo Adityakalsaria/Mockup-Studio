@@ -20,7 +20,7 @@ import { AnimationMixer } from "three";
 // three's own fix for exactly that, and it behaves identically on models
 // with no skin, so it can be the single clone path rather than a branch.
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { createFoldBlur, type FoldBlur } from "./foldScreenBlur";
+import { createFoldBlur } from "./foldScreenBlur";
 
 import { DEFAULT_DEVICE_ID, getDevice, type Device, type DeviceNotch, type MaterialOverride } from "./devices";
 import { DEFAULT_FINISH_ID, finishForDevice, getFinish } from "./finishes";
@@ -758,10 +758,6 @@ function makeGrainTexture(amount: number, seed: number): CanvasTexture | null {
   texture.wrapT = RepeatWrapping;
   texture.needsUpdate = true;
   return texture;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }
 
 /** How much of the studio rig the camera glass is allowed to mirror back. */
@@ -1536,7 +1532,7 @@ function GLBPhoneScene({
   const gltf = useGLTF(withModelToken(device.modelPath as string, modelToken));
   const {
     scene, width, height, depth, screen, screenMaterials, coverMaterials,
-    mixer, leafRest, hinge, foldRoot, foldCentres,
+    mixer, hinge, foldRoot, foldCentres,
   } = useMemo(() => {
     const cloned = cloneSkinned(gltf.scene) as Group;
 
@@ -1710,7 +1706,7 @@ function GLBPhoneScene({
       // Upright and facing the camera: tall in Y, shallow in Z. Subtracting
       // depth is what separates a phone standing up from one standing on its
       // edge -- both are tall, only one is thin front to back.
-      let score = s3.y - s3.z;
+      const score = s3.y - s3.z;
 
       /*
        * Height and depth alone cannot tell front from back: a phone facing
@@ -3178,10 +3174,6 @@ const LIVE_SETTLED_DOT = 1 - 1e-7;
 const LIVE_TARGET = new Quaternion();
 
 /** Scratch for the fold re-anchor, so the frame loop allocates nothing. */
-const FOLD_SWING = new Quaternion();
-const FOLD_DELTA = new Quaternion();
-const FOLD_HALF = new Quaternion();
-const FOLD_HALF_INV = new Quaternion();
 const FOLD_ANCHOR = new Vector3();
 /** Scratch for the fold-centre lookup; see `foldCentres`. */
 const FOLD_CENTRE = new Vector3();
