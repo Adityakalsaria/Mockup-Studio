@@ -22,7 +22,8 @@
 import { memo, useEffect, useRef, useState } from "react";
 import PhoneStage3D from "../PhoneStage3D";
 import { OverlayLayer } from "../OverlayLayer";
-import { backgroundCss } from "../backgrounds";
+import { backgroundClass, backgroundCss } from "../backgrounds";
+import BackgroundImage from "../BackgroundImage";
 import { isOverlayActive } from "../overlay";
 import type { Studio } from "./useStudio";
 import { sampleAnimation } from "../animation";
@@ -35,11 +36,7 @@ import {
 } from "./focusMath";
 import { Vector3 } from "three";
 import type { SnapGuides } from "./snapping";
-import {
-  DEFAULT_BLUR,
-  isBlurActive,
-  type BlurSettings,
-} from "../blurStyles";
+import { DEFAULT_BLUR, isBlurActive, type BlurSettings } from "../blurStyles";
 
 /**
  * How much workspace is left around the canvas.
@@ -120,10 +117,10 @@ function StageInner({
     (motionMode &&
       (playing ||
         presetId !== null ||
-    // Any keys at all, not only a preset's: a composed focus move or keys
-    // set by hand have to follow a scrub too. Gated on the preset alone, a
-    // scrub moved the depth of field -- which samples the clip itself --
-    // and left the phone standing still.
+        // Any keys at all, not only a preset's: a composed focus move or keys
+        // set by hand have to follow a scrub too. Gated on the preset alone, a
+        // scrub moved the depth of field -- which samples the clip itself --
+        // and left the phone standing still.
         Object.values(state.animation.tracks).some(
           (keys) => keys && keys.length > 0,
         )));
@@ -163,7 +160,7 @@ function StageInner({
       */}
       <style>{`.mo-shot canvas { width: 100% !important; height: 100% !important; object-fit: contain; }`}</style>
       <div
-        className="mo-shot relative overflow-hidden"
+        className={`mo-shot relative overflow-hidden ${backgroundClass(state.background)}`}
         style={{
           // Square at Fill: a corner is what tells you where a shot ends, and
           // at Fill it ends at the window.
@@ -179,6 +176,7 @@ function StageInner({
               }),
         }}
       >
+        <BackgroundImage bg={state.background} />
         <PhoneStage3D
           rail={undefined}
           /* The two doors export goes through: one frame on demand for the
@@ -259,12 +257,8 @@ function StageInner({
         ) : null}
 
         <SnapGuideLayer guides={studio.guides} />
-        {focusDrawing ? (
-          <FocusLayer studio={studio} />
-        ) : null}
-        {isBlurActive(blur) ? (
-          <FocusGuide blur={blur} />
-        ) : null}
+        {focusDrawing ? <FocusLayer studio={studio} /> : null}
+        {isBlurActive(blur) ? <FocusGuide blur={blur} /> : null}
       </div>
     </div>
   );

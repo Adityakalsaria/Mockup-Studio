@@ -26,7 +26,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { hexToHsv, hsvToHex, isLight, parseHex, type Hsv } from "./color";
-import { control, radius } from "./system";
+import { control, radius, space } from "./system";
 import { Glass, Slider } from "./ui";
 
 /* The saturation area is square at the panel's width (see its `aspectRatio`),
@@ -93,7 +93,9 @@ function readRecents(): string[] {
   try {
     const raw = JSON.parse(window.localStorage.getItem(RECENTS_KEY) ?? "[]");
     return Array.isArray(raw)
-      ? raw.filter((c): c is string => typeof c === "string" && parseHex(c) !== null)
+      ? raw.filter(
+          (c): c is string => typeof c === "string" && parseHex(c) !== null,
+        )
       : [];
   } catch {
     // A corrupt or blocked localStorage is not worth a broken picker.
@@ -103,7 +105,10 @@ function readRecents(): string[] {
 
 function pushRecent(hex: string) {
   try {
-    const next = [hex, ...readRecents().filter((c) => c !== hex)].slice(0, RECENTS_MAX);
+    const next = [hex, ...readRecents().filter((c) => c !== hex)].slice(
+      0,
+      RECENTS_MAX,
+    );
     window.localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
   } catch {
     /* ignore */
@@ -232,7 +237,9 @@ function Popover({
    * What arrives from OUTSIDE still wins — a pasted hex or a recent swatch goes
    * through `commitHex`, which sets all three.
    */
-  const [hsv, setHsv] = useState<Hsv>(() => hexToHsv(value) ?? { h: 0, s: 0, v: 0 });
+  const [hsv, setHsv] = useState<Hsv>(
+    () => hexToHsv(value) ?? { h: 0, s: 0, v: 0 },
+  );
 
   // Recorded on close, not on every change: dragging across the square would
   // otherwise fill the row with the fifty colours you passed through.
@@ -264,21 +271,34 @@ function Popover({
       const h = node?.offsetHeight ?? 300;
       const M = 8;
       /*
-       * Under the PANEL, not under the swatch.
+       * Beside the PANEL, on its left -- not under the swatch, and not under the
+       * panel either.
        *
        * The swatch is a 16px chip on a row halfway down a popup, so opening from
-       * it put the picker across the rows you are choosing a colour for — the
-       * one place it must not be. The panel is what the row belongs to, and its
-       * bottom edge is the first place below it that is clear of everything.
+       * it put the picker across the rows you are choosing a colour for -- the
+       * one place it must not be. The panels sit on the right of the studio and
+       * the shot is to their left, so the picker goes there: level with the
+       * panel's top, next to the model, clear of every row. Only where there is
+       * no room on the left does it fall back to hanging under the panel.
        *
        * Found by walking up from the trigger rather than passed in, so any
        * `ColorRow` in any surface gets this without being told where it is.
        */
-      const panel = trigger.closest(".mo-glass")?.getBoundingClientRect() ?? rect;
+      const panel =
+        trigger.closest(".mo-glass")?.getBoundingClientRect() ?? rect;
+      // 16, the studio's own gap between neighbouring panels -- the small GAP
+      // is for the fallback below, where the picker hangs off the panel's edge.
+      const SIDE_GAP = space[4];
+      const roomLeft = panel.left - SIDE_GAP - w >= M;
+      const left = roomLeft
+        ? panel.left - SIDE_GAP - w
+        : Math.min(Math.max(M, panel.left), window.innerWidth - w - M);
       const below = panel.bottom + GAP;
-      const top = below + h > window.innerHeight - M ? Math.max(M, panel.top - GAP - h) : below;
-      // Its own edges, since it is the same width as the panel it hangs from.
-      const left = Math.min(Math.max(M, panel.left), window.innerWidth - w - M);
+      const top = roomLeft
+        ? Math.max(M, Math.min(panel.top, window.innerHeight - M - h))
+        : below + h > window.innerHeight - M
+          ? Math.max(M, panel.top - GAP - h)
+          : below;
       // Page coordinates, because this is positioned absolutely — see below.
       const x = left + window.scrollX;
       const y = top + window.scrollY;
@@ -286,9 +306,10 @@ function Popover({
       // and resize and is a dependency of the effect that calls it — a new object
       // each time would be a state change each time, and a state change would run
       // it again.
-      setPos((prev) => (prev && prev.left === x && prev.top === y ? prev : { left: x, top: y }));
+      setPos((prev) =>
+        prev && prev.left === x && prev.top === y ? prev : { left: x, top: y },
+      );
     };
-
 
     /*
      * Measure, then place. The position cannot be known before the panel is in
@@ -314,7 +335,8 @@ function Popover({
     if (!anchor || !onClose) return;
     const onDown = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (rootRef.current?.contains(target) || anchor.current?.contains(target)) return;
+      if (rootRef.current?.contains(target) || anchor.current?.contains(target))
+        return;
       onClose();
     };
     const onKey = (event: KeyboardEvent) => {
@@ -374,7 +396,11 @@ function Popover({
       if (next) {
         // A pasted colour brings its own hue, unless it is a grey or a black
         // and has none to bring — then the square keeps the hue it was on.
-        setHsv({ h: next.s > 0 && next.v > 0 ? next.h : hsv.h, s: next.s, v: next.v });
+        setHsv({
+          h: next.s > 0 && next.v > 0 ? next.h : hsv.h,
+          s: next.s,
+          v: next.v,
+        });
       }
       onChange(hsvToHex(next ?? hsv));
     }
@@ -397,21 +423,21 @@ function Popover({
 
   const body = (
     <>
-        {/* Saturation across, value down, over the current hue. Two CSS
+      {/* Saturation across, value down, over the current hue. Two CSS
             gradients do what a canvas would and stay sharp at any zoom. */}
-        <div
-          onPointerDown={onSquare}
-          className="relative w-full cursor-crosshair touch-none overflow-hidden"
-          style={{
-            // Square, as the name always said: as tall as the panel is wide,
-            // so saturation and value get the same room. It was a fixed 132
-            // across a 234-wide panel -- a rectangle.
-            aspectRatio: "1 / 1",
-            borderRadius: SQUARE_R,
-            background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${hsv.h} 100% 50%))`,
-          }}
-        >
-          {/*
+      <div
+        onPointerDown={onSquare}
+        className="relative w-full cursor-crosshair touch-none overflow-hidden"
+        style={{
+          // Square, as the name always said: as tall as the panel is wide,
+          // so saturation and value get the same room. It was a fixed 132
+          // across a 234-wide panel -- a rectangle.
+          aspectRatio: "1 / 1",
+          borderRadius: SQUARE_R,
+          background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${hsv.h} 100% 50%))`,
+        }}
+      >
+        {/*
             Kept inside its own square.
             
             The marker sits ON the value, so at full white or pure black it is
@@ -422,24 +448,24 @@ function Popover({
             disappears exactly when you have driven the colour somewhere
             deliberate.
           */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute"
-            style={{
-              left: `calc(${hsv.s * 100}% + ${(0.5 - hsv.s) * MARK_R * 2}px)`,
-              top: `calc(${(1 - hsv.v) * 100}% + ${(hsv.v - 0.5) * MARK_R * 2}px)`,
-              width: MARK_R * 2,
-              height: MARK_R * 2,
-              marginLeft: -MARK_R,
-              marginTop: -MARK_R,
-              borderRadius: 999,
-              border: `2px solid ${markerDark ? "#000" : "#fff"}`,
-              boxShadow: "var(--mo-knob-shadow)",
-            }}
-          />
-        </div>
+        <span
+          aria-hidden
+          className="pointer-events-none absolute"
+          style={{
+            left: `calc(${hsv.s * 100}% + ${(0.5 - hsv.s) * MARK_R * 2}px)`,
+            top: `calc(${(1 - hsv.v) * 100}% + ${(hsv.v - 0.5) * MARK_R * 2}px)`,
+            width: MARK_R * 2,
+            height: MARK_R * 2,
+            marginLeft: -MARK_R,
+            marginTop: -MARK_R,
+            borderRadius: 999,
+            border: `2px solid ${markerDark ? "#000" : "#fff"}`,
+            boxShadow: "var(--mo-knob-shadow)",
+          }}
+        />
+      </div>
 
-        {/*
+      {/*
           The hue is the system's `Slider`, with the spectrum as its track.
           
           It was a hand-built row with a knob that copied the real one's
@@ -452,7 +478,7 @@ function Popover({
           the scale, not a quantity. `paramH` is 24, which is the frame's Stack
           height exactly.
         */}
-        {/*
+      {/*
           In a ROW, because `Slider` is built to be one.
           
           Its root carries `flex-1`, which is how it takes the space a
@@ -465,19 +491,22 @@ function Popover({
           The wrapper gives it a horizontal axis to be `flex-1` in, and the
           height the frame asks for.
         */}
-        <div className="flex w-full items-center" style={{ height: control.paramH }}>
-          <Slider
-            label="Hue"
-            value={hsv.h}
-            min={0}
-            max={360}
-            step={1}
-            onChange={(h) => set({ h })}
-            track={{ background: SPECTRUM, fill: "transparent" }}
-          />
-        </div>
+      <div
+        className="flex w-full items-center"
+        style={{ height: control.paramH }}
+      >
+        <Slider
+          label="Hue"
+          value={hsv.h}
+          min={0}
+          max={360}
+          step={1}
+          onChange={(h) => set({ h })}
+          track={{ background: SPECTRUM, fill: "transparent" }}
+        />
+      </div>
 
-        {/*
+      {/*
           The hex, in a pill with the colour beside it.
           
           A swatch and its value read as one statement — this IS that red — in
@@ -487,45 +516,46 @@ function Popover({
           to match a colour already on the screen and it costs the layout
           nothing, sitting in the room the pill already has.
         */}
-        <div className="flex w-full items-center" style={{ ...PILL, gap: 4 }}>
-          <span
-            aria-hidden
-            className="shrink-0"
-            style={{
-              width: 16,
-              height: 16,
-              borderRadius: "var(--mo-r-swatch)",
-              border: "var(--mo-swatch-edge)",
-              boxShadow: "var(--mo-swatch-shadow)",
-              background: value,
-            }}
-          />
-          <input
-            value={(draft ?? value).toUpperCase()}
-            aria-label="Hex"
-            spellCheck={false}
-            onChange={(event) => setDraft(event.target.value)}
-            onBlur={(event) => commitHex(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") commitHex((event.target as HTMLInputElement).value);
-              if (event.key === "Escape") setDraft(null);
-            }}
-            className="mo-code min-w-0 flex-1 bg-transparent tabular-nums outline-none"
-          />
-          {supportsDropper ? (
-            <button
-              type="button"
-              aria-label="Pick a colour from the screen"
-              onClick={pickFromScreen}
-              className="grid shrink-0 cursor-pointer place-items-center"
-              style={{ width: 16, height: 16, color: "var(--mo-ink)" }}
-            >
-              <DropperIcon />
-            </button>
-          ) : null}
-        </div>
+      <div className="flex w-full items-center" style={{ ...PILL, gap: 4 }}>
+        <span
+          aria-hidden
+          className="shrink-0"
+          style={{
+            width: 16,
+            height: 16,
+            borderRadius: "var(--mo-r-swatch)",
+            border: "var(--mo-swatch-edge)",
+            boxShadow: "var(--mo-swatch-shadow)",
+            background: value,
+          }}
+        />
+        <input
+          value={(draft ?? value).toUpperCase()}
+          aria-label="Hex"
+          spellCheck={false}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={(event) => commitHex(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter")
+              commitHex((event.target as HTMLInputElement).value);
+            if (event.key === "Escape") setDraft(null);
+          }}
+          className="mo-code min-w-0 flex-1 bg-transparent tabular-nums outline-none"
+        />
+        {supportsDropper ? (
+          <button
+            type="button"
+            aria-label="Pick a colour from the screen"
+            onClick={pickFromScreen}
+            className="grid shrink-0 cursor-pointer place-items-center"
+            style={{ width: 16, height: 16, color: "var(--mo-ink)" }}
+          >
+            <DropperIcon />
+          </button>
+        ) : null}
+      </div>
 
-        {/*
+      {/*
           No pill around these — just the colours.
           
           The hex row is a pill because it is a control you act on: a field, a
@@ -535,40 +565,40 @@ function Popover({
           they are. They keep the pill's 12px inset so the first swatch lines up
           with the one above it.
         */}
-        {recents.length ? (
-          <div
-            // Slots for a FULL row, filled from the left. Spread with
-            // justify-between, four recents flew to the corners of a row
-            // spaced for ten.
-            className="grid w-full items-center"
-            style={{
-              gridTemplateColumns: `repeat(${RECENTS_MAX}, 16px)`,
-              justifyContent: "space-between",
-              marginTop: RECENTS_GAP - GAP,
-              marginBottom: RECENTS_INSET,
-              padding: `0 ${RECENTS_INSET}px`,
-            }}
-          >
-            {recents.map((hex) => (
-              <button
-                key={hex}
-                type="button"
-                aria-label={hex}
-                title={hex}
-                onClick={() => commitHex(hex)}
-                className="shrink-0 cursor-pointer"
-                style={{
-                  width: 16,
-                  height: 16,
-                  borderRadius: "var(--mo-r-swatch)",
-                  border: "var(--mo-swatch-edge)",
-                  boxShadow: "var(--mo-swatch-shadow)",
-                  background: hex,
-                }}
-              />
-            ))}
-          </div>
-        ) : null}
+      {recents.length ? (
+        <div
+          // Slots for a FULL row, filled from the left. Spread with
+          // justify-between, four recents flew to the corners of a row
+          // spaced for ten.
+          className="grid w-full items-center"
+          style={{
+            gridTemplateColumns: `repeat(${RECENTS_MAX}, 16px)`,
+            justifyContent: "space-between",
+            marginTop: RECENTS_GAP - GAP,
+            marginBottom: RECENTS_INSET,
+            padding: `0 ${RECENTS_INSET}px`,
+          }}
+        >
+          {recents.map((hex) => (
+            <button
+              key={hex}
+              type="button"
+              aria-label={hex}
+              title={hex}
+              onClick={() => commitHex(hex)}
+              className="shrink-0 cursor-pointer"
+              style={{
+                width: 16,
+                height: 16,
+                borderRadius: "var(--mo-r-swatch)",
+                border: "var(--mo-swatch-edge)",
+                boxShadow: "var(--mo-swatch-shadow)",
+                background: hex,
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
     </>
   );
 
@@ -609,9 +639,7 @@ function Popover({
       }}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <Glass style={{ gap: GAP }}>
-        {body}
-      </Glass>
+      <Glass style={{ gap: GAP }}>{body}</Glass>
     </div>,
     document.body,
   );
