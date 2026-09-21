@@ -258,7 +258,12 @@ function StageInner({
 
         <SnapGuideLayer guides={studio.guides} />
         {focusDrawing ? <FocusLayer studio={studio} /> : null}
-        {isBlurActive(blur) ? <FocusGuide blur={blur} /> : null}
+        {isBlurActive(blur) ? (
+          <FocusGuide blur={blur} pinned={studio.focusPicking} />
+        ) : null}
+        {/* After the guide, so its handles sit on top of the lines they slide
+            along rather than under them. */}
+        {studio.focusPicking ? <FocusPickLayer studio={studio} /> : null}
       </div>
     </div>
   );
@@ -274,6 +279,16 @@ function StageInner({
  * events, so a drag on the model passes straight through the lines it causes.
  */
 const GUIDE = "#0D99FF"; // Figma's selection blue
+
+/**
+ * The rotate cursor: a curved arrow with a head at each end, black on a white
+ * outline so it reads over any shot -- the one Figma shows on a corner. Drawn
+ * here as an SVG because CSS has no cursor that says "turn"; the hotspot is its
+ * middle, and `grab` is the fallback if a browser will not take the image.
+ */
+const ROTATE_CURSOR = `url("data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26"><g stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 14Q13 4.5 20.5 14" fill="none" stroke="#fff" stroke-width="5"/><path d="M2.6 13.2h5.8L5.5 18.6zM17.6 13.2h5.8L20.5 18.6z" fill="#fff" stroke="#fff" stroke-width="2.6"/><path d="M5.5 14Q13 4.5 20.5 14" fill="none" stroke="#000" stroke-width="2"/><path d="M2.6 13.2h5.8L5.5 18.6zM17.6 13.2h5.8L20.5 18.6z" fill="#000"/></g></svg>',
+)}") 13 13, grab`;
 
 function SnapGuideLayer({ guides }: { guides: SnapGuides }) {
   const line = {
@@ -337,7 +352,14 @@ function SnapGuideLayer({ guides }: { guides: SnapGuides }) {
  * `focusSize / 2` and a falloff of `0.02 + falloff × 0.6`, both in frame
  * heights — so the marks sit exactly on the edges the shader draws.
  */
-function FocusGuide({ blur }: { blur: BlurSettings }) {
+function FocusGuide({
+  blur,
+  pinned = false,
+}: {
+  blur: BlurSettings;
+  /** Aiming by hand: the guide stays up instead of fading after each change. */
+  pinned?: boolean;
+}) {
   const ref = useRef<SVGSVGElement>(null);
   /*
    * At rest until the blur is being edited: shown on each change and gone a
@@ -348,6 +370,11 @@ function FocusGuide({ blur }: { blur: BlurSettings }) {
   const first = useRef(true);
   useEffect(() => {
     const node = ref.current;
+    if (pinned && node) {
+      node.style.transition = "opacity 100ms ease-out";
+      node.style.opacity = "1";
+      return;
+    }
     if (first.current || !node) {
       first.current = false;
       return;
@@ -359,7 +386,7 @@ function FocusGuide({ blur }: { blur: BlurSettings }) {
       node.style.opacity = "0";
     }, 800);
     return () => window.clearTimeout(t);
-  }, [blur]);
+  }, [blur, pinned]);
   const [aspect, setAspect] = useState(1);
   useEffect(() => {
     const node = ref.current;
@@ -444,6 +471,273 @@ function FocusGuide({ blur }: { blur: BlurSettings }) {
  * selection travelling across a panel in front of it.
  */
 export const Stage = memo(StageInner);
+
+/**
+ * Aim the blur by hand: while the Depth of Field popup is open with a blur on,
+ * a press on the shot puts the focus there, dragging carries it along, and two
+ * fingers (pinch or scroll) size it -- in every mode, where "there" is the sharp
+ * point, or the middle of the sharp band. The layer is only mounted then, so the rest of the time the
+ * shot orbits and drags as usual.
+ *
+ * The frame is what the blur is measured against -- `focusX`/`focusY` are shares
+ * of it, y down -- so the press is read against this layer's own box, which is
+ * the frame. `FocusGuide` flashes the ring on every change, so each click shows
+ * where it landed.
+ */
+function FocusPickLayer({ studio }: { studio: Studio }) {
+  const { edit } = studio;
+  const layerRef = useRef<HTMLDivElement>(null);
+  /*
+   * Two fingers on the trackpad set the spot's size: pinch out or scroll up for
+   * bigger, pinch in or scroll down for smaller. A pinch arrives as a wheel event
+   * with ctrlKey set, which the browser would otherwise turn into a page zoom --
+   * so this is a native, non-passive listener that can cancel it, and it stops
+   * there so the same gesture does not also zoom the phone behind it.
+   */
+  useEffect(() => {
+    const node = layerRef.current;
+    if (!node) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      // Multiplicative, so it feels the same at 5% as at 60%. A pinch reports far
+      // smaller deltas than a scroll, hence the two rates.
+      const rate = event.ctrlKey ? 0.01 : 0.004;
+      const factor = Math.exp(-event.deltaY * rate);
+      edit((prev) => ({
+        ...prev,
+        blur: {
+          ...prev.blur,
+          focusSize: Math.min(1, Math.max(0.02, prev.blur.focusSize * factor)),
+        },
+      }));
+    };
+    node.addEventListener("wheel", onWheel, { passive: false });
+    return () => node.removeEventListener("wheel", onWheel);
+  }, [edit]);
+  const blur = studio.state.blur;
+  // The frame's shape, so the handles sit in frame heights like the shader does.
+  const [aspect, setAspect] = useState(1);
+  useEffect(() => {
+    const node = layerRef.current;
+    if (!node) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (height > 0) setAspect(width / height);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  /*
+   * Handles on the guide: one for Size (the solid edge of the sharp region) and
+   * one for Falloff (the dotted edge where the blur is full), in every mode.
+   * Radial puts them on the rings; Directional on its two lines; Tilt shift on
+   * both sides of the band. Each is dragged to where the edge should be, and
+   * `reach` measures that the way the shader does -- distance from the focus,
+   * along the direction or across the band.
+   */
+  const angle = (blur.angle * Math.PI) / 180;
+  const dir = { x: Math.cos(angle), y: -Math.sin(angle) };
+  const normal = { x: -Math.sin(angle), y: -Math.cos(angle) };
+  const axis =
+    blur.mode === "radial"
+      ? // Up and to the left: the panels are on the right, and a handle under one
+        // cannot be reached.
+        { x: -Math.SQRT1_2, y: -Math.SQRT1_2 }
+      : blur.mode === "directional"
+        ? dir
+        : normal;
+  const reach = (dx: number, dy: number) =>
+    blur.mode === "radial"
+      ? Math.hypot(dx, dy)
+      : blur.mode === "directional"
+        ? Math.max(0, dx * dir.x + dy * dir.y)
+        : Math.abs(dx * normal.x + dy * normal.y);
+  const inner = blur.focusSize * 0.5;
+  const outer = inner + 0.02 + blur.falloff * 0.6;
+  const sides = blur.mode === "tilt-shift" ? [1, -1] : [1];
+  /*
+   * Rotation, for the two modes that have a direction (a circle has none), is
+   * done from the ring around the Size dot: the point you grab follows the
+   * pointer, so the line turns by how far the pointer has swung round the focus
+   * point, not to where it points.
+   */
+  const handles = sides.flatMap((side) => [
+    { kind: "size" as const, side, at: inner * side },
+    { kind: "falloff" as const, side, at: outer * side },
+  ]);
+  const swing = useRef<{ from: number; angle: number } | null>(null);
+  /** The pointer's bearing from the focus point, degrees, y down. */
+  const bearing = (event: React.PointerEvent<HTMLDivElement>) => {
+    const box = layerRef.current?.getBoundingClientRect();
+    if (!box || box.height <= 0) return null;
+    const dx =
+      (event.clientX - box.left) / box.height -
+      blur.focusX * (box.width / box.height);
+    const dy = (event.clientY - box.top) / box.height - blur.focusY;
+    return (Math.atan2(dy, dx) * 180) / Math.PI;
+  };
+  const turn = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = swing.current;
+    const now = bearing(event);
+    if (!start || now === null) return;
+    // On screen (y down) a bearing that grows is clockwise, and this angle grows
+    // the other way -- so the sweep is subtracted.
+    let degrees = start.angle - (now - start.from);
+    if (event.shiftKey) degrees = Math.round(degrees / 15) * 15;
+    const wrapped = ((Math.round(degrees) % 360) + 360) % 360;
+    edit((prev) => ({ ...prev, blur: { ...prev.blur, angle: wrapped } }));
+  };
+  const drag = (
+    event: React.PointerEvent<HTMLDivElement>,
+    kind: "size" | "falloff",
+  ) => {
+    const box = layerRef.current?.getBoundingClientRect();
+    if (!box || box.height <= 0) return;
+    const ratio = box.width / box.height;
+    // Pointer relative to the focus point, in frame heights.
+    const dx = (event.clientX - box.left) / box.height - blur.focusX * ratio;
+    const dy = (event.clientY - box.top) / box.height - blur.focusY;
+    const d = reach(dx, dy);
+    edit((prev) => ({
+      ...prev,
+      blur:
+        kind === "size"
+          ? { ...prev.blur, focusSize: Math.min(1, Math.max(0, d * 2)) }
+          : {
+              ...prev.blur,
+              falloff: Math.min(
+                1,
+                Math.max(0, (d - prev.blur.focusSize * 0.5 - 0.02) / 0.6),
+              ),
+            },
+    }));
+  };
+  // Press to put the focus there; hold and move to drag it along.
+  const place = (event: React.PointerEvent<HTMLDivElement>) => {
+    const box = event.currentTarget.getBoundingClientRect();
+    const share = (n: number) => Math.min(1, Math.max(0, n));
+    const focusX = share((event.clientX - box.left) / box.width);
+    const focusY = share((event.clientY - box.top) / box.height);
+    edit((prev) => ({ ...prev, blur: { ...prev.blur, focusX, focusY } }));
+  };
+  return (
+    <div
+      ref={layerRef}
+      className="absolute inset-0"
+      style={{ cursor: "crosshair", touchAction: "none" }}
+      onPointerDown={(event) => {
+        // The popup this belongs to dismisses on a press outside it; this press
+        // is part of using it, so it must not reach that.
+        event.stopPropagation();
+        // Captured, so the drag keeps following the pointer past the frame's
+        // edge and the release lands here whatever is under it.
+        event.currentTarget.setPointerCapture(event.pointerId);
+        place(event);
+      }}
+      onPointerMove={(event) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId))
+          place(event);
+      }}
+    >
+      {handles.map(({ kind, side, at }) => {
+        /*
+         * The Size dot has two zones. Its middle slides the edge in and out; the
+         * ring just outside it turns the line about the focus point -- with the
+         * rotate cursor -- so rotating lives on the same dot, at its edge. Radial
+         * has no direction, so there its dot is just the dot.
+         */
+        const turnable = kind === "size" && blur.mode !== "radial";
+        const RING = 46;
+        const DOT = 22;
+        const box = turnable ? RING : DOT;
+        const marker = (
+          <span
+            style={{
+              width: kind === "size" ? 12 : 9,
+              height: kind === "size" ? 12 : 9,
+              borderRadius: "50%",
+              background: "#fff",
+              boxShadow: `0 0 0 1.5px ${GUIDE}, 0 1px 4px rgb(0 0 0 / 0.25)`,
+            }}
+          />
+        );
+        return (
+          <div
+            // Keyed by what it is, not where it is: it moves under the pointer
+            // as it is dragged, and a new key would replace it and drop the
+            // capture.
+            key={`${kind}${side}`}
+            role="slider"
+            aria-label={kind === "size" ? "Focus size" : "Focus falloff"}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(
+              (kind === "size" ? blur.focusSize : blur.falloff) * 100,
+            )}
+            className="absolute"
+            style={{
+              // In frame shares: x over the frame's width, y over its height.
+              left: `${(blur.focusX + (axis.x * at) / aspect) * 100}%`,
+              top: `${(blur.focusY + axis.y * at) * 100}%`,
+              width: box,
+              height: box,
+              margin: -box / 2,
+              display: "grid",
+              placeItems: "center",
+              cursor: turnable ? ROTATE_CURSOR : "grab",
+              touchAction: "none",
+            }}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              event.currentTarget.setPointerCapture(event.pointerId);
+              if (turnable) {
+                const from = bearing(event);
+                swing.current =
+                  from === null ? null : { from, angle: blur.angle };
+              } else drag(event, kind);
+            }}
+            onPointerMove={(event) => {
+              if (!event.currentTarget.hasPointerCapture(event.pointerId))
+                return;
+              if (turnable) turn(event);
+              else drag(event, kind);
+            }}
+            onPointerUp={() => {
+              swing.current = null;
+            }}
+          >
+            {turnable ? (
+              <div
+                style={{
+                  width: DOT,
+                  height: DOT,
+                  display: "grid",
+                  placeItems: "center",
+                  cursor: "grab",
+                }}
+                onPointerDown={(event) => {
+                  // The middle of the dot sizes; the ring around it turns.
+                  event.stopPropagation();
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  drag(event, kind);
+                }}
+                onPointerMove={(event) => {
+                  if (event.currentTarget.hasPointerCapture(event.pointerId))
+                    drag(event, kind);
+                }}
+              >
+                {marker}
+              </div>
+            ) : (
+              marker
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /**
  * The focus areas, pinned to the phone, drawn over the shot while their

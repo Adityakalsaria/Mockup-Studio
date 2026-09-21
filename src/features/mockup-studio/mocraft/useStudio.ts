@@ -1329,6 +1329,9 @@ export function useStudio() {
   /** A focus area is being dragged out right now -- the popup's picture of
       what to do steps aside the moment you start doing it. */
   const [focusDrafting, setFocusDrafting] = useState(false);
+  /** Crafting's depth of field is waiting for one click on the shot to say
+      where to focus. See `FocusPickLayer`. */
+  const [focusPicking, setFocusPicking] = useState(false);
 
   /** How hard Compose turns the phone toward each area, 0 (flat) to 1. */
   const [focusTilt, setFocusTilt] = useState(0.6);
@@ -1758,6 +1761,8 @@ export function useStudio() {
       setMotionMode,
       focusDrafting,
       setFocusDrafting,
+      focusPicking,
+      setFocusPicking,
       focusPoints,
       setFocusPoints,
       focusTilt,
@@ -1833,6 +1838,7 @@ export function useStudio() {
       setKeyValue,
       setDuration,
       focusDrafting,
+      focusPicking,
       motionMode,
       setMotionMode,
       focusPoints,
