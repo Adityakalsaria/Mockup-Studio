@@ -98,7 +98,7 @@ import {
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useProgress } from "@react-three/drei";
 import { stashExport, takeExport } from "./pendingExport";
-import { isPro } from "@/lib/plan";
+import { isPro, planFor, PLANS, type PlanId } from "@/lib/plan";
 import { getMotionPreset } from "../editor/motionPresets";
 import { DEFAULT_EDITOR_STATE } from "../editor/editorState";
 import type { BroadcastState } from "../broadcast/useBroadcastLink";
@@ -1095,11 +1095,30 @@ function SignOutSheet({
   );
 }
 
+/** One plan's pill in the upgrade sheet: its name, then its price, stacked --
+    the same two lines whichever plan is selected, so the segmented control
+    never quietly regrows. Colour is inherited from the button around it,
+    which is what dims the unselected plan. */
+function PlanOption({ plan }: { plan: PlanId }) {
+  const { name, price, cadence } = PLANS[plan];
+  return (
+    <span
+      className="flex flex-col items-center"
+      style={{ lineHeight: 1.2, padding: "1px 0" }}
+    >
+      <span>{name}</span>
+      <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.75 }}>
+        {price}
+        {cadence}
+      </span>
+    </span>
+  );
+}
+
 /**
- * The Pro offer: what it unlocks, monthly or yearly, and on to Dodo's hosted
- * checkout. Prices are Dodo's to show -- they live on the checkout, so changing
- * one never means changing this. `activating` is the moment after paying, while
- * the webhook that flips the account to Pro is still on its way.
+ * The offer: what either plan unlocks, Craft Lite or Craft Pro, and on to
+ * Dodo's hosted checkout. `activating` is the moment after paying, while the
+ * webhook that puts the plan on the account is still on its way.
  */
 function UpgradeSheet({
   signedIn,
@@ -1113,10 +1132,11 @@ function UpgradeSheet({
   activating: boolean;
   busy: boolean;
   error: string | null;
-  onCheckout: (interval: "monthly" | "yearly") => void;
+  onCheckout: (plan: PlanId) => void;
   onClose: () => void;
 }) {
-  const [interval, setInterval] = useState<"monthly" | "yearly">("yearly");
+  // Pro first: the yearly plan is the better deal, and the one worth landing on.
+  const [plan, setPlan] = useState<PlanId>("pro");
   return (
     <Glass width={340}>
       <div
@@ -1124,7 +1144,7 @@ function UpgradeSheet({
         style={{ gap: 16, padding: "20px 12px 12px" }}
       >
         <span className="mo-title" style={{ textAlign: "center" }}>
-          {activating ? "Activating Pro…" : "Upgrade to Pro"}
+          {activating ? "Activating your plan…" : "Choose a plan"}
         </span>
         {activating ? (
           <p
@@ -1146,12 +1166,12 @@ function UpgradeSheet({
             </ul>
             <Segmented
               width="100%"
-              height={32}
-              value={interval}
-              onChange={setInterval}
+              height={44}
+              value={plan}
+              onChange={setPlan}
               options={[
-                { id: "monthly", label: "Monthly" },
-                { id: "yearly", label: "Yearly" },
+                { id: "lite" as const, label: <PlanOption plan="lite" /> },
+                { id: "pro" as const, label: <PlanOption plan="pro" /> },
               ]}
             />
             {error ? (
@@ -1165,7 +1185,7 @@ function UpgradeSheet({
             <div className="flex flex-col" style={{ gap: 8 }}>
               <Button
                 width="100%"
-                onClick={busy ? undefined : () => onCheckout(interval)}
+                onClick={busy ? undefined : () => onCheckout(plan)}
               >
                 {busy
                   ? "Opening checkout…"
@@ -1859,14 +1879,17 @@ function ExportRow({
 const EXPORT_SCALES = [1, 2, 3, 4];
 
 /** The sizes as pills. On a free account everything past 1x carries a small
-    "Pro" -- pressing it opens the upgrade rather than selecting it. */
+    "Plan" -- pressing it opens the upgrade rather than selecting it. Not
+    "Pro": Craft Lite unlocks this too, and that badge would say otherwise.
+    Short on purpose: the pill has room for "4x" and one more short word,
+    not "Premium". */
 function exportScaleOptions(pro: boolean) {
   return EXPORT_SCALES.map((n) => ({
     id: String(n),
     label:
       n > 1 && !pro ? (
         <span>
-          {n}x <span style={{ fontSize: 10, opacity: 0.55 }}>Pro</span>
+          {n}x <span style={{ fontSize: 10, opacity: 0.55 }}>Plan</span>
         </span>
       ) : (
         `${n}x`
@@ -1939,7 +1962,7 @@ function MotionExportRow({
               ? `Exporting ${pct}%`
               : studio.pro
                 ? "Export video"
-                : "Export video · Pro"}
+                : "Export video · Plan"}
           </MorphText>
         </Button>
         {pct !== null ? (
@@ -2416,6 +2439,9 @@ export default function StudioChrome({
    * on screen.
    */
   const pro = isPro(user);
+  // Which plan, for the account menu's "Manage plan" row -- `pro` alone
+  // cannot say whether that means Craft Lite or Craft Pro.
+  const currentPlan = planFor(user);
   const studio = useStudio(pro);
   /*
    * `state` is the shot; `effective` is the shot with the animation laid over
@@ -2560,19 +2586,19 @@ export default function StudioChrome({
     [],
   );
   const startCheckout = useCallback(
-    async (interval: "monthly" | "yearly") => {
+    async (plan: PlanId) => {
       if (!isSignedIn) {
         askSignIn();
         return;
       }
       setUpgrade((u) => ({ ...u, busy: true, error: null }));
-      const error = await goTo("/api/checkout", { interval });
+      const error = await goTo("/api/checkout", { plan });
       setUpgrade((u) => ({ ...u, busy: false, error }));
     },
     [isSignedIn, askSignIn, goTo],
   );
   // Back from checkout (`?upgraded`): hold on "Activating" until the webhook has
-  // made the account Pro, checking every two seconds for up to a minute.
+  // put a plan on the account, checking every two seconds for up to a minute.
   useEffect(() => {
     if (!isLoaded || !user) return;
     const params = new URLSearchParams(window.location.search);
@@ -3566,11 +3592,12 @@ export default function StudioChrome({
                       Account
                     </Row>
                   ) : null}
-                  {/* The plan: manage it (cancel, card, invoices) on Pro, or
-                      see the offer on free. */}
+                  {/* The plan: manage it (cancel, card, invoices) once paid,
+                      naming which of the two it is, or see the offer on free. */}
                   {pro ? (
                     <Row
                       icon={<Icon name="effects" />}
+                      value={currentPlan ? PLANS[currentPlan].name : undefined}
                       onClick={() => {
                         setMenuOpen(false);
                         void goTo("/api/portal");
@@ -3586,7 +3613,7 @@ export default function StudioChrome({
                         openUpgrade();
                       }}
                     >
-                      Upgrade to Pro
+                      Upgrade
                     </Row>
                   )}
                   {/* What has shipped, in the same sheet the shortcuts use. */}
@@ -4040,7 +4067,7 @@ export default function StudioChrome({
                               exported frame carries: every image and video. */}
                           <Divider inset={8} />
                           <ToggleRow
-                            label={pro ? "Watermark" : "Watermark · Pro"}
+                            label={pro ? "Watermark" : "Watermark · Plan"}
                             value={studio.watermark}
                             // On a free account the mark is fixed; pressing the
                             // switch offers the upgrade instead.
