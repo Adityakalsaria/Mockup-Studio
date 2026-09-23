@@ -12,7 +12,7 @@ import {
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { RoundedBox, useGLTF } from "@react-three/drei";
 import { withModelToken } from "@/lib/modelToken";
-import { Box3, CanvasTexture, ClampToEdgeWrapping, Color, RepeatWrapping, DirectionalLight, DoubleSide, ExtrudeGeometry, Group, Object3D, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
+import { Box3, CanvasTexture, ClampToEdgeWrapping, Color, RepeatWrapping, DirectionalLight, DoubleSide, ExtrudeGeometry, Group, Matrix3, Object3D, SRGBColorSpace, Shape, ShapeGeometry, TextureLoader, Vector3 } from "three";
 import type { Texture } from "three";
 import { AnimationMixer } from "three";
 // Not Object3D.clone(): that copies a SkinnedMesh but leaves it pointing at
@@ -326,6 +326,222 @@ const DARKEN_ROUGHNESS = 1;
  * which is what replaces html-to-image's `pixelRatio`.
  */
 export type StageCapture = (scale: number) => string | null;
+
+/** Where a screen sits, in the same phone-local units `focusMath.toScreen`
+    already projects: `{cx,cy,z}` at the group's own origin, before rotation or
+    zoom -- exactly what `GLBPhoneScene`'s measured `screen`/`coverScreen`
+    already are, just flattened out of Vector3 form for a plain prop.
+    `facing` is which way its outward normal points before any rotation --
+    needed so a screen currently turned away from the camera (a foldable's
+    cover, or the main screen spun round to show the back) can tell its own
+    placeholder not to draw. */
+export type ScreenBox = {
+  cx: number;
+  cy: number;
+  z: number;
+  w: number;
+  h: number;
+  facing: 1 | -1;
+  /** Shrinks the empty-screen placeholder's outline toward this box's own
+      centre by this fraction (0.88 = 12% smaller on each axis), before it is
+      projected. Absent/1 on every device whose screen mesh measures cleanly
+      -- see `Device.screenOutlinePad`, the only thing that sets it. */
+  outlineInset?: number;
+  /** The screen's own front-face Z at each of its four corners -- see
+      `cornerZs` in `PhoneStage3D.tsx`. Absent (falls back to the plain `z`
+      above) on every device except the ones `screenOutlinePad` is set for;
+      present, they let the placeholder bilinearly interpolate Z across the
+      screen instead of assuming one constant depth, which a screen mounted
+      with a genuine recline (the iMac's panel, by design) or a mesh whose
+      single extreme lands on a trim detail rather than the glass (some
+      laptops) both need -- and which a laptop's glass curving in both axes
+      needs four independent corners, not just a top and a bottom, to get
+      right. */
+  tlZ?: number;
+  trZ?: number;
+  blZ?: number;
+  brZ?: number;
+  /** See `Device.screenZGain`/`screenZBias`/`screenMinFacing` -- locked
+      per-device values for the same three knobs the Screen Depth Leva panel
+      exposes live. Absent defers to the live panel's own value, so a device
+      not yet locked stays tunable rather than stuck at a hardcoded default. */
+  zGain?: number;
+  zBias?: number;
+  minFacing?: number;
+};
+
+/**
+ * Which way a mesh's face actually points, read off its own geometry rather
+ * than guessed from where it sits.
+ *
+ * `screen`/`coverScreen`'s own `facing` used to be `worldCenter.z >= 0 ? 1 :
+ * -1` -- which side of the recentred body the screen's BOX sits on. That's a
+ * fine proxy for a screen mounted with real depth between it and the body's
+ * centre, and wrong for the Duo: opened flat, its inner display and its
+ * cover display are both only a millimetre or two off the body's own centre
+ * plane, on either side of it by a margin small enough that which side each
+ * one measured onto came down to noise -- both came out negative, so the
+ * empty-screen placeholder could never tell them apart no matter which way
+ * the phone turned. The geometry itself does not have that problem: a flat
+ * screen's own face normal points the one way it always has, regardless of
+ * how close to centre the panel it's mounted on happens to sit.
+ */
+function meshOutwardZ(mesh: Mesh): 1 | -1 {
+  const position = mesh.geometry?.attributes?.position;
+  if (!position || position.count < 3) return 1;
+  const a = new Vector3().fromBufferAttribute(position, 0);
+  const b = new Vector3().fromBufferAttribute(position, 1);
+  const c = new Vector3().fromBufferAttribute(position, 2);
+  const localNormal = new Vector3().subVectors(c, b).cross(new Vector3().subVectors(a, b));
+  if (localNormal.lengthSq() < 1e-12) return 1;
+  const normalMatrix = new Matrix3().getNormalMatrix(mesh.matrixWorld);
+  return localNormal.applyMatrix3(normalMatrix).normalize().z >= 0 ? 1 : -1;
+}
+
+/**
+ * The screen mesh's own front-face Z at each of its four corners, for
+ * devices whose screen is not well described by a single constant Z.
+ *
+ * `placedScreen`'s plain extreme (`box.max.z`/`box.min.z`) assumes the
+ * screen is close enough to a flat pane, facing along a single axis, that
+ * one Z value describes its whole front face. Found by dumping the actual
+ * world-space vertex distribution for the three affected devices rather
+ * than continuing to guess, two different things break that assumption:
+ *
+ * - A laptop screen mesh can carry a thin trim/seam loop (where the glass
+ *   meets the hinge) sitting further along the facing axis than the glass
+ *   itself -- the single extreme then measures the trim, not the pane.
+ * - A screen that is not a flat pane in local space at all -- the iMac's
+ *   panel has an authored ~8 degree recline (its own comment elsewhere in
+ *   this file), so its top edge and bottom edge genuinely sit at different
+ *   Z by design. The two MacBooks turned out to need the same treatment
+ *   in BOTH directions at once, not just top-to-bottom: a first version of
+ *   this measured only a top Z and a bottom Z and interpolated by Y, which
+ *   fixed the iMac outright but left a residual gap at one corner on both
+ *   MacBooks -- their glass curves across X as well as Y, so the correct
+ *   depth at, say, the top-right corner is not well approximated by "the
+ *   top edge's depth" when the top edge itself is not at constant Z.
+ *
+ * Four corners, bilinearly interpolated by `Stage.tsx`'s `zAt`, covers both
+ * shapes without treating either device as a special case: a screen that
+ * only reclines (uniform across X) comes back with equal left/right corner
+ * pairs, which is exactly a top/bottom interpolation in disguise; a screen
+ * that curves in both axes gets an independent depth at each corner.
+ *
+ * Filtering out the trim/seam loop first: bucket world-space vertex Z into
+ * bins across the mesh's own depth, keeping only buckets whose own X-span
+ * AND Y-span are each at least half the widest span seen in any bucket -- a
+ * real patch of the visible rectangle covers real area in both axes; a
+ * trim/seam loop is thin in at least one of them (often exactly zero)
+ * regardless of how many vertices are on it, so counting vertices alone
+ * (tried first, and wrong) keeps the trim; measuring each bucket's own
+ * coverage does not. Among the surviving vertices, each corner's Z is the
+ * mean of whichever are furthest toward that corner's own diagonal --
+ * equal at both ends of an edge, in effect, whenever the screen does not
+ * curve along it.
+ */
+/** Whether this device has opted into the corner-Z measurement at all -- any
+    one of the four Screen Depth fields (`screenOutlinePad`/`screenZGain`/
+    `screenZBias`/`screenMinFacing`) being set is enough, since a device
+    might be locked on gain alone (the Neo) or pad alone. */
+function needsScreenDepthTune(device: Device): boolean {
+  return (
+    device.screenOutlinePad != null ||
+    device.screenZGain != null ||
+    device.screenZBias != null ||
+    device.screenMinFacing != null
+  );
+}
+
+function cornerZs(mesh: Mesh): { tl: number; tr: number; bl: number; br: number } | null {
+  const position = mesh.geometry?.attributes?.position;
+  if (!position) return null;
+  mesh.updateWorldMatrix(true, false);
+  const pts: Vector3[] = new Array(position.count);
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (let i = 0; i < position.count; i++) {
+    const v = new Vector3().fromBufferAttribute(position, i).applyMatrix4(mesh.matrixWorld);
+    pts[i] = v;
+    minZ = Math.min(minZ, v.z);
+    maxZ = Math.max(maxZ, v.z);
+  }
+  const zRange = maxZ - minZ;
+  const BUCKETS = 40;
+  const bucketOf = (z: number) =>
+    zRange > 1e-6 ? Math.min(BUCKETS - 1, Math.max(0, Math.floor(((z - minZ) / zRange) * BUCKETS))) : 0;
+  const xr: [number, number][] = Array.from({ length: BUCKETS }, () => [Infinity, -Infinity]);
+  const yr: [number, number][] = Array.from({ length: BUCKETS }, () => [Infinity, -Infinity]);
+  for (const p of pts) {
+    const idx = bucketOf(p.z);
+    xr[idx][0] = Math.min(xr[idx][0], p.x);
+    xr[idx][1] = Math.max(xr[idx][1], p.x);
+    yr[idx][0] = Math.min(yr[idx][0], p.y);
+    yr[idx][1] = Math.max(yr[idx][1], p.y);
+  }
+  const xSpanOf = (idx: number) => (xr[idx][1] >= xr[idx][0] ? xr[idx][1] - xr[idx][0] : 0);
+  const ySpanOf = (idx: number) => (yr[idx][1] >= yr[idx][0] ? yr[idx][1] - yr[idx][0] : 0);
+  const maxXSpan = Math.max(0, ...Array.from({ length: BUCKETS }, (_, i) => xSpanOf(i)));
+  const maxYSpan = Math.max(0, ...Array.from({ length: BUCKETS }, (_, i) => ySpanOf(i)));
+  const significant = pts.filter((p) => {
+    const idx = bucketOf(p.z);
+    return xSpanOf(idx) >= maxXSpan * 0.5 && ySpanOf(idx) >= maxYSpan * 0.5;
+  });
+  if (significant.length < 4) return null;
+  /*
+   * Normalised before scoring -- a laptop screen is much wider than the
+   * mesh's own surviving Y-span is tall (the significant set is a thin
+   * slice of the full panel, not the full height), so an unnormalised
+   * `x*dx + y*dy` was dominated entirely by X: "leftmost" always won
+   * regardless of Y, and top-left came back identical to bottom-left. Each
+   * axis is rescaled to its own span within the surviving set first, so X
+   * and Y extremity count equally toward which corner a point belongs to.
+   */
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY2 = Infinity;
+  let maxY2 = -Infinity;
+  for (const p of significant) {
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minY2 = Math.min(minY2, p.y);
+    maxY2 = Math.max(maxY2, p.y);
+  }
+  const xSpan = maxX - minX || 1;
+  const ySpan = maxY2 - minY2 || 1;
+  const nx = (x: number) => ((x - minX) / xSpan) * 2 - 1;
+  const ny = (y: number) => ((y - minY2) / ySpan) * 2 - 1;
+  // Furthest toward (dx, dy)'s own diagonal, then the mean Z of everything
+  // within 10% of that extreme along the same measure -- a small band
+  // rather than the single furthest point so one stray vertex can't set
+  // the whole corner.
+  const cornerZ = (dx: number, dy: number) => {
+    let best = -Infinity;
+    let worst = Infinity;
+    const scores = significant.map((p) => {
+      const s = nx(p.x) * dx + ny(p.y) * dy;
+      best = Math.max(best, s);
+      worst = Math.min(worst, s);
+      return s;
+    });
+    const band = Math.max((best - worst) * 0.1, 1e-6);
+    let sum = 0;
+    let count = 0;
+    significant.forEach((p, i) => {
+      if (scores[i] >= best - band) {
+        sum += p.z;
+        count++;
+      }
+    });
+    return sum / count;
+  };
+  return {
+    tl: cornerZ(-1, 1),
+    tr: cornerZ(1, 1),
+    bl: cornerZ(-1, -1),
+    br: cornerZ(1, -1),
+  };
+}
 
 function CaptureBridge({
   captureRef,
@@ -1033,12 +1249,16 @@ function ImageCardScene({
   finishId,
   radius,
   depth,
+  onScreenBox,
 }: {
   texture: Texture | null;
   finishId: string;
   /** Fraction of the card's shorter side. */
   radius: number;
   depth: number;
+  /** See `GLBPhoneScene`. The card has no body distinct from its screen --
+      the whole face IS it, reported as `main` with no `cover`. */
+  onScreenBox?: (box: { main: ScreenBox | null; cover: ScreenBox | null }) => void;
 }) {
   const finish = getFinish(finishId);
 
@@ -1178,8 +1398,36 @@ function ImageCardScene({
       : (flat ? 0.0005 : depth) / 2;
     const faceZ = halfDepth + 0.0004;
 
-    return { geometry, faceGeometry, faceZ };
+    return { geometry, faceGeometry, faceZ, width, height };
   }, [texture, radius, depth, videoSize]);
+
+  /*
+   * The card the empty-screen placeholder draws over -- reported the same
+   * way `GLBPhoneScene` reports a phone's screen, so `Stage`'s overlay
+   * doesn't need to know these are two different scenes. There's no body
+   * here distinct from the face itself, so `main` IS the whole card, and
+   * `cover` is always null -- a card has no second screen to speak of.
+   */
+  useEffect(() => {
+    if (!onScreenBox) return;
+    onScreenBox({
+      main: {
+        cx: 0,
+        cy: 0,
+        z: built.faceZ,
+        w: built.width,
+        h: built.height,
+        // The card's artwork is double-sided (`face`'s own material is
+        // `DoubleSide`) precisely so it reads correctly from either
+        // direction -- but the placeholder's facing check assumes a single
+        // true front, and picked the wrong one of the card's two identical
+        // sides at this device's own rest orientation.
+        facing: -1,
+      },
+      cover: null,
+    });
+    return () => onScreenBox({ main: null, cover: null });
+  }, [built, onScreenBox]);
 
   const face = useMemo(() => {
     const m = new MeshBasicMaterial({ toneMapped: false, side: DoubleSide });
@@ -1482,6 +1730,7 @@ function GLBPhoneScene({
   timeRef,
   playing,
   immediate,
+  onScreenBox,
 }: {
   screenTexture: Texture | null;
   device: Device;
@@ -1500,6 +1749,11 @@ function GLBPhoneScene({
   timeRef?: React.RefObject<number>;
   playing?: boolean;
   immediate?: boolean;
+  /** Where this model's screen(s) really are, once measured -- the empty-
+      screen placeholder's only way of knowing what to draw over, since it
+      lives outside the 3D scene entirely. `null` for a screen the model
+      doesn't have (no cover) or hasn't measured yet (still loading). */
+  onScreenBox?: (box: { main: ScreenBox | null; cover: ScreenBox | null }) => void;
 }) {
   /*
    * Built once. The inputs are module constants, so this is a memo purely to
@@ -1531,7 +1785,7 @@ function GLBPhoneScene({
    */
   const gltf = useGLTF(withModelToken(device.modelPath as string, modelToken));
   const {
-    scene, width, height, depth, screen, screenMaterials, coverMaterials,
+    scene, width, height, depth, screen, coverScreen, screenMaterials, coverMaterials,
     mixer, hinge, foldRoot, foldCentres,
   } = useMemo(() => {
     const cloned = cloneSkinned(gltf.scene) as Group;
@@ -1727,6 +1981,22 @@ function GLBPhoneScene({
 
 
     const screenLocalBox = new Box3().makeEmpty();
+    // The screen's own outward face normal (see `meshOutwardZ`), set from
+    // whichever mesh actually gets unioned into `screenLocalBox` below.
+    let screenFacingZ: 1 | -1 = 1;
+    // The screen's own Z at each of its four corners, replacing
+    // `screenLocalBox`'s plain extreme -- see `cornerZs`. Only computed for
+    // devices that ask for it (`screenOutlinePad` set); every other device
+    // keeps using the box's own extreme, unchanged.
+    let screenCornerZs: ReturnType<typeof cornerZs> = null;
+    // Measured the same way as the main screen, and for the same reason: the
+    // model's own cover mesh is the only reliable statement of where that
+    // screen is. Used only by the empty-screen placeholder (see `coverScreen`
+    // below) -- everything the cover texture itself needs comes from UVs, not
+    // this box.
+    const coverLocalBox = new Box3().makeEmpty();
+    let coverFacingZ: 1 | -1 = 1;
+    let coverCornerZs: ReturnType<typeof cornerZs> = null;
     // Materials the screen texture gets bound onto, for models that carry a
     // real screen. Built per instance so two devices on screen at once do not
     // share one map.
@@ -1842,6 +2112,8 @@ function GLBPhoneScene({
             m.material = bind(m.material) as never;
           }
           screenLocalBox.union(new Box3().setFromObject(m));
+          screenFacingZ = meshOutwardZ(m);
+          if (needsScreenDepthTune(device)) screenCornerZs = cornerZs(m);
           return;
         }
       }
@@ -1873,6 +2145,9 @@ function GLBPhoneScene({
         } else {
           m.material = bindCover(m.material) as never;
         }
+        coverLocalBox.union(new Box3().setFromObject(m));
+        coverFacingZ = meshOutwardZ(m);
+        if (needsScreenDepthTune(device)) coverCornerZs = cornerZs(m);
         return;
       }
 
@@ -1885,6 +2160,8 @@ function GLBPhoneScene({
         // and crucially which way it faces. Assuming +Z put the screen and the
         // notch on the BACK of this model, because its screen faces -Z.
         screenLocalBox.union(new Box3().setFromObject(m));
+        screenFacingZ = meshOutwardZ(m);
+        if (needsScreenDepthTune(device)) screenCornerZs = cornerZs(m);
         m.visible = false;
         return;
       }
@@ -2493,27 +2770,64 @@ function GLBPhoneScene({
       -center.y * scaleFactor,
       -center.z * scaleFactor,
     );
-    // Same transform the scene gets: recentre on the body, then scale.
-    let screen: {
-      width: number;
-      height: number;
-      center: Vector3;
-      facing: 1 | -1;
-    } | null = null;
-    if (!screenLocalBox.isEmpty()) {
+    // Same transform the scene gets: recentre on the body, then scale. Shared
+    // by the main screen and the cover -- same box-to-placement arithmetic
+    // either way, just fed a different measured box.
+    const placedScreen = (
+      box: Box3,
+      facing: 1 | -1,
+      corners: ReturnType<typeof cornerZs>,
+    ) => {
+      if (box.isEmpty()) return null;
       const sSize = new Vector3();
-      screenLocalBox.getSize(sSize);
+      box.getSize(sSize);
       const sCenter = new Vector3();
-      screenLocalBox.getCenter(sCenter);
-      const worldCenter = sCenter.sub(center).multiplyScalar(scaleFactor);
-      screen = {
+      box.getCenter(sCenter);
+      /*
+       * The FRONT of the box's own z-extent, not its middle. A "screen"
+       * material can bind to more than a paper-thin pane -- the glass has
+       * real depth in the source mesh, and on at least one shape (a laptop
+       * lid, viewed edge-on) that depth was enough that the box's z CENTRE
+       * sat measurably behind the actual visible surface. Nothing showed
+       * head-on, where a few millimetres of depth barely change the
+       * projection; edge-on, the same gap reads as the whole outline having
+       * slid toward the hinge, past the glass it's supposed to trace.
+       * `facing` says which face is outward, so it also says which extent
+       * -- `max.z` or `min.z` -- is the front rather than the back.
+       *
+       * `corners`, when a device asks for it (`screenOutlinePad` set),
+       * replaces that single plain extreme with `cornerZs`'s four-corner
+       * read -- see its own doc comment for why one Z is not enough for
+       * every screen mesh. `center.z` keeps using their average, so anything
+       * reading it alone (there is exactly one such reader today) still gets
+       * a sane middle value; the four corners on the return are what the
+       * placeholder itself bilinearly interpolates between.
+       */
+      const plainZ = facing > 0 ? box.max.z : box.min.z;
+      const tlRaw = corners?.tl ?? plainZ;
+      const trRaw = corners?.tr ?? plainZ;
+      const blRaw = corners?.bl ?? plainZ;
+      const brRaw = corners?.br ?? plainZ;
+      const toLocal = (z: number) => (z - center.z) * scaleFactor;
+      const worldCenter = new Vector3(
+        (sCenter.x - center.x) * scaleFactor,
+        (sCenter.y - center.y) * scaleFactor,
+        toLocal((tlRaw + trRaw + blRaw + brRaw) / 4),
+      );
+      return {
         width: sSize.x * scaleFactor,
         height: sSize.y * scaleFactor,
         center: worldCenter,
-        // Which face the screen sits on, relative to the recentred body.
-        facing: worldCenter.z >= 0 ? 1 : -1,
+        // Which way the screen's own face points -- see `meshOutwardZ`.
+        facing,
+        tlZ: toLocal(tlRaw),
+        trZ: toLocal(trRaw),
+        blZ: toLocal(blRaw),
+        brZ: toLocal(brRaw),
       };
-    }
+    };
+    const screen = placedScreen(screenLocalBox, screenFacingZ, screenCornerZs);
+    const coverScreen = placedScreen(coverLocalBox, coverFacingZ, coverCornerZs);
 
     return {
       scene: posed,
@@ -2521,6 +2835,7 @@ function GLBPhoneScene({
       height: size.y * scaleFactor,
       depth: size.z * scaleFactor,
       screen,
+      coverScreen,
       screenMaterials,
       coverMaterials,
       mixer,
@@ -2540,6 +2855,41 @@ function GLBPhoneScene({
     bodyRoughness,
     grainTexture,
     activeFinishId,
+  ]);
+
+  // Hand the measured screen box(es) out to whatever draws the empty-screen
+  // placeholder -- that lives outside this scene entirely (see `Stage.tsx`),
+  // so this is its only way of knowing where to put it. `center` is already
+  // in the group's own units (the recentre-then-scale this component just
+  // applied is baked into it), the same frame `focusMath.toScreen` expects.
+  useEffect(() => {
+    if (!onScreenBox) return;
+    const flat = (s: typeof screen) =>
+      s && {
+        cx: s.center.x,
+        cy: s.center.y,
+        z: s.center.z,
+        w: s.width,
+        h: s.height,
+        facing: s.facing,
+        outlineInset: device.screenOutlinePad,
+        zGain: device.screenZGain,
+        zBias: device.screenZBias,
+        minFacing: device.screenMinFacing,
+        ...(needsScreenDepthTune(device)
+          ? { tlZ: s.tlZ, trZ: s.trZ, blZ: s.blZ, brZ: s.brZ }
+          : null),
+      };
+    onScreenBox({ main: flat(screen), cover: flat(coverScreen) });
+    return () => onScreenBox({ main: null, cover: null });
+  }, [
+    screen,
+    coverScreen,
+    onScreenBox,
+    device.screenOutlinePad,
+    device.screenZGain,
+    device.screenZBias,
+    device.screenMinFacing,
   ]);
 
   // Bind the live screen texture onto the model's own screen material.
@@ -3222,6 +3572,8 @@ function PhoneScene({
   scaleX = 1,
   scaleY = 1,
   scaleZ = 1,
+  onScreenBox,
+  liveGroupRef,
 }: {
   rail: Phone3DRail | undefined;
   screenTexture: Texture | null;
@@ -3265,9 +3617,26 @@ function PhoneScene({
   coverScreenFit?: ScreenFit;
   cardRadius: number;
   cardDepth: number;
+  /** See `GLBPhoneScene` -- passed straight through. Absent on the "image"
+      device kind and the procedural fallback, neither of which measures a
+      screen box: there is nothing for the empty-screen placeholder to draw
+      over on those. */
+  onScreenBox?: (box: { main: ScreenBox | null; cover: ScreenBox | null }) => void;
+  /** Where the placeholder reads the LIVE transform from, instead of
+      rebuilding it from state every frame -- see `focusMath.projectWorld`.
+      Pointed at this component's own `groupRef` once mounted; from then on
+      reading `.current.position/.rotation/.scale` always gets whatever this
+      component's own spring most recently wrote, with no extra plumbing. */
+  liveGroupRef?: React.MutableRefObject<Group | null>;
 }) {
   const rad = Math.PI / 180;
   const groupRef = useRef<Group>(null);
+  // Same object this component's own frame loop keeps mutating below --
+  // pointed at once, so a caller holding `liveGroupRef` reads whatever was
+  // most recently written to it, with nothing here re-run per frame.
+  useEffect(() => {
+    if (liveGroupRef) liveGroupRef.current = groupRef.current;
+  }, [liveGroupRef]);
 
   /** Live velocity for each sprung transform. A ref, not state — it is written
       every frame and nothing renders off it. */
@@ -3489,6 +3858,7 @@ function PhoneScene({
           finishId={finishId ?? DEFAULT_FINISH_ID}
           radius={cardRadius}
           depth={cardDepth}
+          onScreenBox={onScreenBox}
         />
       ) : USE_GLB ? (
         /*
@@ -3518,6 +3888,7 @@ function PhoneScene({
             timeRef={timeRef}
             playing={playing}
             immediate={immediate}
+            onScreenBox={onScreenBox}
           />
         </Suspense>
       ) : (
@@ -3699,6 +4070,8 @@ export default function PhoneStage3D({
   onRotateDrag,
   onScaleWheel,
   onPanDrag,
+  onScreenBox,
+  liveGroupRef,
 }: {
   rail: Phone3DRail | undefined;
   screenTexture: Texture | null;
@@ -3760,6 +4133,10 @@ export default function PhoneStage3D({
   /** Wheel / trackpad pinch over the canvas, in scale percentage points. */
   onScaleWheel?: (deltaPct: number) => void;
   onPanDrag?: (delta: { dx: number; dy: number }) => void;
+  /** See `GLBPhoneScene`. */
+  onScreenBox?: (box: { main: ScreenBox | null; cover: ScreenBox | null }) => void;
+  /** See `PhoneScene`. */
+  liveGroupRef?: React.MutableRefObject<Group | null>;
 }) {
   const device = getDevice(deviceId);
   const { id: shadowFilterId, defs: shadowDefs } = useShadowFilter(shadow);
@@ -3880,6 +4257,8 @@ export default function PhoneStage3D({
           cardDepth={cardDepth ?? DEFAULT_EDITOR_STATE_CARD_DEPTH}
           coverTexture={coverTexture}
           coverScreenFit={coverScreenFit}
+          onScreenBox={onScreenBox}
+          liveGroupRef={liveGroupRef}
         />
         {isBlurActive(blur) ? (
           <Suspense fallback={null}>

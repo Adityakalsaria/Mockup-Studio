@@ -43,6 +43,7 @@ import {
   AutoHeight,
   Button,
   Checkbox,
+  CircleButton,
   ColorRow,
   DesignSystem,
   Divider,
@@ -68,6 +69,13 @@ import { FRAME, INSET, Stage } from "./Stage";
 const GlassTuner =
   process.env.NODE_ENV === "development"
     ? dynamic(() => import("./GlassTuner").then((m) => m.GlassTuner), {
+        ssr: false,
+      })
+    : () => null;
+/* A development tool (H in dev), so production never downloads leva. */
+const ScreenDepthTuner =
+  process.env.NODE_ENV === "development"
+    ? dynamic(() => import("./ScreenDepthTuner").then((m) => m.ScreenDepthTuner), {
         ssr: false,
       })
     : () => null;
@@ -159,27 +167,35 @@ const EFFECT_LAYERS = LAYERS.filter((l) => !BASE_IDS.includes(l.id));
  * the menu across the rows it adds to. `below` drops it under the trigger at
  * the trigger's width, which is what a dropdown inside a popup wants.
  */
-type MenuItem = {
+export type MenuItem = {
   id: string;
   label: string;
   icon?: string;
   selected?: boolean;
 };
 
-function MenuPopover({
+export function MenuPopover({
   anchor,
   items,
   label,
   placement,
   onPick,
   onClose,
+  children,
+  width,
 }: {
   anchor: RefObject<HTMLDivElement | null>;
-  items: MenuItem[];
+  /** Either this or `children` -- a plain row list, or, for a popover that
+      isn't one (a colour and an image well, say), the content itself. */
+  items?: MenuItem[];
   label: string;
   placement: "side" | "below";
-  onPick: (id: string) => void;
+  onPick?: (id: string) => void;
   onClose: () => void;
+  children?: ReactNode;
+  /** Overrides the anchor's own width -- for a `children` popover, which
+      isn't sized to look like a dropdown under its trigger. */
+  width?: number;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{
@@ -238,7 +254,7 @@ function MenuPopover({
       window.removeEventListener("scroll", place, true);
       window.removeEventListener("resize", place);
     };
-  }, [anchor, placement, items.length]);
+  }, [anchor, placement, items?.length]);
 
   useEffect(() => {
     const away = (event: PointerEvent) => {
@@ -273,19 +289,21 @@ function MenuPopover({
       // here must not read as a press outside it.
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <Glass width={pos?.width}>
-        <RowGroup>
-          {items.map((item) => (
-            <Row
-              key={item.id}
-              icon={item.icon ? <Icon name={item.icon} /> : undefined}
-              selected={item.selected}
-              onClick={() => onPick(item.id)}
-            >
-              {item.label}
-            </Row>
-          ))}
-        </RowGroup>
+      <Glass width={width ?? pos?.width}>
+        {children ?? (
+          <RowGroup>
+            {(items ?? []).map((item) => (
+              <Row
+                key={item.id}
+                icon={item.icon ? <Icon name={item.icon} /> : undefined}
+                selected={item.selected}
+                onClick={() => onPick?.(item.id)}
+              >
+                {item.label}
+              </Row>
+            ))}
+          </RowGroup>
+        )}
       </Glass>
     </div>,
     document.body,
@@ -362,7 +380,7 @@ function SelectRow({
 }
 
 /** A switch, as the system's checkbox at the end of a `ColorRow`-shaped row. */
-function ToggleRow({
+export function ToggleRow({
   label,
   value,
   onChange,
@@ -1397,7 +1415,7 @@ function PresetTile({
  * or Fit is a choice, not an adjustment, and stays where it was put. Used
  * for the inner screen and the cover alike, each with its own numbers.
  */
-function ScreenAdjust({
+export function ScreenAdjust({
   scale,
   mode,
   canReset,
@@ -1465,7 +1483,7 @@ function ScreenAdjust({
  * No padding of its own: the frame runs this block at the panel's full 234,
  * the same inset the header already sits on.
  */
-function ImageWell({
+export function ImageWell({
   src,
   empty,
   onPick,
@@ -2105,7 +2123,7 @@ function StatusDot({ connected = false }: { connected?: boolean }) {
   );
 }
 
-function Icon({ name, size = control.icon }: { name: string; size?: number }) {
+export function Icon({ name, size = control.icon }: { name: string; size?: number }) {
   return (
     <Image
       src={`${ICONS}/${name}.svg`}
@@ -2374,6 +2392,9 @@ export default function StudioChrome({
   };
   /** The glass sliders -- development only; G shows them. */
   const [tunerOpen, setTunerOpen] = useState(false);
+  /** The empty-screen placeholder's depth sliders -- development only; H
+      shows them. See `screenDepthTune.ts`. */
+  const [screenTunerOpen, setScreenTunerOpen] = useState(false);
   /** The shortcuts sheet, opened from the button beside the account chip. */
   /** Which sheet is over the studio: the shortcuts (from the button beside
       the account chip) or the changelog (from the account menu). */
@@ -2491,6 +2512,9 @@ export default function StudioChrome({
       } else if (key === "g" && process.env.NODE_ENV === "development") {
         event.preventDefault();
         setTunerOpen((was) => !was);
+      } else if (key === "h" && process.env.NODE_ENV === "development") {
+        event.preventDefault();
+        setScreenTunerOpen((was) => !was);
       }
     };
 
@@ -2954,6 +2978,9 @@ export default function StudioChrome({
       {process.env.NODE_ENV === "development" ? (
         <GlassTuner open={tunerOpen} />
       ) : null}
+      {process.env.NODE_ENV === "development" ? (
+        <ScreenDepthTuner open={screenTunerOpen} />
+      ) : null}
       {/* Thins the enlarged device glyphs on the preset tiles. */}
       <svg aria-hidden width="0" height="0" style={{ position: "absolute" }}>
         <filter id="mo-glyph-thin">
@@ -3233,26 +3260,17 @@ export default function StudioChrome({
               }}
             >
               <Tip label="Shortcuts" offset={8}>
-                <button
-                  type="button"
-                  aria-label="Keyboard shortcuts"
-                  aria-expanded={sheet === "shortcuts"}
+                <CircleButton
+                  title="Keyboard shortcuts"
+                  expanded={sheet === "shortcuts"}
                   onClick={() =>
                     setSheet((was) =>
                       was === "shortcuts" ? null : "shortcuts",
                     )
                   }
-                  className="grid cursor-pointer place-items-center"
                 >
-                  <Glass
-                    shape="pill"
-                    width={44}
-                    className="items-center justify-center"
-                    style={{ height: 44, padding: 0 }}
-                  >
-                    <span className="mo-title">⌘</span>
-                  </Glass>
-                </button>
+                  <span className="mo-title">⌘</span>
+                </CircleButton>
               </Tip>
             </div>
             {keysOpen ? (
@@ -4446,7 +4464,12 @@ export default function StudioChrome({
                       disappearing. A divider emitted as its own sibling counts
                       in both places and stays in step.
                     */}
-                      {BASE_LAYERS.map(stageRow)}
+                      {/* `background` opens from its own icon on the shot
+                          now (see `Stage`'s `BackgroundQuickPanel`), not a
+                          row in this list. */}
+                      {BASE_LAYERS.filter((l) => l.id !== "background").map(
+                        stageRow,
+                      )}
                       {/*
                       Effects, the way Figma lists them: a heading with a plus,
                       and a row only for what is actually in the shot. Eight

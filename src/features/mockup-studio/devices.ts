@@ -294,6 +294,49 @@ export interface Device {
    */
   screenOverlayHide?: string[];
   /**
+   * Shrinks the empty-screen placeholder's outline toward its own centre by
+   * this fraction (0.88 = 12% smaller on each axis) before it is projected.
+   * Absent (equivalent to 1, no change) on every device by default.
+   *
+   * Exists because the placeholder's outline is only as good as the screen
+   * mesh's own measured bounds (see `placedScreen` in `PhoneStage3D.tsx`),
+   * and on a laptop lid or an iMac's panel that mesh is not a paper-thin
+   * plane -- it carries real glass thickness and a bezel recess behind it,
+   * so its axis-aligned bounds describe more volume than the flat front
+   * rectangle a camera actually sees. Front-on that gap is sub-pixel;
+   * tilted, the same absolute gap projects as a visible wedge of overlay
+   * sitting on the bezel past the real glass. A phone's screen mesh doesn't
+   * have this problem and must not get this field -- it would only make an
+   * already-correct outline sit visibly inside the real screen for no reason.
+   */
+  screenOutlinePad?: number;
+  /**
+   * Multiplies each of the four measured corner Z's own deviation from
+   * their average, before the placeholder is projected -- 1 leaves
+   * `cornerZs`'s measurement exactly as measured, values found and locked
+   * per device through the Screen Depth Leva panel (`H` in dev; see
+   * `screenDepthTune.ts`). Exists because the measured spread between
+   * corners, while in the right direction, turned out too subtle on some
+   * meshes to visibly track the lid's own tilt at a steep angle -- the
+   * placeholder stayed roughly flat when the real glass was not. Absent
+   * defers to the live tuner instead of a fixed 1, so a device with no
+   * locked value yet is still tunable rather than stuck flat while it's
+   * being dialled in.
+   */
+  screenZGain?: number;
+  /** Added to all four corners after `screenZGain`. Locked per device the
+      same way, alongside it -- see `screenZGain`. */
+  screenZBias?: number;
+  /**
+   * Overrides the `facing` cutoff below which the placeholder stops
+   * rendering (see `MIN_FACING` in `Stage.tsx`), once a value has been
+   * locked in for this device through the same Leva panel. A small negative
+   * number lets it survive slightly past dead-edge-on before the
+   * no-back-face-culling problem that cutoff exists for becomes visible;
+   * absent defers to the live tuner.
+   */
+  screenMinFacing?: number;
+  /**
    * Materials that are BODY, even though the model marks them transparent.
    *
    * The finish pass leaves anything transparent alone, because on a phone that
@@ -2731,6 +2774,19 @@ export const DEVICES: Device[] = [
     screenInsetPct: 1,
     screenNative: { width: 2560, height: 1600 },
     notch: null,
+    // Locked through the Screen Depth Leva panel (`H` in dev) -- see
+    // `screenZGain` on the `Device` type. The measured per-corner spread was
+    // real but too subtle on this mesh to visibly track the lid's tilt; 15x
+    // makes the placeholder actually follow the screen instead of reading as
+    // a flat plane, and at that gain the outline needs no separate shrink.
+    screenZGain: 15,
+    screenZBias: 0,
+    screenMinFacing: -0.1,
+    // Explicit 1, not absent -- absent would fall through to whatever the
+    // live panel's own inset slider is doing, which is meant for a device
+    // that ISN'T locked yet (the Pro 14, still being dialled in). Locked
+    // devices state every knob outright so they stay put regardless.
+    screenOutlinePad: 1,
     /*
      * Needed the same flatten-and-repack as the MacBook Pro 14 -- three's
      * crate reader failed with "Unsupported scalar type 55" and produced
@@ -2871,6 +2927,11 @@ export const DEVICES: Device[] = [
       quuXrfeUujYrUMo: "#ffffff",
 
     },
+    // See `screenOutlinePad` on the `Device` type -- the screen mesh's own
+    // depth (glass thickness + bezel recess) inflates its measured bounds
+    // past the visible glass; this pulls the empty-screen placeholder back
+    // in to match.
+    screenOutlinePad: 0.90,
     screenFlipY: true,
     /*
      * The one model here that is not flat. It arrives OPEN -- 311.7 x 211.6 x
@@ -3017,6 +3078,10 @@ export const DEVICES: Device[] = [
     // Square, like the Studio Display and unlike everything portable here.
     screenCornerRadiusPct: 0,
     screenInsetPct: 1,
+    // See `screenOutlinePad` on the `Device` type -- same glass-thickness/
+    // bezel-recess overstatement as the two MacBooks, on this panel's own
+    // measured mesh.
+    screenOutlinePad: 0.93,
     screenNative: { width: 4480, height: 2520 },
     notch: null,
     /*
