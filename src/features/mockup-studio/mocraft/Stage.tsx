@@ -151,6 +151,57 @@ function StageInner({
   const [bgAnchor, setBgAnchor] = useState<{ left: number; top: number } | null>(null);
 
   /*
+   * Off the SHOT's own frame on this side too -- but clamped against the
+   * LEFT RAIL's own reserved band, not just the window's edge. At a narrow
+   * window (or a browser zoomed in, which shrinks `window.innerWidth` the
+   * same way) the shot can extend to, or past, where the rail floats --
+   * panels sit OVER the shot by design, see this file's own header comment
+   * -- and a clamp that only knew about the window edge let this popup land
+   * on top of the rail instead of stopping short of it.
+   */
+  const computeImgAnchor = () => {
+    const rect = shotRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const minLeft = 16 + control.railW + BG_PANEL_GAP;
+    const left = Math.max(rect.left - BG_PANEL_GAP - BG_PANEL_W, minLeft);
+    return { left, top: rect.top - 4 };
+  };
+
+  /*
+   * Off the SHOT's own frame, not the button's box: the gap is clear space
+   * beside the canvas, and the panel's top edge lines up with the canvas's
+   * own. Clamped against the RIGHT DOCK's own reserved band (`right: 16` +
+   * `control.panelW`, `data-tour="panel"` in StudioChrome), not just the
+   * window's edge -- see `computeImgAnchor` above for why.
+   */
+  const computeBgAnchor = () => {
+    const rect = shotRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const maxLeft = window.innerWidth - 16 - control.panelW - BG_PANEL_GAP - BG_PANEL_W;
+    const left = Math.max(8, Math.min(rect.right + BG_PANEL_GAP, maxLeft));
+    // Less `MenuPopover`'s own 4px drop below whatever it's anchored to, so
+    // the panel's top edge lands ON the canvas's rather than 4px under it.
+    return { left, top: rect.top - 4 };
+  };
+
+  /*
+   * Re-placed on resize, not just computed once at open -- a browser zoom
+   * change fires `resize` exactly like a window drag does, and either one
+   * can move the shot's edge relative to the rail/dock without this popup
+   * hearing about it otherwise. Left open at its old, now-wrong spot, it
+   * could land on top of the very panel it is meant to stop short of.
+   * Closed anchors stay closed; only an open one is re-measured.
+   */
+  useEffect(() => {
+    const onResize = () => {
+      setImgAnchor((current) => (current ? computeImgAnchor() : null));
+      setBgAnchor((current) => (current ? computeBgAnchor() : null));
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  /*
    * Paste an image straight onto whichever screen is empty -- no panel has to
    * be open. One listener for the whole stage: Crafting and Motion share this
    * single mount (see `StudioChrome`), so there is nowhere else it would need
@@ -396,20 +447,7 @@ function StageInner({
                 setImgAnchor(null);
                 return;
               }
-              const rect = shotRef.current?.getBoundingClientRect();
-              if (!rect) return;
-              /*
-               * Off the SHOT's own frame on this side too -- but clamped
-               * against the LEFT RAIL's own reserved band, not just the
-               * window's edge. At a narrow window the shot can extend to
-               * (or past) where the rail floats -- panels sit OVER the shot
-               * by design, see this file's own header comment -- and a
-               * clamp that only knew about the window edge let this popup
-               * land on top of the rail instead of stopping short of it.
-               */
-              const minLeft = 16 + control.railW + BG_PANEL_GAP;
-              const left = Math.max(rect.left - BG_PANEL_GAP - BG_PANEL_W, minLeft);
-              setImgAnchor({ left, top: rect.top - 4 });
+              setImgAnchor(computeImgAnchor());
             }}
           >
             <Icon name="add-image" />
@@ -455,27 +493,7 @@ function StageInner({
                 setBgAnchor(null);
                 return;
               }
-              /*
-               * Off the SHOT's own frame, not the button's box: the gap is
-               * clear space beside the canvas, and the panel's top edge
-               * lines up with the canvas's own. Clamped against the RIGHT
-               * DOCK's own reserved band (`right: 16` + `control.panelW`,
-               * `data-tour="panel"` in StudioChrome), not just the window's
-               * edge -- at a narrow window the shot can reach that band
-               * (panels sit OVER the shot by design, see this file's own
-               * header comment), and a clamp that only knew about the
-               * window edge let this popup land on top of the dock instead
-               * of stopping short of it.
-               */
-              const rect = shotRef.current?.getBoundingClientRect();
-              if (!rect) return;
-              const maxLeft =
-                window.innerWidth - 16 - control.panelW - BG_PANEL_GAP - BG_PANEL_W;
-              const left = Math.max(8, Math.min(rect.right + BG_PANEL_GAP, maxLeft));
-              // Less `MenuPopover`'s own 4px drop below whatever it's
-              // anchored to, so the panel's top edge lands ON the canvas's
-              // rather than 4px under it.
-              setBgAnchor({ left, top: rect.top - 4 });
+              setBgAnchor(computeBgAnchor());
             }}
           >
             <Icon name="canvas-color" />
