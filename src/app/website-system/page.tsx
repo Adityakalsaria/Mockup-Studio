@@ -18,6 +18,7 @@ import { useCallback, useRef, useState } from "react";
 import Image from "next/image";
 import {
   ChevronIcon,
+  CircleButton,
   CloseIcon,
   ColorRow,
   DesignSystem,
@@ -440,6 +441,17 @@ export default function WebsiteSystem() {
                 ))}
               </RowGroup>
             </Glass>
+          </Section>
+
+          <Section
+            title="Glass button"
+            note="A plain white disc, ring and soft shadow, no tone logic -- `CircleButton`. Not `GlassButton` above; a new, separate component."
+          >
+            <CircleButton title="Next">
+              <span style={{ transform: "scale(1.6)" }}>
+                <ChevronIcon />
+              </span>
+            </CircleButton>
           </Section>
 
           <Section title="Switch">

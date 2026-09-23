@@ -1242,6 +1242,83 @@ export function GlassButton({
 }
 
 /**
+ * A single circular glass button, at an exact size -- own component, own
+ * name, but not its own material. A flat CSS border + box-shadow was tried
+ * first and never actually matched the rail's own selected stop: that circle
+ * is not a border and a shadow at all, it is `AaveGlass`'s lens (real
+ * backdrop blur, specular highlight, depth bands, tuned through the same
+ * `--mo-selected*` tokens `RowGroup`'s `SelectionLens` reads) -- a different
+ * rendering technique a flat button can only approximate, never equal
+ * pixel-for-pixel.
+ *
+ * Going through `RowGroup`/`RailItem` themselves was tried next, since a
+ * `RailItem` used alone already becomes exactly one of these. Both come with
+ * a rail's own baked-in geometry, though: the lens is a MEASURED span, not a
+ * size this component chooses, sized off whatever `RailItem`'s 10px/40px
+ * padding and `Glass`'s own 56px rail width happen to render at. Fine for a
+ * rail's own stop, wrong for a button asked to be exactly 44x44. So this
+ * calls `AaveGlass` the same way `SelectionLens` does, just with a fixed lens
+ * box instead of a measured one, and no travel (`x`/`y` at 0 -- there is only
+ * ever one stop). Callers never see any of that, only a size, a name and a
+ * glyph.
+ *
+ * The fill is a SOLID white, not `--mo-selected`'s translucent 14% -- this is
+ * the one circle in the system that can sit over a colour it does not
+ * control (the canvas's own background, picked by whoever is using the
+ * studio), and a translucent fill let that colour bleed straight through the
+ * backdrop blur, which is what was muddying the icon on anything saturated
+ * or dark. An opaque plate under the glyph means the glyph's own fixed dark
+ * tone is legible regardless of what is behind it -- no per-instance
+ * light/dark detection needed.
+ */
+export function CircleButton({
+  children,
+  onClick,
+  title,
+  size = 44,
+  expanded,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  title?: string;
+  /** Circle diameter in px. */
+  size?: number;
+  /** `aria-expanded`, for a circle that opens a sheet/popover. */
+  expanded?: boolean;
+}) {
+  return (
+    <AaveGlass
+      lens={{ width: size, height: size, borderRadius: size / 2 }}
+      x={0}
+      scale={material.lens.row.bend}
+      bevel={material.lens.row.bevel}
+      lensShadow="var(--mo-selected-shadow)"
+      specular="var(--mo-selected-inset)"
+      specularBlend="var(--mo-selected-depth-blend)"
+      style={{ width: size, height: size }}
+      refractionTarget={
+        <div
+          className="grid place-items-center"
+          style={{ width: size, height: size, background: "#fff" }}
+        >
+          <Glyph>{children}</Glyph>
+        </div>
+      }
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        title={title}
+        aria-label={title}
+        aria-expanded={expanded}
+        className="rounded-full"
+        style={{ width: size, height: size, cursor: onClick ? "pointer" : "default" }}
+      />
+    </AaveGlass>
+  );
+}
+
+/**
  * A checkbox.
  *
  * The stack used to carry a plus that turned into a minus. That reads as "add

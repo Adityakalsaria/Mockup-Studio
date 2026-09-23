@@ -20,7 +20,7 @@
  */
 
 import { memo, useEffect, useRef, useState } from "react";
-import PhoneStage3D from "../PhoneStage3D";
+import PhoneStage3D, { type ScreenBox } from "../PhoneStage3D";
 import { OverlayLayer } from "../OverlayLayer";
 import { backgroundClass, backgroundCss } from "../backgrounds";
 import BackgroundImage from "../BackgroundImage";
@@ -29,14 +29,43 @@ import type { Studio } from "./useStudio";
 import { sampleAnimation } from "../animation";
 import {
   poseOf,
+  projectWorld,
   toPhone,
   toScreen,
   type FocusArea,
   type FocusPose,
 } from "./focusMath";
-import { Vector3 } from "three";
+import { Group, Vector3 } from "three";
 import type { SnapGuides } from "./snapping";
 import { DEFAULT_BLUR, isBlurActive, type BlurSettings } from "../blurStyles";
+import { pickPasteTarget } from "./pasteTarget";
+import { screenDepthTune } from "./screenDepthTune";
+import {
+  MenuPopover,
+  Icon,
+  ImageWell,
+  ScreenAdjust,
+  ToggleRow,
+  type MenuItem,
+} from "./StudioChrome";
+import { CircleButton, Header, ParamGroup, Divider, ColorRow } from "@/design/ui";
+
+/** Width of the screen's right-click menu -- narrower than `control.panelW`,
+    the width every slider/colour popup in `StudioChrome` opens at, since this
+    one is just two one-line labels. See its anchor div for why it needs one
+    at all. */
+const CONTEXT_MENU_W = 160;
+
+/** Width of the Canvas background quick panel -- wide enough for the image
+    well `ImageWell`/`ScreenAdjust` already assume, which is what forces this
+    one wider than the right-click menu above despite both using the same
+    synthetic-anchor trick to open beside a fixed point instead of a real,
+    already-sized trigger. */
+const BG_PANEL_W = 260;
+/** Clear space between the button and the popup it opens -- the popup used
+    to sit flush against the button/canvas edge, with nothing to say the two
+    were separate surfaces. */
+const BG_PANEL_GAP = 20;
 
 /**
  * How much workspace is left around the canvas.
@@ -85,7 +114,77 @@ function StageInner({
     exporting,
     presetId,
     motionMode,
+    screenSrc,
+    coverSrc,
+    uploadScreen,
+    uploadCover,
   } = studio;
+
+  // Where the model's own screen(s) really are, reported by PhoneStage3D once
+  // it has measured them -- used by `ScreenPlaceholderLayer` below for the
+  // right-click replace/delete menu's hit-testing (the empty-screen outline
+  // itself has been removed, see that component).
+  const [screenBox, setScreenBox] = useState<{
+    main: ScreenBox | null;
+    cover: ScreenBox | null;
+  }>({ main: null, cover: null });
+  // The phone's own group, live -- read straight off it instead of rebuilt
+  // from state, because the phone eases toward the state on a spring rather
+  // than ever equalling it exactly. See `focusMath.projectWorld`.
+  const liveGroupRef = useRef<Group | null>(null);
+
+  // The corner "Screen image" quick panel's own trigger and synthetic anchor
+  // -- mirrors `bgAnchor`/`bgAnchorRef` below exactly, just opening on the
+  // opposite corner of the shot.
+  const [imgAnchor, setImgAnchor] = useState<{ left: number; top: number } | null>(null);
+  const imgAnchorRef = useRef<HTMLDivElement | null>(null);
+
+  // The Canvas background quick panel's own trigger and synthetic anchor --
+  // see the button's own comment for why it isn't `MenuPopover`'s normal
+  // anchor-is-the-trigger setup. `shotRef` is the shot frame itself: the
+  // panel lines up with ITS edges, not the button's, so the gap reads as
+  // clear space beside the canvas rather than beside a 44px circle sitting
+  // 12px inside it.
+  const shotRef = useRef<HTMLDivElement | null>(null);
+  const bgAnchorRef = useRef<HTMLDivElement | null>(null);
+  const [bgAnchor, setBgAnchor] = useState<{ left: number; top: number } | null>(null);
+
+  /*
+   * Paste an image straight onto whichever screen is empty -- no panel has to
+   * be open. One listener for the whole stage: Crafting and Motion share this
+   * single mount (see `StudioChrome`), so there is nowhere else it would need
+   * to live twice.
+   *
+   * Left alone if the paste landed in a text field -- the hex colour field,
+   * any future text input -- so this never steals a normal paste elsewhere in
+   * the studio.
+   */
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      // `event.target` is only ever an Element for a real paste triggered
+      // somewhere on the page -- it is `window` itself for the rare paste
+      // with nothing focused at all, and `Window` has no `.closest`.
+      const target = event.target;
+      if (target instanceof Element) {
+        if (target.closest("input, textarea, [contenteditable='true']")) return;
+      }
+      const item = Array.from(event.clipboardData?.items ?? []).find((i) =>
+        i.type.startsWith("image/"),
+      );
+      const file = item?.getAsFile();
+      if (!file) return;
+      const screen = pickPasteTarget({
+        screenSrc,
+        coverSrc,
+        hasCover: Boolean(studio.device.coverScreen),
+      });
+      if (!screen) return;
+      event.preventDefault();
+      (screen === "main" ? uploadScreen : uploadCover)(file);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [screenSrc, coverSrc, studio.device.coverScreen, uploadScreen, uploadCover]);
 
   /*
    * The pose follows the playhead while the transport runs AND while a video
@@ -160,6 +259,7 @@ function StageInner({
       */}
       <style>{`.mo-shot canvas { width: 100% !important; height: 100% !important; object-fit: contain; }`}</style>
       <div
+        ref={shotRef}
         className={`mo-shot relative overflow-hidden ${backgroundClass(state.background)}`}
         style={{
           // Square at Fill: a corner is what tells you where a shot ends, and
@@ -238,6 +338,19 @@ function StageInner({
           onRotateDrag={studio.nudgeRotation}
           onScaleWheel={studio.nudgeZoom}
           onPanDrag={studio.nudgePan}
+          onScreenBox={setScreenBox}
+          liveGroupRef={liveGroupRef}
+        />
+
+        {/* Right-click-to-replace/delete on a filled screen only -- the
+            empty-screen outline/icon/text this used to also draw is gone. */}
+        <ScreenPlaceholderLayer
+          studio={studio}
+          box={screenBox}
+          liveGroupRef={liveGroupRef}
+          onPick={(target, file) =>
+            (target === "main" ? uploadScreen : uploadCover)(file)
+          }
         />
 
         {/*
@@ -264,7 +377,680 @@ function StageInner({
         {/* After the guide, so its handles sit on top of the lines they slide
             along rather than under them. */}
         {studio.focusPicking ? <FocusPickLayer studio={studio} /> : null}
+        {/* Quick access to the screen image, right on the surface it fills --
+            the empty-screen outline used to live for exactly this, drawn over
+            the screen itself; this is its replacement now that outline is
+            gone. Same popover-on-a-corner-button pattern as Canvas
+            background opposite it, mirrored rather than a plain file-picker
+            trigger, so zoom/fit and (on a foldable) the cover screen are
+            reachable here too, not just from the right rail. */}
+        <div
+          className="pointer-events-auto absolute"
+          style={{ top: 12, left: 12 }}
+        >
+          <CircleButton
+            title="Screen image"
+            onClick={() => {
+              if (imgAnchor) {
+                setImgAnchor(null);
+                return;
+              }
+              const rect = shotRef.current?.getBoundingClientRect();
+              if (!rect) return;
+              // Off the SHOT's own frame on this side too, clamped so it
+              // can't run off the window's LEFT edge instead of the right.
+              const left = Math.max(
+                rect.left - BG_PANEL_GAP - BG_PANEL_W,
+                8,
+              );
+              setImgAnchor({ left, top: rect.top - 4 });
+            }}
+          >
+            <Icon name="add-image" />
+          </CircleButton>
+        </div>
+        {imgAnchor ? (
+          <>
+            <div
+              ref={imgAnchorRef}
+              style={{
+                position: "fixed",
+                left: imgAnchor.left,
+                top: imgAnchor.top,
+                width: BG_PANEL_W,
+                height: 0,
+              }}
+            />
+            <MenuPopover
+              anchor={imgAnchorRef}
+              label="Screen image"
+              placement="below"
+              onClose={() => setImgAnchor(null)}
+            >
+              <ScreenImageFields studio={studio} onClose={() => setImgAnchor(null)} />
+            </MenuPopover>
+          </>
+        ) : null}
+
+        {/* The Canvas background row used to be the only way in; this is the
+            quicker one, right on the surface it edits, so its colour and
+            image live under an icon rather than a scroll down the right
+            panel. Its own popover, not `openLayer`'s -- that one docks
+            beside the right rail, which reads as unrelated to an icon
+            sitting on the shot itself. */}
+        <div
+          className="pointer-events-auto absolute"
+          style={{ top: 12, right: 12 }}
+        >
+          <CircleButton
+            title="Canvas background"
+            onClick={() => {
+              if (bgAnchor) {
+                setBgAnchor(null);
+                return;
+              }
+              // Off the SHOT's own frame, not the button's box: the gap is
+              // clear space beside the canvas, and the panel's top edge
+              // lines up with the canvas's own. Clamped only so it can't
+              // run off the window's right edge.
+              const rect = shotRef.current?.getBoundingClientRect();
+              if (!rect) return;
+              const left = Math.min(
+                rect.right + BG_PANEL_GAP,
+                window.innerWidth - BG_PANEL_W - 8,
+              );
+              // Less `MenuPopover`'s own 4px drop below whatever it's
+              // anchored to, so the panel's top edge lands ON the canvas's
+              // rather than 4px under it.
+              setBgAnchor({ left, top: rect.top - 4 });
+            }}
+          >
+            <Icon name="canvas-color" />
+          </CircleButton>
+        </div>
+        {bgAnchor ? (
+          <>
+            <div
+              ref={bgAnchorRef}
+              style={{
+                position: "fixed",
+                left: bgAnchor.left,
+                top: bgAnchor.top,
+                width: BG_PANEL_W,
+                height: 0,
+              }}
+            />
+            <MenuPopover
+              anchor={bgAnchorRef}
+              label="Canvas background"
+              placement="below"
+              onClose={() => setBgAnchor(null)}
+            >
+              <BackgroundFields studio={studio} onClose={() => setBgAnchor(null)} />
+            </MenuPopover>
+          </>
+        ) : null}
       </div>
+    </div>
+  );
+}
+
+/**
+ * A rounded rectangle's outline, as points in the box's own LOCAL x/y units --
+ * real 3D rounding, not a 2D screen-space trick drawn after the fact. Each
+ * point still goes through the actual perspective projection like the four
+ * plain corners used to, so the rounding stays correct at any tilt instead of
+ * only looking right face-on. `stroke-linejoin="round"` alone (rounding where
+ * the dashes meet) was too subtle to read as a rounded screen at all.
+ *
+ * `radiusFrac` is the device's own `screenCornerRadiusPct` -- the same number
+ * `ScreenPlane` multiplies by screen width to round the real screen content --
+ * so the hint's corners land on the actual modelled radius instead of a
+ * guessed one that happens to look fine on whichever device it was eyeballed
+ * against.
+ */
+function roundedRectLocal(b: ScreenBox, radiusFrac: number): [number, number][] {
+  const r = b.w * radiusFrac;
+  const x0 = b.cx - b.w / 2 + r;
+  const x1 = b.cx + b.w / 2 - r;
+  const y0 = b.cy - b.h / 2 + r;
+  const y1 = b.cy + b.h / 2 - r;
+  const STEPS = 6;
+  const points: [number, number][] = [];
+  const arc = (cx: number, cy: number, from: number, to: number) => {
+    for (let i = 0; i <= STEPS; i++) {
+      const t = from + ((to - from) * i) / STEPS;
+      points.push([cx + Math.cos(t) * r, cy + Math.sin(t) * r]);
+    }
+  };
+  const PI = Math.PI;
+  arc(x0, y0, PI, PI * 1.5); // bottom-left
+  arc(x1, y0, PI * 1.5, PI * 2); // bottom-right
+  arc(x1, y1, 0, PI * 0.5); // top-right
+  arc(x0, y1, PI * 0.5, PI); // top-left
+  return points;
+}
+
+/** Ray casting, for the right-click menu below: is `(px, py)` inside the
+    screen's own projected outline, in the same fractional [0,1] space its
+    corners are already in. */
+function pointInPolygon(px: number, py: number, corners: { x: number; y: number }[]): boolean {
+  let inside = false;
+  for (let i = 0, j = corners.length - 1; i < corners.length; j = i++) {
+    const a = corners[i];
+    const b = corners[j];
+    const crosses = a.y > py !== b.y > py;
+    if (crosses && px < ((b.x - a.x) * (py - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * The Canvas background popup's fields, exactly as `StudioChrome`'s own
+ * `background` layer defines them (colour, Transparent, then the image well
+ * and its fit/zoom) -- read and written straight off `studio.state`/
+ * `studio.edit`, the same two things that layer's own popup uses, so the two
+ * can never drift into disagreeing about what a colour or an image means.
+ */
+function BackgroundFields({ studio, onClose }: { studio: Studio; onClose: () => void }) {
+  const { state, edit } = studio;
+  const bg = state.background;
+  return (
+    <div className="flex flex-col" style={{ gap: "var(--mo-space-4)" }}>
+      <Header icon={<Icon name="canvas-color" />} closeIcon={<Icon name="close-rounded" />} onClose={onClose}>
+        Canvas background
+      </Header>
+      <ParamGroup>
+        <ColorRow
+          label="Color"
+          value={bg.color}
+          onChange={(hex) =>
+            edit((prev) => ({ ...prev, background: { ...prev.background, kind: "solid", color: hex } }))
+          }
+        />
+        <ToggleRow
+          label="Transparent"
+          value={bg.kind === "transparent"}
+          onChange={(on) =>
+            edit((prev) => ({
+              ...prev,
+              background: { ...prev.background, kind: on ? "transparent" : "solid" },
+            }))
+          }
+        />
+      </ParamGroup>
+      <Divider />
+      <ParamGroup title="Image">
+        <ImageWell
+          src={bg.kind === "image" ? bg.imageSrc : null}
+          empty="No background image"
+          onPick={studio.uploadBackground}
+          onClear={studio.clearBackground}
+        />
+        <ScreenAdjust
+          scale={bg.imageZoom ?? 1}
+          mode={bg.imageFit === "contain" ? "fit" : "fill"}
+          canReset={(bg.imageZoom ?? 1) !== 1}
+          onScale={(imageZoom) =>
+            edit((prev) => ({ ...prev, background: { ...prev.background, imageZoom } }))
+          }
+          onMode={(mode) =>
+            edit((prev) => ({
+              ...prev,
+              background: { ...prev.background, imageFit: mode === "fit" ? "contain" : "cover" },
+            }))
+          }
+          onReset={() =>
+            edit((prev) => ({ ...prev, background: { ...prev.background, imageZoom: 1 } }))
+          }
+        />
+      </ParamGroup>
+    </div>
+  );
+}
+
+/**
+ * The corner "Screen image" popup's fields -- the same well/adjust pair the
+ * right rail's own "image" tool panel shows for the screen (and, on a
+ * foldable, the cover screen below it), read and written off the same
+ * `studio` calls/`state` fields so the two can never disagree about what
+ * image or fit is showing.
+ */
+function ScreenImageFields({ studio, onClose }: { studio: Studio; onClose: () => void }) {
+  const { state, edit } = studio;
+  return (
+    <div className="flex flex-col" style={{ gap: "var(--mo-space-4)" }}>
+      <Header icon={<Icon name="add-image" />} closeIcon={<Icon name="close-rounded" />} onClose={onClose}>
+        Screen image
+      </Header>
+      <ParamGroup>
+        <ImageWell
+          src={studio.screenSrc}
+          empty="No screen yet"
+          onPick={studio.uploadScreen}
+          onClear={studio.clearScreen}
+        />
+        <ScreenAdjust
+          scale={state.screenScale}
+          mode={state.screenFitMode ?? "fill"}
+          canReset={
+            state.screenScale !== 1 || state.screenOffsetX !== 0 || state.screenOffsetY !== 0
+          }
+          onScale={(screenScale) => edit((prev) => ({ ...prev, screenScale }))}
+          onMode={(screenFitMode) => edit((prev) => ({ ...prev, screenFitMode }))}
+          onReset={() =>
+            edit((prev) => ({ ...prev, screenScale: 1, screenOffsetX: 0, screenOffsetY: 0 }))
+          }
+        />
+      </ParamGroup>
+      {studio.device.coverScreen ? (
+        <>
+          <Divider />
+          <ParamGroup title="Front screen">
+            <ImageWell
+              src={studio.coverSrc}
+              empty="No front screen yet"
+              onPick={studio.uploadCover}
+              onClear={studio.clearCover}
+            />
+            <ScreenAdjust
+              scale={state.coverScale}
+              mode={state.coverFitMode ?? "fill"}
+              canReset={
+                state.coverScale !== 1 || state.coverOffsetX !== 0 || state.coverOffsetY !== 0
+              }
+              onScale={(coverScale) => edit((prev) => ({ ...prev, coverScale }))}
+              onMode={(coverFitMode) => edit((prev) => ({ ...prev, coverFitMode }))}
+              onReset={() =>
+                edit((prev) => ({ ...prev, coverScale: 1, coverOffsetX: 0, coverOffsetY: 0 }))
+              }
+            />
+          </ParamGroup>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Right-click on a screen that already has an image: "Replace image" /
+ * "Delete image". No longer draws anything of its own -- the empty-screen
+ * outline/icon/"Click to add image" text this used to also render over an
+ * empty screen was removed (it kept coming out wrong across the laptops and
+ * the iMac at steep angles); this component still exists to track where the
+ * screen(s) project to on screen, in whichever pose the phone is currently
+ * in, purely so a right-click can be tested against that shape.
+ *
+ * Positioned with the same rig `FocusLayer` uses (`focusMath`'s `pose`/
+ * `toScreen`), because it is the same problem: a box that lives on the phone,
+ * tracked wherever the phone's current rotation/zoom/pan put it on screen.
+ */
+function ScreenPlaceholderLayer({
+  studio,
+  box,
+  liveGroupRef,
+  onPick,
+}: {
+  studio: Studio;
+  /** Where the model's own screen(s) measured out to -- see `PhoneStage3D`'s
+      `onScreenBox`. `null` for a screen the device doesn't have, or hasn't
+      finished measuring yet. */
+  box: { main: ScreenBox | null; cover: ScreenBox | null };
+  /** The phone's own group, live -- see `StageInner`. */
+  liveGroupRef: React.RefObject<Group | null>;
+  onPick: (target: "main" | "cover", file: File) => void;
+}) {
+  const layerRef = useRef<HTMLDivElement | null>(null);
+  const [aspect, setAspect] = useState(1);
+  const mainInput = useRef<HTMLInputElement | null>(null);
+  const coverInput = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const node = layerRef.current;
+    if (!node) return;
+    const measure = () =>
+      setAspect(node.clientHeight ? node.clientWidth / node.clientHeight : 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const foldPct = studio.state.fold ?? 0;
+  // A screen the device HAS, whether or not it currently holds an image --
+  // tracked regardless of fill state, since the right-click menu is only
+  // relevant once a screen stops being empty.
+  const mainPresent = Boolean(box.main);
+  const coverPresent = Boolean(box.cover) && Boolean(studio.device.coverScreen);
+  const fov = studio.state.fov ?? 35;
+  const cornerRadiusPct = studio.device.screenCornerRadiusPct ?? 0;
+
+  type Projected = {
+    corners: { x: number; y: number }[];
+    center: { x: number; y: number };
+    facing: number;
+  };
+  const [shown, setShown] = useState<{ main: Projected | null; cover: Projected | null }>({
+    main: null,
+    cover: null,
+  });
+
+  /*
+   * Projected fresh every frame while there is a candidate screen to draw
+   * over -- not only while Motion plays, unlike `FocusLayer`'s equivalent
+   * tick -- and the ONLY place `liveGroupRef` is read: refs are for effects,
+   * not render, so the projection is computed here and only its RESULT
+   * (plain numbers) becomes state for the render below to use.
+   *
+   * Rebuilding the projection from `EditorState` (as `FocusLayer` does)
+   * would only ever show the phone's TARGET pose. The phone itself eases
+   * toward that target on a spring (`PhoneScene`'s own frame loop, driven by
+   * a drag or a nudge, not by Motion) rather than snapping to it, so the two
+   * would visibly disagree for as long as the spring was still moving -- the
+   * placeholder jumping to where the phone was headed instead of riding
+   * along with it. Reading the live group's actual position/rotation/scale,
+   * the same object that spring writes into, removes the gap entirely
+   * rather than narrowing it.
+   */
+  useEffect(() => {
+    // Nothing to project -- and nothing to reset either: `shown` is only
+    // ever read back gated on fill state (for the right-click menu), so
+    // stale coordinates sitting in state from before an image was uploaded,
+    // or from after the device changed, are never used regardless of
+    // whether this effect bothers clearing them out. Gated on presence, not
+    // emptiness -- a filled screen still needs its outline tracked for the
+    // right-click menu to hit-test.
+    if (!mainPresent && !coverPresent) return;
+    let raf = 0;
+    const project = (g: Group | null, b: ScreenBox): Projected => {
+      // Local point -> world, off the SAME transform PhoneScene's spring is
+      // driving. Mirrors `focusMath.place`'s own arithmetic exactly, just
+      // sourced from the live object instead of a `FocusPose`.
+      const worldOf = (x: number, y: number, z: number) =>
+        g
+          ? new Vector3(x * g.scale.x, y * g.scale.y, z * g.scale.z)
+              .applyEuler(g.rotation)
+              .add(g.position)
+          : new Vector3(x, y, z);
+      /*
+       * `zAt` bilinearly interpolates Z across the four corners
+       * (`b.tlZ`/`trZ`/`blZ`/`brZ`) rather than assuming one constant depth
+       * -- present only on devices `screenOutlinePad` is set for (see
+       * `cornerZs` in `PhoneStage3D.tsx`), absent everywhere else, where this
+       * is exactly `b.z` as before. A screen mounted with a genuine recline
+       * (the iMac, by design) truly has a different Z at its top edge than
+       * its bottom; a laptop screen mesh whose single measured extreme lands
+       * on a trim detail rather than the glass needs the corners read
+       * independently to avoid that trim skewing the whole plane -- and,
+       * since that glass can curve across X as well as Y, needs all four
+       * corners rather than just a top and a bottom to get right.
+       */
+      const zAt = (x: number, y: number) => {
+        if (b.tlZ == null || b.trZ == null || b.blZ == null || b.brZ == null || !b.w || !b.h) {
+          return b.z;
+        }
+        /*
+         * Combined with, not replaced by, whatever's locked in `devices.ts`
+         * (`Device.screenZGain`/`screenZBias`) -- the panel's own neutral is
+         * 1 for gain (multiplied) and 0 for bias (added), so leaving both
+         * sliders untouched reproduces the locked device exactly, and moving
+         * either one keeps tuning FROM that lock rather than fighting it or
+         * going dead once a device has one. A straight `b.zGain ?? tune`
+         * either/or was tried first and was wrong: locking a device made its
+         * sliders stop doing anything at all, which is what looked like the
+         * lock not having taken effect while dialling in a steeper angle.
+         */
+        const zGain = (b.zGain ?? 1) * screenDepthTune.zGain;
+        const zBias = (b.zBias ?? 0) + screenDepthTune.zBias;
+        const avg = (b.tlZ + b.trZ + b.blZ + b.brZ) / 4;
+        const tune = (z: number) => avg + (z - avg) * zGain + zBias;
+        const tl = tune(b.tlZ);
+        const tr = tune(b.trZ);
+        const bl = tune(b.blZ);
+        const br = tune(b.brZ);
+        const u = (x - (b.cx - b.w / 2)) / b.w;
+        const v = (y - (b.cy - b.h / 2)) / b.h;
+        const bottom = bl + (br - bl) * u;
+        const top = tl + (tr - tl) * u;
+        return bottom + (top - bottom) * v;
+      };
+      const project1 = (x: number, y: number) => projectWorld(worldOf(x, y, zAt(x, y)), fov, aspect);
+      /*
+       * How square-on this screen's own outward face is to the camera in the
+       * CURRENT pose -- not fixed, the phone can be spun round. `facing` is
+       * the box's outward normal before rotation (+1 or -1 along the model's
+       * local z); turned the same way a local point is, its cosine to the
+       * camera axis is >0 pointing toward the camera and 1 dead-on -- see
+       * `focusMath.projectWorld` for why the camera sits on that side. The
+       * translation `worldOf` also applies is subtracted back out first: a
+       * direction turns with the phone, but does not slide with it.
+       */
+      const dir = worldOf(0, 0, b.facing).sub(worldOf(0, 0, 0));
+      const facing = g ? dir.z / dir.length() : 1;
+      const half = b.w / 2;
+      const halfH = b.h / 2;
+      /*
+       * The icon used to just sit at a point and rotate flat -- readable, but
+       * a flat rotation is only the part of lying-on-a-tilted-plane that a
+       * SINGLE point can express. A picture frame has width: it should
+       * foreshorten and shear the way the screen itself does, not just turn.
+       *
+       * `corners` already IS the screen's true projected shape, one point at
+       * a time. The icon gets its own small SQUARE in those same local units
+       * -- square, not the screen's own (typically tall) aspect, since the
+       * icon itself is square and shrinking the screen's rectangle toward its
+       * centre would inherit that rectangle's aspect and stretch it. Three of
+       * that square's four corners, projected through the exact same
+       * `project1` the outline uses, is all a `matrix()` needs: `a,b` the
+       * projected top edge as a vector, `c,d` the projected left edge, `e,f`
+       * the top-left corner itself. Perspective is only locally linear, not
+       * globally, but "locally" here covers the icon's whole footprint -- a
+       * small fraction of the screen -- so the true projective warp and this
+       * affine fit (exact on 3 corners, off on the 4th by an amount that
+       * shrinks with the icon's own size) are the same picture.
+       */
+      /*
+       * A few percent smaller than the measured box, on all four sides --
+       * only on the handful of devices `outlineInset` is actually set for
+       * (see `Device.screenOutlinePad` in `devices.ts`). Every other device's
+       * box comes through with `outlineInset` absent and this is a no-op:
+       * phones measure their screen mesh cleanly and were never part of the
+       * problem this exists for.
+       *
+       * The measured box comes from the model's own screen MESH, and on the
+       * affected laptops/display that mesh is not a paper-thin plane -- it
+       * carries real glass thickness and a bezel recess behind it, so its
+       * axis-aligned bounds describe more volume than the flat front
+       * rectangle a camera actually sees. Front-on that gap is sub-pixel;
+       * edge-on, the same absolute gap projects as a visible wedge of overlay
+       * sitting on the bezel past the real glass.
+       */
+      // Device value first, same priority as `zGain`/`zBias`/`minFacing`
+      // below -- a device locked in `devices.ts` stays locked regardless of
+      // what the live panel is doing for some OTHER device in the meantime.
+      const outlineInset = b.outlineInset ?? screenDepthTune.insetOverride ?? 1;
+      const outlineBox: ScreenBox = { ...b, w: b.w * outlineInset, h: b.h * outlineInset };
+      const corners = roundedRectLocal(outlineBox, cornerRadiusPct).map(([x, y]) => project1(x, y));
+      const tl = project1(b.cx - half, b.cy + halfH);
+      const tr = project1(b.cx + half, b.cy + halfH);
+      const br = project1(b.cx + half, b.cy - halfH);
+      const bl = project1(b.cx - half, b.cy - halfH);
+      const center = {
+        x: (tl.x + tr.x + br.x + bl.x) / 4,
+        y: (tl.y + tr.y + br.y + bl.y) / 4,
+      };
+      return { corners, center, facing };
+    };
+    const tick = () => {
+      const g = liveGroupRef.current;
+      const main = mainPresent && box.main ? project(g, box.main) : null;
+      const cover = coverPresent && box.cover ? project(g, box.cover) : null;
+      /*
+       * A hair above dead-edge-on, not just `> 0`. The screen is still
+       * technically facing the camera at any positive value down to zero,
+       * but the SVG overlay has no back-face culling of its own -- nothing
+       * stops it drawing on the panel's far side, and near zero that draws
+       * as a barely-foreshortened, oddly-readable label sitting on what is,
+       * to the eye, the underside of the lid. `0.08` is far enough from
+       * zero to cut that off without touching the normal rotation range the
+       * placeholder is meant to survive -- it was pulled all the way to a
+       * bare `> 0` specifically because an earlier, much larger threshold
+       * hid the placeholder during ordinary use.
+       */
+      const minFacingFor = (b: ScreenBox | null) => b?.minFacing ?? screenDepthTune.minFacing;
+      let showMain = Boolean(main && main.facing > minFacingFor(box.main));
+      let showCover = Boolean(cover && cover.facing > minFacingFor(box.cover));
+      /*
+       * `cover`'s box is measured with the model posed fully OPEN (see
+       * `PhoneStage3D`), because that's the only pose a hinge-skinned mesh
+       * gets measured at -- so this local-box-plus-rigid-rotation projection
+       * is only ever exactly right for `cover` at that one fold amount. At
+       * open, viewed from the front, it happens to land on the same on-screen
+       * area as `main` and both pass the facing check -- a false ambiguity,
+       * not a real one, since only one screen is ever actually in front of
+       * the camera. Break the tie with the fold amount itself, which knows
+       * which screen that is. Genuinely unambiguous cases -- `cover` alone
+       * facing because the open device has been turned to show its back,
+       * `main` alone facing head-on -- are left as the facing check found
+       * them.
+       */
+      if (showMain && showCover) {
+        if (foldPct >= 50) showMain = false;
+        else showCover = false;
+      }
+      setShown({ main: showMain ? main : null, cover: showCover ? cover : null });
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [mainPresent, coverPresent, box.main, box.cover, fov, aspect, cornerRadiusPct, foldPct, liveGroupRef]);
+
+  // Mirrored into a ref for the contextmenu handler below, which is added
+  // once and reads whatever the latest tick left behind rather than closing
+  // over a render's now-stale `shown`.
+  const shownRef = useRef(shown);
+  useEffect(() => {
+    shownRef.current = shown;
+  });
+
+  /*
+   * Right-click on a screen that already has an image: replace it, or clear
+   * it. Nothing to do this for on an empty screen -- there is nothing on it
+   * to replace or delete.
+   *
+   * A `contextmenu` listener on `window`, not a DOM hit-region layered over
+   * the screen: giving a FILLED screen a pointer-events layer of its own
+   * would put it back in the drag gesture's way for no reason, and a
+   * right-click never starts a drag anyway. So this reaches for the same
+   * projected outline `shownRef` already carries and asks a plain geometry
+   * question instead: did the click land inside it.
+   */
+  const [menu, setMenu] = useState<{ x: number; y: number; target: "main" | "cover" } | null>(null);
+  const menuAnchorRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onContextMenu = (event: MouseEvent) => {
+      const node = layerRef.current;
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const px = (event.clientX - rect.left) / rect.width;
+      const py = (event.clientY - rect.top) / rect.height;
+      const s = shownRef.current;
+      const candidates: Array<["main" | "cover", typeof s.main, boolean]> = [
+        ["main", s.main, Boolean(studio.screenSrc)],
+        ["cover", s.cover, Boolean(studio.coverSrc)],
+      ];
+      for (const [target, proj, filled] of candidates) {
+        if (filled && proj && pointInPolygon(px, py, proj.corners)) {
+          event.preventDefault();
+          // Clamped so the menu doesn't run off a right-click taken near the
+          // right edge of the window -- `MenuPopover`'s `below` placement
+          // clamps its top for the same reason but never needed to clamp its
+          // left, since every other caller opens it from a trigger already
+          // placed well inside the panel it sits in.
+          const x = Math.min(event.clientX, window.innerWidth - CONTEXT_MENU_W - 8);
+          setMenu({ x, y: event.clientY, target });
+          return;
+        }
+      }
+    };
+    window.addEventListener("contextmenu", onContextMenu);
+    return () => window.removeEventListener("contextmenu", onContextMenu);
+  }, [studio.screenSrc, studio.coverSrc]);
+
+  const menuItems: MenuItem[] = [
+    { id: "replace", label: "Replace image" },
+    { id: "delete", label: "Delete image" },
+  ];
+
+  /*
+   * No early return, even though nothing is ever drawn here any more: this
+   * layer's own wrapping div is what `onContextMenu` above measures a
+   * bounding rect from, and a filled screen -- exactly the case the
+   * right-click menu is for -- needs that rect regardless. Bailing out here
+   * used to mean the div, and with it any chance of `layerRef.current`
+   * existing, never mounted at all until a menu was already open -- which
+   * nothing could ever open, since opening one needs that same rect first.
+   */
+  return (
+    <div ref={layerRef} className="pointer-events-none absolute inset-0">
+      <input
+        ref={mainInput}
+        type="file"
+        accept="image/*,video/*"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          if (file) onPick("main", file);
+          event.currentTarget.value = "";
+        }}
+      />
+      <input
+        ref={coverInput}
+        type="file"
+        accept="image/*,video/*"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          if (file) onPick("cover", file);
+          event.currentTarget.value = "";
+        }}
+      />
+      {menu ? (
+        <>
+          {/* A positioning reference, not a visible trigger: `MenuPopover`'s
+              `below` placement sizes the popup to the anchor's OWN width,
+              which is right for a real dropdown trigger and wrong for a
+              point -- a 0-width anchor made `Glass` render a sliver with its
+              row labels clipped down to nothing, all background and no menu.
+              `CONTEXT_MENU_W` is narrower than `control.panelW`, the width
+              every OTHER popup in this file opens at -- those hold sliders
+              and colour wells; this is two one-line labels, and at the full
+              panel width they sat in a lot of empty pill. Zero height is
+              fine; `below` only reads the anchor's bottom edge for where to
+              sit, and at this height that is just the click's own Y. */}
+          <div
+            ref={menuAnchorRef}
+            style={{ position: "fixed", left: menu.x, top: menu.y, width: CONTEXT_MENU_W, height: 0 }}
+          />
+          <MenuPopover
+            anchor={menuAnchorRef}
+            items={menuItems}
+            label={menu.target === "main" ? "Screen image" : "Cover image"}
+            placement="below"
+            onPick={(id) => {
+              if (id === "replace") {
+                (menu.target === "main" ? mainInput : coverInput).current?.click();
+              } else if (id === "delete") {
+                (menu.target === "main" ? studio.clearScreen : studio.clearCover)();
+              }
+              setMenu(null);
+            }}
+            onClose={() => setMenu(null)}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

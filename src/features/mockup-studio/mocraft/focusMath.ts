@@ -33,7 +33,7 @@ export type FocusPose = {
 
 const DEG = Math.PI / 180;
 
-function place(pose: FocusPose) {
+export function place(pose: FocusPose) {
   const rotation = new Matrix4().makeRotationFromEuler(
     new Euler(pose.xAxis * DEG, pose.yAxis * DEG, pose.zAxis * DEG),
   );
@@ -46,6 +46,33 @@ function place(pose: FocusPose) {
   return { rotation, scale, position };
 }
 
+/**
+ * A point already IN the group's world space to a place on screen -- the
+ * camera half of `toScreen`, split out so a caller that already has a world
+ * point from somewhere other than a `FocusPose` can reach the same camera
+ * math without going through `place()`.
+ *
+ * That "somewhere other than a pose" is the empty-screen placeholder: it
+ * cannot afford to rebuild the transform from `EditorState` on every frame,
+ * because the state gives the phone's TARGET rotation, and the phone itself
+ * eases toward that target on a spring (`PhoneScene`'s own frame loop) rather
+ * than snapping to it -- during any drag or transition the two visibly
+ * disagree. It reads the live group's actual `position`/`rotation`/`scale`
+ * instead, which are the same numbers the spring is writing every frame.
+ */
+export function projectWorld(
+  world: Vector3,
+  fov: number,
+  aspect: number,
+): { x: number; y: number } {
+  const depth = CAMERA_Z - world.z;
+  const halfTan = Math.tan((fov * DEG) / 2);
+  return {
+    x: 0.5 + world.x / depth / (halfTan * aspect) / 2,
+    y: 0.5 - world.y / depth / halfTan / 2,
+  };
+}
+
 /** A point on the phone to a place on screen, as fractions of the frame
     (x from the left, y from the top). */
 export function toScreen(
@@ -54,17 +81,8 @@ export function toScreen(
   aspect: number,
 ): { x: number; y: number } {
   const { rotation, scale, position } = place(pose);
-  const world = local
-    .clone()
-    .multiply(scale)
-    .applyMatrix4(rotation)
-    .add(position);
-  const depth = CAMERA_Z - world.z;
-  const halfTan = Math.tan((pose.fov * DEG) / 2);
-  return {
-    x: 0.5 + world.x / depth / (halfTan * aspect) / 2,
-    y: 0.5 - world.y / depth / halfTan / 2,
-  };
+  const world = local.clone().multiply(scale).applyMatrix4(rotation).add(position);
+  return projectWorld(world, pose.fov, aspect);
 }
 
 /** A place on screen back onto the phone: the camera ray through it, met with
