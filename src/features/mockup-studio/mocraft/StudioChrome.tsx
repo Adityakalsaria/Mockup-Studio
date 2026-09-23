@@ -284,6 +284,14 @@ export function MenuPopover({
         left: pos?.left ?? -9999,
         top: pos?.top ?? -9999,
         visibility: pos ? "visible" : "hidden",
+        // Portalled to `document.body`, outside the chrome's own stacking
+        // contexts -- but with no z-index of its own it still only wins on
+        // DOM order, which a panel painted after it (the right dock reaches
+        // 45) can beat. Above every z-index this file uses, so a popup
+        // always reads as sitting ON the chrome behind it, not interleaved
+        // with it -- crisp text over crisp text, not one glass's blur
+        // actually hiding the other's.
+        zIndex: 100,
       }}
       // The popup's dismiss boundary does not include the body, so a press
       // here must not read as a press outside it.
