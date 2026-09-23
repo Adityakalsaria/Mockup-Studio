@@ -93,7 +93,7 @@ import {
   resetTransform,
   type Layer,
 } from "./bindings";
-import { DEVICES, getDevice } from "../devices";
+import { DEVICES } from "../devices";
 import { getFinish } from "../finishes";
 import { isVideoSource } from "../useScreenTexture";
 import { isSnapKey, type SnapKey } from "./snapping";
@@ -2299,17 +2299,23 @@ export function Icon({ name, size = control.icon }: { name: string; size?: numbe
 }
 
 /**
- * The five tools down the left edge, named for the glyph each one draws.
+ * The tools down the left edge, named for the glyph each one draws.
  *
  * The frame does not label them, so these come from reading the artwork: a
- * monitor with a phone over it, a colour fan, an image with a plus, a split
- * frame, two stacked rectangles. `title` is what a hover reveals, and is the
- * first thing to correct if any of those readings is wrong.
+ * monitor with a phone over it, a colour fan, two stacked rectangles.
+ * `title` is what a hover reveals, and is the first thing to correct if any
+ * of those readings is wrong.
+ *
+ * Screen image used to be a fourth stop here (`add-image`, "Screen image")
+ * -- removed once the canvas got its own always-visible "Screen image"
+ * corner circle (`Stage.tsx`), which opens the identical well/adjust/cover
+ * fields without a trip down the rail first. The panel this used to open
+ * (well, zoom/fit, the cover screen on a foldable) went with it -- it has no
+ * other way in now.
  */
 const TOOLS = [
   { id: "devices", icon: "devices", title: "Devices" },
   { id: "finish", icon: "styles", title: "Finish" },
-  { id: "image", icon: "add-image", title: "Screen image" },
   /*
    * Connect a phone, hidden until it launches.
    *
@@ -3909,122 +3915,6 @@ export default function StudioChrome({
                             </Row>
                           ))}
                         </RowGroup>
-                      ) : null}
-
-                      {tool === "image" ? (
-                        <div className="flex flex-col">
-                          <Header
-                            icon={<Icon name="image" />}
-                            // No delete here: the well's own Delete, beside
-                            // Upload, is the one place to remove the image.
-                            closeIcon={<Icon name="close-rounded" />}
-                            onClose={closePanel}
-                          >
-                            {/* The file's name once there is one: it is the only
-                              thing that tells two screenshots apart. */}
-                            <MorphText>
-                              {studio.screenName ?? "Image"}
-                            </MorphText>
-                          </Header>
-                          <ImageWell
-                            src={studio.screenSrc}
-                            empty="No screen yet"
-                            onPick={studio.uploadScreen}
-                            onClear={studio.clearScreen}
-                          />
-                          {/* Which part of the image lands on the screen: zoom into it,
-                              Fill or Fit. Always there, so the panel does not
-                              change height when an image arrives. */}
-                          {
-                            <ScreenAdjust
-                              scale={state.screenScale}
-                              mode={state.screenFitMode ?? "fill"}
-                              canReset={
-                                state.screenScale !== 1 ||
-                                state.screenOffsetX !== 0 ||
-                                state.screenOffsetY !== 0
-                              }
-                              onScale={(screenScale) =>
-                                edit((prev) => ({ ...prev, screenScale }))
-                              }
-                              onMode={(screenFitMode) =>
-                                edit((prev) => ({ ...prev, screenFitMode }))
-                              }
-                              onReset={() =>
-                                edit((prev) => ({
-                                  ...prev,
-                                  screenScale: 1,
-                                  screenOffsetX: 0,
-                                  screenOffsetY: 0,
-                                }))
-                              }
-                            />
-                          }
-                          {/*
-                          A second well, on a device with a second screen.
-
-                          Its own upload rather than a share of the one above,
-                          because the two panels show different things on any
-                          real foldable — a lock screen on the outside, and
-                          whatever you opened it for inside. Binding one image
-                          to both would be a mockup of a phone mirroring
-                          itself.
-
-                          Below rather than beside: the inner panel is the
-                          screen this device is FOR, and the one the camera
-                          frames. The cover is the other one.
-                        */}
-                          {getDevice(state.deviceId).coverScreen ? (
-                            /* Air either side of the rule: it used to sit
-                               flush on the Fill/Fit row above and on the
-                               title below. */
-                            <div
-                              className="flex flex-col"
-                              style={{
-                                paddingTop: "var(--mo-space-4)",
-                                gap: "var(--mo-space-4)",
-                              }}
-                            >
-                              <Divider />
-                              <ParamGroup title="Front screen">
-                                <ImageWell
-                                  src={studio.coverSrc}
-                                  empty="No front screen yet"
-                                  onPick={studio.uploadCover}
-                                  onClear={studio.clearCover}
-                                />
-                                {
-                                  <ScreenAdjust
-                                    scale={state.coverScale}
-                                    mode={state.coverFitMode ?? "fill"}
-                                    canReset={
-                                      state.coverScale !== 1 ||
-                                      state.coverOffsetX !== 0 ||
-                                      state.coverOffsetY !== 0
-                                    }
-                                    onScale={(coverScale) =>
-                                      edit((prev) => ({ ...prev, coverScale }))
-                                    }
-                                    onMode={(coverFitMode) =>
-                                      edit((prev) => ({
-                                        ...prev,
-                                        coverFitMode,
-                                      }))
-                                    }
-                                    onReset={() =>
-                                      edit((prev) => ({
-                                        ...prev,
-                                        coverScale: 1,
-                                        coverOffsetX: 0,
-                                        coverOffsetY: 0,
-                                      }))
-                                    }
-                                  />
-                                }
-                              </ParamGroup>
-                            </div>
-                          ) : null}
-                        </div>
                       ) : null}
 
                       {tool === "remote" ? (
