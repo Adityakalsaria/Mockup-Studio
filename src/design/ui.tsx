@@ -1257,6 +1257,7 @@ export function CircleButton({
   title,
   size = 44,
   expanded,
+  raw,
 }: {
   children: ReactNode;
   onClick?: () => void;
@@ -1265,6 +1266,13 @@ export function CircleButton({
   size?: number;
   /** `aria-expanded`, for a circle that opens a sheet/popover. */
   expanded?: boolean;
+  /**
+   * Skip the `Glyph` wrapper -- for content that is not a single icon glyph
+   * (an account photo, an initial letter) and needs to fill the circle on
+   * its own terms rather than sit in `Glyph`'s fixed 20px box. The caller
+   * sizes and centres its own content in this case.
+   */
+  raw?: boolean;
 }) {
   return (
     <AaveGlass
@@ -1281,7 +1289,7 @@ export function CircleButton({
           className="grid place-items-center"
           style={{ width: size, height: size, background: "#fff" }}
         >
-          <Glyph>{children}</Glyph>
+          {raw ? children : <Glyph>{children}</Glyph>}
         </div>
       }
     >
