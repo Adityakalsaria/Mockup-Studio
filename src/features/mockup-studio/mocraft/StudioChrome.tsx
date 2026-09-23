@@ -3713,49 +3713,40 @@ export default function StudioChrome({
               </Glass>
             ) : null}
 
-            {/* The account chip. A round glass surface is `Glass shape="pill"`;
-                its portrait is the one asset in this frame with no export. */}
-            <button
-              type="button"
+            {/* The account chip -- its portrait is the one asset in this
+                frame with no export. */}
+            <CircleButton
+              title={userEmail ? `Signed in as ${userEmail}` : "Account"}
+              expanded={menuOpen}
               onClick={() => setMenuOpen((v) => !v)}
-              aria-expanded={menuOpen}
-              aria-label={userEmail ? `Signed in as ${userEmail}` : "Account"}
-              title={userEmail ?? undefined}
-              className="cursor-pointer"
+              raw
             >
-              <Glass
-                shape="pill"
-                width={44}
-                className="items-center justify-center"
-                style={{ height: 44, padding: 0 }}
-              >
-                {/* The account's own photo, as the sign-in screens show it --
-                    only a real one: Clerk hands out a generated avatar when
-                    none was uploaded, and the initial reads better than that.
-                    The initial also stands in while it loads or if it fails. */}
-                {user?.hasImage && !avatarFailed ? (
-                  // Clerk's CDN, 44px: nothing for the optimiser to add.
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={user.imageUrl}
-                    alt=""
-                    width={36}
-                    height={36}
-                    onError={() => setAvatarFailed(true)}
-                    className="relative rounded-full object-cover"
-                    style={{ width: 36, height: 36, zIndex: 1 }}
-                  />
-                ) : userEmail?.trim() ? (
-                  <span className="mo-title">
-                    {userEmail.trim().charAt(0).toUpperCase()}
-                  </span>
-                ) : (
-                  <Glyph>
-                    <Icon name="duplicate" />
-                  </Glyph>
-                )}
-              </Glass>
-            </button>
+              {/* The account's own photo, as the sign-in screens show it --
+                  only a real one: Clerk hands out a generated avatar when
+                  none was uploaded, and the initial reads better than that.
+                  The initial also stands in while it loads or if it fails. */}
+              {user?.hasImage && !avatarFailed ? (
+                // Clerk's CDN, 44px: nothing for the optimiser to add.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.imageUrl}
+                  alt=""
+                  width={36}
+                  height={36}
+                  onError={() => setAvatarFailed(true)}
+                  className="relative rounded-full object-cover"
+                  style={{ width: 36, height: 36, zIndex: 1 }}
+                />
+              ) : userEmail?.trim() ? (
+                <span className="mo-title">
+                  {userEmail.trim().charAt(0).toUpperCase()}
+                </span>
+              ) : (
+                <Glyph>
+                  <Icon name="duplicate" />
+                </Glyph>
+              )}
+            </CircleButton>
           </div>
 
           {/* Left cluster: the tool rail and the device list. */}
