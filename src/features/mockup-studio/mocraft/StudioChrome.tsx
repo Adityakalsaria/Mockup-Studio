@@ -924,6 +924,15 @@ const SHORTCUTS: { title: string; items: [string[], string][] }[] = [
  */
 const CHANGELOG: { date: string; title: string; items: string[] }[] = [
   {
+    date: "23 Sep 2026",
+    title: "Screen image and Canvas background, right on the canvas",
+    items: [
+      "Two round buttons sit on the canvas itself now — Screen image top-left, Canvas background top-right — opening the same well, zoom and fit fields the rail used to, without a trip down it first.",
+      "Screen image's rail entry is gone, since the canvas button reaches the same fields.",
+      "Fixed the Canvas background panel overlapping the properties panel at a narrow window or a browser zoom.",
+    ],
+  },
+  {
     date: "19 Sep 2026",
     title: "Focus camera, and a sharper Motion",
     items: [
