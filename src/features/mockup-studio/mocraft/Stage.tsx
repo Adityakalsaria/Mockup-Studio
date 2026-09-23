@@ -49,6 +49,7 @@ import {
   type MenuItem,
 } from "./StudioChrome";
 import { CircleButton, Header, ParamGroup, Divider, ColorRow } from "@/design/ui";
+import { control } from "@/design/system";
 
 /** Width of the screen's right-click menu -- narrower than `control.panelW`,
     the width every slider/colour popup in `StudioChrome` opens at, since this
@@ -397,12 +398,17 @@ function StageInner({
               }
               const rect = shotRef.current?.getBoundingClientRect();
               if (!rect) return;
-              // Off the SHOT's own frame on this side too, clamped so it
-              // can't run off the window's LEFT edge instead of the right.
-              const left = Math.max(
-                rect.left - BG_PANEL_GAP - BG_PANEL_W,
-                8,
-              );
+              /*
+               * Off the SHOT's own frame on this side too -- but clamped
+               * against the LEFT RAIL's own reserved band, not just the
+               * window's edge. At a narrow window the shot can extend to
+               * (or past) where the rail floats -- panels sit OVER the shot
+               * by design, see this file's own header comment -- and a
+               * clamp that only knew about the window edge let this popup
+               * land on top of the rail instead of stopping short of it.
+               */
+              const minLeft = 16 + control.railW + BG_PANEL_GAP;
+              const left = Math.max(rect.left - BG_PANEL_GAP - BG_PANEL_W, minLeft);
               setImgAnchor({ left, top: rect.top - 4 });
             }}
           >
@@ -449,16 +455,23 @@ function StageInner({
                 setBgAnchor(null);
                 return;
               }
-              // Off the SHOT's own frame, not the button's box: the gap is
-              // clear space beside the canvas, and the panel's top edge
-              // lines up with the canvas's own. Clamped only so it can't
-              // run off the window's right edge.
+              /*
+               * Off the SHOT's own frame, not the button's box: the gap is
+               * clear space beside the canvas, and the panel's top edge
+               * lines up with the canvas's own. Clamped against the RIGHT
+               * DOCK's own reserved band (`right: 16` + `control.panelW`,
+               * `data-tour="panel"` in StudioChrome), not just the window's
+               * edge -- at a narrow window the shot can reach that band
+               * (panels sit OVER the shot by design, see this file's own
+               * header comment), and a clamp that only knew about the
+               * window edge let this popup land on top of the dock instead
+               * of stopping short of it.
+               */
               const rect = shotRef.current?.getBoundingClientRect();
               if (!rect) return;
-              const left = Math.min(
-                rect.right + BG_PANEL_GAP,
-                window.innerWidth - BG_PANEL_W - 8,
-              );
+              const maxLeft =
+                window.innerWidth - 16 - control.panelW - BG_PANEL_GAP - BG_PANEL_W;
+              const left = Math.max(8, Math.min(rect.right + BG_PANEL_GAP, maxLeft));
               // Less `MenuPopover`'s own 4px drop below whatever it's
               // anchored to, so the panel's top edge lands ON the canvas's
               // rather than 4px under it.
