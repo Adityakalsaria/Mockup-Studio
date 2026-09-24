@@ -584,6 +584,12 @@ function pointInPolygon(px: number, py: number, corners: { x: number; y: number 
 function BackgroundFields({ studio, onClose }: { studio: Studio; onClose: () => void }) {
   const { state, edit } = studio;
   const bg = state.background;
+  // A ready-made backdrop is chosen in the Presets grid above, whose selected
+  // chip already says which one -- the Image well below is for a picture the
+  // person brought, so it stays empty unless that is what is on the canvas.
+  const uploaded =
+    bg.kind === "image" &&
+    !BACKGROUND_CATEGORIES.some((c) => c.items.some((i) => i.src === bg.imageSrc));
   return (
     <div className="flex flex-col" style={{ gap: "var(--mo-space-4)" }}>
       <Header icon={<Icon name="canvas-color" />} closeIcon={<Icon name="close-rounded" />} onClose={onClose}>
@@ -618,7 +624,7 @@ function BackgroundFields({ studio, onClose }: { studio: Studio; onClose: () => 
       <Divider />
       <ParamGroup title="Image">
         <ImageWell
-          src={bg.kind === "image" ? bg.imageSrc : null}
+          src={uploaded ? bg.imageSrc : null}
           empty="No background image"
           onPick={studio.uploadBackground}
           onClear={studio.clearBackground}
