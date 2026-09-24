@@ -9,6 +9,8 @@
  * apart — the pair of functions below are written to be read side by side.
  */
 
+import WALLPAPERS from "@/data/canvas-wallpapers.json";
+
 export type BackgroundKind =
   "solid" | "gradient" | "dots" | "image" | "transparent";
 
@@ -80,43 +82,79 @@ export const BACKGROUND_PRESETS = [
 ];
 
 /**
- * Ready-made backdrops: mesh gradients with a fine grain, for a shot that
- * wants more than one colour behind it without a trip to find a picture.
+ * Ready-made backdrops, in categories: mesh gradients with a fine grain, for
+ * a shot that wants more than one colour behind it without a trip to find a
+ * picture -- and after them, any wallpaper sets brought in with
+ * `scripts/import-wallpapers`.
  *
- * They ARE pictures -- rendered once by `scripts/generate-canvas-backgrounds`
- * and served from `public/` -- and picking one is the same act as uploading
- * one: `kind: "image"`, so the editor's CSS and the export's canvas paint it
- * through the one path that already agrees with itself. The thumbnail is only
- * for the chip; the canvas and the export always read the full picture.
- *
- * Ordered light to dark, so the grid reads as a range rather than a pile.
+ * They ARE pictures -- the gradients rendered once by
+ * `scripts/generate-canvas-backgrounds` -- served from `public/`, and picking
+ * one is the same act as uploading one: `kind: "image"`, so the editor's CSS
+ * and the export's canvas paint it through the one path that already agrees
+ * with itself. The thumbnail is only for the chip; the canvas and the export
+ * always read the full picture.
  */
-const PRESET_DIR = "/figma-assets/mockup-studio/backgrounds";
-
-export const CANVAS_BACKGROUNDS: Array<{
+export interface CanvasBackground {
   id: string;
   label: string;
   src: string;
   thumb: string;
-}> = [
-  ["studio", "Studio"],
-  ["peach", "Peach"],
-  ["candy", "Candy"],
-  ["lavender", "Lavender"],
-  ["mint", "Mint"],
-  ["citrus", "Citrus"],
-  ["sunset", "Sunset"],
-  ["lagoon", "Lagoon"],
-  ["aurora", "Aurora"],
-  ["nebula", "Nebula"],
-  ["ember", "Ember"],
-  ["graphite", "Graphite"],
-].map(([id, label]) => ({
-  id,
-  label,
-  src: `${PRESET_DIR}/${id}.webp`,
-  thumb: `${PRESET_DIR}/thumbs/${id}.webp`,
-}));
+}
+
+export interface BackgroundCategory {
+  id: string;
+  label: string;
+  items: CanvasBackground[];
+}
+
+const GRADIENT_DIR = "/figma-assets/mockup-studio/backgrounds";
+
+const gradients = (names: Array<[string, string]>): CanvasBackground[] =>
+  names.map(([id, label]) => ({
+    id,
+    label,
+    src: `${GRADIENT_DIR}/${id}.webp`,
+    thumb: `${GRADIENT_DIR}/thumbs/${id}.webp`,
+  }));
+
+/* Whole rows of four each, so no category ends on a stray chip. */
+export const BACKGROUND_CATEGORIES: BackgroundCategory[] = [
+  {
+    id: "light",
+    label: "Light",
+    items: gradients([
+      ["studio", "Studio"],
+      ["cloud", "Cloud"],
+      ["sky", "Sky"],
+      ["mint", "Mint"],
+      ["peach", "Peach"],
+      ["blush", "Blush"],
+      ["candy", "Candy"],
+      ["lavender", "Lavender"],
+    ]),
+  },
+  {
+    id: "vivid",
+    label: "Vivid",
+    items: gradients([
+      ["citrus", "Citrus"],
+      ["sunset", "Sunset"],
+      ["berry", "Berry"],
+      ["lagoon", "Lagoon"],
+    ]),
+  },
+  {
+    id: "dark",
+    label: "Dark",
+    items: gradients([
+      ["aurora", "Aurora"],
+      ["nebula", "Nebula"],
+      ["ember", "Ember"],
+      ["graphite", "Graphite"],
+    ]),
+  },
+  ...(WALLPAPERS as BackgroundCategory[]),
+];
 
 /**
  * The checkerboard that stands in for "no background".
