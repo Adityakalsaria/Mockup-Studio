@@ -22,7 +22,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import PhoneStage3D, { type ScreenBox } from "../PhoneStage3D";
 import { OverlayLayer } from "../OverlayLayer";
-import { backgroundClass, backgroundCss } from "../backgrounds";
+import { backgroundClass, backgroundCss, CANVAS_BACKGROUNDS } from "../backgrounds";
 import BackgroundImage from "../BackgroundImage";
 import { isOverlayActive } from "../overlay";
 import type { Studio } from "./useStudio";
@@ -609,6 +609,13 @@ function BackgroundFields({ studio, onClose }: { studio: Studio; onClose: () => 
         />
       </ParamGroup>
       <Divider />
+      <ParamGroup title="Presets">
+        <BackgroundPresetGrid
+          selected={bg.kind === "image" ? bg.imageSrc : null}
+          onPick={studio.pickBackground}
+        />
+      </ParamGroup>
+      <Divider />
       <ParamGroup title="Image">
         <ImageWell
           src={bg.kind === "image" ? bg.imageSrc : null}
@@ -634,6 +641,54 @@ function BackgroundFields({ studio, onClose }: { studio: Studio; onClose: () => 
           }
         />
       </ParamGroup>
+    </div>
+  );
+}
+
+/** Corner of a backdrop chip: a well's corner, scaled to a chip a third its
+    height, so it reads as a small picture rather than a colour swatch. */
+const PRESET_CHIP_R = 10;
+
+/**
+ * The ready-made backdrops, four to a row.
+ *
+ * Chips of the picture itself, not names: a backdrop is chosen by eye. The
+ * name rides on the title for anyone who hovers. The selected one carries an
+ * ink ring held off the chip by a gap -- an outline, so the gap is the glass
+ * itself -- which reads on the light chips and the dark ones alike. Hover is
+ * a small lift and nothing else.
+ */
+function BackgroundPresetGrid({
+  selected,
+  onPick,
+}: {
+  selected: string | null;
+  onPick: (src: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-4" style={{ gap: 8 }}>
+      {CANVAS_BACKGROUNDS.map((preset) => {
+        const on = preset.src === selected;
+        return (
+          <button
+            key={preset.id}
+            type="button"
+            title={preset.label}
+            aria-label={`${preset.label} background`}
+            aria-pressed={on}
+            onClick={() => onPick(preset.src)}
+            className="aspect-square w-full cursor-pointer transition-transform duration-150 ease-out hover:scale-[1.04]"
+            style={{
+              borderRadius: PRESET_CHIP_R,
+              backgroundImage: `url(${preset.thumb})`,
+              backgroundSize: "cover",
+              border: "var(--mo-swatch-edge)",
+              outline: on ? "1.5px solid var(--mo-ink)" : undefined,
+              outlineOffset: 2,
+            }}
+          />
+        );
+      })}
     </div>
   );
 }

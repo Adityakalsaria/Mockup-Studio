@@ -424,6 +424,32 @@ export function useStudio(
     [edit],
   );
 
+  /**
+   * One of the ready-made backdrops. Fills the frame at its own size whatever
+   * fit and zoom the last picture was left at -- those were set for a picture
+   * that is no longer there.
+   */
+  const pickBackground = useCallback(
+    (imageSrc: string) => {
+      edit((prev) => ({
+        ...prev,
+        background: {
+          ...prev.background,
+          kind: "image",
+          imageSrc,
+          imageFit: "cover",
+          imageZoom: 1,
+        },
+      }));
+      void preloadBackgroundImage({
+        ...stateRef.current.background,
+        kind: "image",
+        imageSrc,
+      });
+    },
+    [edit],
+  );
+
   const clearBackground = useCallback(() => {
     edit((prev) => ({
       ...prev,
@@ -1723,6 +1749,7 @@ export function useStudio(
       clearCover,
       // Background
       uploadBackground,
+      pickBackground,
       clearBackground,
       // Mirror
       broadcast,
@@ -1833,6 +1860,7 @@ export function useStudio(
       uploadCover,
       clearCover,
       uploadBackground,
+      pickBackground,
       clearBackground,
       broadcast,
       liveStream,
