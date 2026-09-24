@@ -1010,7 +1010,7 @@ const CHANGELOG: { date: string; title: string; items: string[] }[] = [
     title: "Six new moves and ready-made backgrounds",
     items: [
       "Six new presets in Motion: Orbit reveal, Zoom punch, Spiral pop, Tilt glide, Bounce drop, and Screen dive to cut into a screen recording.",
-      "A full screen preview button in the canvas's bottom-right corner: the shot on its own at the screen's size, keeping its ratio, playing from the top if there is a clip. Escape leaves it.",
+      "A full screen preview button in the canvas's bottom-right corner: the shot filling the window, keeping its ratio, easing in and out, and playing from the top if there is a clip. Escape leaves it.",
       "Pick several presets and they chain: each one is added after the last on the same timeline and plays from where it begins. Shift-click replaces the timeline instead.",
       "Eight longer showcase presets, six to eight seconds each, that layer rotation with light and location: Studio sweep, Light pass, Orbit drift, Figure eight, Turntable glow, Rise and turn, Hero sway and Product spin.",
       "Canvas background has Presets now, in categories — sixteen mesh-gradient backdrops across Light, Vivid and Dark, one click each.",
