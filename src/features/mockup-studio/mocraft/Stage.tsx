@@ -93,6 +93,12 @@ export const INSET = 40;
  */
 export const FRAME = 0.82;
 
+/** How long the shot takes to grow into, and back out of, a full screen
+    preview. Long enough to read as one continuous move, short enough that the
+    preview is there before the eye has asked for it. */
+const FULLSCREEN_MS = 450;
+const FULLSCREEN_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
+
 function StageInner({
   studio,
   modelToken = null,
@@ -159,10 +165,27 @@ function StageInner({
    */
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  /*
+   * True only while the shot is easing between its two sizes. The transition
+   * is switched on for the toggle and off again after it, not left on: a
+   * ratio change is meant to land at once (see the note above the frame), and
+   * a standing transition on the shot's width would ease that too -- the
+   * canvas resizing every frame of it, at a shape halfway between two ratios.
+   */
+  const [fsMoving, setFsMoving] = useState(false);
   useEffect(() => {
-    const sync = () => setFullscreen(document.fullscreenElement === stageRef.current);
+    let timer = 0;
+    const sync = () => {
+      setFsMoving(true);
+      setFullscreen(document.fullscreenElement === stageRef.current);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setFsMoving(false), FULLSCREEN_MS + 100);
+    };
     document.addEventListener("fullscreenchange", sync);
-    return () => document.removeEventListener("fullscreenchange", sync);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("fullscreenchange", sync);
+    };
   }, []);
 
   /*
@@ -310,6 +333,9 @@ function StageInner({
         // frame, and the shot fits its ratio inside it.
         padding: ratio === null || fullscreen ? 0 : INSET,
         background: fullscreen ? "#000" : undefined,
+        transition: fsMoving
+          ? `background-color ${FULLSCREEN_MS}ms ${FULLSCREEN_EASE}`
+          : undefined,
       }}
       // No browser menu over the shot: "Save Image As" / "Copy Image" would
       // hand out the render outside the studio's export (and its
@@ -338,6 +364,9 @@ function StageInner({
           // Square at Fill: a corner is what tells you where a shot ends, and
           // at Fill it ends at the window.
           borderRadius: ratio === null || fullscreen ? 0 : "var(--mo-r-panel)",
+          transition: fsMoving
+            ? `width ${FULLSCREEN_MS}ms ${FULLSCREEN_EASE}, border-radius ${FULLSCREEN_MS}ms ${FULLSCREEN_EASE}`
+            : undefined,
           ...backgroundCss(state.background),
           ...(ratio === null
             ? { width: "100%", height: "100%" }
