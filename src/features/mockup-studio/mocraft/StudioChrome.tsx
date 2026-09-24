@@ -705,22 +705,25 @@ const PRESETS: Preset[] = [
 ];
 
 /*
- * Eight tiles fit the panel; anything past that scrolls.
+ * Six tiles to a fold -- three rows of two -- and anything past that
+ * scrolls. It was eight, four rows, which at a 900px window ran the popup
+ * well past the side panel it sits beside; three rows keep it about the
+ * panel's own height.
  *
  * The cut has to land exactly on a row boundary, and only the layout knows
  * where that is: tiles are square and sized off the column width, so their
  * height depends on how wide the panel happens to be, and the caption under
  * the artwork adds a height nobody has written down. So it is measured rather
- * than assumed — the top of the ninth tile, less the gap above it, IS the
- * bottom edge of row four. Under nine tiles there is no ninth to measure and
- * no cap is set, which is also why the current six presets simply fill the
- * panel with no scrolling in sight.
+ * than assumed — the top of the seventh tile, less the gap above it, IS the
+ * bottom edge of row three. Under seven tiles there is no seventh to measure
+ * and no cap is set, so a short list simply fills the panel with no
+ * scrolling in sight.
  *
  * No scrollbar: the tiles already run to both edges of the panel and a gutter
  * appearing between them and the glass would be the only asymmetry in the
  * chrome. Wheel, trackpad and keyboard all still work.
  */
-const VISIBLE_PRESETS = 8;
+const VISIBLE_PRESETS = 6;
 
 /** How far past the tiles the scroller's clip edge sits. See PresetScroller. */
 const SCROLL_ROOM = 8;
@@ -742,9 +745,8 @@ function PresetScroller({
     const measure = () => {
       // The real tiles only. The selection lens draws every tile a second
       // time in an `aria-hidden` layer, so once a preset was picked the
-      // "ninth tile" was the lens's copy of the FIRST -- at the first row's
-      // height -- and the cap came out at zero. It hid behind a grid too
-      // short to have a ninth tile of its own.
+      // tile at the cut could be the lens's copy of the FIRST -- at the first
+      // row's height -- and the cap came out at zero.
       const tiles = Array.from(
         el.querySelectorAll<HTMLElement>("[data-preset-tile]"),
       ).filter((tile) => !tile.closest("[aria-hidden]"));
@@ -755,39 +757,39 @@ function PresetScroller({
       const rows = cut
         ? cut.offsetTop - tiles[0].offsetTop - gap + SCROLL_ROOM * 2
         : Infinity;
-      const cap = Math.min(rows, bandRoom());
+      const cap = Math.min(rows, windowRoom());
       setMaxHeight(Number.isFinite(cap) ? Math.max(0, cap) : undefined);
     };
 
     /*
-     * The row cap is not enough on its own once four rows are real. The popup
-     * is centred on the side panel and never scrolls as a whole, so in a
-     * window too short for all four rows it reached evenly above and below
-     * the panel -- and above, that put its header off the top of the screen.
-     * So the tiles also stop where the popup would pass the top of the side
-     * band (or, in a very short window, the bottom of the window), measured
-     * from the panel's middle, which is the popup's, less everything in the
-     * popup that is not tiles.
+     * The row cap is the design; this is the safety under it, for a window
+     * too short even for three rows. The popup is centred on the side panel
+     * and never scrolls as a whole, so there it would reach evenly past both
+     * ends of the panel -- and above, off the top of the screen, header and
+     * all. So the tiles also stop where the popup would come within the
+     * chrome's 16 of either window edge, measured from the panel's middle,
+     * which is the popup's, less everything in the popup that is not tiles.
      *
-     * The band's TOP only. Its bottom rises when a preset's lanes push the
-     * gizmo up above the timeline, past the panel's own middle, and bounding
-     * by it folded the popup to a sliver the moment a preset was picked.
+     * The WINDOW's edges, not the side band's. The band's top sits under the
+     * account chip, which is nowhere near the popup, and bounding by it cut
+     * the third row short at an ordinary 900px window. Its bottom rises when
+     * a preset's lanes push the gizmo up, past the panel's own middle, and
+     * bounding by that folded the popup to a sliver.
      *
      * A cut here lands mid-row, which is the point: a row showing half of
-     * itself says the grid scrolls, where a clean boundary would hide that
-     * there is more.
+     * itself says the grid scrolls.
      */
     const popup = el.closest<HTMLElement>('[data-tour="popup"]');
     const band = el.closest<HTMLElement>("[data-popup-band]");
     const glass = el.parentElement?.closest<HTMLElement>(".mo-glass");
-    const bandRoom = () => {
-      if (!popup || !band || !glass) return Infinity;
+    const windowRoom = () => {
+      if (!popup || !glass) return Infinity;
       const p = popup.getBoundingClientRect();
       // Mid-transition the column can be momentarily flat; a cap taken then
       // would be zero, and would stick.
       if (p.height === 0) return Infinity;
-      const top = band.getBoundingClientRect().top;
       // The 16 every piece of chrome keeps from the window's edge.
+      const top = 16;
       const bottom = window.innerHeight - 16;
       const middle = p.top + p.height / 2;
       const half = Math.min(middle - top, bottom - middle);
@@ -800,7 +802,9 @@ function PresetScroller({
     measure();
     // Panels resize with the window, and a narrower column means squarer
     // tiles means a different row boundary. The popup's column and the band
-    // are watched too: the column is the side panel's height, which changes
+    // are watched too -- the band because it re-centres the panel, and so
+    // the popup, as it changes height; the column is the side panel's
+    // height, which changes
     // under the popup as the timeline grows lanes -- and the tiles do not, so
     // watching them alone left a cap measured mid-change in place for good.
     const observer = new ResizeObserver(measure);
