@@ -1004,7 +1004,7 @@ const CHANGELOG: { date: string; title: string; items: string[] }[] = [
     title: "Six new moves and ready-made backgrounds",
     items: [
       "Six new presets in Motion: Orbit reveal, Zoom punch, Spiral pop, Tilt glide, Bounce drop, and Screen dive to cut into a screen recording.",
-      "Canvas background has Presets now, in categories — twelve mesh-gradient backdrops across Light, Vivid and Dark, one click each.",
+      "Canvas background has Presets now, in categories — sixteen mesh-gradient backdrops across Light, Vivid and Dark, one click each.",
     ],
   },
   {
