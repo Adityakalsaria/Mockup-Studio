@@ -27,6 +27,13 @@ export interface Pose {
   fold: number;
   /** Vertical field of view in degrees -- the LENS, not the distance. */
   fov: number;
+  /**
+   * Where the light sits now, so a move can turn it FROM there. Optional: a
+   * preset that never touches the light does not need it, and the tile
+   * preview, which has no shot behind it, leaves it out.
+   */
+  lightAngle?: number;
+  lightElevation?: number;
 }
 
 /**
@@ -44,6 +51,8 @@ const BOUNDED: Partial<Record<AnimatableKey, { min: number; max: number }>> = {
   // fisheye. A dolly zoom wants to run hard at one of those walls, so the
   // clamp here is doing real work rather than guarding a typo.
   fov: RANGES.fov,
+  lightAngle: RANGES.lightAngle,
+  lightElevation: RANGES.lightElevation,
 };
 
 /**
@@ -147,6 +156,36 @@ const lens = (p: Pose, factor: number): number => fovAt(p.fov * factor);
  */
 const sizeHold = (p: Pose, fovDeg: number): number =>
   p.zoom * (halfTan(fovDeg) / halfTan(p.fov));
+
+/**
+ * A path for the light, as offsets from where it is now.
+ *
+ * The light's angle is cyclic on the phone but a key is not -- it clamps at
+ * +/-180, and a sweep that ran into the wall would flatten and then jump. So
+ * the whole path is slid inside the range if it would leave it. The start
+ * still is where the light was; only a sweep that could not fit in the room
+ * left starts a little off it.
+ */
+const lightAngleAt = (p: Pose, offsets: number[]): number[] => {
+  const base = p.lightAngle ?? 0;
+  const lo = Math.min(...offsets);
+  const hi = Math.max(...offsets);
+  const shift =
+    base + lo < -180 ? -180 - (base + lo) : base + hi > 180 ? 180 - (base + hi) : 0;
+  return offsets.map((o) => base + shift + o);
+};
+
+/** Same, for the light's height, which is clamped rather than cyclic. */
+const lightHeightAt = (p: Pose, offsets: number[]): number[] => {
+  const base = p.lightElevation ?? 0;
+  return offsets.map((o) => base + o);
+};
+
+/** Near-linear, for a path made of many short keys where each one easing to a
+    stop would read as the phone stuttering along it. */
+const STEADY: Easing = { kind: "cubic", p: [0.33, 0.33, 0.67, 0.67] };
+/** Slow in, slow out: the long, deliberate curve a 7-second move needs. */
+const SLOW: Easing = { kind: "cubic", p: [0.45, 0, 0.2, 1] };
 
 /**
  * Entrances arrive on your framing, Moves travel through it, Loops return to
@@ -1152,6 +1191,271 @@ export const MOTION_PRESETS: MotionPreset[] = [
         ]),
       },
     }),
+  },
+  /* =========================================================================
+     THE SHOWCASE SET -- six to eight seconds, several things moving at once
+
+     The presets above are one gesture each: a zoom, a pan, a spin. These are
+     the long ones, for a hero shot or a launch clip that has to hold a viewer
+     for a whole beat, and every one of them layers movements -- the phone
+     turning while the light crosses it, the phone travelling while it turns,
+     all three together -- so what is on screen is never only one thing.
+
+     Same rules as the rest of the file: relative to the pose already framed,
+     every offset scaled by `k`, and each move ends on the framing (the loops
+     start and end on it) with a flat hold so an export has room to settle.
+     Light is keyed from where it already is, see `lightAngleAt`.
+     ========================================================================= */
+  {
+    id: "studio-sweep",
+    label: "Studio sweep",
+    kind: "cinema",
+    loops: false,
+    hint: "Turns slowly to face you while the light rakes across the body the other way",
+    /*
+     * Rotation against light. The phone comes round through sixty degrees
+     * while the key light travels the opposite way, so the highlight runs
+     * along the frame edge and the glass catches it once, mid-turn. A slow
+     * drift in from the side keeps the eye on the phone rather than the light.
+     */
+    build: (p, k = 1) => {
+      const angle = lightAngleAt(p, [-120 * k, 0]);
+      return {
+        durationSec: 7,
+        tracks: {
+          yAxis: eased("yAxis", [[0, p.yAxis - 60 * k, SLOW], [5, p.yAxis], [7, p.yAxis]]),
+          panX: eased("panX", [[0, p.panX + 1.4 * k, SLOW], [4.5, p.panX], [7, p.panX]]),
+          lightAngle: eased("lightAngle", [[0, angle[0], SLOW], [5.5, angle[1]], [7, angle[1]]]),
+        },
+      };
+    },
+  },
+  {
+    id: "light-pass",
+    label: "Light pass",
+    kind: "cinema",
+    loops: false,
+    hint: "The phone hardly moves; the light sweeps across it and settles",
+    /*
+     * The phone leans a few degrees each way, barely, and the light does the
+     * work: a half-turn of the key light and a rise in its height, so the
+     * reflection slides top to bottom over the screen. The one to use when
+     * the framing is already right and the shot needs life, not travel.
+     */
+    build: (p, k = 1) => {
+      const angle = lightAngleAt(p, [-90 * k, 0]);
+      const height = lightHeightAt(p, [-25 * k, 0]);
+      return {
+        durationSec: 6,
+        tracks: {
+          yAxis: eased("yAxis", [
+            [0, p.yAxis - 10 * k, SLOW],
+            [3, p.yAxis + 6 * k, SLOW],
+            [5, p.yAxis],
+            [6, p.yAxis],
+          ]),
+          xAxis: eased("xAxis", [[0, p.xAxis + 4 * k, SLOW], [4, p.xAxis], [6, p.xAxis]]),
+          lightAngle: eased("lightAngle", [[0, angle[0], SLOW], [4.5, angle[1]], [6, angle[1]]]),
+          lightElevation: eased("lightElevation", [[0, height[0], SLOW], [4.5, height[1]], [6, height[1]]]),
+        },
+      };
+    },
+  },
+  {
+    id: "orbit-drift",
+    label: "Orbit drift",
+    kind: "cinema",
+    loops: false,
+    hint: "Comes round from behind while travelling across the frame, and lands on your shot",
+    /*
+     * Rotation plus location. A wide turn carries the phone from its side
+     * profile to face-on while it travels up and across, so the path is an
+     * arc rather than a line; the roll unwinds last, which is what makes it
+     * read as a camera that has been flown rather than a phone spun on a spot.
+     */
+    build: (p, k = 1) => ({
+      durationSec: 8,
+      tracks: {
+        yAxis: eased("yAxis", [[0, p.yAxis - 140 * k, SLOW], [5.5, p.yAxis], [8, p.yAxis]]),
+        panX: eased("panX", [[0, p.panX - 3 * k, SLOW], [5, p.panX], [8, p.panX]]),
+        panY: eased("panY", [[0, p.panY + 1.6 * k, SLOW], [4.5, p.panY], [8, p.panY]]),
+        xAxis: eased("xAxis", [[0, p.xAxis - 14 * k, SLOW], [6, p.xAxis], [8, p.xAxis]]),
+        zAxis: eased("zAxis", [[0, p.zAxis + 12 * k, SLOW], [6.5, p.zAxis], [8, p.zAxis]]),
+      },
+    }),
+  },
+  {
+    id: "figure-eight",
+    label: "Figure eight",
+    kind: "loop",
+    loops: true,
+    hint: "Traces a slow figure eight across the frame, turning gently with it",
+    /*
+     * Location and rotation as one path. The phone travels a lemniscate --
+     * out to one side, back through the middle, out to the other -- and its
+     * turn follows the sideways part of the path, so it leans into each
+     * curve. Sixteen short keys per lane on a near-linear curve, because a
+     * curve this smooth cannot be made of a few long eased segments; it
+     * starts and ends on the framing, so it loops.
+     */
+    build: (p, k = 1) => {
+      const N = 16;
+      const step = 8 / N;
+      const at = (f: (theta: number) => number) =>
+        Array.from({ length: N + 1 }, (_, i): [number, number, Easing] => [
+          i * step,
+          f((i / N) * Math.PI * 2),
+          STEADY,
+        ]);
+      return {
+        durationSec: 8,
+        tracks: {
+          panX: eased("panX", at((t) => p.panX + 1.6 * k * Math.sin(t))),
+          panY: eased("panY", at((t) => p.panY + 0.7 * k * Math.sin(2 * t))),
+          yAxis: eased("yAxis", at((t) => p.yAxis + 22 * k * Math.sin(t))),
+          xAxis: eased("xAxis", at((t) => p.xAxis + 6 * k * Math.sin(2 * t))),
+        },
+      };
+    },
+  },
+  {
+    id: "turntable-glow",
+    label: "Turntable glow",
+    kind: "cinema",
+    loops: false,
+    hint: "One full slow turn while the light counter-rotates, so the highlight travels the whole body",
+    /*
+     * Rotation, light and a hair of depth. A full turn spends its time slowly
+     * at the front and back, where the phone is best seen, and quickly on the
+     * sides. The light goes half a turn the other way over the same time, so
+     * the highlight is at a different place on every face as it comes round.
+     */
+    build: (p, k = 1) => {
+      const angle = lightAngleAt(p, [-160 * k, 0]);
+      return {
+        durationSec: 8,
+        tracks: {
+          yAxis: eased("yAxis", [
+            [0, p.yAxis - 360 * k, { kind: "cubic", p: [0.4, 0.05, 0.25, 1] }],
+            [6.5, p.yAxis],
+            [8, p.yAxis],
+          ]),
+          lightAngle: eased("lightAngle", [[0, angle[0], SLOW], [6.5, angle[1]], [8, angle[1]]]),
+          panZ: eased("panZ", [[0, p.panZ - 0.25 * k, SLOW], [5, p.panZ], [8, p.panZ]]),
+        },
+      };
+    },
+  },
+  {
+    id: "rise-and-turn",
+    label: "Rise and turn",
+    kind: "cinema",
+    loops: false,
+    hint: "Rises into frame turning to face you, the light lifting with it like a sunrise",
+    /*
+     * All three at once. The phone climbs into the shot while it turns
+     * toward the camera and its top leans forward; the light starts low and
+     * behind and lifts over the same seven seconds, so the phone is lit as it
+     * arrives rather than before.
+     */
+    build: (p, k = 1) => {
+      const angle = lightAngleAt(p, [70 * k, 0]);
+      const height = lightHeightAt(p, [-30 * k, 0]);
+      return {
+        durationSec: 7,
+        tracks: {
+          panY: eased("panY", [[0, p.panY - 3.2 * k, SLOW], [4.5, p.panY], [7, p.panY]]),
+          yAxis: eased("yAxis", [[0, p.yAxis + 90 * k, SLOW], [5, p.yAxis], [7, p.yAxis]]),
+          xAxis: eased("xAxis", [[0, p.xAxis + 20 * k, SLOW], [5.5, p.xAxis], [7, p.xAxis]]),
+          lightAngle: eased("lightAngle", [[0, angle[0], SLOW], [5, angle[1]], [7, angle[1]]]),
+          lightElevation: eased("lightElevation", [[0, height[0], SLOW], [5, height[1]], [7, height[1]]]),
+        },
+      };
+    },
+  },
+  {
+    id: "hero-sway",
+    label: "Hero sway",
+    kind: "loop",
+    loops: true,
+    hint: "A slow idle: the phone sways, drifts and tilts while the light moves the opposite way",
+    /*
+     * The one to leave running behind a landing page. Turn, tilt, drift and
+     * light all move on the same eight-second cycle but out of step -- the
+     * light opposite the turn, the drift a quarter cycle behind -- so the
+     * loop never reads as one thing repeating. Returns to the framing, so
+     * the seam is invisible.
+     */
+    build: (p, k = 1) => {
+      const angle = lightAngleAt(p, [0, 45 * k, 0, -45 * k, 0]);
+      return {
+        durationSec: 8,
+        tracks: {
+          yAxis: eased("yAxis", [
+            [0, p.yAxis, SLOW],
+            [2, p.yAxis + 22 * k, SLOW],
+            [4, p.yAxis, SLOW],
+            [6, p.yAxis - 22 * k, SLOW],
+            [8, p.yAxis],
+          ]),
+          xAxis: eased("xAxis", [
+            [0, p.xAxis, SLOW],
+            [2, p.xAxis - 5 * k, SLOW],
+            [4, p.xAxis, SLOW],
+            [6, p.xAxis + 5 * k, SLOW],
+            [8, p.xAxis],
+          ]),
+          panX: eased("panX", [
+            [0, p.panX, SLOW],
+            [3, p.panX + 0.6 * k, SLOW],
+            [5, p.panX - 0.6 * k, SLOW],
+            [8, p.panX],
+          ]),
+          lightAngle: eased("lightAngle", [
+            [0, angle[0], SLOW],
+            [2, angle[3], SLOW],
+            [4, angle[2], SLOW],
+            [6, angle[1], SLOW],
+            [8, angle[4]],
+          ]),
+        },
+      };
+    },
+  },
+  {
+    id: "product-spin",
+    label: "Product spin",
+    kind: "cinema",
+    loops: false,
+    hint: "Spins to the back, holds on it, then finishes the turn; the light follows round",
+    /*
+     * The product-page move. Half a turn to show the back, a beat of hold on
+     * it -- that is what a viewer actually reads -- then the second half home
+     * to the front. The light rides round with the turn at half its speed,
+     * so the back is lit from a different side than the front was.
+     */
+    build: (p, k = 1) => {
+      const angle = lightAngleAt(p, [0, -90 * k, -180 * k]);
+      return {
+        durationSec: 8,
+        tracks: {
+          yAxis: eased("yAxis", [
+            [0, p.yAxis, SLOW],
+            [2.6, p.yAxis + 180 * k],
+            [4, p.yAxis + 180 * k, SLOW],
+            [6.6, p.yAxis + 360 * k],
+            [8, p.yAxis + 360 * k],
+          ]),
+          lightAngle: eased("lightAngle", [
+            [0, angle[0], SLOW],
+            [2.6, angle[1]],
+            [4, angle[1], SLOW],
+            [6.6, angle[2]],
+            [8, angle[2]],
+          ]),
+        },
+      };
+    },
   },
   {
     id: "cut-reel",

@@ -1098,6 +1098,8 @@ export function useStudio(
               panZ: pose.panZ,
               fold: pose.fold,
               fov: pose.fov,
+              lightAngle: pose.lightAngle,
+              lightElevation: pose.lightElevation,
             }),
             // No clip to fit to in this shell, so the preset keeps the length it
             // was authored at.

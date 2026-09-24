@@ -702,6 +702,18 @@ const PRESETS: Preset[] = [
   { id: "tilt-glide" },
   { id: "bounce-drop" },
   { id: "screen-dive" },
+  /*
+   * The showcase set: six to eight seconds each, layering rotation with
+   * light and location. Same as above -- the tile plays the real move.
+   */
+  { id: "studio-sweep" },
+  { id: "light-pass" },
+  { id: "orbit-drift" },
+  { id: "figure-eight" },
+  { id: "turntable-glow" },
+  { id: "rise-and-turn" },
+  { id: "hero-sway" },
+  { id: "product-spin" },
 ];
 
 /*
@@ -998,6 +1010,7 @@ const CHANGELOG: { date: string; title: string; items: string[] }[] = [
     title: "Six new moves and ready-made backgrounds",
     items: [
       "Six new presets in Motion: Orbit reveal, Zoom punch, Spiral pop, Tilt glide, Bounce drop, and Screen dive to cut into a screen recording.",
+      "Eight longer showcase presets, six to eight seconds each, that layer rotation with light and location: Studio sweep, Light pass, Orbit drift, Figure eight, Turntable glow, Rise and turn, Hero sway and Product spin.",
       "Canvas background has Presets now, in categories — sixteen mesh-gradient backdrops across Light, Vivid and Dark, one click each.",
     ],
   },
