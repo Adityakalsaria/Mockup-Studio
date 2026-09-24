@@ -20,8 +20,9 @@ export const viewport: Viewport = {
  * `/mockup-studio/ui` -- so the address bar read mocraft.app/mockup-studio/ui
  * on the one site whose name is the product. Rendering it here gives it the
  * address it should have had; `/mockup-studio/ui` now redirects back to it so
- * nothing already linked breaks. The old editor keeps `/mockup-studio`, which
- * the pairing QR, the deep link and the iOS app all point at.
+ * nothing already linked breaks. `/mockup-studio` redirects here too -- the old
+ * editor that lived there is gone; only the phone's `join`, `remote` and
+ * `gyro-test` routes beside it remain, for the pairing QR and the iOS app.
  *
  * Open to anyone: the account is asked for at the export, not at the door, so
  * a visitor can make something before deciding it is worth signing in for.
