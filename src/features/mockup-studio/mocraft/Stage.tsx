@@ -150,6 +150,22 @@ function StageInner({
   const [bgAnchor, setBgAnchor] = useState<{ left: number; top: number } | null>(null);
 
   /*
+   * Full screen preview. The whole stage goes full screen, not just the shot:
+   * the shot sizes itself off this element's container units, so a full
+   * screen container gives it the screen to fit its ratio in -- the
+   * composition keeps its shape, with black beside it where the ratios differ.
+   * Fullscreening the shot alone would stretch it to the display, and the 3D
+   * scene would re-frame to a picture that is not the one that exports.
+   */
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const sync = () => setFullscreen(document.fullscreenElement === stageRef.current);
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+
+  /*
    * Off the SHOT's own frame, always the same `BG_PANEL_GAP` -- not clamped
    * against the rail. A clamp here was tried first, to stop the popup
    * landing on the rail at a narrow window, but the rail is drawn OVER the
@@ -278,6 +294,7 @@ function StageInner({
 
   return (
     <div
+      ref={stageRef}
       className="absolute inset-0 grid place-items-center"
       /*
        * No margin at Fill, and the inset at every other ratio.
@@ -287,7 +304,13 @@ function StageInner({
        * and a 40px band of dot grid around it would be a frame it did not ask
        * for.
        */
-      style={{ containerType: "size", padding: ratio === null ? 0 : INSET }}
+      style={{
+        containerType: "size",
+        // Nothing around the shot in a full screen preview: the screen is the
+        // frame, and the shot fits its ratio inside it.
+        padding: ratio === null || fullscreen ? 0 : INSET,
+        background: fullscreen ? "#000" : undefined,
+      }}
       // No browser menu over the shot: "Save Image As" / "Copy Image" would
       // hand out the render outside the studio's export (and its
       // watermark). Scoped to the stage -- text fields elsewhere keep theirs.
@@ -314,7 +337,7 @@ function StageInner({
         style={{
           // Square at Fill: a corner is what tells you where a shot ends, and
           // at Fill it ends at the window.
-          borderRadius: ratio === null ? 0 : "var(--mo-r-panel)",
+          borderRadius: ratio === null || fullscreen ? 0 : "var(--mo-r-panel)",
           ...backgroundCss(state.background),
           ...(ratio === null
             ? { width: "100%", height: "100%" }
@@ -322,7 +345,7 @@ function StageInner({
                 aspectRatio: String(ratio),
                 // Whichever of the two constraints binds first wins, so the
                 // frame always fits and never overflows.
-                width: `calc(min(100cqw, ${ratio} * 100cqh) * ${FRAME})`,
+                width: `calc(min(100cqw, ${ratio} * 100cqh) * ${fullscreen ? 1 : FRAME})`,
               }),
         }}
       >
@@ -427,6 +450,11 @@ function StageInner({
         {/* After the guide, so its handles sit on top of the lines they slide
             along rather than under them. */}
         {studio.focusPicking ? <FocusPickLayer studio={studio} /> : null}
+        {/* The two editing buttons and their popups step aside in a full screen
+            preview: the point of it is the shot, and a popup portalled to the
+            body would not be visible there anyway. */}
+        {!fullscreen ? (
+          <>
         {/* Quick access to the screen image, right on the surface it fills --
             the empty-screen outline used to live for exactly this, drawn over
             the screen itself; this is its replacement now that outline is
@@ -519,6 +547,42 @@ function StageInner({
             </MenuPopover>
           </>
         ) : null}
+          </>
+        ) : null}
+        {/* Full screen preview, bottom right -- the corner the editing buttons
+            leave free. Escape leaves it as well, which the browser handles; this
+            is the visible way out. Starts the clip from the top on the way in,
+            since the timeline is not there to press play on. */}
+        <div
+          className="pointer-events-auto absolute"
+          style={{ bottom: 12, right: 12 }}
+        >
+          <CircleButton
+            title={fullscreen ? "Exit full screen" : "Full screen preview"}
+            onClick={() => {
+              if (document.fullscreenElement) {
+                void document.exitFullscreen();
+                return;
+              }
+              void stageRef.current?.requestFullscreen();
+              const animated = Object.values(state.animation.tracks).some(
+                (keys) => keys && keys.length > 0,
+              );
+              if (motionMode && animated && !playing) {
+                studio.seek(0);
+                studio.togglePlay();
+              }
+            }}
+          >
+            <svg viewBox="0 0 20 20" width={20} height={20} aria-hidden fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+              {fullscreen ? (
+                <path d="M7.5 3.5v4h-4M12.5 3.5v4h4M7.5 16.5v-4h-4M12.5 16.5v-4h4" />
+              ) : (
+                <path d="M3.5 7.5v-4h4M16.5 7.5v-4h-4M3.5 12.5v4h4M16.5 12.5v4h-4" />
+              )}
+            </svg>
+          </CircleButton>
+        </div>
       </div>
     </div>
   );
