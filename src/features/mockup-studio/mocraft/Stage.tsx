@@ -22,7 +22,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import PhoneStage3D, { type ScreenBox } from "../PhoneStage3D";
 import { OverlayLayer } from "../OverlayLayer";
-import { backgroundClass, backgroundCss, CANVAS_BACKGROUNDS } from "../backgrounds";
+import { backgroundClass, backgroundCss, BACKGROUND_CATEGORIES } from "../backgrounds";
 import BackgroundImage from "../BackgroundImage";
 import { isOverlayActive } from "../overlay";
 import type { Studio } from "./useStudio";
@@ -610,7 +610,7 @@ function BackgroundFields({ studio, onClose }: { studio: Studio; onClose: () => 
       </ParamGroup>
       <Divider />
       <ParamGroup title="Presets">
-        <BackgroundPresetGrid
+        <BackgroundPresets
           selected={bg.kind === "image" ? bg.imageSrc : null}
           onPick={studio.pickBackground}
         />
@@ -648,9 +648,25 @@ function BackgroundFields({ studio, onClose }: { studio: Studio; onClose: () => 
 /** Corner of a backdrop chip: a well's corner, scaled to a chip a third its
     height, so it reads as a small picture rather than a colour swatch. */
 const PRESET_CHIP_R = 10;
+const PRESET_GAP = 8;
+/**
+ * Three and a half rows of chips, then the grid scrolls. The half row is the
+ * point: a category of wallpapers can run to dozens, and a row cut through
+ * its middle says there is more below where a clean edge would not.
+ */
+const PRESET_GRID_MAX = 3.5 * 52 + 3 * PRESET_GAP;
 
 /**
- * The ready-made backdrops, four to a row.
+ * The ready-made backdrops: a row of categories, then that category's chips,
+ * four to a row.
+ *
+ * Categories as small text chips rather than a segmented switch, because the
+ * switch divides its width evenly and the list grows -- three gradient sets
+ * today, and each imported wallpaper set adds one. The row scrolls sideways
+ * when it outgrows the panel.
+ *
+ * Opens on whichever category holds the backdrop already on the canvas, so
+ * reopening the panel shows the choice that was made.
  *
  * Chips of the picture itself, not names: a backdrop is chosen by eye. The
  * name rides on the title for anyone who hovers. The selected one carries an
@@ -658,37 +674,93 @@ const PRESET_CHIP_R = 10;
  * itself -- which reads on the light chips and the dark ones alike. Hover is
  * a small lift and nothing else.
  */
-function BackgroundPresetGrid({
+function BackgroundPresets({
   selected,
   onPick,
 }: {
   selected: string | null;
   onPick: (src: string) => void;
 }) {
+  const [categoryId, setCategoryId] = useState(
+    () =>
+      BACKGROUND_CATEGORIES.find((c) => c.items.some((i) => i.src === selected))?.id ??
+      BACKGROUND_CATEGORIES[0]?.id,
+  );
+  const category =
+    BACKGROUND_CATEGORIES.find((c) => c.id === categoryId) ?? BACKGROUND_CATEGORIES[0];
+  if (!category) return null;
+
   return (
-    <div className="grid grid-cols-4" style={{ gap: 8 }}>
-      {CANVAS_BACKGROUNDS.map((preset) => {
-        const on = preset.src === selected;
-        return (
-          <button
-            key={preset.id}
-            type="button"
-            title={preset.label}
-            aria-label={`${preset.label} background`}
-            aria-pressed={on}
-            onClick={() => onPick(preset.src)}
-            className="aspect-square w-full cursor-pointer transition-transform duration-150 ease-out hover:scale-[1.04]"
-            style={{
-              borderRadius: PRESET_CHIP_R,
-              backgroundImage: `url(${preset.thumb})`,
-              backgroundSize: "cover",
-              border: "var(--mo-swatch-edge)",
-              outline: on ? "1.5px solid var(--mo-ink)" : undefined,
-              outlineOffset: 2,
-            }}
-          />
-        );
-      })}
+    <div className="flex flex-col" style={{ gap: PRESET_GAP }}>
+      {BACKGROUND_CATEGORIES.length > 1 ? (
+        <div
+          role="tablist"
+          aria-label="Background categories"
+          className="mo-noscroll flex overflow-x-auto"
+          style={{
+            gap: 4,
+            // Fades the far edge, so a chip running under it reads as more
+            // to scroll to rather than as a label cut short.
+            WebkitMaskImage: "linear-gradient(to right, #000 calc(100% - 24px), transparent)",
+            maskImage: "linear-gradient(to right, #000 calc(100% - 24px), transparent)",
+          }}
+        >
+          {BACKGROUND_CATEGORIES.map((c) => {
+            const on = c.id === category.id;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => setCategoryId(c.id)}
+                className="mo-code shrink-0 cursor-pointer whitespace-nowrap transition-colors duration-150"
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: "var(--mo-r-pill)",
+                  background: on ? "var(--mo-field)" : "transparent",
+                  color: on ? "var(--mo-ink)" : "var(--mo-ink-muted)",
+                }}
+              >
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      <div
+        role="tabpanel"
+        className="mo-noscroll overflow-y-auto"
+        /* Room for the selected ring, which sits outside the chip -- the
+           scroller clips on both axes, so without it the outer chips' rings
+           were cut. The margin hands the room back. */
+        style={{ maxHeight: PRESET_GRID_MAX + 8, padding: 4, margin: -4 }}
+      >
+        <div className="grid grid-cols-4" style={{ gap: PRESET_GAP }}>
+          {category.items.map((preset) => {
+            const on = preset.src === selected;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                title={preset.label}
+                aria-label={`${preset.label} background`}
+                aria-pressed={on}
+                onClick={() => onPick(preset.src)}
+                className="aspect-square w-full cursor-pointer transition-transform duration-150 ease-out hover:scale-[1.04]"
+                style={{
+                  borderRadius: PRESET_CHIP_R,
+                  backgroundImage: `url(${preset.thumb})`,
+                  backgroundSize: "cover",
+                  border: "var(--mo-swatch-edge)",
+                  outline: on ? "1.5px solid var(--mo-ink)" : undefined,
+                  outlineOffset: 2,
+                }}
+              />
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
