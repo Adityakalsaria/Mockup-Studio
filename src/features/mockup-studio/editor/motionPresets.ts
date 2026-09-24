@@ -904,6 +904,192 @@ export const MOTION_PRESETS: MotionPreset[] = [
       },
     }),
   },
+  /* =========================================================================
+     THE MOCRAFT SET, continued -- AUTHORED to sit beside the measured three
+
+     Slide up, Rotation slide up and Reward Pop were read off reference files.
+     These five were not: there is no FBX behind them. They are written to the
+     shape the measured ones share, so they feel like the same family rather
+     than like the older, longer moves further down this file:
+
+       - about a second and a half of motion, then a flat hold to the clip's
+         end, so an export has room to settle and the tile preview loops on
+         the move rather than on the hold;
+       - two or three channels, never the whole rig;
+       - ONE cubic segment per channel, with the character in the curve --
+         a y past 1 is the overshoot, not an extra key past the mark;
+       - supporting channels land a beat before the primary one.
+
+     Every offset is scaled by `k` and added to the composed pose, and each one
+     ends exactly on it.
+     ========================================================================= */
+  {
+    id: "slide-down",
+    label: "Slide down",
+    kind: "cinema",
+    loops: false,
+    hint: "Drops in from above the frame, tipped back, and settles flat",
+    /*
+     * Slide up, mirrored: the same three channels on the same measured
+     * curves, with the rise and the tilt turned over. The depth move is not
+     * mirrored -- it still starts nearer the lens -- because that is what
+     * makes either one read as arriving rather than scrolling.
+     */
+    build: (p, k = 1) => ({
+      durationSec: 3,
+      tracks: {
+        panY: eased("panY", [
+          [
+            0,
+            p.panY - 6.461 * k,
+            { kind: "cubic", p: [0.0002, 0.84, 0.4596, 0.97] },
+          ],
+          [1.4333, p.panY],
+          [3, p.panY],
+        ]),
+        panZ: eased("panZ", [
+          [0, p.panZ + 0.5034 * k, { kind: "cubic", p: [0, 1.05, 0.1, 1.009] }],
+          [1.4333, p.panZ],
+          [3, p.panZ],
+        ]),
+        xAxis: eased("xAxis", [
+          [0, p.xAxis + 30 * k, { kind: "cubic", p: [0, 1.2, 0.931, 0.9] }],
+          [1.4333, p.xAxis],
+          [3, p.xAxis],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "swing-in",
+    label: "Swing in",
+    kind: "cinema",
+    loops: false,
+    hint: "Swings in from the side, turning to face you as it lands",
+    /*
+     * The travel carries it and is nearly done by 0.6s; the turn lags behind
+     * it and finishes last, a hair past square and back -- so the phone
+     * arrives, THEN faces you. A few degrees of roll give the swing its arc
+     * and are gone before the turn has settled.
+     */
+    build: (p, k = 1) => ({
+      durationSec: 3,
+      tracks: {
+        panX: eased("panX", [
+          [0, p.panX + 6 * k, { kind: "cubic", p: [0.05, 0.8, 0.3, 1] }],
+          [1.2, p.panX],
+          [3, p.panX],
+        ]),
+        yAxis: eased("yAxis", [
+          [0, p.yAxis + 70 * k, { kind: "cubic", p: [0.2, 0.6, 0.3, 1.06] }],
+          [1.5, p.yAxis],
+          [3, p.yAxis],
+        ]),
+        zAxis: eased("zAxis", [
+          [0, p.zAxis - 8 * k, { kind: "cubic", p: [0.2, 0.7, 0.4, 1] }],
+          [1.1, p.zAxis],
+          [3, p.zAxis],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "flip-up",
+    label: "Flip up",
+    kind: "cinema",
+    loops: false,
+    hint: "Stands up from lying flat, with a small bounce as it lands",
+    /*
+     * A card lifted off the table. The tilt is the move, and its curve is the
+     * only overshoot here -- a few degrees past upright and back. The rise
+     * and the scale are there so it comes UP to you rather than hinging in
+     * place, and both are resolved before the tilt lands.
+     */
+    build: (p, k = 1) => ({
+      durationSec: 3,
+      tracks: {
+        xAxis: eased("xAxis", [
+          [0, p.xAxis - 80 * k, { kind: "cubic", p: [0.3, 0.9, 0.35, 1.08] }],
+          [1.3, p.xAxis],
+          [3, p.xAxis],
+        ]),
+        panY: eased("panY", [
+          [0, p.panY + 1.4 * k, { kind: "cubic", p: [0.16, 1, 0.3, 1] }],
+          [1.0, p.panY],
+          [3, p.panY],
+        ]),
+        zoom: eased("zoom", [
+          [0, p.zoom * (1 - 0.14 * k), { kind: "cubic", p: [0.16, 1, 0.3, 1] }],
+          [1.0, p.zoom],
+          [3, p.zoom],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "spin-pop",
+    label: "Spin pop",
+    kind: "cinema",
+    loops: false,
+    hint: "Pops up from nothing on a quarter roll and settles",
+    /*
+     * Reward Pop's cousin, turned in the picture plane instead of through it:
+     * the screen faces you the whole way, so the shot reads from the first
+     * frame. The scale overshoots in its curve; the roll does not, and
+     * finishes later, so the two resolve at different moments -- the same
+     * offset that makes Reward Pop feel alive.
+     */
+    build: (p, k = 1) => ({
+      durationSec: 2.5,
+      tracks: {
+        zAxis: eased("zAxis", [
+          [0, p.zAxis - 90 * k, { kind: "cubic", p: [0.16, 1, 0.3, 1] }],
+          [1.1, p.zAxis],
+          [2.5, p.zAxis],
+        ]),
+        zoom: eased("zoom", [
+          [0, p.zoom * (1 - 0.9999 * k), CURVE.heavy],
+          [0.8, p.zoom],
+          [2.5, p.zoom],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "float-in",
+    label: "Float in",
+    kind: "cinema",
+    loops: false,
+    hint: "Drifts up into place and eases flat -- a quiet, slow arrival",
+    /*
+     * The calm one, for a shot that should not announce itself: short
+     * distances, no overshoot anywhere, and the longest settle of the set.
+     */
+    build: (p, k = 1) => ({
+      durationSec: 3,
+      tracks: {
+        panY: eased("panY", [
+          [0, p.panY + 1.6 * k, { kind: "cubic", p: [0.25, 0.8, 0.3, 1] }],
+          [1.8, p.panY],
+          [3, p.panY],
+        ]),
+        xAxis: eased("xAxis", [
+          [0, p.xAxis - 14 * k, { kind: "cubic", p: [0.3, 0.7, 0.3, 1] }],
+          [2.0, p.xAxis],
+          [3, p.xAxis],
+        ]),
+        zoom: eased("zoom", [
+          [
+            0,
+            p.zoom * (1 - 0.06 * k),
+            { kind: "cubic", p: [0.25, 0.8, 0.3, 1] },
+          ],
+          [1.8, p.zoom],
+          [3, p.zoom],
+        ]),
+      },
+    }),
+  },
   {
     id: "cut-reel",
     label: "Cut reel",

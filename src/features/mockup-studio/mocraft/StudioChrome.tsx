@@ -691,6 +691,16 @@ const PRESETS: Preset[] = [
    */
   { id: "slide-up", art: "pan-out", w: 200, h: 232 },
   { id: "rotation-slide-up", art: "sweep", w: 200, h: 232 },
+  /*
+   * Authored to the measured three's shape -- see the note above them in
+   * `motionPresets`. No drawings of their own: the tile draws the device and
+   * plays the real move on it, which is what tells them apart.
+   */
+  { id: "slide-down" },
+  { id: "swing-in" },
+  { id: "flip-up" },
+  { id: "spin-pop" },
+  { id: "float-in" },
 ];
 
 /*
@@ -729,24 +739,78 @@ function PresetScroller({
     if (!el) return;
 
     const measure = () => {
-      const tiles = el.querySelectorAll<HTMLElement>("[data-preset-tile]");
+      // The real tiles only. The selection lens draws every tile a second
+      // time in an `aria-hidden` layer, so once a preset was picked the
+      // "ninth tile" was the lens's copy of the FIRST -- at the first row's
+      // height -- and the cap came out at zero. It hid behind a grid too
+      // short to have a ninth tile of its own.
+      const tiles = Array.from(
+        el.querySelectorAll<HTMLElement>("[data-preset-tile]"),
+      ).filter((tile) => !tile.closest("[aria-hidden]"));
       const cut = tiles[VISIBLE_PRESETS];
       // `offsetTop` is measured against whichever ancestor is positioned, but
       // both tiles share it, so the difference is the layout distance either
       // way and there is nothing to resolve.
-      setMaxHeight(
-        cut
-          ? cut.offsetTop - tiles[0].offsetTop - gap + SCROLL_ROOM * 2
-          : undefined,
-      );
+      const rows = cut
+        ? cut.offsetTop - tiles[0].offsetTop - gap + SCROLL_ROOM * 2
+        : Infinity;
+      const cap = Math.min(rows, bandRoom());
+      setMaxHeight(Number.isFinite(cap) ? Math.max(0, cap) : undefined);
+    };
+
+    /*
+     * The row cap is not enough on its own once four rows are real. The popup
+     * is centred on the side panel and never scrolls as a whole, so in a
+     * window too short for all four rows it reached evenly above and below
+     * the panel -- and above, that put its header off the top of the screen.
+     * So the tiles also stop where the popup would pass the top of the side
+     * band (or, in a very short window, the bottom of the window), measured
+     * from the panel's middle, which is the popup's, less everything in the
+     * popup that is not tiles.
+     *
+     * The band's TOP only. Its bottom rises when a preset's lanes push the
+     * gizmo up above the timeline, past the panel's own middle, and bounding
+     * by it folded the popup to a sliver the moment a preset was picked.
+     *
+     * A cut here lands mid-row, which is the point: a row showing half of
+     * itself says the grid scrolls, where a clean boundary would hide that
+     * there is more.
+     */
+    const popup = el.closest<HTMLElement>('[data-tour="popup"]');
+    const band = el.closest<HTMLElement>("[data-popup-band]");
+    const glass = el.parentElement?.closest<HTMLElement>(".mo-glass");
+    const bandRoom = () => {
+      if (!popup || !band || !glass) return Infinity;
+      const p = popup.getBoundingClientRect();
+      // Mid-transition the column can be momentarily flat; a cap taken then
+      // would be zero, and would stick.
+      if (p.height === 0) return Infinity;
+      const top = band.getBoundingClientRect().top;
+      // The 16 every piece of chrome keeps from the window's edge.
+      const bottom = window.innerHeight - 16;
+      const middle = p.top + p.height / 2;
+      const half = Math.min(middle - top, bottom - middle);
+      // The glass's height less the scroller's own is its header and padding
+      // -- whatever the scroller is capped to, that part stays.
+      const chrome = glass.offsetHeight - el.offsetHeight;
+      return 2 * half - chrome;
     };
 
     measure();
     // Panels resize with the window, and a narrower column means squarer
-    // tiles means a different row boundary.
+    // tiles means a different row boundary. The popup's column and the band
+    // are watched too: the column is the side panel's height, which changes
+    // under the popup as the timeline grows lanes -- and the tiles do not, so
+    // watching them alone left a cap measured mid-change in place for good.
     const observer = new ResizeObserver(measure);
     observer.observe(el);
-    return () => observer.disconnect();
+    if (popup) observer.observe(popup);
+    if (band) observer.observe(band);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, [gap, children]);
 
   return (
@@ -924,6 +988,14 @@ const SHORTCUTS: { title: string; items: [string[], string][] }[] = [
  * history, one entry per release worth telling someone about.
  */
 const CHANGELOG: { date: string; title: string; items: string[] }[] = [
+  {
+    date: "24 Sep 2026",
+    title: "Five new moves and ready-made backgrounds",
+    items: [
+      "Five new presets in Motion: Slide down, Swing in, Flip up, Spin pop and Float in.",
+      "Canvas background has Presets now — twelve mesh-gradient backdrops, from a soft Studio grey to Ember, one click each.",
+    ],
+  },
   {
     date: "23 Sep 2026",
     title: "Screen image and Canvas background, right on the canvas",
@@ -4139,6 +4211,7 @@ export default function StudioChrome({
             can resolve against. A flex item that had shrunk is not.
           */}
           <div
+            data-popup-band
             className="pointer-events-none absolute grid content-center justify-items-end [&>*]:pointer-events-auto"
             style={{
               right: 16,
