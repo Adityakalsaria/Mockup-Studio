@@ -927,7 +927,7 @@ const CHANGELOG: { date: string; title: string; items: string[] }[] = [
     date: "24 Sep 2026",
     title: "Full screen preview",
     items: [
-      "A full screen preview button in the canvas's bottom-right corner: the shot on its own at the screen's size, keeping its ratio, playing from the top if there is a clip. Escape leaves it.",
+      "A full screen preview button in the canvas's bottom-right corner: the shot filling the window, keeping its ratio, easing in and out, and playing from the top if there is a clip. Escape leaves it.",
     ],
   },
   {

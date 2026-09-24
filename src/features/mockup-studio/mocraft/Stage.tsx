@@ -20,6 +20,7 @@
  */
 
 import { memo, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import PhoneStage3D, { type ScreenBox } from "../PhoneStage3D";
 import { OverlayLayer } from "../OverlayLayer";
 import { backgroundClass, backgroundCss } from "../backgrounds";
@@ -156,78 +157,85 @@ function StageInner({
   const [bgAnchor, setBgAnchor] = useState<{ left: number; top: number } | null>(null);
 
   /*
-   * Full screen preview. The whole stage, not just the shot: the shot sizes
-   * itself off the stage's container units, so a stage that fills the screen
-   * gives it the screen to fit its ratio in -- the composition keeps its shape,
-   * with black beside it where the ratios differ. Fullscreening the shot alone
-   * would stretch it to the display, and the 3D scene would re-frame to a
-   * picture that is not the one that exports.
+   * Full screen preview: the stage lifts over the whole window and the shot
+   * fills it, keeping its ratio (black beside it where the ratios differ). The
+   * whole stage, not just the shot: the shot sizes itself off the stage's
+   * container units, and stretching the shot alone to the display would
+   * re-frame the 3D scene to a picture that is not the one that exports.
    *
-   * Two things, in order, and the order is the smoothness. `fullscreen` is the
-   * PREVIEW: the stage lifts over the whole window (fixed, above the chrome)
-   * and the shot eases up to fill it. The browser's own full screen comes
-   * after, to hide its tabs and address bar, and on the way out it goes first.
-   * Either way the layout on screen is already the preview's when the browser
-   * changes mode, so the resize that follows has nothing wrong to show. Asking
-   * the browser first, as this once did, painted one frame of the old layout
-   * in the new window before anything could ease -- the snap.
+   * It is in the PAGE, not the browser's Fullscreen API, and that is what
+   * makes it smooth. The API resizes the whole viewport in one step before the
+   * page is told, and there is no frame to hide that jump in; the canvas
+   * re-measures with it. Here nothing outside the shot changes size.
+   *
+   * The move is a FLIP: the layout jumps to its final state at once, the
+   * shot's old rectangle is measured first and its new one after, and a
+   * transform carries it from one to the other. A transform runs on the
+   * compositor and leaves layout alone, so the 3D canvas is resized ONCE,
+   * where easing the shot's width made it re-measure and redraw on every frame
+   * of the move -- which is what read as stutter.
    */
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
-  /*
-   * True only while the shot is easing between its two sizes. The transition
-   * is switched on for the toggle and off again after it, not left on: a
-   * ratio change is meant to land at once (see the note above the frame), and
-   * a standing transition on the shot's width would ease that too -- the
-   * canvas resizing every frame of it, at a shape halfway between two ratios.
-   */
+  /* True while the move runs: the stage stays lifted over the chrome, and the
+     black behind the shot fades rather than cuts. */
   const [fsMoving, setFsMoving] = useState(false);
   const fsTimer = useRef(0);
   const moveTo = (next: boolean) => {
-    setFsMoving(true);
-    setFullscreen(next);
+    const shot = shotRef.current;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const first = shot?.getBoundingClientRect();
+    const radiusFrom = shot ? parseFloat(getComputedStyle(shot).borderTopLeftRadius) || 0 : 0;
+    // Committed now, so the next measurement is the final layout.
+    flushSync(() => {
+      setFullscreen(next);
+      setFsMoving(true);
+    });
     window.clearTimeout(fsTimer.current);
-    fsTimer.current = window.setTimeout(() => setFsMoving(false), FULLSCREEN_MS + 100);
+    fsTimer.current = window.setTimeout(() => setFsMoving(false), FULLSCREEN_MS + 50);
+    if (!shot || !first || reduced) return;
+    const last = shot.getBoundingClientRect();
+    if (!last.width || !last.height) return;
+    const sx = first.width / last.width;
+    const sy = first.height / last.height;
+    const radiusTo = parseFloat(getComputedStyle(shot).borderTopLeftRadius) || 0;
+    shot.style.transformOrigin = "0 0";
+    shot.animate(
+      [
+        {
+          transform: `translate(${first.left - last.left}px, ${first.top - last.top}px) scale(${sx}, ${sy})`,
+          // Divided by the scale it is drawn under, so it reads as the radius
+          // the shot had on screen.
+          borderRadius: `${radiusFrom / sx}px`,
+        },
+        { transform: "none", borderRadius: `${radiusTo}px` },
+      ],
+      { duration: FULLSCREEN_MS, easing: FULLSCREEN_EASE },
+    );
   };
+  const fullscreenRef = useRef(false);
   useEffect(() => {
-    // The browser left full screen -- our own exit, or Escape, which is the
-    // browser's and cannot be intercepted. The preview follows it out.
-    const sync = () => {
-      if (!document.fullscreenElement) moveTo(false);
-    };
-    // Escape with only the in-page preview up (the browser refused full
-    // screen, or has not been asked yet) is ours to hear.
+    fullscreenRef.current = fullscreen;
+  });
+  useEffect(() => {
+    // Escape leaves the preview -- only while it is up, or `moveTo(false)`
+    // would flash the black over a shot that is already normal.
     const key = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !document.fullscreenElement) moveTo(false);
+      if (event.key === "Escape" && fullscreenRef.current) moveTo(false);
     };
-    document.addEventListener("fullscreenchange", sync);
     document.addEventListener("keydown", key);
     return () => {
       window.clearTimeout(fsTimer.current);
-      document.removeEventListener("fullscreenchange", sync);
       document.removeEventListener("keydown", key);
     };
   }, []);
   const toggleFullscreen = () => {
-    const stage = stageRef.current;
-    if (!stage) return;
-    if (fullscreen) {
-      // Browser first if it is in full screen; its change event then carries
-      // the preview out. If it never went, the preview just closes.
-      if (document.fullscreenElement) void document.exitFullscreen();
-      else moveTo(false);
-      return;
-    }
-    moveTo(true);
-    // After the shot has grown, so the browser's resize lands on a preview
-    // that is already up. A refusal leaves the in-page preview, which is fine.
-    window.setTimeout(() => {
-      void stage.requestFullscreen().catch(() => {});
-    }, FULLSCREEN_MS);
+    const entering = !fullscreen;
+    moveTo(entering);
     const animated = Object.values(state.animation.tracks).some(
       (keys) => keys && keys.length > 0,
     );
-    if (motionMode && animated && !playing) {
+    if (entering && motionMode && animated && !playing) {
       studio.seek(0);
       studio.togglePlay();
     }
@@ -416,9 +424,6 @@ function StageInner({
           // Square at Fill: a corner is what tells you where a shot ends, and
           // at Fill it ends at the window.
           borderRadius: ratio === null || fullscreen ? 0 : "var(--mo-r-panel)",
-          transition: fsMoving
-            ? `width ${FULLSCREEN_MS}ms ${FULLSCREEN_EASE}, border-radius ${FULLSCREEN_MS}ms ${FULLSCREEN_EASE}`
-            : undefined,
           ...backgroundCss(state.background),
           ...(ratio === null
             ? { width: "100%", height: "100%" }
