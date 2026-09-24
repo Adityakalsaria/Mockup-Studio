@@ -1010,6 +1010,7 @@ const CHANGELOG: { date: string; title: string; items: string[] }[] = [
     title: "Six new moves and ready-made backgrounds",
     items: [
       "Six new presets in Motion: Orbit reveal, Zoom punch, Spiral pop, Tilt glide, Bounce drop, and Screen dive to cut into a screen recording.",
+      "Pick several presets and they chain: each one is added after the last on the same timeline and plays from where it begins. Shift-click replaces the timeline instead.",
       "Eight longer showcase presets, six to eight seconds each, that layer rotation with light and location: Studio sweep, Light pass, Orbit drift, Figure eight, Turntable glow, Rise and turn, Hero sway and Product spin.",
       "Canvas background has Presets now, in categories — sixteen mesh-gradient backdrops across Light, Vivid and Dark, one click each.",
     ],
@@ -1548,7 +1549,7 @@ function PresetTile({
   /** Hovered — play the move on the drawing. See `usePresetPreview`. */
   playing: boolean;
   onHover: (id: string | null) => void;
-  onClick: () => void;
+  onClick: (event: React.MouseEvent) => void;
 }) {
   const art = usePresetPreview(preset.id, playing);
   return (
@@ -3283,8 +3284,13 @@ export default function StudioChrome({
           // tile it covers.
           playing={preset.id === hoveredPreset}
           onHover={setHoveredPreset}
-          // Applies the move AND plays it once.
-          onClick={() => studio.pickPreset(preset.id)}
+          // Adds the move AFTER whatever is already on the timeline and plays
+          // it -- picking several builds one clip out of them. Shift replaces
+          // the timeline with just this one. With nothing on it yet the two
+          // are the same.
+          onClick={(event) =>
+            studio.pickPreset(preset.id, event.shiftKey ? "replace" : "add")
+          }
         />
       ))}
     </RowGroup>

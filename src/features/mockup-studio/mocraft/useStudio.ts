@@ -1072,41 +1072,91 @@ export function useStudio(
    * it is the same gesture as flipping through a gallery.
    */
   const pickPreset = useCallback(
-    (id: string) => {
+    (id: string, mode: "add" | "replace" = "add") => {
       const preset = getMotionPreset(id);
       if (!preset) return;
       const pose = stateRef.current;
+      const built = preset.build({
+        xAxis: pose.xAxis,
+        yAxis: pose.yAxis,
+        zAxis: pose.zAxis,
+        zoom: pose.zoom,
+        panX: pose.panX,
+        panY: pose.panY,
+        panZ: pose.panZ,
+        fold: pose.fold,
+        fov: pose.fov,
+        lightAngle: pose.lightAngle,
+        lightElevation: pose.lightElevation,
+      });
+      const hasClip = Object.values(stateRef.current.animation.tracks).some(
+        (keys) => keys && keys.length > 0,
+      );
+      // Where the move being added begins: the end of what is already there.
+      // Zero for a replace, or when there is nothing to come after.
+      const adding = mode === "add" && hasClip;
+      const seam = adding ? stateRef.current.animation.durationSec : 0;
       setPresetId(id);
-      playheadRef.current = 0;
+      playheadRef.current = seam;
       // A preset replaces every keyframe in the shot, which is the largest edit
       // this shell can make in one press and the one most worth being able to
-      // take back. Its own entry, never folded into a neighbouring gesture.
+      // take back. Adding one is smaller but is still a whole move at once.
+      // Its own entry, never folded into a neighbouring gesture.
       lastEditAt.current = 0;
       record();
-      setState((prev) => ({
-        ...prev,
-        animation: {
-          easing: prev.animation.easing,
-          ...fitToClip(
-            preset.build({
-              xAxis: pose.xAxis,
-              yAxis: pose.yAxis,
-              zAxis: pose.zAxis,
-              zoom: pose.zoom,
-              panX: pose.panX,
-              panY: pose.panY,
-              panZ: pose.panZ,
-              fold: pose.fold,
-              fov: pose.fov,
-              lightAngle: pose.lightAngle,
-              lightElevation: pose.lightElevation,
-            }),
-            // No clip to fit to in this shell, so the preset keeps the length it
-            // was authored at.
-            0,
-          ),
-        },
-      }));
+      setState((prev) => {
+        if (!adding) {
+          return {
+            ...prev,
+            animation: {
+              easing: prev.animation.easing,
+              // No clip to fit to in this shell, so the preset keeps the length
+              // it was authored at.
+              ...fitToClip(built, 0),
+            },
+          };
+        }
+        /*
+         * Added AFTER what is there, as a cut.
+         *
+         * Every preset is authored relative to the framing and starts a little
+         * off it, so the move added here begins somewhere the last one did not
+         * end. Rather than tween between the two -- which would play as a
+         * stray move nobody asked for -- each lane the new move touches holds
+         * its last value and cuts to the new one. A lane the clip never
+         * animated before is pinned to its resting value first, or the new
+         * keys would reach back and hold their first value across everything
+         * that played before them.
+         *
+         * A fifty-millisecond gap, not zero: a preset's own closing hold sits
+         * exactly on the clip's end, and two keys at one time is a state the
+         * sampler has no answer for.
+         */
+        const start = Number((prev.animation.durationSec + 0.05).toFixed(4));
+        const tracks: typeof prev.animation.tracks = { ...prev.animation.tracks };
+        for (const [key, added] of Object.entries(built.tracks) as [
+          AnimatableKey,
+          Keyframe[] | undefined,
+        ][]) {
+          if (!added?.length) continue;
+          const before = tracks[key] ?? [];
+          const held: Keyframe[] = before.length
+            ? [...before.slice(0, -1), { ...before[before.length - 1], easing: { kind: "step" } }]
+            : [{ time: 0, value: Number(prev[key]), easing: { kind: "step" } }];
+          tracks[key] = [
+            ...held,
+            ...added.map((k) => ({ ...k, time: Number((k.time + start).toFixed(4)) })),
+          ];
+        }
+        return {
+          ...prev,
+          animation: {
+            ...prev.animation,
+            durationSec: Number((start + built.durationSec).toFixed(2)),
+            tracks,
+          },
+        };
+      });
       setPlaying(true);
     },
     [record],
