@@ -691,15 +691,16 @@ const PRESETS: Preset[] = [
   { id: "slide-up", art: "pan-out", w: 200, h: 232 },
   { id: "rotation-slide-up", art: "sweep", w: 200, h: 232 },
   /*
-   * Authored to the measured three's shape -- see the note above them in
-   * `motionPresets`. No drawings of their own: the tile draws the device and
-   * plays the real move on it, which is what tells them apart.
+   * Authored, not measured -- see the note above them in `motionPresets`.
+   * No drawings of their own: the tile draws the device and plays the real
+   * move on it, which is what tells them apart.
    */
-  { id: "slide-down" },
-  { id: "swing-in" },
-  { id: "flip-up" },
-  { id: "spin-pop" },
-  { id: "float-in" },
+  { id: "orbit-reveal" },
+  { id: "zoom-punch" },
+  { id: "spiral-pop" },
+  { id: "tilt-glide" },
+  { id: "bounce-drop" },
+  { id: "screen-dive" },
 ];
 
 /*
@@ -989,10 +990,10 @@ const SHORTCUTS: { title: string; items: [string[], string][] }[] = [
 const CHANGELOG: { date: string; title: string; items: string[] }[] = [
   {
     date: "24 Sep 2026",
-    title: "Five new moves and ready-made backgrounds",
+    title: "Six new moves and ready-made backgrounds",
     items: [
-      "Five new presets in Motion: Slide down, Swing in, Flip up, Spin pop and Float in.",
-      "Canvas background has Presets now — twelve mesh-gradient backdrops, from a soft Studio grey to Ember, one click each.",
+      "Six new presets in Motion: Orbit reveal, Zoom punch, Spiral pop, Tilt glide, Bounce drop, and Screen dive to cut into a screen recording.",
+      "Canvas background has Presets now, in categories — twelve mesh-gradient backdrops across Light, Vivid and Dark, one click each.",
     ],
   },
   {
