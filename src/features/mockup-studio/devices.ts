@@ -753,7 +753,13 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-17",
     label: "Apple iPhone 17",
-    modelPath: `${MODELS}/m-3463a6858cfef1fd.glb`,
+    /*
+     * Turned to face the camera: this Blender export, like the 17 Pro's,
+     * models the phone facing away, and the stage's default yaw would open on
+     * its back.
+     */
+    modelYawDeg: 180,
+    modelPath: `${MODELS}/m-9bf80864e30e7a51.glb`,
     hideHints: [],
     /*
      * 66.5 x 144.9mm, aspect 0.4587 against 1206 x 2622's 0.4600.
@@ -762,7 +768,7 @@ export const DEVICES: Device[] = [
      * 6.3-inch panel at 460ppi is 66.6 x 144.8mm, so the mesh is within two
      * tenths of a millimetre on both axes.
      */
-    screenMaterial: "iqSsZrznlbGUhNs",
+    screenMaterial: "JYaVgRyCxtrmyCa.002",
     /*
      * The surfaces that ARE the finish -- an allow-list, so a material nobody
      * classified keeps what Apple authored instead of being painted.
@@ -776,26 +782,23 @@ export const DEVICES: Device[] = [
      */
     finishMaterials: [
       // The back shell, the rails, and the panels between them.
-      "SSCOTROIPktOHPN",
-      "sWPfdEwNBQxWmmj",
-      "QHnEMQTzosCQTsD",
+      "SLmJkLdkhbbuEfG.001", "SSCOTROIPktOHPN.007",
+      "sWPfdEwNBQxWmmj", "sWPfdEwNBQxWmmj.001",
+      "QHnEMQTzosCQTsD", "QHnEMQTzosCQTsD.001", "QHnEMQTzosCQTsD.002",
       "qctyujhTxZaVOMy",
       "ttTjynsjERFvYxa",
-      "lBQHEyACJPuljkC",
+      "PJgHvfOhNXkxvzq.001",
       // The back glass. Textured, which is what hid them.
-      "KChxKESNhKjaHJY",
-      "NWVRqxSZYCCnuGM",
+      "KChxKESNhKjaHJY", "NWVRqxSZYCCnuGM",
       // The camera plateau and its rings.
       // The plateau shell itself. Textured like the back glass, and hidden by
       // the same rule: 25.0 x 42.5mm at z 3.8..5.8, which is the bump.
-      "botRksrkmicTufW",
-      "GSJgRpZoabPIkha",
+      "botRksrkmicTufW.001",
+      "GSJgRpZoabPIkha", "GSJgRpZoabPIkha.001",
       "ThlRTlIfGAMlfQi",
-      "BZMPiKcUUzPQcpW",
       "TeFnKcOBMBwAIln",
       "kqZbamRFCmYvdWV",
-      "EbFQbFEYKgUZRPQ",
-      "oKEipclYWPpUKiP",
+      "SLmJkLdkhbbuEfG.002",
     ],
     /*
      * `NWVRqxSZYCCnuGM` is declared `alphaMode: "BLEND"` over a fully opaque
@@ -824,7 +827,7 @@ export const DEVICES: Device[] = [
      * its own mesh (`botRksrkmicTufW`) and its own entry below, which is the
      * right place to give it back its depth.
      */
-    plainMaterials: ["KChxKESNhKjaHJY", "NWVRqxSZYCCnuGM", "botRksrkmicTufW"],
+    plainMaterials: ["KChxKESNhKjaHJY", "NWVRqxSZYCCnuGM", "botRksrkmicTufW.001"],
     /*
      * What this file is: the back shell states linear 0.631/0.533/0.750, which
      * is #d0c1e1 -- Lavender. Any textured body material is recoloured from
@@ -858,14 +861,14 @@ export const DEVICES: Device[] = [
      * and what that lighten really sets is how dark the REFLECTIONS come back.
      */
     meshColors: {
-      GMafcrtCzpsZpsb: RAIL,
-      CpxQiFcpQUiESUC: RAIL,
+      "GMafcrtCzpsZpsb": RAIL,
+      "CpxQiFcpQUiESUC": RAIL,
       /*
        * The pad the lenses sit in -- 19.6 x 37.0mm. By mesh, because
        * `KChxKESNhKjaHJY` is also the whole back panel, and the back is a soft
        * frosted glass where this is polished.
        */
-      jefwjNZicFpvTUO: PLATEAU,
+      "jefwjNZicFpvTUO": PLATEAU,
     },
     /*
      * The Air's treatment, role for role.
@@ -905,9 +908,10 @@ export const DEVICES: Device[] = [
        *
        * The lift is kept; the surface is now stated with it.
        */
-      SSCOTROIPktOHPN: { ...BACK_GLASS, lighten: 0.1 },
-      KChxKESNhKjaHJY: BACK_GLASS,
-      NWVRqxSZYCCnuGM: BACK_GLASS,
+      "SLmJkLdkhbbuEfG.001": { ...BACK_GLASS, lighten: 0.1 },
+      "SSCOTROIPktOHPN.007": { ...BACK_GLASS, lighten: 0.1 },
+      "KChxKESNhKjaHJY": BACK_GLASS,
+      "NWVRqxSZYCCnuGM": BACK_GLASS,
       /*
        * The camera plateau, a shade under the back.
        *
@@ -933,7 +937,7 @@ export const DEVICES: Device[] = [
        * already authors that one at roughness 0.1 and 25% alpha, and an
        * override sets colour and leaves the surface alone.
        */
-      botRksrkmicTufW: PLATEAU,
+      "botRksrkmicTufW.001": PLATEAU,
       /*
        * The surround around each lens -- 13.8mm, and the thing that was
        * actually dark.
@@ -950,7 +954,8 @@ export const DEVICES: Device[] = [
        * body colour reads across the whole bump and the lenses still sit in
        * something deeper than the back.
        */
-      wiybngYOfUNIZCW: PLATEAU,
+      "wiybngYOfUNIZCW": PLATEAU,
+      "wiybngYOfUNIZCW.001": PLATEAU,
       /*
        * The Apple mark -- 15.7 x 19.3mm at dead centre of the back, which is
        * how it was found after being filed with the camera rings.
@@ -959,19 +964,20 @@ export const DEVICES: Device[] = [
        * the glass, so it catches less light than the panel around it and reads
        * as etched rather than as printed.
        */
-      TeFnKcOBMBwAIln: { darken: 0.12 },
-      EbFQbFEYKgUZRPQ: { darken: 0.12 },
+      "TeFnKcOBMBwAIln": { darken: 0.12 },
+      "SLmJkLdkhbbuEfG.002": { darken: 0.12 },
       // The rail, and the camera rings that match it on the real phone.
-      sWPfdEwNBQxWmmj: RAIL,
-      GSJgRpZoabPIkha: RING,
+      "sWPfdEwNBQxWmmj": RAIL,
+      "sWPfdEwNBQxWmmj.001": RAIL,
+      "GSJgRpZoabPIkha": RING,
+      "GSJgRpZoabPIkha.001": RING,
       /*
        * The two antenna bands: 38.00 x 0.09mm and 15.32 x 0.40mm, both at
        * y = -74.8. A line four tenths of a millimetre across is a cut through
        * the rail, not a part of it.
        */
-      ThlRTlIfGAMlfQi: ANTENNA,
-      BZMPiKcUUzPQcpW: ANTENNA,
-      qctyujhTxZaVOMy: { darken: 0.06, saturate: 0.4 },
+      "ThlRTlIfGAMlfQi": ANTENNA,
+      "qctyujhTxZaVOMy": { darken: 0.06, saturate: 0.4 },
       /*
        * The pad over the plateau, matched to it.
        *
@@ -983,12 +989,13 @@ export const DEVICES: Device[] = [
        *
        * Same step as the plateau underneath, so the two read as one surface.
        */
-      oKEipclYWPpUKiP: PLATEAU,
       // Small parts flush with the rail, kept on their measured offsets.
-      QHnEMQTzosCQTsD: { darken: 0.05, saturate: 0.31 },
-      ttTjynsjERFvYxa: { darken: 0.08, saturate: 0.57 },
-      lBQHEyACJPuljkC: { darken: 0.08, saturate: 0.57 },
-      kqZbamRFCmYvdWV: { darken: 0.06, saturate: 1.09 },
+      "QHnEMQTzosCQTsD": { darken: 0.05, saturate: 0.31 },
+      "QHnEMQTzosCQTsD.001": { darken: 0.05, saturate: 0.31 },
+      "QHnEMQTzosCQTsD.002": { darken: 0.05, saturate: 0.31 },
+      "ttTjynsjERFvYxa": { darken: 0.08, saturate: 0.57 },
+      "PJgHvfOhNXkxvzq.001": { darken: 0.08, saturate: 0.57 },
+      "kqZbamRFCmYvdWV": { darken: 0.06, saturate: 1.09 },
     },
     /*
      * Apple's own lineup for this phone. Lavender first because it is what
@@ -1031,7 +1038,7 @@ export const DEVICES: Device[] = [
     // A new filename, not the old one reused: `public/` is served immutable for
     // a year, so browsers that had the previous 17 Pro kept loading it under
     // this entry's part names, which it does not have.
-    modelPath: `${MODELS}/m-54874f8214482e51.glb`,
+    modelPath: `${MODELS}/m-f753659dc25be3a8.glb`,
     hideHints: [],
     // The LiDAR window sat at the bottom of its barrel, 1.2mm inside the body
     // while the flash beside it is flush. Brought up to the barrel's rim, level
@@ -1066,20 +1073,44 @@ export const DEVICES: Device[] = [
       },
       // The antenna bands.
       "sJxAokqqlZYuwzy.008": { lighten: 0, roughness: 0.52, metalness: 0.08 },
-      "yPEFElLJTRhfWfw.004": { darken: 0.12 },
       "awYxKfiOpRgQIxD.004": { darken: 0.12 },
     },
     meshColors: {
       "IvdeSiYDweqsnZm.004": "#0d0d0f",
+      "IvdeSiYDweqsnZm.006": "#0d0d0f",
+      "IvdeSiYDweqsnZm.007": "#0d0d0f",
       "RhBESHcBbtHIQyo.004": "#0d0d0f",
       "yTmdRacfvebHTTS.004": "#101013",
+      "yTmdRacfvebHTTS.006": "#101013",
+      "yTmdRacfvebHTTS.007": "#101013",
+      "yTmdRacfvebHTTS.008": "#101013",
+      "yTmdRacfvebHTTS.009": "#101013",
+      "yTmdRacfvebHTTS.010": "#101013",
+      "yTmdRacfvebHTTS.011": "#101013",
+      "yTmdRacfvebHTTS.012": "#101013",
+      "yTmdRacfvebHTTS.013": "#101013",
+      "yTmdRacfvebHTTS.014": "#101013",
+      "yTmdRacfvebHTTS.015": "#101013",
+      "yTmdRacfvebHTTS.016": "#101013",
+      "yTmdRacfvebHTTS.017": "#101013",
+      "yTmdRacfvebHTTS.018": "#101013",
+      "yTmdRacfvebHTTS.019": "#101013",
+      "yTmdRacfvebHTTS.020": "#101013",
+      "yTmdRacfvebHTTS.021": "#101013",
+      "yTmdRacfvebHTTS.022": "#101013",
+      "yTmdRacfvebHTTS.023": "#101013",
+      "yTmdRacfvebHTTS.024": "#101013",
+      "yTmdRacfvebHTTS.025": "#101013",
+      "yTmdRacfvebHTTS.026": "#101013",
+      "yTmdRacfvebHTTS.027": "#101013",
+      "yTmdRacfvebHTTS.028": "#101013",
+      "yTmdRacfvebHTTS.029": "#101013",
+      "yTmdRacfvebHTTS.030": "#101013",
     },
     keepMaterials: [
       "uFgsppDNoPNkBqW.060",
       "nypJRzXNHbmJCqR.012",
-      "ieDmCkHnOnSIOcm.004",
-      "ieDmCkHnOnSIOcm.006",
-      "LqxrKBoiOXSOFqs.008",
+      "ieDmCkHnOnSIOcm.004", "ieDmCkHnOnSIOcm.006", "LqxrKBoiOXSOFqs.008",
       "JKTmNomFyvfvVAj.012",
       "QEOvfSZiwySWiUk.004",
     ],
@@ -1188,12 +1219,18 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-17-pro-max",
     label: "Apple iPhone 17 Pro Max",
-    modelPath: `${MODELS}/m-432f2a96ef902e9c.glb`,
+    /*
+     * Turned to face the camera: this Blender export, like the 17 Pro's,
+     * models the phone facing away, and the stage's default yaw would open on
+     * its back.
+     */
+    modelYawDeg: 180,
+    modelPath: `${MODELS}/m-03e4ab9d2a9fbdaf.glb`,
     hideHints: [],
     // The three the studio offers for the 17 Pro line: orange, silver and
     // deep blue. Burgundy and sky blue are still defined, just not listed.
     finishIds: ["cosmic-orange", "silver", "deep-blue"],
-    screenMaterial: "BsXHDwLKqtDOfrW",
+    screenMaterial: "BsXHDwLKqtDOfrW.006",
     /*
      * Apple ships these in Cosmic Orange, and the back glass is a solid
      * 1024x1024 panel of it -- measured srgb(228,122,68) off the converted
@@ -1242,7 +1279,7 @@ export const DEVICES: Device[] = [
      * only a few 8-bit levels to live in. Flat, lit by the studio's own rig,
      * is both cleaner and closer to the real panel.
      */
-    plainMaterials: ["SMUhrjUPCjJkPUK"],
+    plainMaterials: ["SMUhrjUPCjJkPUK.008", "SMUhrjUPCjJkPUK.010"],
     /*
      * The Camera Control button, same story: `iAKEWdNafBldSCV` is opaque and
      * already takes the finish, `PJgHvfOhNXkxvzq` is 70% and was reading as
@@ -1253,7 +1290,7 @@ export const DEVICES: Device[] = [
      * and a later reader should not have to rediscover why one of two
      * identically-placed materials is here and the other is not.
      */
-    bodyMaterials: ["PJgHvfOhNXkxvzq", "iAKEWdNafBldSCV"],
+    bodyMaterials: ["PJgHvfOhNXkxvzq.006", "iAKEWdNafBldSCV.006"],
     /*
      * Everything Apple authored dead black: the three lens barrels, the LiDAR
      * window, the mic port and the inner front pane. Found by reading the
@@ -1282,8 +1319,8 @@ export const DEVICES: Device[] = [
        * left alone: those are the connector tongue, and it really is
        * body-coloured down there.
        */
-      YQFhPSFSryEqJMp: "#0d0d0f",
-      edDerJJLuuabITp: "#0d0d0f",
+      "YQFhPSFSryEqJMp.014": "#0d0d0f",
+      "edDerJJLuuabITp.014": "#0d0d0f",
       /*
        * The back glass, as a half-clear white sheet over the body.
        *
@@ -1304,7 +1341,30 @@ export const DEVICES: Device[] = [
        * It is in `plainMaterials` too, so the painted gradient is dropped
        * first and this lands on a flat panel rather than multiplying a fade.
        */
-      SMUhrjUPCjJkPUK: {
+      "SMUhrjUPCjJkPUK.008": {
+        lighten: 0.07,
+        /*
+         * Surface stated, so the panel actually reflects the studio.
+         *
+         * Roughness 0.14 is polished glass rather than the anodised rail
+         * beside it, and it is what makes the rig read across the back as a
+         * soft sweep instead of an even fill. The environment is pushed above
+         * the body's 2.1 because a back panel is the flattest, most mirror-
+         * like surface on the phone and takes the most sky.
+         *
+         * Non-metal on purpose: this is glass over metal, not metal. Raising
+         * metalness would tint every reflection with the body colour and the
+         * panel would go coppery in the highlights instead of white.
+         *
+         * The model's normal map survives all of this -- only the BASE map is
+         * dropped -- so the fine anodised grain still breaks the reflection up
+         * rather than leaving a mirror.
+         */
+        roughness: 0.14,
+        metalness: 0,
+        envMapIntensity: 2.6,
+      },
+      "SMUhrjUPCjJkPUK.010": {
         lighten: 0.07,
         /*
          * Surface stated, so the panel actually reflects the studio.
@@ -1335,8 +1395,8 @@ export const DEVICES: Device[] = [
        * the file authored it. Their own alpha is left alone -- glass over
        * glass is what gives the mark its depth.
        */
-      yPEFElLJTRhfWfw: { darken: 0.12 },
-      awYxKfiOpRgQIxD: { darken: 0.12 },
+      "SLmJkLdkhbbuEfG.034": { darken: 0.12 },
+      "awYxKfiOpRgQIxD.006": { darken: 0.12 },
     },
     /*
      * The connector tongue and the two shells around it.
@@ -1346,16 +1406,15 @@ export const DEVICES: Device[] = [
      * the rim has to stay body-coloured.
      */
     meshColors: {
-      IvdeSiYDweqsnZm: "#0d0d0f",
-      RhBESHcBbtHIQyo: "#0d0d0f",
-      yTmdRacfvebHTTS: "#101013",
+      "IvdeSiYDweqsnZm.008": "#0d0d0f",
+      "RhBESHcBbtHIQyo.006": "#0d0d0f",
+      "yTmdRacfvebHTTS.031": "#101013",
     },
     keepMaterials: [
-      "uFgsppDNoPNkBqW",
-      "nypJRzXNHbmJCqR",
-      "CVcxUAKakDuRdCf",
-      "ieDmCkHnOnSIOcm",
-      "LqxrKBoiOXSOFqs",
+      "uFgsppDNoPNkBqW.062",
+      "nypJRzXNHbmJCqR.012",
+      "ieDmCkHnOnSIOcm.007",
+      "LqxrKBoiOXSOFqs.010",
       /*
        * Dark, but not dark enough to have been caught by reading the model for
        * pure black. Each of these sits IN FRONT of one that was: the LiDAR
@@ -1363,11 +1422,10 @@ export const DEVICES: Device[] = [
        * barrel's is #393939 -- so exempting only the black layers left the
        * orange one on top, which is the layer you actually see.
        */
-      "jKYrqbVsPDbEaqj",
-      "JKTmNomFyvfvVAj",
+      "JKTmNomFyvfvVAj.014",
       // The flash. Near-white, and tinting it made the phone look like it had
       // an orange bulb.
-      "QEOvfSZiwySWiUk",
+      "QEOvfSZiwySWiUk.006",
     ],
     /*
      * V only.
@@ -1422,7 +1480,13 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-18-pro",
     label: "Apple iPhone 18 Pro",
-    modelPath: `${MODELS}/m-4e890183b312676b.glb`,
+    /*
+     * Turned to face the camera: this Blender export, like the 17 Pro's,
+     * models the phone facing away, and the stage's default yaw would open on
+     * its back.
+     */
+    modelYawDeg: 180,
+    modelPath: `${MODELS}/m-fa10265a9a2458dc.glb`,
     hideHints: [],
     // The archive's own variant data names these three, which is also where
     // Burgundy came from — a real colour on this device rather than a guess.
@@ -1442,7 +1506,7 @@ export const DEVICES: Device[] = [
      * the glass over the other. If a screenshot lands on the cover rather
      * than the display, they are the wrong way round and that is the swap.
      */
-    screenMaterial: "KSynYqGGNGMUJti",
+    screenMaterial: "JYaVgRyCxtrmyCa.002",
     /*
      * Which materials the finish is allowed to touch.
      *
@@ -1462,9 +1526,9 @@ export const DEVICES: Device[] = [
       // three little 1.4 x 7mm meshes that are the side buttons. It was left
       // out of this list at first, which is why the body read as two colours:
       // the shell took the finish and the frame around it stayed burgundy.
-      "vUgmkmbQjXTaqEc",
+      "vUgmkmbQjXTaqEc.008", "vUgmkmbQjXTaqEc.013", "vUgmkmbQjXTaqEc.014", "vUgmkmbQjXTaqEc.015", "vUgmkmbQjXTaqEc.016",
       // The shell, 71.8 x 130.6 x 10.6mm and textured.
-      "DodbyqhrrBLNbcB",
+      "DodbyqhrrBLNbcB.001",
       /*
        * The layer UNDER the back glass, and not the glass itself.
        *
@@ -1488,7 +1552,7 @@ export const DEVICES: Device[] = [
        * pushing the body treatment onto a transparent surface, which is what
        * produced the varnish.
        */
-      "WElbLmMkunjUugH",
+      "WElbLmMkunjUugH.001",
     ],
     /*
      * What the body texture IS, so the retint knows what to shift it FROM.
@@ -1517,7 +1581,7 @@ export const DEVICES: Device[] = [
      * because the gradient the eye was reading was the one on the pane in
      * front of it.
      */
-    plainMaterials: ["WElbLmMkunjUugH", "IxiedJEUxrDhLIX"],
+    plainMaterials: ["WElbLmMkunjUugH.001", "vUgmkmbQjXTaqEc.008", "IxiedJEUxrDhLIX.001"],
     authoredBodyColor: "#452a2f",
     // Apple's render has no mirror on the rails at all — the chamfer is a
     // gradient. Measured against that rather than chosen: at the studio's 2.1
@@ -1572,7 +1636,7 @@ export const DEVICES: Device[] = [
        * invisible — and keeps it subtle on Silver, where a black one would
        * look printed on.
        */
-      yPeTOPaiWwFMSdb: { darken: 0.1, roughness: 0.12, metalness: 0.85 },
+      "yPeTOPaiWwFMSdb.001": { darken: 0.1, roughness: 0.12, metalness: 0.85 },
       /*
        * The antenna bands, the port and Camera Control — the body colour, a
        * shade up.
@@ -1615,18 +1679,27 @@ export const DEVICES: Device[] = [
        * The surface numbers come with it, since the branch that used to supply
        * them is no longer the one that runs.
        */
-      IxiedJEUxrDhLIX: {
+      "vUgmkmbQjXTaqEc.008": {
         lighten: 0,
         roughness: 0.31,
         metalness: 0,
         envMapIntensity: 0.32,
       },
-      ZKYcumThEAllgKc: { lighten: 0 },
-      nuwSyerWvJfhsMd: { lighten: 0 },
+      "IxiedJEUxrDhLIX.001": {
+        lighten: 0,
+        roughness: 0.31,
+        metalness: 0,
+        envMapIntensity: 0.32,
+      },
+      "ZKYcumThEAllgKc.001": { lighten: 0 },
+      "nuwSyerWvJfhsMd.002": { lighten: 0 },
+      "nuwSyerWvJfhsMd.003": { lighten: 0 },
       // The bottom edge with them: the 42.5mm hairline, the two plates either
       // side of the port, and the 15.3mm strip between.
-      hGSiEINnkluBUrq: { lighten: 0 },
-      mEyfsugDbInWtmQ: { lighten: 0 },
+      "hGSiEINnkluBUrq.003": { lighten: 0 },
+      "hGSiEINnkluBUrq.004": { lighten: 0 },
+      "hGSiEINnkluBUrq.005": { lighten: 0 },
+      "mEyfsugDbInWtmQ.001": { lighten: 0 },
       /*
        * Camera Control: three coincident layers on the side edge at y -23mm,
        * a 0.7mm button behind two 0.3mm covers.
@@ -1635,13 +1708,13 @@ export const DEVICES: Device[] = [
        * actual phone — it returns the room sharply where the aluminium
        * scatters it.
        */
-      NTEUvFZCGwiAbXI: {
+      "NTEUvFZCGwiAbXI.001": {
         lighten: 0,
         roughness: 0.12,
         metalness: 0.4,
         envMapIntensity: 1.4,
       },
-      crYYDRbonRWlXIT: {
+      "crYYDRbonRWlXIT.001": {
         lighten: 0,
         roughness: 0.1,
         metalness: 0.4,
@@ -1656,7 +1729,7 @@ export const DEVICES: Device[] = [
        * button stayed plum while the antenna band beside it followed the
        * finish from the same override list. Colour alone could not fix it.
        */
-      vmHtEpzvjsKvWzR: {
+      "vmHtEpzvjsKvWzR": {
         lighten: 0,
         opacity: 1,
         roughness: 0.1,
@@ -1666,7 +1739,25 @@ export const DEVICES: Device[] = [
       // The USB-C cavity, four meshes making 9.0 x 4.6 x 3.2mm. Lightest of
       // the three, and the roughest: a machined wall rather than a polished
       // one, so it holds the colour without a highlight running round it.
-      bKCxnOaKtDpUlmo: {
+      "bKCxnOaKtDpUlmo.004": {
+        lighten: 0.3,
+        roughness: 0.45,
+        metalness: 0.6,
+        envMapIntensity: 0.7,
+      },
+      "bKCxnOaKtDpUlmo.005": {
+        lighten: 0.3,
+        roughness: 0.45,
+        metalness: 0.6,
+        envMapIntensity: 0.7,
+      },
+      "bKCxnOaKtDpUlmo.006": {
+        lighten: 0.3,
+        roughness: 0.45,
+        metalness: 0.6,
+        envMapIntensity: 0.7,
+      },
+      "bKCxnOaKtDpUlmo.007": {
         lighten: 0.3,
         roughness: 0.45,
         metalness: 0.6,
@@ -1693,7 +1784,13 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-18-pro-max",
     label: "Apple iPhone 18 Pro Max",
-    modelPath: `${MODELS}/m-205521341af2ef23.glb`,
+    /*
+     * Turned to face the camera: this Blender export, like the 17 Pro's,
+     * models the phone facing away, and the stage's default yaw would open on
+     * its back.
+     */
+    modelYawDeg: 180,
+    modelPath: `${MODELS}/m-2d20e626be2a616c.glb`,
     hideHints: [],
     finishIds: [
       "iphone18-black",
@@ -1702,7 +1799,7 @@ export const DEVICES: Device[] = [
       "iphone18-silver",
     ],
     // The same ids as the Pro: one archive, one set of materials, two bodies.
-    screenMaterial: "KSynYqGGNGMUJti",
+    screenMaterial: "JYaVgRyCxtrmyCa.002",
     /*
      * Which materials the finish is allowed to touch.
      *
@@ -1722,9 +1819,9 @@ export const DEVICES: Device[] = [
       // three little 1.4 x 7mm meshes that are the side buttons. It was left
       // out of this list at first, which is why the body read as two colours:
       // the shell took the finish and the frame around it stayed burgundy.
-      "vUgmkmbQjXTaqEc",
+      "vUgmkmbQjXTaqEc.008", "vUgmkmbQjXTaqEc.004",
       // The shell, 71.8 x 130.6 x 10.6mm and textured.
-      "DodbyqhrrBLNbcB",
+      "DodbyqhrrBLNbcB.001",
       /*
        * The layer UNDER the back glass, and not the glass itself.
        *
@@ -1777,7 +1874,7 @@ export const DEVICES: Device[] = [
      * because the gradient the eye was reading was the one on the pane in
      * front of it.
      */
-    plainMaterials: ["WElbLmMkunjUugH", "IxiedJEUxrDhLIX"],
+    plainMaterials: ["WElbLmMkunjUugH", "vUgmkmbQjXTaqEc.008", "IxiedJEUxrDhLIX.001"],
     authoredBodyColor: "#452a2f",
     // Apple's render has no mirror on the rails at all — the chamfer is a
     // gradient. Measured against that rather than chosen: at the studio's 2.1
@@ -1832,7 +1929,7 @@ export const DEVICES: Device[] = [
        * invisible — and keeps it subtle on Silver, where a black one would
        * look printed on.
        */
-      yPeTOPaiWwFMSdb: { darken: 0.1, roughness: 0.12, metalness: 0.85 },
+      "yPeTOPaiWwFMSdb": { darken: 0.1, roughness: 0.12, metalness: 0.85 },
       /*
        * The antenna bands, the port and Camera Control — the body colour, a
        * shade up.
@@ -1875,18 +1972,27 @@ export const DEVICES: Device[] = [
        * The surface numbers come with it, since the branch that used to supply
        * them is no longer the one that runs.
        */
-      IxiedJEUxrDhLIX: {
+      "vUgmkmbQjXTaqEc.008": {
         lighten: 0,
         roughness: 0.31,
         metalness: 0,
         envMapIntensity: 0.32,
       },
-      ZKYcumThEAllgKc: { lighten: 0 },
-      nuwSyerWvJfhsMd: { lighten: 0 },
+      "IxiedJEUxrDhLIX.001": {
+        lighten: 0,
+        roughness: 0.31,
+        metalness: 0,
+        envMapIntensity: 0.32,
+      },
+      "ZKYcumThEAllgKc": { lighten: 0 },
+      "nuwSyerWvJfhsMd": { lighten: 0 },
+      "nuwSyerWvJfhsMd.001": { lighten: 0 },
       // The bottom edge with them: the 42.5mm hairline, the two plates either
       // side of the port, and the 15.3mm strip between.
-      hGSiEINnkluBUrq: { lighten: 0 },
-      mEyfsugDbInWtmQ: { lighten: 0 },
+      "hGSiEINnkluBUrq": { lighten: 0 },
+      "hGSiEINnkluBUrq.001": { lighten: 0 },
+      "hGSiEINnkluBUrq.002": { lighten: 0 },
+      "mEyfsugDbInWtmQ": { lighten: 0 },
       /*
        * Camera Control: three coincident layers on the side edge at y -23mm,
        * a 0.7mm button behind two 0.3mm covers.
@@ -1895,13 +2001,13 @@ export const DEVICES: Device[] = [
        * actual phone — it returns the room sharply where the aluminium
        * scatters it.
        */
-      NTEUvFZCGwiAbXI: {
+      "NTEUvFZCGwiAbXI": {
         lighten: 0,
         roughness: 0.12,
         metalness: 0.4,
         envMapIntensity: 1.4,
       },
-      crYYDRbonRWlXIT: {
+      "crYYDRbonRWlXIT": {
         lighten: 0,
         roughness: 0.1,
         metalness: 0.4,
@@ -1916,7 +2022,7 @@ export const DEVICES: Device[] = [
        * button stayed plum while the antenna band beside it followed the
        * finish from the same override list. Colour alone could not fix it.
        */
-      vmHtEpzvjsKvWzR: {
+      "vmHtEpzvjsKvWzR": {
         lighten: 0,
         opacity: 1,
         roughness: 0.1,
@@ -1926,7 +2032,25 @@ export const DEVICES: Device[] = [
       // The USB-C cavity, four meshes making 9.0 x 4.6 x 3.2mm. Lightest of
       // the three, and the roughest: a machined wall rather than a polished
       // one, so it holds the colour without a highlight running round it.
-      bKCxnOaKtDpUlmo: {
+      "bKCxnOaKtDpUlmo": {
+        lighten: 0.3,
+        roughness: 0.45,
+        metalness: 0.6,
+        envMapIntensity: 0.7,
+      },
+      "bKCxnOaKtDpUlmo.001": {
+        lighten: 0.3,
+        roughness: 0.45,
+        metalness: 0.6,
+        envMapIntensity: 0.7,
+      },
+      "bKCxnOaKtDpUlmo.002": {
+        lighten: 0.3,
+        roughness: 0.45,
+        metalness: 0.6,
+        envMapIntensity: 0.7,
+      },
+      "bKCxnOaKtDpUlmo.003": {
         lighten: 0.3,
         roughness: 0.45,
         metalness: 0.6,
@@ -2332,7 +2456,13 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-air",
     label: "Apple iPhone Air",
-    modelPath: `${MODELS}/m-30685fd59ff29dbc.glb`,
+    /*
+     * Turned to face the camera: this Blender export, like the 17 Pro's,
+     * models the phone facing away, and the stage's default yaw would open on
+     * its back.
+     */
+    modelYawDeg: 180,
+    modelPath: `${MODELS}/m-f7caf0e8a1a44c96.glb`,
     hideHints: [],
     /*
      * Identified by geometry, like the Pro pair -- Apple obfuscates every prim
@@ -2341,7 +2471,7 @@ export const DEVICES: Device[] = [
      * candidate is 2.1281, which is the cover glass over it.
      */
     finishIds: ["sky-blue", "light-gold", "cloud-white", "space-black"],
-    screenMaterial: "JYaVgRyCxtrmyCa",
+    screenMaterial: "JYaVgRyCxtrmyCa.002",
     screenCornerRadiusPct: 0.135,
     screenInsetPct: 1,
     /*
@@ -2371,7 +2501,7 @@ export const DEVICES: Device[] = [
      * the Apple logo as relief in its NORMAL map, which this would not touch
      * but which is worth knowing before anyone reaches for it.
      */
-    plainMaterials: ["bozFptYZktLMuie"],
+    plainMaterials: ["bozFptYZktLMuie.006"],
     materialColors: {
       /*
        * The camera plateau's glass pad.
@@ -2384,7 +2514,7 @@ export const DEVICES: Device[] = [
        * which is what makes it read as glass over the pad rather than as paint
        * on it.
        */
-      FVWIzbdaZVWwNoh: { lighten: 0.05 },
+      "FVWIzbdaZVWwNoh.002": { lighten: 0.05 },
       /*
        * The back glass sheet.
        *
@@ -2405,7 +2535,7 @@ export const DEVICES: Device[] = [
        * than a light one from the same number -- which is what makes one
        * value work across all four.
        */
-      EDOyiaPETeawpLH: { lighten: 0.1 },
+      "EDOyiaPETeawpLH.002": { lighten: 0.1 },
       /*
        * Inside the lens barrels, front and back.
        *
@@ -2448,8 +2578,8 @@ export const DEVICES: Device[] = [
        * finally found: an earlier search for them filtered on the back face
        * and these classify just in front of the panel's own centre.
        */
-      giFWuszLwQVarIk: { darken: 0.12 },
-      OEfwEadFATlixvl: { darken: 0.12 },
+      "giFWuszLwQVarIk.002": { darken: 0.12 },
+      "OEfwEadFATlixvl.002": { darken: 0.12 },
       /*
        * The coated ring outside the glass -- violet, not black.
        *
@@ -2462,7 +2592,7 @@ export const DEVICES: Device[] = [
        * the studio's rig lifts it considerably at the top of the curve, which
        * is where the purple actually shows.
        */
-      EPeQHrTgnRaWRxp: "#332d47",
+      "EPeQHrTgnRaWRxp.004": "#332d47",
       /*
        * The mic grille, at x=14.0 between the lens stack and the flash.
        *
@@ -2479,7 +2609,7 @@ export const DEVICES: Device[] = [
        * on Cloud White and Sky Blue and warms with Light Gold, the way a metal
        * part on a metal phone does.
        */
-      KwWjcBRJvLZraqN: {
+      "KwWjcBRJvLZraqN.002": {
         lighten: 0.06,
         saturate: 1.9,
         metalness: 1,
@@ -2506,7 +2636,7 @@ export const DEVICES: Device[] = [
        * into it as a black band. Still below the back panel's 0.10, so the
        * panel keeps reading as the lighter of the two.
        */
-      cdkzsMrKAIfdCgl: { lighten: 0.06, saturate: 1.9 },
+      "cdkzsMrKAIfdCgl.016": { lighten: 0.06, saturate: 1.9 },
       /*
        * The ring's second disc, made to match.
        *
@@ -2522,7 +2652,7 @@ export const DEVICES: Device[] = [
        * is the thing being corrected. Same lighten and saturate as the rail so
        * the two track each other across all four finishes.
        */
-      qzTeHyKNlzBPTRF: {
+      "qzTeHyKNlzBPTRF.002": {
         lighten: 0.06,
         saturate: 1.9,
         metalness: 1,
@@ -2535,15 +2665,14 @@ export const DEVICES: Device[] = [
      * materials, minus `JYaVgRyCxtrmyCa`, which the screen pass owns.
      */
     keepMaterials: [
-      "nDDUrurZqhIwGTb",
-      "XbIMcOXQPgioTJH",
-      "XJBDPVJKGkXvaGI",
-      "mOhEPSexeCXxYUi",
-      "offBMueUqTCIKfx",
-      "IQfpoXuwllwMZgX",
+      "nDDUrurZqhIwGTb.018",
+      "nypJRzXNHbmJCqR.012",
+      "XJBDPVJKGkXvaGI.002",
+      "mOhEPSexeCXxYUi.004",
+      "offBMueUqTCIKfx.004",
       // Authored #262f33 -- dark already, and used in both camera stacks. It
       // only needed exempting from the finish, not restating.
-      "iQihqVOqStAAmgX",
+      "iQihqVOqStAAmgX.004",
       /*
        * The lens elements themselves, front and back.
        *
@@ -2556,7 +2685,7 @@ export const DEVICES: Device[] = [
        * One entry covering two places again: the model uses this in the rear
        * stack at x=-21.1 and the front camera at x=7.4.
        */
-      "wVjTyqwIKEfgsSj",
+      "wVjTyqwIKEfgsSj.010",
       /*
        * The front camera's own element, for the same reason.
        *
@@ -2564,7 +2693,7 @@ export const DEVICES: Device[] = [
        * and replaced it with a flat one -- the housing around it is already
        * black, so what the lens needed was not to be darker but to be glass.
        */
-      "ZvqQfyJNesUwPqC",
+      "ZvqQfyJNesUwPqC.002",
     ],
     /*
      * Same UV convention as the Pro models -- same author, same export -- so
