@@ -4207,8 +4207,23 @@ export default function PhoneStage3D({
          * scales the last real frame to fit in between -- a cheap stretch
          * instead of an expensive re-render -- and the canvas snaps to a
          * sharp, correctly-sized frame once, just after the ease settles.
+         *
+         * 100ms, not the whole ~320ms transition: a debounce only has to
+         * outlast the GAP between consecutive resize events, not the
+         * transition itself -- a smooth CSS ease fires one roughly every
+         * frame (~16ms), so anything past that keeps resetting the timer for
+         * as long as the size keeps changing, and 100ms was already ten times
+         * that margin. It mattered once the full-screen preview's own FLIP
+         * (`moveTo` below) turned out to hit this same debounce: that
+         * transition jumps the stage's LAYOUT size to its final value in one
+         * `flushSync`, then only animates a `transform` over it, so it fires
+         * a single resize event, not a storm. At 350ms that one resize sat
+         * stale for most of a 450ms transform, and the canvas visibly
+         * upscaled its old, smaller frame -- soft and pixelated -- for
+         * nearly the whole move. 100ms keeps that window short enough not to
+         * read as broken, while still fully covering the timeline's storm.
          */
-        resize={{ debounce: { scroll: 50, resize: 350 } }}
+        resize={{ debounce: { scroll: 50, resize: 100 } }}
       >
         <CanvasRefBridge canvasRef={canvasRef} />
         <RedrawOnResize />
