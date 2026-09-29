@@ -905,187 +905,250 @@ export const MOTION_PRESETS: MotionPreset[] = [
     }),
   },
   /* =========================================================================
-     THE MOCRAFT SET, continued -- AUTHORED to sit beside the measured three
+     THE MOCRAFT SET, continued -- AUTHORED, for the moves app launches and
+     social cuts are using now
 
      Slide up, Rotation slide up and Reward Pop were read off reference files.
-     These five were not: there is no FBX behind them. They are written to the
-     shape the measured ones share, so they feel like the same family rather
-     than like the older, longer moves further down this file:
+     These were not: there is no FBX behind them, and each one is built to be
+     something the older library further down this file does not already do
+     -- an orbit that reveals the profile, a punch out of the screen, a
+     spiral, a diagonal glide, a physical bounce, and a dive INTO the screen
+     that ends a clip rather than opening it.
 
-       - about a second and a half of motion, then a flat hold to the clip's
-         end, so an export has room to settle and the tile preview loops on
-         the move rather than on the hold;
-       - two or three channels, never the whole rig;
-       - ONE cubic segment per channel, with the character in the curve --
-         a y past 1 is the overshoot, not an extra key past the mark;
-       - supporting channels land a beat before the primary one.
+     They keep the measured three's discipline: about a second and a half of
+     motion, then a flat hold so an export has room to settle and the tile
+     preview loops on the move rather than on the hold; one cubic segment per
+     channel wherever the move allows, with the character in the curve -- a y
+     past 1 is the overshoot -- rather than in extra keys; and the supporting
+     channels land a beat before the one carrying the move.
 
-     Every offset is scaled by `k` and added to the composed pose, and each one
-     ends exactly on it.
+     Every offset is scaled by `k` and added to the composed pose.
      ========================================================================= */
   {
-    id: "slide-down",
-    label: "Slide down",
+    id: "orbit-reveal",
+    label: "Orbit reveal",
     kind: "cinema",
     loops: false,
-    hint: "Drops in from above the frame, tipped back, and settles flat",
+    hint: "Swings round from side-on, dropping into place as it turns to face you",
     /*
-     * Slide up, mirrored: the same three channels on the same measured
-     * curves, with the rise and the tilt turned over. The depth move is not
-     * mirrored -- it still starts nearer the lens -- because that is what
-     * makes either one read as arriving rather than scrolling.
+     * The turn carries it: the phone starts nearly edge-on, so the first
+     * thing on screen is its profile, and it comes round to the screen a
+     * hair past square. Travel, depth and roll are the camera arcing with
+     * it, and all three are home before the turn is.
      */
     build: (p, k = 1) => ({
       durationSec: 3,
       tracks: {
-        panY: eased("panY", [
+        yAxis: eased("yAxis", [
           [
             0,
-            p.panY - 6.461 * k,
-            { kind: "cubic", p: [0.0002, 0.84, 0.4596, 0.97] },
+            p.yAxis - 95 * k,
+            { kind: "cubic", p: [0.2, 0.75, 0.25, 1.02] },
           ],
-          [1.4333, p.panY],
+          [1.6, p.yAxis],
+          [3, p.yAxis],
+        ]),
+        panX: eased("panX", [
+          [0, p.panX + 2.5 * k, { kind: "cubic", p: [0.2, 0.8, 0.3, 1] }],
+          [1.4, p.panX],
+          [3, p.panX],
+        ]),
+        panY: eased("panY", [
+          [0, p.panY - 1.2 * k, { kind: "cubic", p: [0.25, 0.9, 0.3, 1] }],
+          [1.3, p.panY],
           [3, p.panY],
         ]),
         panZ: eased("panZ", [
-          [0, p.panZ + 0.5034 * k, { kind: "cubic", p: [0, 1.05, 0.1, 1.009] }],
-          [1.4333, p.panZ],
+          [0, p.panZ - 0.35 * k, CURVE.fast],
+          [1.4, p.panZ],
           [3, p.panZ],
         ]),
-        xAxis: eased("xAxis", [
-          [0, p.xAxis + 30 * k, { kind: "cubic", p: [0, 1.2, 0.931, 0.9] }],
-          [1.4333, p.xAxis],
-          [3, p.xAxis],
-        ]),
-      },
-    }),
-  },
-  {
-    id: "swing-in",
-    label: "Swing in",
-    kind: "cinema",
-    loops: false,
-    hint: "Swings in from the side, turning to face you as it lands",
-    /*
-     * The travel carries it and is nearly done by 0.6s; the turn lags behind
-     * it and finishes last, a hair past square and back -- so the phone
-     * arrives, THEN faces you. A few degrees of roll give the swing its arc
-     * and are gone before the turn has settled.
-     */
-    build: (p, k = 1) => ({
-      durationSec: 3,
-      tracks: {
-        panX: eased("panX", [
-          [0, p.panX + 6 * k, { kind: "cubic", p: [0.05, 0.8, 0.3, 1] }],
-          [1.2, p.panX],
-          [3, p.panX],
-        ]),
-        yAxis: eased("yAxis", [
-          [0, p.yAxis + 70 * k, { kind: "cubic", p: [0.2, 0.6, 0.3, 1.06] }],
-          [1.5, p.yAxis],
-          [3, p.yAxis],
-        ]),
         zAxis: eased("zAxis", [
-          [0, p.zAxis - 8 * k, { kind: "cubic", p: [0.2, 0.7, 0.4, 1] }],
-          [1.1, p.zAxis],
+          [0, p.zAxis + 10 * k, { kind: "cubic", p: [0.3, 0.8, 0.4, 1] }],
+          [1.2, p.zAxis],
           [3, p.zAxis],
         ]),
       },
     }),
   },
   {
-    id: "flip-up",
-    label: "Flip up",
+    id: "zoom-punch",
+    label: "Zoom punch",
     kind: "cinema",
     loops: false,
-    hint: "Stands up from lying flat, with a small bounce as it lands",
+    hint: "Opens tight on the screen and snaps back into frame with a punch",
     /*
-     * A card lifted off the table. The tilt is the move, and its curve is the
-     * only overshoot here -- a few degrees past upright and back. The rise
-     * and the scale are there so it comes UP to you rather than hinging in
-     * place, and both are resolved before the tilt lands.
-     */
-    build: (p, k = 1) => ({
-      durationSec: 3,
-      tracks: {
-        xAxis: eased("xAxis", [
-          [0, p.xAxis - 80 * k, { kind: "cubic", p: [0.3, 0.9, 0.35, 1.08] }],
-          [1.3, p.xAxis],
-          [3, p.xAxis],
-        ]),
-        panY: eased("panY", [
-          [0, p.panY + 1.4 * k, { kind: "cubic", p: [0.16, 1, 0.3, 1] }],
-          [1.0, p.panY],
-          [3, p.panY],
-        ]),
-        zoom: eased("zoom", [
-          [0, p.zoom * (1 - 0.14 * k), { kind: "cubic", p: [0.16, 1, 0.3, 1] }],
-          [1.0, p.zoom],
-          [3, p.zoom],
-        ]),
-      },
-    }),
-  },
-  {
-    id: "spin-pop",
-    label: "Spin pop",
-    kind: "cinema",
-    loops: false,
-    hint: "Pops up from nothing on a quarter roll and settles",
-    /*
-     * Reward Pop's cousin, turned in the picture plane instead of through it:
-     * the screen faces you the whole way, so the shot reads from the first
-     * frame. The scale overshoots in its curve; the roll does not, and
-     * finishes later, so the two resolve at different moments -- the same
-     * offset that makes Reward Pop feel alive.
+     * The first frame is the UI, filling the shot; the phone is revealed by
+     * pulling out of it. The scale's curve runs past 1, which on a move that
+     * SHRINKS means past the framing and a little smaller -- the punch --
+     * before it returns. A few degrees of tilt and roll unwind underneath so
+     * the pull reads as a camera, not as a resize.
      */
     build: (p, k = 1) => ({
       durationSec: 2.5,
       tracks: {
-        zAxis: eased("zAxis", [
-          [0, p.zAxis - 90 * k, { kind: "cubic", p: [0.16, 1, 0.3, 1] }],
-          [1.1, p.zAxis],
-          [2.5, p.zAxis],
-        ]),
         zoom: eased("zoom", [
-          [0, p.zoom * (1 - 0.9999 * k), CURVE.heavy],
-          [0.8, p.zoom],
+          [
+            0,
+            p.zoom * (1 + 0.9 * k),
+            { kind: "cubic", p: [0.12, 0.9, 0.25, 1.1] },
+          ],
+          [0.75, p.zoom],
           [2.5, p.zoom],
+        ]),
+        xAxis: eased("xAxis", [
+          [0, p.xAxis - 12 * k, CURVE.fast],
+          [0.9, p.xAxis],
+          [2.5, p.xAxis],
+        ]),
+        zAxis: eased("zAxis", [
+          [0, p.zAxis + 6 * k, CURVE.fast],
+          [0.8, p.zAxis],
+          [2.5, p.zAxis],
         ]),
       },
     }),
   },
   {
-    id: "float-in",
-    label: "Float in",
+    id: "spiral-pop",
+    label: "Spiral pop",
     kind: "cinema",
     loops: false,
-    hint: "Drifts up into place and eases flat -- a quiet, slow arrival",
+    hint: "Spirals up from nothing on a turn and a half, overshoots, settles",
     /*
-     * The calm one, for a shot that should not announce itself: short
-     * distances, no overshoot anywhere, and the longest settle of the set.
+     * Reward Pop turned up: a turn and a half instead of one, with a roll
+     * unwinding through it, so the phone corkscrews toward you rather than
+     * spinning in place. The scale overshoots in its curve and is settled
+     * before the spin has finished; the spin spends most of its distance in
+     * the first quarter and the rest arriving, which is what keeps 540
+     * degrees from reading as a blur.
+     */
+    build: (p, k = 1) => ({
+      durationSec: 2.5,
+      tracks: {
+        yAxis: eased("yAxis", [
+          [0, p.yAxis - 540 * k, { kind: "cubic", p: [0.1, 0.65, 0.2, 1] }],
+          [1.25, p.yAxis],
+          [2.5, p.yAxis],
+        ]),
+        zoom: eased("zoom", [
+          [0, p.zoom * (1 - 0.9999 * k), CURVE.heavy],
+          [0.9, p.zoom],
+          [2.5, p.zoom],
+        ]),
+        zAxis: eased("zAxis", [
+          [0, p.zAxis - 25 * k, { kind: "cubic", p: [0.2, 0.8, 0.3, 1] }],
+          [1.0, p.zAxis],
+          [2.5, p.zAxis],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "tilt-glide",
+    label: "Tilt glide",
+    kind: "cinema",
+    loops: false,
+    hint: "Glides in on a diagonal, leaning in 3D, and straightens as it lands",
+    /*
+     * The keynote move: the phone travels up and across at once, leaning
+     * back and turned toward its direction of travel, and squares up to the
+     * camera only as it arrives -- the travel is home first, the lean last,
+     * with a whisper of overshoot on the turn.
      */
     build: (p, k = 1) => ({
       durationSec: 3,
       tracks: {
+        panX: eased("panX", [
+          [0, p.panX - 3.5 * k, { kind: "cubic", p: [0.15, 0.85, 0.3, 1] }],
+          [1.6, p.panX],
+          [3, p.panX],
+        ]),
         panY: eased("panY", [
-          [0, p.panY + 1.6 * k, { kind: "cubic", p: [0.25, 0.8, 0.3, 1] }],
-          [1.8, p.panY],
+          [0, p.panY + 3.5 * k, { kind: "cubic", p: [0.15, 0.85, 0.3, 1] }],
+          [1.6, p.panY],
           [3, p.panY],
         ]),
         xAxis: eased("xAxis", [
-          [0, p.xAxis - 14 * k, { kind: "cubic", p: [0.3, 0.7, 0.3, 1] }],
-          [2.0, p.xAxis],
+          [0, p.xAxis - 25 * k, { kind: "cubic", p: [0.25, 0.7, 0.3, 1] }],
+          [1.8, p.xAxis],
           [3, p.xAxis],
         ]),
+        yAxis: eased("yAxis", [
+          [0, p.yAxis + 35 * k, { kind: "cubic", p: [0.25, 0.7, 0.3, 1.03] }],
+          [1.8, p.yAxis],
+          [3, p.yAxis],
+        ]),
+      },
+    }),
+  },
+  {
+    id: "bounce-drop",
+    label: "Bounce drop",
+    kind: "cinema",
+    loops: false,
+    hint: "Falls in from above and lands with two quick, shrinking bounces",
+    /*
+     * The one preset here that needs more than one segment, because a bounce
+     * IS several segments: every fall accelerates into the ground and every
+     * rise decelerates out of it, so the curves alternate -- ease-in down,
+     * ease-out up -- and each bounce is about a quarter the height and
+     * two-thirds the time of the one before. The tilt wobbles against the
+     * impacts, a little less each time.
+     */
+    build: (p, k = 1) => {
+      const fall: Easing = { kind: "cubic", p: [0.55, 0, 1, 0.45] };
+      const rise: Easing = { kind: "cubic", p: [0, 0.55, 0.45, 1] };
+      return {
+        durationSec: 3,
+        tracks: {
+          panY: eased("panY", [
+            [0, p.panY - 6.5 * k, fall],
+            [0.5, p.panY, rise],
+            [0.7, p.panY - 0.9 * k, fall],
+            [0.9, p.panY, rise],
+            [1.02, p.panY - 0.22 * k, fall],
+            [1.14, p.panY],
+            [3, p.panY],
+          ]),
+          xAxis: eased("xAxis", [
+            [0, p.xAxis + 12 * k],
+            [0.5, p.xAxis - 5 * k],
+            [0.9, p.xAxis + 2 * k],
+            [1.2, p.xAxis],
+            [3, p.xAxis],
+          ]),
+        },
+      };
+    },
+  },
+  {
+    id: "screen-dive",
+    label: "Screen dive",
+    kind: "cinema",
+    loops: false,
+    hint: "Holds on your framing, then dives into the screen until it fills the frame",
+    /*
+     * An EXIT, which is why it starts where you framed it rather than ending
+     * there: a beat of hold, then the camera accelerates into the display
+     * until the UI is all there is -- the cut into a screen recording that
+     * launch videos lean on. Slow to leave and fast to land, the reverse of
+     * every entrance above.
+     */
+    build: (p, k = 1) => ({
+      durationSec: 2.5,
+      tracks: {
         zoom: eased("zoom", [
-          [
-            0,
-            p.zoom * (1 - 0.06 * k),
-            { kind: "cubic", p: [0.25, 0.8, 0.3, 1] },
-          ],
-          [1.8, p.zoom],
-          [3, p.zoom],
+          [0, p.zoom],
+          [0.5, p.zoom, CURVE.sharp],
+          [1.6, p.zoom * (1 + 2.4 * k)],
+          [2.5, p.zoom * (1 + 2.4 * k)],
+        ]),
+        panZ: eased("panZ", [
+          [0, p.panZ],
+          [0.5, p.panZ, CURVE.sharp],
+          [1.6, p.panZ + 0.3 * k],
+          [2.5, p.panZ + 0.3 * k],
         ]),
       },
     }),
