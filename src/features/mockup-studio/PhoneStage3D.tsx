@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { RoundedBox, useGLTF } from "@react-three/drei";
@@ -34,6 +35,11 @@ import { DEFAULT_LIGHTING, type LightingId } from "./lighting";
 import { isBlurActive, type BlurSettings } from "./blurStyles";
 import { TRANSFORM_OMEGA, springTo } from "./transformSpring";
 import type { Quat } from "./gyro/quaternion";
+import {
+  MATERIAL_NAME_TO_GROUP,
+  getMaterialTuning,
+  subscribeMaterialTuning,
+} from "./mocraft/materialTuning";
 
 // Lazy so the blur passes only reach the browser when a blur is switched
 // on. It is by far the heaviest thing this feature can pull in.
@@ -2856,6 +2862,46 @@ function GLBPhoneScene({
     grainTexture,
     activeFinishId,
   ]);
+
+  /*
+   * The iPhone 17's live material sliders (see `MaterialTuner`/
+   * `materialTuning.ts`), development-only. Deliberately NOT a dependency of
+   * the memo above: that clones and re-poses the whole model, expensive
+   * enough that dragging a slider through it would stutter. Cheap instead --
+   * a plain traversal that mutates the materials the memo already built, by
+   * name, and re-runs whenever the tuning store changes or a fresh `scene`
+   * arrives (a finish switch rebuilds the memo and clones fresh materials,
+   * which would otherwise silently drop whatever a slider had set).
+   */
+  const materialTuning = useSyncExternalStore(
+    subscribeMaterialTuning,
+    getMaterialTuning,
+    getMaterialTuning,
+  );
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    if (device.id !== "apple-iphone-17") return;
+    scene.traverse((child) => {
+      const mesh = child as Mesh & { material?: unknown };
+      const materials = mesh.material;
+      if (!materials) return;
+      const list = Array.isArray(materials) ? materials : [materials];
+      for (const mat of list) {
+        const name = (mat as { name?: string } | null)?.name;
+        const group = name ? MATERIAL_NAME_TO_GROUP.get(name) : undefined;
+        if (!group) continue;
+        const values = materialTuning[group];
+        const m = mat as {
+          roughness?: number;
+          metalness?: number;
+          envMapIntensity?: number;
+        };
+        if ("roughness" in m) m.roughness = values.roughness;
+        if ("metalness" in m) m.metalness = values.metalness;
+        if ("envMapIntensity" in m) m.envMapIntensity = values.envMapIntensity;
+      }
+    });
+  }, [scene, device.id, materialTuning]);
 
   // Hand the measured screen box(es) out to whatever draws the empty-screen
   // placeholder -- that lives outside this scene entirely (see `Stage.tsx`),

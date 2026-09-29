@@ -79,6 +79,13 @@ const ScreenDepthTuner =
         ssr: false,
       })
     : () => null;
+/* A development tool (M in dev), so production never downloads leva. */
+const MaterialTuner =
+  process.env.NODE_ENV === "development"
+    ? dynamic(() => import("./MaterialTuner").then((m) => m.MaterialTuner), {
+        ssr: false,
+      })
+    : () => null;
 import { MOTION_STEPS, Tour, type Step as TourStep } from "./Tour";
 import UpdateNotice from "./UpdateNotice";
 import { backgroundClass, backgroundCss } from "../backgrounds";
@@ -2677,6 +2684,9 @@ export default function StudioChrome({
   /** The empty-screen placeholder's depth sliders -- development only; H
       shows them. See `screenDepthTune.ts`. */
   const [screenTunerOpen, setScreenTunerOpen] = useState(false);
+  /** The iPhone 17's RAIL/RING/BACK_GLASS/PLATEAU/ANTENNA sliders --
+      development only; M shows them. See `materialTuning.ts`. */
+  const [materialTunerOpen, setMaterialTunerOpen] = useState(false);
   /** The shortcuts sheet, opened from the button beside the account chip. */
   /** Which sheet is over the studio: the shortcuts (from the button beside
       the account chip) or the changelog (from the account menu). */
@@ -2895,6 +2905,9 @@ export default function StudioChrome({
       } else if (key === "h" && process.env.NODE_ENV === "development") {
         event.preventDefault();
         setScreenTunerOpen((was) => !was);
+      } else if (key === "m" && process.env.NODE_ENV === "development") {
+        event.preventDefault();
+        setMaterialTunerOpen((was) => !was);
       }
     };
 
@@ -3365,6 +3378,9 @@ export default function StudioChrome({
       ) : null}
       {process.env.NODE_ENV === "development" ? (
         <ScreenDepthTuner open={screenTunerOpen} />
+      ) : null}
+      {process.env.NODE_ENV === "development" ? (
+        <MaterialTuner open={materialTunerOpen} />
       ) : null}
       {/* Thins the enlarged device glyphs on the preset tiles. */}
       <svg aria-hidden width="0" height="0" style={{ position: "absolute" }}>
