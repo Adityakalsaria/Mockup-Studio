@@ -665,12 +665,7 @@ const RING = {
 const BACK_GLASS = {
   lighten: 0,
   metalness: 0,
-  // This export bakes a real KHR_materials_transmission on the back panel
-  // (the old model faked glass with opacity alone). At the old 0.1 that
-  // transmission reads as a sharp, streaky refraction of whatever sits
-  // behind it; frosting it here is what keeps the panel a clean colour
-  // instead of a wood-grain-looking window.
-  roughness: 0.5,
+  roughness: 0.1,
   envMapIntensity: 1.4,
 } as const;
 
@@ -697,12 +692,7 @@ const PLATEAU = {
   darken: 0.02,
   saturate: 1.7,
   opacity: 0.74,
-  // Tuned as a true mirror (0) against the old model, which had no real
-  // transmission and faked glass with `opacity` alone. This export bakes
-  // KHR_materials_transmission on the same meshes, so 0 roughness on top of
-  // real transmission is a clear window straight through the bump instead
-  // of a glossy plateau -- frosted here to scatter that refraction back down.
-  roughness: 0.65,
+  roughness: 0,
   metalness: 0,
   envMapIntensity: 1.9,
 } as const;
@@ -763,13 +753,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-17",
     label: "Apple iPhone 17",
-    /*
-     * Turned to face the camera: this Blender export, like the 17 Pro's,
-     * models the phone facing away, and the stage's default yaw would open on
-     * its back.
-     */
-    modelYawDeg: 180,
-    modelPath: `${MODELS}/m-9bf80864e30e7a51.glb`,
+    modelPath: `${MODELS}/m-3463a6858cfef1fd.glb`,
     hideHints: [],
     /*
      * 66.5 x 144.9mm, aspect 0.4587 against 1206 x 2622's 0.4600.
@@ -778,7 +762,7 @@ export const DEVICES: Device[] = [
      * 6.3-inch panel at 460ppi is 66.6 x 144.8mm, so the mesh is within two
      * tenths of a millimetre on both axes.
      */
-    screenMaterial: "JYaVgRyCxtrmyCa.002",
+    screenMaterial: "iqSsZrznlbGUhNs",
     /*
      * The surfaces that ARE the finish -- an allow-list, so a material nobody
      * classified keeps what Apple authored instead of being painted.
@@ -792,23 +776,26 @@ export const DEVICES: Device[] = [
      */
     finishMaterials: [
       // The back shell, the rails, and the panels between them.
-      "SLmJkLdkhbbuEfG.001", "SSCOTROIPktOHPN.007",
-      "sWPfdEwNBQxWmmj", "sWPfdEwNBQxWmmj.001",
-      "QHnEMQTzosCQTsD", "QHnEMQTzosCQTsD.001", "QHnEMQTzosCQTsD.002",
+      "SSCOTROIPktOHPN",
+      "sWPfdEwNBQxWmmj",
+      "QHnEMQTzosCQTsD",
       "qctyujhTxZaVOMy",
       "ttTjynsjERFvYxa",
-      "PJgHvfOhNXkxvzq.001",
+      "lBQHEyACJPuljkC",
       // The back glass. Textured, which is what hid them.
-      "KChxKESNhKjaHJY", "NWVRqxSZYCCnuGM",
+      "KChxKESNhKjaHJY",
+      "NWVRqxSZYCCnuGM",
       // The camera plateau and its rings.
       // The plateau shell itself. Textured like the back glass, and hidden by
       // the same rule: 25.0 x 42.5mm at z 3.8..5.8, which is the bump.
-      "botRksrkmicTufW.001",
-      "GSJgRpZoabPIkha", "GSJgRpZoabPIkha.001",
+      "botRksrkmicTufW",
+      "GSJgRpZoabPIkha",
       "ThlRTlIfGAMlfQi",
+      "BZMPiKcUUzPQcpW",
       "TeFnKcOBMBwAIln",
       "kqZbamRFCmYvdWV",
-      "SLmJkLdkhbbuEfG.002",
+      "EbFQbFEYKgUZRPQ",
+      "oKEipclYWPpUKiP",
     ],
     /*
      * `NWVRqxSZYCCnuGM` is declared `alphaMode: "BLEND"` over a fully opaque
@@ -837,7 +824,7 @@ export const DEVICES: Device[] = [
      * its own mesh (`botRksrkmicTufW`) and its own entry below, which is the
      * right place to give it back its depth.
      */
-    plainMaterials: ["KChxKESNhKjaHJY", "NWVRqxSZYCCnuGM", "botRksrkmicTufW.001"],
+    plainMaterials: ["KChxKESNhKjaHJY", "NWVRqxSZYCCnuGM", "botRksrkmicTufW"],
     /*
      * What this file is: the back shell states linear 0.631/0.533/0.750, which
      * is #d0c1e1 -- Lavender. Any textured body material is recoloured from
@@ -871,14 +858,14 @@ export const DEVICES: Device[] = [
      * and what that lighten really sets is how dark the REFLECTIONS come back.
      */
     meshColors: {
-      "GMafcrtCzpsZpsb": RAIL,
-      "CpxQiFcpQUiESUC": RAIL,
+      GMafcrtCzpsZpsb: RAIL,
+      CpxQiFcpQUiESUC: RAIL,
       /*
        * The pad the lenses sit in -- 19.6 x 37.0mm. By mesh, because
        * `KChxKESNhKjaHJY` is also the whole back panel, and the back is a soft
        * frosted glass where this is polished.
        */
-      "jefwjNZicFpvTUO": PLATEAU,
+      jefwjNZicFpvTUO: PLATEAU,
     },
     /*
      * The Air's treatment, role for role.
@@ -918,10 +905,9 @@ export const DEVICES: Device[] = [
        *
        * The lift is kept; the surface is now stated with it.
        */
-      "SLmJkLdkhbbuEfG.001": { ...BACK_GLASS, lighten: 0.1 },
-      "SSCOTROIPktOHPN.007": { ...BACK_GLASS, lighten: 0.1 },
-      "KChxKESNhKjaHJY": BACK_GLASS,
-      "NWVRqxSZYCCnuGM": BACK_GLASS,
+      SSCOTROIPktOHPN: { ...BACK_GLASS, lighten: 0.1 },
+      KChxKESNhKjaHJY: BACK_GLASS,
+      NWVRqxSZYCCnuGM: BACK_GLASS,
       /*
        * The camera plateau, a shade under the back.
        *
@@ -947,7 +933,7 @@ export const DEVICES: Device[] = [
        * already authors that one at roughness 0.1 and 25% alpha, and an
        * override sets colour and leaves the surface alone.
        */
-      "botRksrkmicTufW.001": PLATEAU,
+      botRksrkmicTufW: PLATEAU,
       /*
        * The surround around each lens -- 13.8mm, and the thing that was
        * actually dark.
@@ -964,8 +950,7 @@ export const DEVICES: Device[] = [
        * body colour reads across the whole bump and the lenses still sit in
        * something deeper than the back.
        */
-      "wiybngYOfUNIZCW": PLATEAU,
-      "wiybngYOfUNIZCW.001": PLATEAU,
+      wiybngYOfUNIZCW: PLATEAU,
       /*
        * The Apple mark -- 15.7 x 19.3mm at dead centre of the back, which is
        * how it was found after being filed with the camera rings.
@@ -974,20 +959,19 @@ export const DEVICES: Device[] = [
        * the glass, so it catches less light than the panel around it and reads
        * as etched rather than as printed.
        */
-      "TeFnKcOBMBwAIln": { darken: 0.12 },
-      "SLmJkLdkhbbuEfG.002": { darken: 0.12 },
+      TeFnKcOBMBwAIln: { darken: 0.12 },
+      EbFQbFEYKgUZRPQ: { darken: 0.12 },
       // The rail, and the camera rings that match it on the real phone.
-      "sWPfdEwNBQxWmmj": RAIL,
-      "sWPfdEwNBQxWmmj.001": RAIL,
-      "GSJgRpZoabPIkha": RING,
-      "GSJgRpZoabPIkha.001": RING,
+      sWPfdEwNBQxWmmj: RAIL,
+      GSJgRpZoabPIkha: RING,
       /*
        * The two antenna bands: 38.00 x 0.09mm and 15.32 x 0.40mm, both at
        * y = -74.8. A line four tenths of a millimetre across is a cut through
        * the rail, not a part of it.
        */
-      "ThlRTlIfGAMlfQi": ANTENNA,
-      "qctyujhTxZaVOMy": { darken: 0.06, saturate: 0.4 },
+      ThlRTlIfGAMlfQi: ANTENNA,
+      BZMPiKcUUzPQcpW: ANTENNA,
+      qctyujhTxZaVOMy: { darken: 0.06, saturate: 0.4 },
       /*
        * The pad over the plateau, matched to it.
        *
@@ -999,13 +983,12 @@ export const DEVICES: Device[] = [
        *
        * Same step as the plateau underneath, so the two read as one surface.
        */
+      oKEipclYWPpUKiP: PLATEAU,
       // Small parts flush with the rail, kept on their measured offsets.
-      "QHnEMQTzosCQTsD": { darken: 0.05, saturate: 0.31 },
-      "QHnEMQTzosCQTsD.001": { darken: 0.05, saturate: 0.31 },
-      "QHnEMQTzosCQTsD.002": { darken: 0.05, saturate: 0.31 },
-      "ttTjynsjERFvYxa": { darken: 0.08, saturate: 0.57 },
-      "PJgHvfOhNXkxvzq.001": { darken: 0.08, saturate: 0.57 },
-      "kqZbamRFCmYvdWV": { darken: 0.06, saturate: 1.09 },
+      QHnEMQTzosCQTsD: { darken: 0.05, saturate: 0.31 },
+      ttTjynsjERFvYxa: { darken: 0.08, saturate: 0.57 },
+      lBQHEyACJPuljkC: { darken: 0.08, saturate: 0.57 },
+      kqZbamRFCmYvdWV: { darken: 0.06, saturate: 1.09 },
     },
     /*
      * Apple's own lineup for this phone. Lavender first because it is what
