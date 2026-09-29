@@ -26,7 +26,8 @@ export interface BackgroundSettings {
   /** Dot grid pitch in CSS pixels. */
   dotSize: number;
   /** Image only. A data URL, so the background survives without a server and
-      travels with an export that is taken client-side. */
+      travels with an export that is taken client-side -- or the same-origin
+      path of one of the `CANVAS_BACKGROUNDS`, which paints the same way. */
   imageSrc: string | null;
   /** Image only. "cover" fills the frame and crops; "contain" fits it whole. */
   imageFit: "cover" | "contain";
@@ -77,6 +78,45 @@ export const BACKGROUND_PRESETS = [
   "#4f5bd5",
   "#2a2f6b",
 ];
+
+/**
+ * Ready-made backdrops: mesh gradients with a fine grain, for a shot that
+ * wants more than one colour behind it without a trip to find a picture.
+ *
+ * They ARE pictures -- rendered once by `scripts/generate-canvas-backgrounds`
+ * and served from `public/` -- and picking one is the same act as uploading
+ * one: `kind: "image"`, so the editor's CSS and the export's canvas paint it
+ * through the one path that already agrees with itself. The thumbnail is only
+ * for the chip; the canvas and the export always read the full picture.
+ *
+ * Ordered light to dark, so the grid reads as a range rather than a pile.
+ */
+const PRESET_DIR = "/figma-assets/mockup-studio/backgrounds";
+
+export const CANVAS_BACKGROUNDS: Array<{
+  id: string;
+  label: string;
+  src: string;
+  thumb: string;
+}> = [
+  ["studio", "Studio"],
+  ["peach", "Peach"],
+  ["candy", "Candy"],
+  ["lavender", "Lavender"],
+  ["mint", "Mint"],
+  ["citrus", "Citrus"],
+  ["sunset", "Sunset"],
+  ["lagoon", "Lagoon"],
+  ["aurora", "Aurora"],
+  ["nebula", "Nebula"],
+  ["ember", "Ember"],
+  ["graphite", "Graphite"],
+].map(([id, label]) => ({
+  id,
+  label,
+  src: `${PRESET_DIR}/${id}.webp`,
+  thumb: `${PRESET_DIR}/thumbs/${id}.webp`,
+}));
 
 /**
  * The checkerboard that stands in for "no background".
