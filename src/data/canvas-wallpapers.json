@@ -1,1 +1,1724 @@
-[]
+[
+  {
+    "id": "mac",
+    "label": "Mac",
+    "items": [
+      {
+        "id": "mac-1",
+        "label": "Mac 1",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/01.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/01.webp"
+      },
+      {
+        "id": "mac-2",
+        "label": "Mac 2",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/02.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/02.webp"
+      },
+      {
+        "id": "mac-3",
+        "label": "Mac 3",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/03.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/03.webp"
+      },
+      {
+        "id": "mac-4",
+        "label": "Mac 4",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/04.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/04.webp"
+      },
+      {
+        "id": "mac-5",
+        "label": "Mac 5",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/05.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/05.webp"
+      },
+      {
+        "id": "mac-6",
+        "label": "Mac 6",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/06.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/06.webp"
+      },
+      {
+        "id": "mac-7",
+        "label": "Mac 7",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/07.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/07.webp"
+      },
+      {
+        "id": "mac-8",
+        "label": "Mac 8",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/08.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/08.webp"
+      },
+      {
+        "id": "mac-9",
+        "label": "Mac 9",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/09.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/09.webp"
+      },
+      {
+        "id": "mac-10",
+        "label": "Mac 10",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/10.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/10.webp"
+      },
+      {
+        "id": "mac-11",
+        "label": "Mac 11",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/11.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/11.webp"
+      },
+      {
+        "id": "mac-12",
+        "label": "Mac 12",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/12.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/12.webp"
+      },
+      {
+        "id": "mac-13",
+        "label": "Mac 13",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/13.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/13.webp"
+      },
+      {
+        "id": "mac-14",
+        "label": "Mac 14",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/14.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/14.webp"
+      },
+      {
+        "id": "mac-15",
+        "label": "Mac 15",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/15.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/15.webp"
+      },
+      {
+        "id": "mac-16",
+        "label": "Mac 16",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/16.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/16.webp"
+      },
+      {
+        "id": "mac-17",
+        "label": "Mac 17",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/17.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/17.webp"
+      },
+      {
+        "id": "mac-18",
+        "label": "Mac 18",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/18.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/18.webp"
+      },
+      {
+        "id": "mac-19",
+        "label": "Mac 19",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/19.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/19.webp"
+      },
+      {
+        "id": "mac-20",
+        "label": "Mac 20",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/20.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/20.webp"
+      },
+      {
+        "id": "mac-21",
+        "label": "Mac 21",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/21.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/21.webp"
+      },
+      {
+        "id": "mac-22",
+        "label": "Mac 22",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/22.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/22.webp"
+      },
+      {
+        "id": "mac-23",
+        "label": "Mac 23",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/23.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/23.webp"
+      },
+      {
+        "id": "mac-24",
+        "label": "Mac 24",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/24.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/24.webp"
+      },
+      {
+        "id": "mac-25",
+        "label": "Mac 25",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/25.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/25.webp"
+      },
+      {
+        "id": "mac-26",
+        "label": "Mac 26",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/26.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/26.webp"
+      },
+      {
+        "id": "mac-27",
+        "label": "Mac 27",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/27.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/27.webp"
+      },
+      {
+        "id": "mac-28",
+        "label": "Mac 28",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/28.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/28.webp"
+      },
+      {
+        "id": "mac-29",
+        "label": "Mac 29",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/29.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/29.webp"
+      },
+      {
+        "id": "mac-30",
+        "label": "Mac 30",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/30.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/30.webp"
+      },
+      {
+        "id": "mac-31",
+        "label": "Mac 31",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/31.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/31.webp"
+      },
+      {
+        "id": "mac-32",
+        "label": "Mac 32",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/32.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/32.webp"
+      },
+      {
+        "id": "mac-33",
+        "label": "Mac 33",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/33.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/33.webp"
+      },
+      {
+        "id": "mac-34",
+        "label": "Mac 34",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/34.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/34.webp"
+      },
+      {
+        "id": "mac-35",
+        "label": "Mac 35",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/35.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/35.webp"
+      },
+      {
+        "id": "mac-36",
+        "label": "Mac 36",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/36.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/36.webp"
+      },
+      {
+        "id": "mac-37",
+        "label": "Mac 37",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/37.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/37.webp"
+      },
+      {
+        "id": "mac-38",
+        "label": "Mac 38",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/38.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/38.webp"
+      },
+      {
+        "id": "mac-39",
+        "label": "Mac 39",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/39.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/39.webp"
+      },
+      {
+        "id": "mac-40",
+        "label": "Mac 40",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/40.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/40.webp"
+      },
+      {
+        "id": "mac-41",
+        "label": "Mac 41",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/41.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/41.webp"
+      },
+      {
+        "id": "mac-42",
+        "label": "Mac 42",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/42.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/42.webp"
+      },
+      {
+        "id": "mac-43",
+        "label": "Mac 43",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/43.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/43.webp"
+      },
+      {
+        "id": "mac-44",
+        "label": "Mac 44",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/44.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/44.webp"
+      },
+      {
+        "id": "mac-45",
+        "label": "Mac 45",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/45.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/45.webp"
+      },
+      {
+        "id": "mac-46",
+        "label": "Mac 46",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/46.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/46.webp"
+      },
+      {
+        "id": "mac-47",
+        "label": "Mac 47",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/47.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/47.webp"
+      },
+      {
+        "id": "mac-48",
+        "label": "Mac 48",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/48.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/48.webp"
+      },
+      {
+        "id": "mac-49",
+        "label": "Mac 49",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/49.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/49.webp"
+      },
+      {
+        "id": "mac-50",
+        "label": "Mac 50",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/50.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/50.webp"
+      },
+      {
+        "id": "mac-51",
+        "label": "Mac 51",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/51.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/51.webp"
+      },
+      {
+        "id": "mac-52",
+        "label": "Mac 52",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/52.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/52.webp"
+      },
+      {
+        "id": "mac-53",
+        "label": "Mac 53",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/53.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/53.webp"
+      },
+      {
+        "id": "mac-54",
+        "label": "Mac 54",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/54.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/54.webp"
+      },
+      {
+        "id": "mac-55",
+        "label": "Mac 55",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/55.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/55.webp"
+      },
+      {
+        "id": "mac-56",
+        "label": "Mac 56",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/56.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/56.webp"
+      },
+      {
+        "id": "mac-57",
+        "label": "Mac 57",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/57.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/57.webp"
+      },
+      {
+        "id": "mac-58",
+        "label": "Mac 58",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/58.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/58.webp"
+      },
+      {
+        "id": "mac-59",
+        "label": "Mac 59",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/59.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/59.webp"
+      },
+      {
+        "id": "mac-60",
+        "label": "Mac 60",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/60.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/60.webp"
+      },
+      {
+        "id": "mac-61",
+        "label": "Mac 61",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/61.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/61.webp"
+      },
+      {
+        "id": "mac-62",
+        "label": "Mac 62",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/62.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/62.webp"
+      },
+      {
+        "id": "mac-63",
+        "label": "Mac 63",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/63.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/63.webp"
+      },
+      {
+        "id": "mac-64",
+        "label": "Mac 64",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/64.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/64.webp"
+      },
+      {
+        "id": "mac-65",
+        "label": "Mac 65",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/65.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/65.webp"
+      },
+      {
+        "id": "mac-66",
+        "label": "Mac 66",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/66.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/66.webp"
+      },
+      {
+        "id": "mac-67",
+        "label": "Mac 67",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/67.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/67.webp"
+      },
+      {
+        "id": "mac-68",
+        "label": "Mac 68",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/68.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/68.webp"
+      },
+      {
+        "id": "mac-69",
+        "label": "Mac 69",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/69.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/69.webp"
+      },
+      {
+        "id": "mac-70",
+        "label": "Mac 70",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/70.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/70.webp"
+      },
+      {
+        "id": "mac-71",
+        "label": "Mac 71",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/71.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/71.webp"
+      },
+      {
+        "id": "mac-72",
+        "label": "Mac 72",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/72.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/72.webp"
+      },
+      {
+        "id": "mac-73",
+        "label": "Mac 73",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/73.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/73.webp"
+      },
+      {
+        "id": "mac-74",
+        "label": "Mac 74",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/74.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/74.webp"
+      },
+      {
+        "id": "mac-75",
+        "label": "Mac 75",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/75.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/75.webp"
+      },
+      {
+        "id": "mac-76",
+        "label": "Mac 76",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/76.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/76.webp"
+      },
+      {
+        "id": "mac-77",
+        "label": "Mac 77",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/77.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/77.webp"
+      },
+      {
+        "id": "mac-78",
+        "label": "Mac 78",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/78.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/78.webp"
+      },
+      {
+        "id": "mac-79",
+        "label": "Mac 79",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/79.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/79.webp"
+      },
+      {
+        "id": "mac-80",
+        "label": "Mac 80",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/80.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/80.webp"
+      },
+      {
+        "id": "mac-81",
+        "label": "Mac 81",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/81.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/81.webp"
+      },
+      {
+        "id": "mac-82",
+        "label": "Mac 82",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/82.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/82.webp"
+      },
+      {
+        "id": "mac-83",
+        "label": "Mac 83",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/83.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/83.webp"
+      },
+      {
+        "id": "mac-84",
+        "label": "Mac 84",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/84.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/84.webp"
+      },
+      {
+        "id": "mac-85",
+        "label": "Mac 85",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/85.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/85.webp"
+      },
+      {
+        "id": "mac-86",
+        "label": "Mac 86",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/86.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/86.webp"
+      },
+      {
+        "id": "mac-87",
+        "label": "Mac 87",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/87.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/87.webp"
+      },
+      {
+        "id": "mac-88",
+        "label": "Mac 88",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/88.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/88.webp"
+      },
+      {
+        "id": "mac-89",
+        "label": "Mac 89",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/89.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/89.webp"
+      },
+      {
+        "id": "mac-90",
+        "label": "Mac 90",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/90.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/90.webp"
+      },
+      {
+        "id": "mac-91",
+        "label": "Mac 91",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/91.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/91.webp"
+      },
+      {
+        "id": "mac-92",
+        "label": "Mac 92",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/92.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/92.webp"
+      },
+      {
+        "id": "mac-93",
+        "label": "Mac 93",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/93.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/93.webp"
+      },
+      {
+        "id": "mac-94",
+        "label": "Mac 94",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/94.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/94.webp"
+      },
+      {
+        "id": "mac-95",
+        "label": "Mac 95",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/95.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/95.webp"
+      },
+      {
+        "id": "mac-96",
+        "label": "Mac 96",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/96.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/96.webp"
+      },
+      {
+        "id": "mac-97",
+        "label": "Mac 97",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/97.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/97.webp"
+      },
+      {
+        "id": "mac-98",
+        "label": "Mac 98",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/98.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/98.webp"
+      },
+      {
+        "id": "mac-99",
+        "label": "Mac 99",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/99.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/99.webp"
+      },
+      {
+        "id": "mac-100",
+        "label": "Mac 100",
+        "src": "/figma-assets/mockup-studio/wallpapers/mac/100.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/mac/thumbs/100.webp"
+      }
+    ]
+  },
+  {
+    "id": "ipad",
+    "label": "iPad",
+    "items": [
+      {
+        "id": "ipad-1",
+        "label": "iPad 1",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/01.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/01.webp"
+      },
+      {
+        "id": "ipad-2",
+        "label": "iPad 2",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/02.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/02.webp"
+      },
+      {
+        "id": "ipad-3",
+        "label": "iPad 3",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/03.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/03.webp"
+      },
+      {
+        "id": "ipad-4",
+        "label": "iPad 4",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/04.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/04.webp"
+      },
+      {
+        "id": "ipad-5",
+        "label": "iPad 5",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/05.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/05.webp"
+      },
+      {
+        "id": "ipad-6",
+        "label": "iPad 6",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/06.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/06.webp"
+      },
+      {
+        "id": "ipad-7",
+        "label": "iPad 7",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/07.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/07.webp"
+      },
+      {
+        "id": "ipad-8",
+        "label": "iPad 8",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/08.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/08.webp"
+      },
+      {
+        "id": "ipad-9",
+        "label": "iPad 9",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/09.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/09.webp"
+      },
+      {
+        "id": "ipad-10",
+        "label": "iPad 10",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/10.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/10.webp"
+      },
+      {
+        "id": "ipad-11",
+        "label": "iPad 11",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/11.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/11.webp"
+      },
+      {
+        "id": "ipad-12",
+        "label": "iPad 12",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/12.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/12.webp"
+      },
+      {
+        "id": "ipad-13",
+        "label": "iPad 13",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/13.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/13.webp"
+      },
+      {
+        "id": "ipad-14",
+        "label": "iPad 14",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/14.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/14.webp"
+      },
+      {
+        "id": "ipad-15",
+        "label": "iPad 15",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/15.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/15.webp"
+      },
+      {
+        "id": "ipad-16",
+        "label": "iPad 16",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/16.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/16.webp"
+      },
+      {
+        "id": "ipad-17",
+        "label": "iPad 17",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/17.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/17.webp"
+      },
+      {
+        "id": "ipad-18",
+        "label": "iPad 18",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/18.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/18.webp"
+      },
+      {
+        "id": "ipad-19",
+        "label": "iPad 19",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/19.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/19.webp"
+      },
+      {
+        "id": "ipad-20",
+        "label": "iPad 20",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/20.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/20.webp"
+      },
+      {
+        "id": "ipad-21",
+        "label": "iPad 21",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/21.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/21.webp"
+      },
+      {
+        "id": "ipad-22",
+        "label": "iPad 22",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/22.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/22.webp"
+      },
+      {
+        "id": "ipad-23",
+        "label": "iPad 23",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/23.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/23.webp"
+      },
+      {
+        "id": "ipad-24",
+        "label": "iPad 24",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/24.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/24.webp"
+      },
+      {
+        "id": "ipad-25",
+        "label": "iPad 25",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/25.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/25.webp"
+      },
+      {
+        "id": "ipad-26",
+        "label": "iPad 26",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/26.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/26.webp"
+      },
+      {
+        "id": "ipad-27",
+        "label": "iPad 27",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/27.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/27.webp"
+      },
+      {
+        "id": "ipad-28",
+        "label": "iPad 28",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/28.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/28.webp"
+      },
+      {
+        "id": "ipad-29",
+        "label": "iPad 29",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/29.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/29.webp"
+      },
+      {
+        "id": "ipad-30",
+        "label": "iPad 30",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/30.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/30.webp"
+      },
+      {
+        "id": "ipad-31",
+        "label": "iPad 31",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/31.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/31.webp"
+      },
+      {
+        "id": "ipad-32",
+        "label": "iPad 32",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/32.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/32.webp"
+      },
+      {
+        "id": "ipad-33",
+        "label": "iPad 33",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/33.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/33.webp"
+      },
+      {
+        "id": "ipad-34",
+        "label": "iPad 34",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/34.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/34.webp"
+      },
+      {
+        "id": "ipad-35",
+        "label": "iPad 35",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/35.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/35.webp"
+      },
+      {
+        "id": "ipad-36",
+        "label": "iPad 36",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/36.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/36.webp"
+      },
+      {
+        "id": "ipad-37",
+        "label": "iPad 37",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/37.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/37.webp"
+      },
+      {
+        "id": "ipad-38",
+        "label": "iPad 38",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/38.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/38.webp"
+      },
+      {
+        "id": "ipad-39",
+        "label": "iPad 39",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/39.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/39.webp"
+      },
+      {
+        "id": "ipad-40",
+        "label": "iPad 40",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/40.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/40.webp"
+      },
+      {
+        "id": "ipad-41",
+        "label": "iPad 41",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/41.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/41.webp"
+      },
+      {
+        "id": "ipad-42",
+        "label": "iPad 42",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/42.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/42.webp"
+      },
+      {
+        "id": "ipad-43",
+        "label": "iPad 43",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/43.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/43.webp"
+      },
+      {
+        "id": "ipad-44",
+        "label": "iPad 44",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/44.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/44.webp"
+      },
+      {
+        "id": "ipad-45",
+        "label": "iPad 45",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/45.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/45.webp"
+      },
+      {
+        "id": "ipad-46",
+        "label": "iPad 46",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/46.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/46.webp"
+      },
+      {
+        "id": "ipad-47",
+        "label": "iPad 47",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/47.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/47.webp"
+      },
+      {
+        "id": "ipad-48",
+        "label": "iPad 48",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/48.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/48.webp"
+      },
+      {
+        "id": "ipad-49",
+        "label": "iPad 49",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/49.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/49.webp"
+      },
+      {
+        "id": "ipad-50",
+        "label": "iPad 50",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/50.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/50.webp"
+      },
+      {
+        "id": "ipad-51",
+        "label": "iPad 51",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/51.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/51.webp"
+      },
+      {
+        "id": "ipad-52",
+        "label": "iPad 52",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/52.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/52.webp"
+      },
+      {
+        "id": "ipad-53",
+        "label": "iPad 53",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/53.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/53.webp"
+      },
+      {
+        "id": "ipad-54",
+        "label": "iPad 54",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/54.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/54.webp"
+      },
+      {
+        "id": "ipad-55",
+        "label": "iPad 55",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/55.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/55.webp"
+      },
+      {
+        "id": "ipad-56",
+        "label": "iPad 56",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/56.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/56.webp"
+      },
+      {
+        "id": "ipad-57",
+        "label": "iPad 57",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/57.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/57.webp"
+      },
+      {
+        "id": "ipad-58",
+        "label": "iPad 58",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/58.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/58.webp"
+      },
+      {
+        "id": "ipad-59",
+        "label": "iPad 59",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/59.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/59.webp"
+      },
+      {
+        "id": "ipad-60",
+        "label": "iPad 60",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/60.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/60.webp"
+      },
+      {
+        "id": "ipad-61",
+        "label": "iPad 61",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/61.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/61.webp"
+      },
+      {
+        "id": "ipad-62",
+        "label": "iPad 62",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/62.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/62.webp"
+      },
+      {
+        "id": "ipad-63",
+        "label": "iPad 63",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/63.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/63.webp"
+      },
+      {
+        "id": "ipad-64",
+        "label": "iPad 64",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/64.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/64.webp"
+      },
+      {
+        "id": "ipad-65",
+        "label": "iPad 65",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/65.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/65.webp"
+      },
+      {
+        "id": "ipad-66",
+        "label": "iPad 66",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/66.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/66.webp"
+      },
+      {
+        "id": "ipad-67",
+        "label": "iPad 67",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/67.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/67.webp"
+      },
+      {
+        "id": "ipad-68",
+        "label": "iPad 68",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/68.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/68.webp"
+      },
+      {
+        "id": "ipad-69",
+        "label": "iPad 69",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/69.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/69.webp"
+      },
+      {
+        "id": "ipad-70",
+        "label": "iPad 70",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/70.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/70.webp"
+      },
+      {
+        "id": "ipad-71",
+        "label": "iPad 71",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/71.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/71.webp"
+      },
+      {
+        "id": "ipad-72",
+        "label": "iPad 72",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/72.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/72.webp"
+      },
+      {
+        "id": "ipad-73",
+        "label": "iPad 73",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/73.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/73.webp"
+      },
+      {
+        "id": "ipad-74",
+        "label": "iPad 74",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/74.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/74.webp"
+      },
+      {
+        "id": "ipad-75",
+        "label": "iPad 75",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/75.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/75.webp"
+      },
+      {
+        "id": "ipad-76",
+        "label": "iPad 76",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/76.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/76.webp"
+      },
+      {
+        "id": "ipad-77",
+        "label": "iPad 77",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/77.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/77.webp"
+      },
+      {
+        "id": "ipad-78",
+        "label": "iPad 78",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/78.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/78.webp"
+      },
+      {
+        "id": "ipad-79",
+        "label": "iPad 79",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/79.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/79.webp"
+      },
+      {
+        "id": "ipad-80",
+        "label": "iPad 80",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/80.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/80.webp"
+      },
+      {
+        "id": "ipad-81",
+        "label": "iPad 81",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/81.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/81.webp"
+      },
+      {
+        "id": "ipad-82",
+        "label": "iPad 82",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/82.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/82.webp"
+      },
+      {
+        "id": "ipad-83",
+        "label": "iPad 83",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/83.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/83.webp"
+      },
+      {
+        "id": "ipad-84",
+        "label": "iPad 84",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/84.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/84.webp"
+      },
+      {
+        "id": "ipad-85",
+        "label": "iPad 85",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/85.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/85.webp"
+      },
+      {
+        "id": "ipad-86",
+        "label": "iPad 86",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/86.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/86.webp"
+      },
+      {
+        "id": "ipad-87",
+        "label": "iPad 87",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/87.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/87.webp"
+      },
+      {
+        "id": "ipad-88",
+        "label": "iPad 88",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/88.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/88.webp"
+      },
+      {
+        "id": "ipad-89",
+        "label": "iPad 89",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/89.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/89.webp"
+      },
+      {
+        "id": "ipad-90",
+        "label": "iPad 90",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/90.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/90.webp"
+      },
+      {
+        "id": "ipad-91",
+        "label": "iPad 91",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/91.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/91.webp"
+      },
+      {
+        "id": "ipad-92",
+        "label": "iPad 92",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/92.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/92.webp"
+      },
+      {
+        "id": "ipad-93",
+        "label": "iPad 93",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/93.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/93.webp"
+      },
+      {
+        "id": "ipad-94",
+        "label": "iPad 94",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/94.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/94.webp"
+      },
+      {
+        "id": "ipad-95",
+        "label": "iPad 95",
+        "src": "/figma-assets/mockup-studio/wallpapers/ipad/95.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/ipad/thumbs/95.webp"
+      }
+    ]
+  },
+  {
+    "id": "macos",
+    "label": "macOS",
+    "items": [
+      {
+        "id": "macos-1",
+        "label": "macOS 1",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/01.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/01.webp"
+      },
+      {
+        "id": "macos-2",
+        "label": "macOS 2",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/02.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/02.webp"
+      },
+      {
+        "id": "macos-3",
+        "label": "macOS 3",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/03.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/03.webp"
+      },
+      {
+        "id": "macos-4",
+        "label": "macOS 4",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/04.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/04.webp"
+      },
+      {
+        "id": "macos-5",
+        "label": "macOS 5",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/05.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/05.webp"
+      },
+      {
+        "id": "macos-6",
+        "label": "macOS 6",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/06.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/06.webp"
+      },
+      {
+        "id": "macos-7",
+        "label": "macOS 7",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/07.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/07.webp"
+      },
+      {
+        "id": "macos-8",
+        "label": "macOS 8",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/08.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/08.webp"
+      },
+      {
+        "id": "macos-9",
+        "label": "macOS 9",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/09.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/09.webp"
+      },
+      {
+        "id": "macos-10",
+        "label": "macOS 10",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/10.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/10.webp"
+      },
+      {
+        "id": "macos-11",
+        "label": "macOS 11",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/11.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/11.webp"
+      },
+      {
+        "id": "macos-12",
+        "label": "macOS 12",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/12.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/12.webp"
+      },
+      {
+        "id": "macos-13",
+        "label": "macOS 13",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/13.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/13.webp"
+      },
+      {
+        "id": "macos-14",
+        "label": "macOS 14",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/14.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/14.webp"
+      },
+      {
+        "id": "macos-15",
+        "label": "macOS 15",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/15.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/15.webp"
+      },
+      {
+        "id": "macos-16",
+        "label": "macOS 16",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/16.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/16.webp"
+      },
+      {
+        "id": "macos-17",
+        "label": "macOS 17",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/17.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/17.webp"
+      },
+      {
+        "id": "macos-18",
+        "label": "macOS 18",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/18.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/18.webp"
+      },
+      {
+        "id": "macos-19",
+        "label": "macOS 19",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/19.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/19.webp"
+      },
+      {
+        "id": "macos-20",
+        "label": "macOS 20",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/20.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/20.webp"
+      },
+      {
+        "id": "macos-21",
+        "label": "macOS 21",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/21.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/21.webp"
+      },
+      {
+        "id": "macos-22",
+        "label": "macOS 22",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/22.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/22.webp"
+      },
+      {
+        "id": "macos-23",
+        "label": "macOS 23",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/23.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/23.webp"
+      },
+      {
+        "id": "macos-24",
+        "label": "macOS 24",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/24.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/24.webp"
+      },
+      {
+        "id": "macos-25",
+        "label": "macOS 25",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/25.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/25.webp"
+      },
+      {
+        "id": "macos-26",
+        "label": "macOS 26",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/26.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/26.webp"
+      },
+      {
+        "id": "macos-27",
+        "label": "macOS 27",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/27.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/27.webp"
+      },
+      {
+        "id": "macos-28",
+        "label": "macOS 28",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/28.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/28.webp"
+      },
+      {
+        "id": "macos-29",
+        "label": "macOS 29",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/29.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/29.webp"
+      },
+      {
+        "id": "macos-30",
+        "label": "macOS 30",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/30.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/30.webp"
+      },
+      {
+        "id": "macos-31",
+        "label": "macOS 31",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/31.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/31.webp"
+      },
+      {
+        "id": "macos-32",
+        "label": "macOS 32",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/32.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/32.webp"
+      },
+      {
+        "id": "macos-33",
+        "label": "macOS 33",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/33.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/33.webp"
+      },
+      {
+        "id": "macos-34",
+        "label": "macOS 34",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/34.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/34.webp"
+      },
+      {
+        "id": "macos-35",
+        "label": "macOS 35",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/35.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/35.webp"
+      },
+      {
+        "id": "macos-36",
+        "label": "macOS 36",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/36.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/36.webp"
+      },
+      {
+        "id": "macos-37",
+        "label": "macOS 37",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/37.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/37.webp"
+      },
+      {
+        "id": "macos-38",
+        "label": "macOS 38",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/38.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/38.webp"
+      },
+      {
+        "id": "macos-39",
+        "label": "macOS 39",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/39.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/39.webp"
+      },
+      {
+        "id": "macos-40",
+        "label": "macOS 40",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/40.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/40.webp"
+      },
+      {
+        "id": "macos-41",
+        "label": "macOS 41",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/41.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/41.webp"
+      },
+      {
+        "id": "macos-42",
+        "label": "macOS 42",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/42.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/42.webp"
+      },
+      {
+        "id": "macos-43",
+        "label": "macOS 43",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/43.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/43.webp"
+      },
+      {
+        "id": "macos-44",
+        "label": "macOS 44",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/44.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/44.webp"
+      },
+      {
+        "id": "macos-45",
+        "label": "macOS 45",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/45.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/45.webp"
+      },
+      {
+        "id": "macos-46",
+        "label": "macOS 46",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/46.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/46.webp"
+      },
+      {
+        "id": "macos-47",
+        "label": "macOS 47",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/47.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/47.webp"
+      },
+      {
+        "id": "macos-48",
+        "label": "macOS 48",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/48.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/48.webp"
+      },
+      {
+        "id": "macos-49",
+        "label": "macOS 49",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/49.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/49.webp"
+      },
+      {
+        "id": "macos-50",
+        "label": "macOS 50",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/50.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/50.webp"
+      },
+      {
+        "id": "macos-51",
+        "label": "macOS 51",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/51.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/51.webp"
+      },
+      {
+        "id": "macos-52",
+        "label": "macOS 52",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/52.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/52.webp"
+      },
+      {
+        "id": "macos-53",
+        "label": "macOS 53",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/53.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/53.webp"
+      },
+      {
+        "id": "macos-54",
+        "label": "macOS 54",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/54.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/54.webp"
+      },
+      {
+        "id": "macos-55",
+        "label": "macOS 55",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/55.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/55.webp"
+      },
+      {
+        "id": "macos-56",
+        "label": "macOS 56",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/56.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/56.webp"
+      },
+      {
+        "id": "macos-57",
+        "label": "macOS 57",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/57.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/57.webp"
+      },
+      {
+        "id": "macos-58",
+        "label": "macOS 58",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/58.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/58.webp"
+      },
+      {
+        "id": "macos-59",
+        "label": "macOS 59",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/59.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/59.webp"
+      },
+      {
+        "id": "macos-60",
+        "label": "macOS 60",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/60.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/60.webp"
+      },
+      {
+        "id": "macos-61",
+        "label": "macOS 61",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/61.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/61.webp"
+      },
+      {
+        "id": "macos-62",
+        "label": "macOS 62",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/62.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/62.webp"
+      },
+      {
+        "id": "macos-63",
+        "label": "macOS 63",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/63.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/63.webp"
+      },
+      {
+        "id": "macos-64",
+        "label": "macOS 64",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/64.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/64.webp"
+      },
+      {
+        "id": "macos-65",
+        "label": "macOS 65",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/65.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/65.webp"
+      },
+      {
+        "id": "macos-66",
+        "label": "macOS 66",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/66.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/66.webp"
+      },
+      {
+        "id": "macos-67",
+        "label": "macOS 67",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/67.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/67.webp"
+      },
+      {
+        "id": "macos-68",
+        "label": "macOS 68",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/68.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/68.webp"
+      },
+      {
+        "id": "macos-69",
+        "label": "macOS 69",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/69.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/69.webp"
+      },
+      {
+        "id": "macos-70",
+        "label": "macOS 70",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/70.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/70.webp"
+      },
+      {
+        "id": "macos-71",
+        "label": "macOS 71",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/71.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/71.webp"
+      },
+      {
+        "id": "macos-72",
+        "label": "macOS 72",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/72.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/72.webp"
+      },
+      {
+        "id": "macos-73",
+        "label": "macOS 73",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/73.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/73.webp"
+      },
+      {
+        "id": "macos-74",
+        "label": "macOS 74",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/74.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/74.webp"
+      },
+      {
+        "id": "macos-75",
+        "label": "macOS 75",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/75.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/75.webp"
+      },
+      {
+        "id": "macos-76",
+        "label": "macOS 76",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/76.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/76.webp"
+      },
+      {
+        "id": "macos-77",
+        "label": "macOS 77",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/77.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/77.webp"
+      },
+      {
+        "id": "macos-78",
+        "label": "macOS 78",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/78.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/78.webp"
+      },
+      {
+        "id": "macos-79",
+        "label": "macOS 79",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/79.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/79.webp"
+      },
+      {
+        "id": "macos-80",
+        "label": "macOS 80",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/80.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/80.webp"
+      },
+      {
+        "id": "macos-81",
+        "label": "macOS 81",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/81.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/81.webp"
+      },
+      {
+        "id": "macos-82",
+        "label": "macOS 82",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/82.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/82.webp"
+      },
+      {
+        "id": "macos-83",
+        "label": "macOS 83",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/83.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/83.webp"
+      },
+      {
+        "id": "macos-84",
+        "label": "macOS 84",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/84.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/84.webp"
+      },
+      {
+        "id": "macos-85",
+        "label": "macOS 85",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/85.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/85.webp"
+      },
+      {
+        "id": "macos-86",
+        "label": "macOS 86",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/86.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/86.webp"
+      },
+      {
+        "id": "macos-87",
+        "label": "macOS 87",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/87.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/87.webp"
+      },
+      {
+        "id": "macos-88",
+        "label": "macOS 88",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/88.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/88.webp"
+      },
+      {
+        "id": "macos-89",
+        "label": "macOS 89",
+        "src": "/figma-assets/mockup-studio/wallpapers/macos/89.webp",
+        "thumb": "/figma-assets/mockup-studio/wallpapers/macos/thumbs/89.webp"
+      }
+    ]
+  }
+]
