@@ -1616,7 +1616,53 @@ export const DEVICES: Device[] = [
        * Dark and quite smooth, so what shows is the shape of the aperture
        * rather than the detail of the texture.
        */
-      NZtZZWsItDhUsxA: {
+      /*
+       * Restated per-blade: this export suffixes the six leaves
+       * `.006`-`.011` where the name above was written against a file that
+       * had them all sharing the bare name. The mesh-continuity remap only
+       * rewrites names it finds as keys elsewhere in this block, so a
+       * six-way split under one old key was never expanded and the
+       * exemption silently stopped reaching any of them -- they fell
+       * through to the generic body path at full authored brightness
+       * instead, which is the "bright shrapnel" the comment above warns
+       * about.
+       */
+      "NZtZZWsItDhUsxA.006": {
+        flat: true,
+        color: "#15151a",
+        roughness: 0.28,
+        metalness: 0.75,
+        envMapIntensity: 0.5,
+      },
+      "NZtZZWsItDhUsxA.007": {
+        flat: true,
+        color: "#15151a",
+        roughness: 0.28,
+        metalness: 0.75,
+        envMapIntensity: 0.5,
+      },
+      "NZtZZWsItDhUsxA.008": {
+        flat: true,
+        color: "#15151a",
+        roughness: 0.28,
+        metalness: 0.75,
+        envMapIntensity: 0.5,
+      },
+      "NZtZZWsItDhUsxA.009": {
+        flat: true,
+        color: "#15151a",
+        roughness: 0.28,
+        metalness: 0.75,
+        envMapIntensity: 0.5,
+      },
+      "NZtZZWsItDhUsxA.010": {
+        flat: true,
+        color: "#15151a",
+        roughness: 0.28,
+        metalness: 0.75,
+        envMapIntensity: 0.5,
+      },
+      "NZtZZWsItDhUsxA.011": {
         flat: true,
         color: "#15151a",
         roughness: 0.28,
@@ -1640,6 +1686,22 @@ export const DEVICES: Device[] = [
        * invisible — and keeps it subtle on Silver, where a black one would
        * look printed on.
        */
+      /*
+       * The frame/shell itself, on the 17 Pro's numbers.
+       *
+       * `DodbyqhrrBLNbcB.001` is the 71.8 x 130.6 x 10.6mm shell named in
+       * `finishMaterials` above -- it was only ever getting the finish's
+       * generic body roughness/metalness, authored metal 1 / rough 0.62,
+       * which reads as a flatter, duller metal than the 17 Pro's hand-tuned
+       * anodised surface. Same recipe here so the Pro line reads as one
+       * material family rather than two.
+       */
+      "DodbyqhrrBLNbcB.001": {
+        lighten: 0,
+        roughness: 0.76,
+        metalness: 0.61,
+        envMapIntensity: 1.65,
+      },
       "yPeTOPaiWwFMSdb.001": { darken: 0.1, roughness: 0.12, metalness: 0.85 },
       /*
        * The antenna bands, the port and Camera Control — the body colour, a
@@ -1909,7 +1971,53 @@ export const DEVICES: Device[] = [
        * Dark and quite smooth, so what shows is the shape of the aperture
        * rather than the detail of the texture.
        */
-      NZtZZWsItDhUsxA: {
+      /*
+       * Restated per-blade: this export suffixes the six leaves bare and
+       * `.001`-`.005` where the name above was written against a file that
+       * had them all sharing the bare name. The mesh-continuity remap only
+       * rewrites names it finds as keys elsewhere in this block, so a
+       * six-way split under one old key was never expanded and the
+       * exemption silently stopped reaching most of them -- they fell
+       * through to the generic body path at full authored brightness
+       * instead, which is the "bright shrapnel" the comment above warns
+       * about.
+       */
+      "NZtZZWsItDhUsxA": {
+        flat: true,
+        color: "#15151a",
+        roughness: 0.28,
+        metalness: 0.75,
+        envMapIntensity: 0.5,
+      },
+      "NZtZZWsItDhUsxA.001": {
+        flat: true,
+        color: "#15151a",
+        roughness: 0.28,
+        metalness: 0.75,
+        envMapIntensity: 0.5,
+      },
+      "NZtZZWsItDhUsxA.002": {
+        flat: true,
+        color: "#15151a",
+        roughness: 0.28,
+        metalness: 0.75,
+        envMapIntensity: 0.5,
+      },
+      "NZtZZWsItDhUsxA.003": {
+        flat: true,
+        color: "#15151a",
+        roughness: 0.28,
+        metalness: 0.75,
+        envMapIntensity: 0.5,
+      },
+      "NZtZZWsItDhUsxA.004": {
+        flat: true,
+        color: "#15151a",
+        roughness: 0.28,
+        metalness: 0.75,
+        envMapIntensity: 0.5,
+      },
+      "NZtZZWsItDhUsxA.005": {
         flat: true,
         color: "#15151a",
         roughness: 0.28,
@@ -1933,6 +2041,16 @@ export const DEVICES: Device[] = [
        * invisible — and keeps it subtle on Silver, where a black one would
        * look printed on.
        */
+      /*
+       * The frame/shell itself, on the 17 Pro's numbers -- see the Pro's
+       * own entry for why.
+       */
+      "DodbyqhrrBLNbcB.001": {
+        lighten: 0,
+        roughness: 0.76,
+        metalness: 0.61,
+        envMapIntensity: 1.65,
+      },
       "yPeTOPaiWwFMSdb": { darken: 0.1, roughness: 0.12, metalness: 0.85 },
       /*
        * The antenna bands, the port and Camera Control — the body colour, a
