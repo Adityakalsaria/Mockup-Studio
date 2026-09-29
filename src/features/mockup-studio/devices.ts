@@ -1484,13 +1484,7 @@ export const DEVICES: Device[] = [
   {
     id: "apple-iphone-18-pro",
     label: "Apple iPhone 18 Pro",
-    /*
-     * Turned to face the camera: this Blender export, like the 17 Pro's,
-     * models the phone facing away, and the stage's default yaw would open on
-     * its back.
-     */
-    modelYawDeg: 180,
-    modelPath: `${MODELS}/m-fa10265a9a2458dc.glb`,
+    modelPath: `${MODELS}/m-4e890183b312676b.glb`,
     hideHints: [],
     // The archive's own variant data names these three, which is also where
     // Burgundy came from — a real colour on this device rather than a guess.
@@ -1510,7 +1504,7 @@ export const DEVICES: Device[] = [
      * the glass over the other. If a screenshot lands on the cover rather
      * than the display, they are the wrong way round and that is the swap.
      */
-    screenMaterial: "JYaVgRyCxtrmyCa.002",
+    screenMaterial: "KSynYqGGNGMUJti",
     /*
      * Which materials the finish is allowed to touch.
      *
@@ -1530,364 +1524,9 @@ export const DEVICES: Device[] = [
       // three little 1.4 x 7mm meshes that are the side buttons. It was left
       // out of this list at first, which is why the body read as two colours:
       // the shell took the finish and the frame around it stayed burgundy.
-      "vUgmkmbQjXTaqEc.008", "vUgmkmbQjXTaqEc.013", "vUgmkmbQjXTaqEc.014", "vUgmkmbQjXTaqEc.015", "vUgmkmbQjXTaqEc.016",
+      "vUgmkmbQjXTaqEc",
       // The shell, 71.8 x 130.6 x 10.6mm and textured.
-      "DodbyqhrrBLNbcB.001",
-      /*
-       * The layer UNDER the back glass, and not the glass itself.
-       *
-       * The back is two panels at the same 62.5cm2: `IxiedJEUxrDhLIX`, which
-       * the model states at `opacity 0.3`, and this one solid behind it. That
-       * is how the real thing is built — colour goes under clear glass, not on
-       * it — and colouring the correct one of the two is the whole difference
-       * between anodised metal and moulded plastic.
-       *
-       * Forcing the glass to tint was tried, via `bodyMaterials`, and it works
-       * in the sense that the panel changes colour. It also turns the back
-       * into a glossy shell with one blown specular sweep across it, because
-       * a tinted transparent layer over a tinted opaque one is two coats of
-       * paint and a varnish. The retint's instinct to step around anything
-       * transparent was right; the fault was that nothing underneath was
-       * listed for it to colour instead.
-       *
-       * The sheet DOES carry the finish now, but through `materialColors` and
-       * with its painted map dropped — glass coloured by what it is made of,
-       * over a flat panel. That is a different thing from `bodyMaterials`
-       * pushing the body treatment onto a transparent surface, which is what
-       * produced the varnish.
-       */
-      "WElbLmMkunjUugH.001",
-    ],
-    /*
-     * What the body texture IS, so the retint knows what to shift it FROM.
-     *
-     * Sampled rather than guessed: the shell's own diffuse map averages
-     * #381d20 and the back panel's #452a2f, both dark maroon, because the
-     * variant the archive composes by default is Burgundy. Without this the
-     * recolour never runs — it is gated on the pair — and every finish left
-     * the phone the colour it shipped in, which is what "too dark" was.
-     */
-    /*
-     * BOTH back panels, flat rather than as the archive painted them.
-     *
-     * They ship a 1024px PNG holding a top-to-bottom fade, and that fade is
-     * baked lighting — Apple's renderer resolves it smoothly, this one
-     * retints it to a new finish and the gradient collapses into a handful of
-     * 8-bit steps. What you see then is a set of horizontal lines across the
-     * back, most visible on the darker colourways where the steps are widest.
-     *
-     * Dropping it is the honest fix rather than a workaround: the studio has
-     * real lighting of its own, and a flat panel lit by it is closer to the
-     * hardware than a painted fade lit twice.
-     *
-     * The clear sheet needs it as much as the layer under it, and that is not
-     * obvious: flattening only the lower panel changed nothing visible,
-     * because the gradient the eye was reading was the one on the pane in
-     * front of it.
-     */
-    plainMaterials: ["WElbLmMkunjUugH.001", "vUgmkmbQjXTaqEc.008", "IxiedJEUxrDhLIX.001"],
-    authoredBodyColor: "#452a2f",
-    // Apple's render has no mirror on the rails at all — the chamfer is a
-    // gradient. Measured against that rather than chosen: at the studio's 2.1
-    // this body throws white streaks that nothing on the real phone does.
-    // Tuned on the live bench against Apple's own render, then read off it.
-    bodyEnvMapIntensity: 1.8,
-    /*
-     * The three surfaces that are not simply "the finish".
-     *
-     * The panel under the glass is matter and much less lit than the frame —
-     * it sits behind a sheet, so what reaches it is diffuse. The glass itself
-     * is smooth and not metal at all. Everything here was found by moving
-     * sliders against Apple's render rather than derived, which is the only
-     * way this particular question gets answered.
-     */
-    bodySurfaces: {
-      WElbLmMkunjUugH: { roughness: 0.25, metalness: 0.26, envMapIntensity: 0 },
-      /*
-       * The iris blades, darkened to read as a mechanism.
-       *
-       * Six leaves in a ring inside the bottom barrel, a twentieth of a
-       * millimetre thick, carrying a white base colour and a detailed
-       * mechanical texture. They are not body, so no finish touches them —
-       * which against a Black phone left them looking like bright shrapnel
-       * scattered in the lens, and against Burgundy merely busy. The real
-       * thing is a dark metal leaf that catches one edge of the light.
-       *
-       * Dark and quite smooth, so what shows is the shape of the aperture
-       * rather than the detail of the texture.
-       */
-      /*
-       * Restated per-blade: this export suffixes the six leaves
-       * `.006`-`.011` where the name above was written against a file that
-       * had them all sharing the bare name. The mesh-continuity remap only
-       * rewrites names it finds as keys elsewhere in this block, so a
-       * six-way split under one old key was never expanded and the
-       * exemption silently stopped reaching any of them -- they fell
-       * through to the generic body path at full authored brightness
-       * instead, which is the "bright shrapnel" the comment above warns
-       * about.
-       */
-      "NZtZZWsItDhUsxA.006": {
-        flat: true,
-        color: "#15151a",
-        roughness: 0.28,
-        metalness: 0.75,
-        envMapIntensity: 0.5,
-      },
-      "NZtZZWsItDhUsxA.007": {
-        flat: true,
-        color: "#15151a",
-        roughness: 0.28,
-        metalness: 0.75,
-        envMapIntensity: 0.5,
-      },
-      "NZtZZWsItDhUsxA.008": {
-        flat: true,
-        color: "#15151a",
-        roughness: 0.28,
-        metalness: 0.75,
-        envMapIntensity: 0.5,
-      },
-      "NZtZZWsItDhUsxA.009": {
-        flat: true,
-        color: "#15151a",
-        roughness: 0.28,
-        metalness: 0.75,
-        envMapIntensity: 0.5,
-      },
-      "NZtZZWsItDhUsxA.010": {
-        flat: true,
-        color: "#15151a",
-        roughness: 0.28,
-        metalness: 0.75,
-        envMapIntensity: 0.5,
-      },
-      "NZtZZWsItDhUsxA.011": {
-        flat: true,
-        color: "#15151a",
-        roughness: 0.28,
-        metalness: 0.75,
-        envMapIntensity: 0.5,
-      },
-    },
-    materialColors: {
-      /*
-       * The Apple logo: a 16.3 x 20mm flat mesh, with the back glass sitting
-       * 0.4mm in front of it.
-       *
-       * It is not in the finish list, so it never took the body colour — it
-       * disappeared because the tinted glass was drawn OVER it. With the glass
-       * left alone it shows again, but only just, because the logo and the
-       * panel behind it are close in tone on a light finish.
-       *
-       * So it is separated the way the real one is: by SHEEN rather than by
-       * colour. The body is matte anodising and the logo is polished, which is
-       * what makes it legible on Black — where a darker logo would be
-       * invisible — and keeps it subtle on Silver, where a black one would
-       * look printed on.
-       */
-      /*
-       * The frame/shell itself, on the 17 Pro's numbers.
-       *
-       * `DodbyqhrrBLNbcB.001` is the 71.8 x 130.6 x 10.6mm shell named in
-       * `finishMaterials` above -- it was only ever getting the finish's
-       * generic body roughness/metalness, authored metal 1 / rough 0.62,
-       * which reads as a flatter, duller metal than the 17 Pro's hand-tuned
-       * anodised surface. Same recipe here so the Pro line reads as one
-       * material family rather than two.
-       */
-      "DodbyqhrrBLNbcB.001": {
-        lighten: 0,
-        roughness: 0.76,
-        metalness: 0.61,
-        envMapIntensity: 1.65,
-      },
-      "yPeTOPaiWwFMSdb.001": { darken: 0.1, roughness: 0.12, metalness: 0.85 },
-      /*
-       * The antenna bands, the port and Camera Control — the body colour, a
-       * shade up.
-       *
-       * All three arrived burgundy: the archive is composed in it, and any
-       * material the finish does not own keeps whatever it was authored as.
-       * That put a plum stripe across the top edge of a Black phone and a plum
-       * socket in the bottom of a Sky Blue one.
-       *
-       * `lighten` rather than a hex, because these are the body seen through a
-       * different material — plastic where the band is, sapphire over the
-       * button, a machined wall inside the port — and each returns the finish
-       * a little brighter than the anodised aluminium beside it. Deriving it
-       * keeps that relationship true in all four colourways; a literal would
-       * have to be right four times and would be right once.
-       *
-       * They are here rather than in `finishMaterials` deliberately. The
-       * finish path would give them the body colour EXACTLY, and the whole
-       * point is that they are a shade off it.
-       */
-      /*
-       * 27.2 x 4.5mm across the top edge, and two more of 9.0 and 9.6mm at the
-       * bottom: the plastic filling the splits in the frame so the radios can
-       * see out.
-       *
-       * `lighten: 0` is the finish colour EXACTLY, and is deliberate rather
-       * than a value not yet chosen. Lifting them read as a band; Apple gives
-       * these the same material as the frame, so the seam is the only thing
-       * that shows one is there.
-       */
-      /*
-       * The back glass: the finish colour, on the sheet as well as under it.
-       *
-       * Here rather than in `bodySurfaces` because that only takes a literal,
-       * and a literal cannot be four colours. `lighten: 0` is the finish
-       * exactly — the sheet is glass over anodised metal, not a gel.
-       *
-       * Its 0.3 opacity is left as the archive states it, so this is still a
-       * clear pane tinted by what it is made of rather than a coat of paint.
-       * The surface numbers come with it, since the branch that used to supply
-       * them is no longer the one that runs.
-       */
-      "vUgmkmbQjXTaqEc.008": {
-        lighten: 0,
-        roughness: 0.31,
-        metalness: 0,
-        envMapIntensity: 0.32,
-      },
-      "IxiedJEUxrDhLIX.001": {
-        lighten: 0,
-        roughness: 0.31,
-        metalness: 0,
-        envMapIntensity: 0.32,
-      },
-      "ZKYcumThEAllgKc.001": { lighten: 0 },
-      "nuwSyerWvJfhsMd.002": { lighten: 0 },
-      "nuwSyerWvJfhsMd.003": { lighten: 0 },
-      // The bottom edge with them: the 42.5mm hairline, the two plates either
-      // side of the port, and the 15.3mm strip between.
-      "hGSiEINnkluBUrq.003": { lighten: 0 },
-      "hGSiEINnkluBUrq.004": { lighten: 0 },
-      "hGSiEINnkluBUrq.005": { lighten: 0 },
-      "mEyfsugDbInWtmQ.001": { lighten: 0 },
-      /*
-       * Camera Control: three coincident layers on the side edge at y -23mm,
-       * a 0.7mm button behind two 0.3mm covers.
-       *
-       * Glassier than anything around it, which is what identifies it on the
-       * actual phone — it returns the room sharply where the aluminium
-       * scatters it.
-       */
-      "NTEUvFZCGwiAbXI.001": {
-        lighten: 0,
-        roughness: 0.12,
-        metalness: 0.4,
-        envMapIntensity: 1.4,
-      },
-      "crYYDRbonRWlXIT.001": {
-        lighten: 0,
-        roughness: 0.1,
-        metalness: 0.4,
-        envMapIntensity: 1.6,
-      },
-      /*
-       * The outermost cover, and the one that has to be made OPAQUE.
-       *
-       * The archive states it `alphaMode: BLEND` at 0.7, so the colour set on
-       * it was only ever seven tenths of what showed — the rest was whatever
-       * sat behind, which is the dark inside of the recess. That is why this
-       * button stayed plum while the antenna band beside it followed the
-       * finish from the same override list. Colour alone could not fix it.
-       */
-      "vmHtEpzvjsKvWzR": {
-        lighten: 0,
-        opacity: 1,
-        roughness: 0.1,
-        metalness: 0.4,
-        envMapIntensity: 1.6,
-      },
-      // The USB-C cavity, four meshes making 9.0 x 4.6 x 3.2mm. Lightest of
-      // the three, and the roughest: a machined wall rather than a polished
-      // one, so it holds the colour without a highlight running round it.
-      "bKCxnOaKtDpUlmo.004": {
-        lighten: 0.3,
-        roughness: 0.45,
-        metalness: 0.6,
-        envMapIntensity: 0.7,
-      },
-      "bKCxnOaKtDpUlmo.005": {
-        lighten: 0.3,
-        roughness: 0.45,
-        metalness: 0.6,
-        envMapIntensity: 0.7,
-      },
-      "bKCxnOaKtDpUlmo.006": {
-        lighten: 0.3,
-        roughness: 0.45,
-        metalness: 0.6,
-        envMapIntensity: 0.7,
-      },
-      "bKCxnOaKtDpUlmo.007": {
-        lighten: 0.3,
-        roughness: 0.45,
-        metalness: 0.6,
-        envMapIntensity: 0.7,
-      },
-    },
-    /*
-     * The panel maps its source upside down: a screenshot came out with the
-     * status bar along the bottom and every line of text mirrored top to
-     * bottom. A flip, not a 180 turn — the layout order was preserved, only
-     * the axis was inverted.
-     */
-    screenFlipY: true,
-    // The 17 Pro's, and the geometry is within a millimetre of it.
-    screenCornerRadiusPct: 0.135,
-    screenInsetPct: 1,
-    screenNative: { width: 1206, height: 2622 },
-    notch: null,
-    // Converted with:
-    //   npm run convert:model -- <in.usdz> <out.glb> \
-    //     --root UBGArkKGrAMRRnj --iris NZtZZWsItDhUsxA --iris-lens 0
-    credit: "Apple — design resources (iphone-18-pro-e-sim.usdz)",
-  },
-  {
-    id: "apple-iphone-18-pro-max",
-    label: "Apple iPhone 18 Pro Max",
-    /*
-     * Turned to face the camera: this Blender export, like the 17 Pro's,
-     * models the phone facing away, and the stage's default yaw would open on
-     * its back.
-     */
-    modelYawDeg: 180,
-    modelPath: `${MODELS}/m-2d20e626be2a616c.glb`,
-    hideHints: [],
-    finishIds: [
-      "iphone18-black",
-      "iphone18-burgundy",
-      "iphone18-sky-blue",
-      "iphone18-silver",
-    ],
-    // The same ids as the Pro: one archive, one set of materials, two bodies.
-    screenMaterial: "JYaVgRyCxtrmyCa.002",
-    /*
-     * Which materials the finish is allowed to touch.
-     *
-     * Without this the retint hits EVERY material on the model, which is why
-     * the first pass rendered these two as flat coloured slabs: the display,
-     * the camera glass and the shell all went burgundy together. `keepMaterials`
-     * is the deny-list; this is the allow-list, and on a model whose materials
-     * are random ids it is the only thing standing between a finish and the
-     * screen.
-     *
-     * `DodbyqhrrBLNbcB` is the shell — the one mesh that is 10.6mm thick,
-     * spans the whole body and carries a texture. `IxiedJEUxrDhLIX` is the
-     * back panel behind the camera plateau.
-     */
-    finishMaterials: [
-      // The chassis. Measured 71.8 x 150 x 11.4mm — the whole device, plus the
-      // three little 1.4 x 7mm meshes that are the side buttons. It was left
-      // out of this list at first, which is why the body read as two colours:
-      // the shell took the finish and the frame around it stayed burgundy.
-      "vUgmkmbQjXTaqEc.008", "vUgmkmbQjXTaqEc.004",
-      // The shell, 71.8 x 130.6 x 10.6mm and textured.
-      "DodbyqhrrBLNbcB.001",
+      "DodbyqhrrBLNbcB",
       /*
        * The layer UNDER the back glass, and not the glass itself.
        *
@@ -1940,7 +1579,7 @@ export const DEVICES: Device[] = [
      * because the gradient the eye was reading was the one on the pane in
      * front of it.
      */
-    plainMaterials: ["WElbLmMkunjUugH", "vUgmkmbQjXTaqEc.008", "IxiedJEUxrDhLIX.001"],
+    plainMaterials: ["WElbLmMkunjUugH", "IxiedJEUxrDhLIX"],
     authoredBodyColor: "#452a2f",
     // Apple's render has no mirror on the rails at all — the chamfer is a
     // gradient. Measured against that rather than chosen: at the studio's 2.1
@@ -1971,53 +1610,7 @@ export const DEVICES: Device[] = [
        * Dark and quite smooth, so what shows is the shape of the aperture
        * rather than the detail of the texture.
        */
-      /*
-       * Restated per-blade: this export suffixes the six leaves bare and
-       * `.001`-`.005` where the name above was written against a file that
-       * had them all sharing the bare name. The mesh-continuity remap only
-       * rewrites names it finds as keys elsewhere in this block, so a
-       * six-way split under one old key was never expanded and the
-       * exemption silently stopped reaching most of them -- they fell
-       * through to the generic body path at full authored brightness
-       * instead, which is the "bright shrapnel" the comment above warns
-       * about.
-       */
-      "NZtZZWsItDhUsxA": {
-        flat: true,
-        color: "#15151a",
-        roughness: 0.28,
-        metalness: 0.75,
-        envMapIntensity: 0.5,
-      },
-      "NZtZZWsItDhUsxA.001": {
-        flat: true,
-        color: "#15151a",
-        roughness: 0.28,
-        metalness: 0.75,
-        envMapIntensity: 0.5,
-      },
-      "NZtZZWsItDhUsxA.002": {
-        flat: true,
-        color: "#15151a",
-        roughness: 0.28,
-        metalness: 0.75,
-        envMapIntensity: 0.5,
-      },
-      "NZtZZWsItDhUsxA.003": {
-        flat: true,
-        color: "#15151a",
-        roughness: 0.28,
-        metalness: 0.75,
-        envMapIntensity: 0.5,
-      },
-      "NZtZZWsItDhUsxA.004": {
-        flat: true,
-        color: "#15151a",
-        roughness: 0.28,
-        metalness: 0.75,
-        envMapIntensity: 0.5,
-      },
-      "NZtZZWsItDhUsxA.005": {
+      NZtZZWsItDhUsxA: {
         flat: true,
         color: "#15151a",
         roughness: 0.28,
@@ -2026,6 +1619,22 @@ export const DEVICES: Device[] = [
       },
     },
     materialColors: {
+      /*
+       * The frame/shell itself, on the 17 Pro's numbers.
+       *
+       * `DodbyqhrrBLNbcB` is the 71.8 x 130.6 x 10.6mm shell named in
+       * `finishMaterials` above -- it was only ever getting the finish's
+       * generic body roughness/metalness (authored metal 0.3 / rough 0.5,
+       * a textured white base), which reads flatter and duller than the 17
+       * Pro's hand-tuned anodised surface. Same recipe here so the Pro line
+       * reads as one material family rather than two.
+       */
+      DodbyqhrrBLNbcB: {
+        lighten: 0,
+        roughness: 0.76,
+        metalness: 0.61,
+        envMapIntensity: 1.65,
+      },
       /*
        * The Apple logo: a 16.3 x 20mm flat mesh, with the back glass sitting
        * 0.4mm in front of it.
@@ -2041,17 +1650,7 @@ export const DEVICES: Device[] = [
        * invisible — and keeps it subtle on Silver, where a black one would
        * look printed on.
        */
-      /*
-       * The frame/shell itself, on the 17 Pro's numbers -- see the Pro's
-       * own entry for why.
-       */
-      "DodbyqhrrBLNbcB.001": {
-        lighten: 0,
-        roughness: 0.76,
-        metalness: 0.61,
-        envMapIntensity: 1.65,
-      },
-      "yPeTOPaiWwFMSdb": { darken: 0.1, roughness: 0.12, metalness: 0.85 },
+      yPeTOPaiWwFMSdb: { darken: 0.1, roughness: 0.12, metalness: 0.85 },
       /*
        * The antenna bands, the port and Camera Control — the body colour, a
        * shade up.
@@ -2094,27 +1693,18 @@ export const DEVICES: Device[] = [
        * The surface numbers come with it, since the branch that used to supply
        * them is no longer the one that runs.
        */
-      "vUgmkmbQjXTaqEc.008": {
+      IxiedJEUxrDhLIX: {
         lighten: 0,
         roughness: 0.31,
         metalness: 0,
         envMapIntensity: 0.32,
       },
-      "IxiedJEUxrDhLIX.001": {
-        lighten: 0,
-        roughness: 0.31,
-        metalness: 0,
-        envMapIntensity: 0.32,
-      },
-      "ZKYcumThEAllgKc": { lighten: 0 },
-      "nuwSyerWvJfhsMd": { lighten: 0 },
-      "nuwSyerWvJfhsMd.001": { lighten: 0 },
+      ZKYcumThEAllgKc: { lighten: 0 },
+      nuwSyerWvJfhsMd: { lighten: 0 },
       // The bottom edge with them: the 42.5mm hairline, the two plates either
       // side of the port, and the 15.3mm strip between.
-      "hGSiEINnkluBUrq": { lighten: 0 },
-      "hGSiEINnkluBUrq.001": { lighten: 0 },
-      "hGSiEINnkluBUrq.002": { lighten: 0 },
-      "mEyfsugDbInWtmQ": { lighten: 0 },
+      hGSiEINnkluBUrq: { lighten: 0 },
+      mEyfsugDbInWtmQ: { lighten: 0 },
       /*
        * Camera Control: three coincident layers on the side edge at y -23mm,
        * a 0.7mm button behind two 0.3mm covers.
@@ -2123,13 +1713,13 @@ export const DEVICES: Device[] = [
        * actual phone — it returns the room sharply where the aluminium
        * scatters it.
        */
-      "NTEUvFZCGwiAbXI": {
+      NTEUvFZCGwiAbXI: {
         lighten: 0,
         roughness: 0.12,
         metalness: 0.4,
         envMapIntensity: 1.4,
       },
-      "crYYDRbonRWlXIT": {
+      crYYDRbonRWlXIT: {
         lighten: 0,
         roughness: 0.1,
         metalness: 0.4,
@@ -2144,7 +1734,7 @@ export const DEVICES: Device[] = [
        * button stayed plum while the antenna band beside it followed the
        * finish from the same override list. Colour alone could not fix it.
        */
-      "vmHtEpzvjsKvWzR": {
+      vmHtEpzvjsKvWzR: {
         lighten: 0,
         opacity: 1,
         roughness: 0.1,
@@ -2154,25 +1744,283 @@ export const DEVICES: Device[] = [
       // The USB-C cavity, four meshes making 9.0 x 4.6 x 3.2mm. Lightest of
       // the three, and the roughest: a machined wall rather than a polished
       // one, so it holds the colour without a highlight running round it.
-      "bKCxnOaKtDpUlmo": {
+      bKCxnOaKtDpUlmo: {
         lighten: 0.3,
         roughness: 0.45,
         metalness: 0.6,
         envMapIntensity: 0.7,
       },
-      "bKCxnOaKtDpUlmo.001": {
-        lighten: 0.3,
-        roughness: 0.45,
-        metalness: 0.6,
-        envMapIntensity: 0.7,
+    },
+    /*
+     * The panel maps its source upside down: a screenshot came out with the
+     * status bar along the bottom and every line of text mirrored top to
+     * bottom. A flip, not a 180 turn — the layout order was preserved, only
+     * the axis was inverted.
+     */
+    screenFlipY: true,
+    // The 17 Pro's, and the geometry is within a millimetre of it.
+    screenCornerRadiusPct: 0.135,
+    screenInsetPct: 1,
+    screenNative: { width: 1206, height: 2622 },
+    notch: null,
+    // Converted with:
+    //   npm run convert:model -- <in.usdz> <out.glb> \
+    //     --root UBGArkKGrAMRRnj --iris NZtZZWsItDhUsxA --iris-lens 0
+    credit: "Apple — design resources (iphone-18-pro-e-sim.usdz)",
+  },
+  {
+    id: "apple-iphone-18-pro-max",
+    label: "Apple iPhone 18 Pro Max",
+    modelPath: `${MODELS}/m-205521341af2ef23.glb`,
+    hideHints: [],
+    finishIds: [
+      "iphone18-black",
+      "iphone18-burgundy",
+      "iphone18-sky-blue",
+      "iphone18-silver",
+    ],
+    // The same ids as the Pro: one archive, one set of materials, two bodies.
+    screenMaterial: "KSynYqGGNGMUJti",
+    /*
+     * Which materials the finish is allowed to touch.
+     *
+     * Without this the retint hits EVERY material on the model, which is why
+     * the first pass rendered these two as flat coloured slabs: the display,
+     * the camera glass and the shell all went burgundy together. `keepMaterials`
+     * is the deny-list; this is the allow-list, and on a model whose materials
+     * are random ids it is the only thing standing between a finish and the
+     * screen.
+     *
+     * `DodbyqhrrBLNbcB` is the shell — the one mesh that is 10.6mm thick,
+     * spans the whole body and carries a texture. `IxiedJEUxrDhLIX` is the
+     * back panel behind the camera plateau.
+     */
+    finishMaterials: [
+      // The chassis. Measured 71.8 x 150 x 11.4mm — the whole device, plus the
+      // three little 1.4 x 7mm meshes that are the side buttons. It was left
+      // out of this list at first, which is why the body read as two colours:
+      // the shell took the finish and the frame around it stayed burgundy.
+      "vUgmkmbQjXTaqEc",
+      // The shell, 71.8 x 130.6 x 10.6mm and textured.
+      "DodbyqhrrBLNbcB",
+      /*
+       * The layer UNDER the back glass, and not the glass itself.
+       *
+       * The back is two panels at the same 62.5cm2: `IxiedJEUxrDhLIX`, which
+       * the model states at `opacity 0.3`, and this one solid behind it. That
+       * is how the real thing is built — colour goes under clear glass, not on
+       * it — and colouring the correct one of the two is the whole difference
+       * between anodised metal and moulded plastic.
+       *
+       * Forcing the glass to tint was tried, via `bodyMaterials`, and it works
+       * in the sense that the panel changes colour. It also turns the back
+       * into a glossy shell with one blown specular sweep across it, because
+       * a tinted transparent layer over a tinted opaque one is two coats of
+       * paint and a varnish. The retint's instinct to step around anything
+       * transparent was right; the fault was that nothing underneath was
+       * listed for it to colour instead.
+       *
+       * The sheet DOES carry the finish now, but through `materialColors` and
+       * with its painted map dropped — glass coloured by what it is made of,
+       * over a flat panel. That is a different thing from `bodyMaterials`
+       * pushing the body treatment onto a transparent surface, which is what
+       * produced the varnish.
+       */
+      "WElbLmMkunjUugH",
+    ],
+    /*
+     * What the body texture IS, so the retint knows what to shift it FROM.
+     *
+     * Sampled rather than guessed: the shell's own diffuse map averages
+     * #381d20 and the back panel's #452a2f, both dark maroon, because the
+     * variant the archive composes by default is Burgundy. Without this the
+     * recolour never runs — it is gated on the pair — and every finish left
+     * the phone the colour it shipped in, which is what "too dark" was.
+     */
+    /*
+     * BOTH back panels, flat rather than as the archive painted them.
+     *
+     * They ship a 1024px PNG holding a top-to-bottom fade, and that fade is
+     * baked lighting — Apple's renderer resolves it smoothly, this one
+     * retints it to a new finish and the gradient collapses into a handful of
+     * 8-bit steps. What you see then is a set of horizontal lines across the
+     * back, most visible on the darker colourways where the steps are widest.
+     *
+     * Dropping it is the honest fix rather than a workaround: the studio has
+     * real lighting of its own, and a flat panel lit by it is closer to the
+     * hardware than a painted fade lit twice.
+     *
+     * The clear sheet needs it as much as the layer under it, and that is not
+     * obvious: flattening only the lower panel changed nothing visible,
+     * because the gradient the eye was reading was the one on the pane in
+     * front of it.
+     */
+    plainMaterials: ["WElbLmMkunjUugH", "IxiedJEUxrDhLIX"],
+    authoredBodyColor: "#452a2f",
+    // Apple's render has no mirror on the rails at all — the chamfer is a
+    // gradient. Measured against that rather than chosen: at the studio's 2.1
+    // this body throws white streaks that nothing on the real phone does.
+    // Tuned on the live bench against Apple's own render, then read off it.
+    bodyEnvMapIntensity: 1.8,
+    /*
+     * The three surfaces that are not simply "the finish".
+     *
+     * The panel under the glass is matter and much less lit than the frame —
+     * it sits behind a sheet, so what reaches it is diffuse. The glass itself
+     * is smooth and not metal at all. Everything here was found by moving
+     * sliders against Apple's render rather than derived, which is the only
+     * way this particular question gets answered.
+     */
+    bodySurfaces: {
+      WElbLmMkunjUugH: { roughness: 0.25, metalness: 0.26, envMapIntensity: 0 },
+      /*
+       * The iris blades, darkened to read as a mechanism.
+       *
+       * Six leaves in a ring inside the bottom barrel, a twentieth of a
+       * millimetre thick, carrying a white base colour and a detailed
+       * mechanical texture. They are not body, so no finish touches them —
+       * which against a Black phone left them looking like bright shrapnel
+       * scattered in the lens, and against Burgundy merely busy. The real
+       * thing is a dark metal leaf that catches one edge of the light.
+       *
+       * Dark and quite smooth, so what shows is the shape of the aperture
+       * rather than the detail of the texture.
+       */
+      NZtZZWsItDhUsxA: {
+        flat: true,
+        color: "#15151a",
+        roughness: 0.28,
+        metalness: 0.75,
+        envMapIntensity: 0.5,
       },
-      "bKCxnOaKtDpUlmo.002": {
-        lighten: 0.3,
-        roughness: 0.45,
-        metalness: 0.6,
-        envMapIntensity: 0.7,
+    },
+    materialColors: {
+      /*
+       * The frame/shell itself, on the 17 Pro's numbers.
+       *
+       * `DodbyqhrrBLNbcB` is the 71.8 x 130.6 x 10.6mm shell named in
+       * `finishMaterials` above -- it was only ever getting the finish's
+       * generic body roughness/metalness (authored metal 0.3 / rough 0.5,
+       * a textured white base), which reads flatter and duller than the 17
+       * Pro's hand-tuned anodised surface. Same recipe here so the Pro line
+       * reads as one material family rather than two.
+       */
+      DodbyqhrrBLNbcB: {
+        lighten: 0,
+        roughness: 0.76,
+        metalness: 0.61,
+        envMapIntensity: 1.65,
       },
-      "bKCxnOaKtDpUlmo.003": {
+      /*
+       * The Apple logo: a 16.3 x 20mm flat mesh, with the back glass sitting
+       * 0.4mm in front of it.
+       *
+       * It is not in the finish list, so it never took the body colour — it
+       * disappeared because the tinted glass was drawn OVER it. With the glass
+       * left alone it shows again, but only just, because the logo and the
+       * panel behind it are close in tone on a light finish.
+       *
+       * So it is separated the way the real one is: by SHEEN rather than by
+       * colour. The body is matte anodising and the logo is polished, which is
+       * what makes it legible on Black — where a darker logo would be
+       * invisible — and keeps it subtle on Silver, where a black one would
+       * look printed on.
+       */
+      yPeTOPaiWwFMSdb: { darken: 0.1, roughness: 0.12, metalness: 0.85 },
+      /*
+       * The antenna bands, the port and Camera Control — the body colour, a
+       * shade up.
+       *
+       * All three arrived burgundy: the archive is composed in it, and any
+       * material the finish does not own keeps whatever it was authored as.
+       * That put a plum stripe across the top edge of a Black phone and a plum
+       * socket in the bottom of a Sky Blue one.
+       *
+       * `lighten` rather than a hex, because these are the body seen through a
+       * different material — plastic where the band is, sapphire over the
+       * button, a machined wall inside the port — and each returns the finish
+       * a little brighter than the anodised aluminium beside it. Deriving it
+       * keeps that relationship true in all four colourways; a literal would
+       * have to be right four times and would be right once.
+       *
+       * They are here rather than in `finishMaterials` deliberately. The
+       * finish path would give them the body colour EXACTLY, and the whole
+       * point is that they are a shade off it.
+       */
+      /*
+       * 27.2 x 4.5mm across the top edge, and two more of 9.0 and 9.6mm at the
+       * bottom: the plastic filling the splits in the frame so the radios can
+       * see out.
+       *
+       * `lighten: 0` is the finish colour EXACTLY, and is deliberate rather
+       * than a value not yet chosen. Lifting them read as a band; Apple gives
+       * these the same material as the frame, so the seam is the only thing
+       * that shows one is there.
+       */
+      /*
+       * The back glass: the finish colour, on the sheet as well as under it.
+       *
+       * Here rather than in `bodySurfaces` because that only takes a literal,
+       * and a literal cannot be four colours. `lighten: 0` is the finish
+       * exactly — the sheet is glass over anodised metal, not a gel.
+       *
+       * Its 0.3 opacity is left as the archive states it, so this is still a
+       * clear pane tinted by what it is made of rather than a coat of paint.
+       * The surface numbers come with it, since the branch that used to supply
+       * them is no longer the one that runs.
+       */
+      IxiedJEUxrDhLIX: {
+        lighten: 0,
+        roughness: 0.31,
+        metalness: 0,
+        envMapIntensity: 0.32,
+      },
+      ZKYcumThEAllgKc: { lighten: 0 },
+      nuwSyerWvJfhsMd: { lighten: 0 },
+      // The bottom edge with them: the 42.5mm hairline, the two plates either
+      // side of the port, and the 15.3mm strip between.
+      hGSiEINnkluBUrq: { lighten: 0 },
+      mEyfsugDbInWtmQ: { lighten: 0 },
+      /*
+       * Camera Control: three coincident layers on the side edge at y -23mm,
+       * a 0.7mm button behind two 0.3mm covers.
+       *
+       * Glassier than anything around it, which is what identifies it on the
+       * actual phone — it returns the room sharply where the aluminium
+       * scatters it.
+       */
+      NTEUvFZCGwiAbXI: {
+        lighten: 0,
+        roughness: 0.12,
+        metalness: 0.4,
+        envMapIntensity: 1.4,
+      },
+      crYYDRbonRWlXIT: {
+        lighten: 0,
+        roughness: 0.1,
+        metalness: 0.4,
+        envMapIntensity: 1.6,
+      },
+      /*
+       * The outermost cover, and the one that has to be made OPAQUE.
+       *
+       * The archive states it `alphaMode: BLEND` at 0.7, so the colour set on
+       * it was only ever seven tenths of what showed — the rest was whatever
+       * sat behind, which is the dark inside of the recess. That is why this
+       * button stayed plum while the antenna band beside it followed the
+       * finish from the same override list. Colour alone could not fix it.
+       */
+      vmHtEpzvjsKvWzR: {
+        lighten: 0,
+        opacity: 1,
+        roughness: 0.1,
+        metalness: 0.4,
+        envMapIntensity: 1.6,
+      },
+      // The USB-C cavity, four meshes making 9.0 x 4.6 x 3.2mm. Lightest of
+      // the three, and the roughest: a machined wall rather than a polished
+      // one, so it holds the colour without a highlight running round it.
+      bKCxnOaKtDpUlmo: {
         lighten: 0.3,
         roughness: 0.45,
         metalness: 0.6,
