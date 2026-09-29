@@ -61,9 +61,11 @@ import {
   Tip,
   Swatch,
   useDismiss,
+  useMountTransition,
   useSpring,
+  POPUP_CURVE,
 } from "@/design/ui";
-import { control, radius } from "@/design/system";
+import { control, morph, radius } from "@/design/system";
 import { FRAME, INSET, Stage } from "./Stage";
 /* A development tool (G in dev), so production never downloads leva. */
 const GlassTuner =
@@ -182,6 +184,7 @@ export type MenuItem = {
 
 export function MenuPopover({
   anchor,
+  open,
   items,
   label,
   placement,
@@ -191,6 +194,11 @@ export function MenuPopover({
   width,
 }: {
   anchor: RefObject<HTMLDivElement | null>;
+  /** Whether the caller still wants this shown. The caller keeps rendering
+      `MenuPopover` itself for a beat after this goes false — see
+      `useMountTransition` — so the close plays as a fade rather than a cut;
+      passing `false` straight into an unmount is what used to skip it. */
+  open: boolean;
   /** Either this or `children` -- a plain row list, or, for a popover that
       isn't one (a colour and an image well, say), the content itself. */
   items?: MenuItem[];
@@ -209,6 +217,13 @@ export function MenuPopover({
     top: number;
     width: number;
   } | null>(null);
+  // Stays mounted for one `morph` past `open` going false, so the close plays
+  // as a fade instead of the row vanishing mid-frame. `place()` below still
+  // reads `anchor.current` during that stretch, but the caller's own anchor
+  // is usually gone by then too (it closes on the same condition) -- fine,
+  // since a missing trigger just leaves `pos` at wherever it last was, which
+  // is exactly where the popup should fade out from.
+  const { mounted, shown } = useMountTransition(open);
 
   useLayoutEffect(() => {
     const place = () => {
@@ -294,6 +309,12 @@ export function MenuPopover({
     };
   }, [anchor, onClose]);
 
+  if (!mounted) return null;
+  // `pos` gates the fade the same way it already gated `visibility`: a
+  // popup that has not been measured yet has nowhere to fade in FROM, so it
+  // stays invisible (not fading) until the first `place()` lands.
+  const ready = shown && pos !== null;
+
   return createPortal(
     <div
       ref={rootRef}
@@ -304,6 +325,10 @@ export function MenuPopover({
         left: pos?.left ?? -9999,
         top: pos?.top ?? -9999,
         visibility: pos ? "visible" : "hidden",
+        opacity: ready ? 1 : 0,
+        transform: ready ? "scale(1)" : "scale(0.96)",
+        transformOrigin: "top",
+        transition: `opacity ${morph}ms ${POPUP_CURVE}, transform ${morph}ms ${POPUP_CURVE}`,
         // Portalled to `document.body`, outside the chrome's own stacking
         // contexts -- but with no z-index of its own it still only wins on
         // DOM order, which a panel painted after it (the right dock reaches
@@ -355,6 +380,7 @@ function SelectRow({
   onChange: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const popover = useMountTransition(open);
   const ref = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
   const current = options.find((o) => o.id === value)?.label ?? value;
@@ -388,9 +414,10 @@ function SelectRow({
           </Glyph>
         </span>
       </button>
-      {open ? (
+      {popover.mounted ? (
         <MenuPopover
           anchor={ref}
+          open={open}
           label={label}
           // Beside the popup, like every other menu here: dropped over the
           // popup it laid glass over the very sliders the mode governs.
@@ -2463,6 +2490,7 @@ export default function StudioChrome({
   const [tool, setTool] = useState<Tool>("devices");
   const [panelOpen, setPanelOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const accountMenuPopover = useMountTransition(menuOpen);
 
   /* It is only really there when there is a clip to show — which is the same
      condition `Timeline` renders on, hoisted so the layout can reserve its
@@ -2534,6 +2562,15 @@ export default function StudioChrome({
     "shortcuts" | "changelog" | "welcome" | "signout" | null
   >(null);
   const keysOpen = sheet !== null;
+  const keysPopover = useMountTransition(keysOpen);
+  // The sheet stays mounted a beat after `sheet` goes null, to fade rather
+  // than cut -- so which sheet renders needs to keep reading the one that WAS
+  // open, or it switches to `ShortcutsSheet` (the JSX's own fallback) for the
+  // last instant of every OTHER sheet's close.
+  const [lastSheet, setLastSheet] = useState(sheet);
+  if (sheet !== null && sheet !== lastSheet) setLastSheet(sheet);
+  const shownSheet = sheet ?? lastSheet;
+
   /** The first-run walkthrough; see `Tour`. */
   const [tourOpen, setTourOpen] = useState(false);
   /** The Motion half of it, run once on the first switch to Motion. */
@@ -2574,6 +2611,14 @@ export default function StudioChrome({
   }, [sheet, user]);
   /** The Devices panel's open category, whose models show in a side menu. */
   const [deviceGroup, setDeviceGroup] = useState<string | null>(null);
+  const deviceGroupPopover = useMountTransition(deviceGroup !== null);
+  // The popup stays mounted a beat after `deviceGroup` goes null, to fade
+  // rather than cut -- so its `items` need to keep reading the group that WAS
+  // open, or the row list collapses to empty mid-fade instead of just fading
+  // out as it was.
+  const lastDeviceGroupRef = useRef<string | null>(null);
+  if (deviceGroup !== null) lastDeviceGroupRef.current = deviceGroup;
+  const shownDeviceGroup = deviceGroup ?? lastDeviceGroupRef.current;
   const closeDeviceGroup = useCallback(() => setDeviceGroup(null), []);
   const deviceRowsRef = useRef<HTMLDivElement | null>(null);
   const deviceAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -2904,6 +2949,7 @@ export default function StudioChrome({
    */
   const [hoveredPreset, setHoveredPreset] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const addPopover = useMountTransition(addOpen);
   const closeAddMenu = useCallback(() => setAddOpen(false), []);
   const addRef = useRef<HTMLDivElement>(null);
   const shownEffects = EFFECT_LAYERS.filter(
@@ -3412,7 +3458,7 @@ export default function StudioChrome({
                 </CircleButton>
               </Tip>
             </div>
-            {keysOpen ? (
+            {keysPopover.mounted ? (
               <>
                 {/*
                   A solid ground under the sheet, feathered at its edges: a
@@ -3421,10 +3467,18 @@ export default function StudioChrome({
                   is solid and it fades out toward the sides, where the rail,
                   the panels and the gizmo stay sharp and in view. A clear
                   full-window layer under it takes the click that closes.
+
+                  Both this and the sheet fade on `keysPopover.shown` rather
+                  than snapping with `keysOpen`, and stay mounted through the
+                  close (`keysPopover.mounted`) so that fade has time to play.
                 */}
                 <div
                   className="pointer-events-auto absolute inset-0"
                   onPointerDown={closeKeys}
+                  style={{
+                    opacity: keysPopover.shown ? 1 : 0,
+                    transition: `opacity ${morph}ms ${POPUP_CURVE}`,
+                  }}
                 />
                 <div
                   aria-hidden
@@ -3437,13 +3491,24 @@ export default function StudioChrome({
                     borderRadius: 64,
                     background: "#e4e4e4",
                     filter: "blur(40px)",
+                    opacity: keysPopover.shown ? 1 : 0,
+                    transition: `opacity ${morph}ms ${POPUP_CURVE}`,
                   }}
                 />
                 <div className="pointer-events-none absolute inset-0 grid place-items-center">
-                  <div className="pointer-events-auto">
-                    {sheet === "welcome" ? (
+                  <div
+                    className="pointer-events-auto"
+                    style={{
+                      opacity: keysPopover.shown ? 1 : 0,
+                      transform: keysPopover.shown
+                        ? "scale(1) translateY(0)"
+                        : "scale(0.96) translateY(8px)",
+                      transition: `opacity ${morph}ms ${POPUP_CURVE}, transform ${morph}ms ${POPUP_CURVE}`,
+                    }}
+                  >
+                    {shownSheet === "welcome" ? (
                       <WelcomeSheet onClose={closeKeys} />
-                    ) : sheet === "signout" ? (
+                    ) : shownSheet === "signout" ? (
                       <SignOutSheet
                         email={userEmail ?? ""}
                         onClose={closeKeys}
@@ -3455,7 +3520,7 @@ export default function StudioChrome({
                           void signOut({ redirectUrl: "/" });
                         }}
                       />
-                    ) : sheet === "changelog" ? (
+                    ) : shownSheet === "changelog" ? (
                       <ChangelogSheet onClose={closeKeys} />
                     ) : (
                       <ShortcutsSheet onClose={closeKeys} />
@@ -3477,12 +3542,20 @@ export default function StudioChrome({
             // menu still frosts.
             style={{ right: 16, top: 16, gap: 16, zIndex: 40 }}
           >
-            {menuOpen ? (
+            {accountMenuPopover.mounted ? (
               <Glass
                 // Beside the chip, and as wide as the panel's width leaves:
                 // its left edge lines up with the stack underneath.
                 // 250 panel - 44 chip - 16 gap.
                 width={control.panelW - 44 - 16}
+                style={{
+                  opacity: accountMenuPopover.shown ? 1 : 0,
+                  transform: accountMenuPopover.shown
+                    ? "scale(1) translateY(0)"
+                    : "scale(0.96) translateY(-8px)",
+                  transformOrigin: "top right",
+                  transition: `opacity ${morph}ms ${POPUP_CURVE}, transform ${morph}ms ${POPUP_CURVE}`,
+                }}
               >
                 <RowGroup>
                   {/* Clerk's own profile panel: name, email, password, connected
@@ -3687,13 +3760,14 @@ export default function StudioChrome({
                               ];
                             })}
                           </RowGroup>
-                          {deviceGroup ? (
+                          {deviceGroupPopover.mounted ? (
                             <MenuPopover
                               anchor={deviceAnchorRef}
+                              open={deviceGroup !== null}
                               label="Devices"
                               placement="side"
                               items={DEVICES.filter(
-                                (d) => deviceGroupOf(d.id) === deviceGroup,
+                                (d) => deviceGroupOf(d.id) === shownDeviceGroup,
                               ).map((d) => ({
                                 id: d.id,
                                 label: d.label,
@@ -4552,9 +4626,10 @@ export default function StudioChrome({
                         </Row>
                       ))}
                     </RowGroup>
-                    {addOpen ? (
+                    {addPopover.mounted ? (
                       <MenuPopover
                         anchor={addRef}
+                        open={addOpen}
                         label="Add effect"
                         placement="side"
                         items={addable.map((l) => ({

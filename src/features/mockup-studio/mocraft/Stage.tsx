@@ -59,6 +59,7 @@ import {
   Glyph,
   Checkbox,
   Segmented,
+  useMountTransition,
 } from "@/design/ui";
 import { getLayer } from "./bindings";
 
@@ -159,6 +160,7 @@ function StageInner({
   // opposite corner of the shot.
   const [imgAnchor, setImgAnchor] = useState<{ left: number; top: number } | null>(null);
   const imgAnchorRef = useRef<HTMLDivElement | null>(null);
+  const imgPopover = useMountTransition(imgAnchor !== null);
 
   // The Canvas background quick panel's own trigger and synthetic anchor --
   // see the button's own comment for why it isn't `MenuPopover`'s normal
@@ -169,6 +171,7 @@ function StageInner({
   const shotRef = useRef<HTMLDivElement | null>(null);
   const bgAnchorRef = useRef<HTMLDivElement | null>(null);
   const [bgAnchor, setBgAnchor] = useState<{ left: number; top: number } | null>(null);
+  const bgPopover = useMountTransition(bgAnchor !== null);
 
   /*
    * Full screen preview: the stage lifts over the whole window and the shot
@@ -580,26 +583,27 @@ function StageInner({
           </CircleButton>
         </div>
         {imgAnchor ? (
-          <>
-            <div
-              ref={imgAnchorRef}
-              style={{
-                position: "fixed",
-                left: imgAnchor.left,
-                top: imgAnchor.top,
-                width: BG_PANEL_W,
-                height: 0,
-              }}
-            />
-            <MenuPopover
-              anchor={imgAnchorRef}
-              label="Screen image"
-              placement="below"
-              onClose={() => setImgAnchor(null)}
-            >
-              <ScreenImageFields studio={studio} onClose={() => setImgAnchor(null)} />
-            </MenuPopover>
-          </>
+          <div
+            ref={imgAnchorRef}
+            style={{
+              position: "fixed",
+              left: imgAnchor.left,
+              top: imgAnchor.top,
+              width: BG_PANEL_W,
+              height: 0,
+            }}
+          />
+        ) : null}
+        {imgPopover.mounted ? (
+          <MenuPopover
+            anchor={imgAnchorRef}
+            open={imgAnchor !== null}
+            label="Screen image"
+            placement="below"
+            onClose={() => setImgAnchor(null)}
+          >
+            <ScreenImageFields studio={studio} onClose={() => setImgAnchor(null)} />
+          </MenuPopover>
         ) : null}
 
         {/* The Canvas background row used to be the only way in; this is the
@@ -626,26 +630,27 @@ function StageInner({
           </CircleButton>
         </div>
         {bgAnchor ? (
-          <>
-            <div
-              ref={bgAnchorRef}
-              style={{
-                position: "fixed",
-                left: bgAnchor.left,
-                top: bgAnchor.top,
-                width: BG_PANEL_W,
-                height: 0,
-              }}
-            />
-            <MenuPopover
-              anchor={bgAnchorRef}
-              label="Canvas background"
-              placement="below"
-              onClose={() => setBgAnchor(null)}
-            >
-              <BackgroundFields studio={studio} onClose={() => setBgAnchor(null)} />
-            </MenuPopover>
-          </>
+          <div
+            ref={bgAnchorRef}
+            style={{
+              position: "fixed",
+              left: bgAnchor.left,
+              top: bgAnchor.top,
+              width: BG_PANEL_W,
+              height: 0,
+            }}
+          />
+        ) : null}
+        {bgPopover.mounted ? (
+          <MenuPopover
+            anchor={bgAnchorRef}
+            open={bgAnchor !== null}
+            label="Canvas background"
+            placement="below"
+            onClose={() => setBgAnchor(null)}
+          >
+            <BackgroundFields studio={studio} onClose={() => setBgAnchor(null)} />
+          </MenuPopover>
         ) : null}
           </>
         ) : null}
@@ -1193,18 +1198,20 @@ function ScreenImageFields({ studio, onClose }: { studio: Studio; onClose: () =>
           onPick={studio.uploadScreen}
           onClear={studio.clearScreen}
         />
-        <ScreenAdjust
-          scale={state.screenScale}
-          mode={state.screenFitMode ?? "fill"}
-          canReset={
-            state.screenScale !== 1 || state.screenOffsetX !== 0 || state.screenOffsetY !== 0
-          }
-          onScale={(screenScale) => edit((prev) => ({ ...prev, screenScale }))}
-          onMode={(screenFitMode) => edit((prev) => ({ ...prev, screenFitMode }))}
-          onReset={() =>
-            edit((prev) => ({ ...prev, screenScale: 1, screenOffsetX: 0, screenOffsetY: 0 }))
-          }
-        />
+        {studio.screenSrc ? (
+          <ScreenAdjust
+            scale={state.screenScale}
+            mode={state.screenFitMode ?? "fill"}
+            canReset={
+              state.screenScale !== 1 || state.screenOffsetX !== 0 || state.screenOffsetY !== 0
+            }
+            onScale={(screenScale) => edit((prev) => ({ ...prev, screenScale }))}
+            onMode={(screenFitMode) => edit((prev) => ({ ...prev, screenFitMode }))}
+            onReset={() =>
+              edit((prev) => ({ ...prev, screenScale: 1, screenOffsetX: 0, screenOffsetY: 0 }))
+            }
+          />
+        ) : null}
       </ParamGroup>
       {studio.device.coverScreen ? (
         <>
@@ -1215,18 +1222,20 @@ function ScreenImageFields({ studio, onClose }: { studio: Studio; onClose: () =>
               onPick={studio.uploadCover}
               onClear={studio.clearCover}
             />
-            <ScreenAdjust
-              scale={state.coverScale}
-              mode={state.coverFitMode ?? "fill"}
-              canReset={
-                state.coverScale !== 1 || state.coverOffsetX !== 0 || state.coverOffsetY !== 0
-              }
-              onScale={(coverScale) => edit((prev) => ({ ...prev, coverScale }))}
-              onMode={(coverFitMode) => edit((prev) => ({ ...prev, coverFitMode }))}
-              onReset={() =>
-                edit((prev) => ({ ...prev, coverScale: 1, coverOffsetX: 0, coverOffsetY: 0 }))
-              }
-            />
+            {studio.coverSrc ? (
+              <ScreenAdjust
+                scale={state.coverScale}
+                mode={state.coverFitMode ?? "fill"}
+                canReset={
+                  state.coverScale !== 1 || state.coverOffsetX !== 0 || state.coverOffsetY !== 0
+                }
+                onScale={(coverScale) => edit((prev) => ({ ...prev, coverScale }))}
+                onMode={(coverFitMode) => edit((prev) => ({ ...prev, coverFitMode }))}
+                onReset={() =>
+                  edit((prev) => ({ ...prev, coverScale: 1, coverOffsetX: 0, coverOffsetY: 0 }))
+                }
+              />
+            ) : null}
           </ParamGroup>
         </>
       ) : null}
@@ -1598,6 +1607,12 @@ function ScreenPlaceholderLayer({
           />
           <MenuPopover
             anchor={menuAnchorRef}
+            // Always true: this popup is itself already conditional on
+            // `menu`, right-click-menu convention is to appear at once (no
+            // OS context menu fades either), and unlike the others here
+            // `menu`'s own fields are read directly in the JSX above, so
+            // there is no frozen "last value" to fade out against.
+            open
             items={menuItems}
             label={menu.target === "main" ? "Screen image" : "Cover image"}
             placement="below"
