@@ -436,6 +436,19 @@ function StageInner({
         )));
   /* Each tab's own depth of field: Motion's travels with its moves. */
   const blur = motionMode ? (state.motionBlur ?? DEFAULT_BLUR) : state.blur;
+  /*
+   * The backdrop's share of the same setting -- see `BackgroundImage`'s own
+   * comment for why it needs a separate number at all rather than sitting in
+   * the shader's pass. 28px is a first-pass ceiling, chosen by eye against
+   * the phone's own "full strength" reach rather than derived from it: the
+   * two blurs are different techniques (a Gaussian pass over a copied frame
+   * vs. a CSS filter) and were never going to land on identical pixel
+   * amounts, only on a comparable LOOK. Not tied to `follow`'s fade envelope
+   * -- the backdrop is behind the plane of focus regardless of where a
+   * composed move currently has the sharp spot, so it stays at one amount
+   * for the length of the clip rather than breathing with it.
+   */
+  const bgBlurPx = isBlurActive(blur) ? (blur.strength / 100) * 28 : 0;
 
   return (
     <div
@@ -517,7 +530,7 @@ function StageInner({
             : `width ${RATIO_MS}ms ${FULLSCREEN_EASE}, aspect-ratio ${RATIO_MS}ms ${FULLSCREEN_EASE}, border-radius ${RATIO_MS}ms ${FULLSCREEN_EASE}`,
         }}
       >
-        <BackgroundImage bg={state.background} />
+        <BackgroundImage bg={state.background} blurPx={bgBlurPx} />
         <div ref={contentRef} className="absolute inset-0">
           <PhoneStage3D
             rail={undefined}

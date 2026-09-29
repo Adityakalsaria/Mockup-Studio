@@ -92,6 +92,7 @@ import { MOTION_STEPS, Tour, type Step as TourStep } from "./Tour";
 import UpdateNotice from "./UpdateNotice";
 import { backgroundClass, backgroundCss } from "../backgrounds";
 import BackgroundImage from "../BackgroundImage";
+import { DEFAULT_BLUR, isBlurActive } from "../blurStyles";
 import { PANEL_H as TIMELINE_H, Timeline } from "./Timeline";
 import { useStudio, type Studio } from "./useStudio";
 import {
@@ -3407,6 +3408,14 @@ export default function StudioChrome({
     );
   };
 
+  /* Depth of field's stand-in for the Fill-ratio ground below -- see
+     `BackgroundImage`'s own comment, and `Stage.tsx`'s matching copy of this
+     same line for the ratio-framed case. */
+  const fillBlur = studio.motionMode
+    ? (studio.state.motionBlur ?? DEFAULT_BLUR)
+    : studio.state.blur;
+  const fillBgBlurPx = isBlurActive(fillBlur) ? (fillBlur.strength / 100) * 28 : 0;
+
   return (
     <>
       <DesignSystem />
@@ -3493,7 +3502,7 @@ export default function StudioChrome({
             className={`absolute inset-0 overflow-hidden ${backgroundClass(studio.state.background)}`}
             style={backgroundCss(studio.state.background)}
           >
-            <BackgroundImage bg={studio.state.background} />
+            <BackgroundImage bg={studio.state.background} blurPx={fillBgBlurPx} />
           </div>
         ) : null}
         <div
