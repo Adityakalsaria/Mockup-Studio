@@ -665,7 +665,12 @@ const RING = {
 const BACK_GLASS = {
   lighten: 0,
   metalness: 0,
-  roughness: 0.1,
+  // This export bakes a real KHR_materials_transmission on the back panel
+  // (the old model faked glass with opacity alone). At the old 0.1 that
+  // transmission reads as a sharp, streaky refraction of whatever sits
+  // behind it; frosting it here is what keeps the panel a clean colour
+  // instead of a wood-grain-looking window.
+  roughness: 0.5,
   envMapIntensity: 1.4,
 } as const;
 
@@ -692,7 +697,12 @@ const PLATEAU = {
   darken: 0.02,
   saturate: 1.7,
   opacity: 0.74,
-  roughness: 0,
+  // Tuned as a true mirror (0) against the old model, which had no real
+  // transmission and faked glass with `opacity` alone. This export bakes
+  // KHR_materials_transmission on the same meshes, so 0 roughness on top of
+  // real transmission is a clear window straight through the bump instead
+  // of a glossy plateau -- frosted here to scatter that refraction back down.
+  roughness: 0.65,
   metalness: 0,
   envMapIntensity: 1.9,
 } as const;
@@ -886,21 +896,6 @@ export const DEVICES: Device[] = [
      *    the rail.
      */
 
-    bodySurfaces: {
-      /*
-       * The frame, on the 17 Pro's numbers.
-       *
-       * Authored roughness 1 / metalness 0.87, which reads as a bar of raw
-       * metal: fully rough and almost fully metallic at once, so it takes
-       * colour from the environment and none of the light's own. Tuned by eye
-       * on the Surface bench for the 17 Pro and the same here, the frame being
-       * the same anodised rail on every one of these.
-       */
-      "SLmJkLdkhbbuEfG.001": { roughness: 0.76, metalness: 0.61, envMapIntensity: 1.65 },
-      /* The back glass, on the 17 Pro's numbers: smooth, non-metallic, and
-         lit hard enough to hold a reflection. */
-      "NWVRqxSZYCCnuGM": { roughness: 0.14, metalness: 0, envMapIntensity: 2.6 },
-    },
     materialColors: {
       /*
        * The back glass, a step above the rail.
@@ -1321,10 +1316,6 @@ export const DEVICES: Device[] = [
      * recess, not a different colour.
      */
     bodySurfaces: {
-      /* The back glass, on the 17 Pro's numbers: smooth, non-metallic, and
-         lit hard enough to hold a reflection. */
-      "SMUhrjUPCjJkPUK.008": { roughness: 0.14, metalness: 0, envMapIntensity: 2.6 },
-      "SMUhrjUPCjJkPUK.010": { roughness: 0.14, metalness: 0, envMapIntensity: 2.6 },
       /* The antenna bands: the frame's matter cousin, so they read as inset
          rather than as a seam drawn on it. */
       "sJxAokqqlZYuwzy.010": { roughness: 0.52, metalness: 0.08 },
@@ -1628,16 +1619,6 @@ export const DEVICES: Device[] = [
      * way this particular question gets answered.
      */
     bodySurfaces: {
-      /*
-       * The frame, on the 17 Pro's numbers.
-       *
-       * Authored roughness 1 / metalness 0.87, which reads as a bar of raw
-       * metal: fully rough and almost fully metallic at once, so it takes
-       * colour from the environment and none of the light's own. Tuned by eye
-       * on the Surface bench for the 17 Pro and the same here, the frame being
-       * the same anodised rail on every one of these.
-       */
-      "vUgmkmbQjXTaqEc.008": { roughness: 0.76, metalness: 0.61, envMapIntensity: 1.65 },
       WElbLmMkunjUugH: { roughness: 0.25, metalness: 0.26, envMapIntensity: 0 },
       /*
        * The iris blades, darkened to read as a mechanism.
@@ -1931,16 +1912,6 @@ export const DEVICES: Device[] = [
      * way this particular question gets answered.
      */
     bodySurfaces: {
-      /*
-       * The frame, on the 17 Pro's numbers.
-       *
-       * Authored roughness 1 / metalness 0.87, which reads as a bar of raw
-       * metal: fully rough and almost fully metallic at once, so it takes
-       * colour from the environment and none of the light's own. Tuned by eye
-       * on the Surface bench for the 17 Pro and the same here, the frame being
-       * the same anodised rail on every one of these.
-       */
-      "vUgmkmbQjXTaqEc.008": { roughness: 0.76, metalness: 0.61, envMapIntensity: 1.65 },
       WElbLmMkunjUugH: { roughness: 0.25, metalness: 0.26, envMapIntensity: 0 },
       /*
        * The iris blades, darkened to read as a mechanism.
@@ -2564,7 +2535,18 @@ export const DEVICES: Device[] = [
        * which is what makes it read as glass over the pad rather than as paint
        * on it.
        */
-      "FVWIzbdaZVWwNoh.002": { lighten: 0.05 },
+      "FVWIzbdaZVWwNoh.002": { lighten: 0.05, roughness: 0.55 },
+      /*
+       * The plateau's outer shell, over the pad above.
+       *
+       * A generic, reused library name -- on the 17 Pro/Pro Max the same name
+       * is a lens barrel or the flash window and is meant to stay dead black
+       * (see `keepMaterials` below), but on this file it is bound to the
+       * plateau's own glass shell: authored near-white with real transmission,
+       * so `keepMaterials` rendered it fully see-through. Frosted and tinted
+       * here the same way the pad above is.
+       */
+      "nypJRzXNHbmJCqR.012": { lighten: 0.05, roughness: 0.65 },
       /*
        * The back glass sheet.
        *
@@ -2689,12 +2671,6 @@ export const DEVICES: Device[] = [
       "cdkzsMrKAIfdCgl.016": {
         lighten: 0.06,
         saturate: 1.9,
-        // The frame, on the 17 Pro's numbers -- see that entry. Authored
-        // polished (roughness 0.01, metalness 1), which on titanium read as
-        // chrome; this is the same brushed rail the others wear.
-        roughness: 0.76,
-        metalness: 0.61,
-        envMapIntensity: 1.65,
       },
       /*
        * The ring's second disc, made to match.
@@ -2725,7 +2701,6 @@ export const DEVICES: Device[] = [
      */
     keepMaterials: [
       "nDDUrurZqhIwGTb.018",
-      "nypJRzXNHbmJCqR.012",
       "XJBDPVJKGkXvaGI.002",
       "mOhEPSexeCXxYUi.004",
       "offBMueUqTCIKfx.004",
