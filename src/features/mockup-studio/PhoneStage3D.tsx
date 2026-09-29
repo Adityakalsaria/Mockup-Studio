@@ -2882,13 +2882,20 @@ function GLBPhoneScene({
     if (process.env.NODE_ENV !== "development") return;
     if (device.id !== "apple-iphone-17") return;
     scene.traverse((child) => {
-      const mesh = child as Mesh & { material?: unknown };
+      const mesh = child as Mesh & { name?: string; material?: unknown };
       const materials = mesh.material;
       if (!materials) return;
       const list = Array.isArray(materials) ? materials : [materials];
+      // `devices.ts` binds RAIL/PLATEAU to some of these parts by MESH name
+      // (`meshColors`, e.g. the rail's own two body-shell meshes) and others
+      // by material name (`materialColors`) -- both land in the same lookup,
+      // so both are checked here. Meshes miss on a mesh-name lookup; loose
+      // materials with no name miss on the material one. The two share no
+      // names in this file, so applying both is never a double-write.
+      const meshGroup = mesh.name ? MATERIAL_NAME_TO_GROUP.get(mesh.name) : undefined;
       for (const mat of list) {
         const name = (mat as { name?: string } | null)?.name;
-        const group = name ? MATERIAL_NAME_TO_GROUP.get(name) : undefined;
+        const group = meshGroup ?? (name ? MATERIAL_NAME_TO_GROUP.get(name) : undefined);
         if (!group) continue;
         const values = materialTuning[group];
         const m = mat as {
