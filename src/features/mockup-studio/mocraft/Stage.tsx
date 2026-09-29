@@ -49,7 +49,19 @@ import {
   ToggleRow,
   type MenuItem,
 } from "./StudioChrome";
-import { CircleButton, Header, ParamGroup, Divider, ColorRow } from "@/design/ui";
+import {
+  CircleButton,
+  Header,
+  ParamGroup,
+  Divider,
+  ColorRow,
+  ParamRow,
+  Glyph,
+  Checkbox,
+  Segmented,
+  useMountTransition,
+} from "@/design/ui";
+import { getLayer } from "./bindings";
 
 /** Width of the screen's right-click menu -- narrower than `control.panelW`,
     the width every slider/colour popup in `StudioChrome` opens at, since this
@@ -367,19 +379,6 @@ function StageInner({
         )));
   /* Each tab's own depth of field: Motion's travels with its moves. */
   const blur = motionMode ? (state.motionBlur ?? DEFAULT_BLUR) : state.blur;
-  /*
-   * The backdrop's share of the same setting -- see `BackgroundImage`'s own
-   * comment for why it needs a separate number at all rather than sitting in
-   * the shader's pass. 28px is a first-pass ceiling, chosen by eye against
-   * the phone's own "full strength" reach rather than derived from it: the
-   * two blurs are different techniques (a Gaussian pass over a copied frame
-   * vs. a CSS filter) and were never going to land on identical pixel
-   * amounts, only on a comparable LOOK. Not tied to `follow`'s fade envelope
-   * -- the backdrop is behind the plane of focus regardless of where a
-   * composed move currently has the sharp spot, so it stays at one amount
-   * for the length of the clip rather than breathing with it.
-   */
-  const bgBlurPx = isBlurActive(blur) ? (blur.strength / 100) * 28 : 0;
 
   return (
     <div
@@ -448,7 +447,7 @@ function StageInner({
               }),
         }}
       >
-        <BackgroundImage bg={state.background} blurPx={bgBlurPx} />
+        <BackgroundImage bg={state.background} blur={blur} />
         <PhoneStage3D
           rail={undefined}
           /* The two doors export goes through: one frame on demand for the
@@ -745,26 +744,6 @@ function BackgroundFields({ studio, onClose }: { studio: Studio; onClose: () => 
       <Header icon={<Icon name="canvas-color" />} closeIcon={<Icon name="close-rounded" />} onClose={onClose}>
         Canvas background
       </Header>
-      <ParamGroup>
-        <ColorRow
-          label="Color"
-          value={bg.color}
-          onChange={(hex) =>
-            edit((prev) => ({ ...prev, background: { ...prev.background, kind: "solid", color: hex } }))
-          }
-        />
-        <ToggleRow
-          label="Transparent"
-          value={bg.kind === "transparent"}
-          onChange={(on) =>
-            edit((prev) => ({
-              ...prev,
-              background: { ...prev.background, kind: on ? "transparent" : "solid" },
-            }))
-          }
-        />
-      </ParamGroup>
-      <Divider />
       <ParamGroup title="Presets">
         <BackgroundPresets
           selected={bg.kind === "image" ? bg.imageSrc : null}
@@ -772,10 +751,55 @@ function BackgroundFields({ studio, onClose }: { studio: Studio; onClose: () => 
         />
       </ParamGroup>
       <Divider />
-      <ParamGroup title="Image">
+      <ParamGroup>
+        {/* `ColorRow` carries no vertical padding of its own -- everywhere
+            else it appears, it sits in a list of OTHER `ColorRow`s/`ParamRow`s
+            that share that same convention, so the gap between them is all
+            the room any of them ever needs. Here it sits next to rows built
+            on `ToggleRow`'s convention instead (6px top and bottom, baked in
+            below), which is a taller row by design -- unwrapped, Color read
+            as squeezed against the dividers its neighbours were not. */}
+        <div style={{ padding: "6px 0" }}>
+          <ColorRow
+            icon={<Icon name="color-drop" />}
+            label="Color"
+            value={bg.color}
+            onChange={(hex) =>
+              edit((prev) => ({ ...prev, background: { ...prev.background, kind: "solid", color: hex } }))
+            }
+          />
+        </div>
+      </ParamGroup>
+      {/* -8 brings the 16px root gap down to 8 on each side of this one --
+          Color through Transparent read as one tight list of what the
+          canvas's background IS, and Presets above them is a different kind
+          of thing (a whole picture, chosen by eye, not a value dialled),
+          which is exactly why the gap leading into this list stays at the
+          full 16. */}
+      <Divider inset={-8} />
+      {/* Gradient and Dots are two more things `background.kind` can be --
+          the same switch Color sits on -- so they belong right beside it
+          rather than behind a trip to the right dock's own "Add effect"
+          menu, which no longer offers them at all (see `EFFECT_LAYERS` in
+          `StudioChrome.tsx`). Reusing `getLayer`'s `isOn`/`toggle`/`sections`
+          directly is what keeps this popup from ever disagreeing with the
+          state those functions already own.
+          Each its own `ParamGroup`, not three rows sharing one: a `Divider`
+          BETWEEN siblings in the same group sits in that group's own 8px
+          gap on both sides, while every other divider in this popup sits
+          between two ROOT children in its 16px gap -- two different amounts
+          of air around what is supposed to read as one uniform rule. */}
+      <ParamGroup>
+        <BackgroundEffectRow id="gradient" studio={studio} />
+      </ParamGroup>
+      <Divider inset={-8} />
+      <ParamGroup>
+        <BackgroundEffectRow id="dots" studio={studio} />
+      </ParamGroup>
+      <Divider inset={-8} />
+      <ParamGroup title="Custom image">
         <ImageWell
           src={uploaded ? bg.imageSrc : null}
-          empty="No background image"
           onPick={studio.uploadBackground}
           onClear={studio.clearBackground}
         />
@@ -797,6 +821,152 @@ function BackgroundFields({ studio, onClose }: { studio: Studio; onClose: () => 
           }
         />
       </ParamGroup>
+      <Divider inset={-8} />
+      <ParamGroup>
+        {/* Last of all: the other four are still a colour or a picture
+            underneath everything else in the shot. Transparent is the one
+            answer that isn't -- there is nothing under it -- so it reads as
+            the exit from the whole popup rather than one more option
+            inside it. */}
+        <ToggleRow
+          icon={<Icon name="transparent" />}
+          label="Transparent"
+          value={bg.kind === "transparent"}
+          onChange={(on) =>
+            edit((prev) => ({
+              ...prev,
+              background: { ...prev.background, kind: on ? "transparent" : "solid" },
+            }))
+          }
+        />
+      </ParamGroup>
+    </div>
+  );
+}
+
+/**
+ * Gradient or Dots, by id -- a checkbox that flips the SAME `isOn`/`toggle`
+ * `background.kind` already reads, and, while on, the same `sections`
+ * fields the right dock's own popup would have shown for it, walked
+ * generically by `kind` so a field added to the binding later appears here
+ * for free.
+ *
+ * Built on `ToggleRow`'s own layout (padding, `mo-title`, a trailing
+ * checkbox) rather than `Row`/`RowGroup`: `Row` is meant for a list with one
+ * selected member and renders everyone else at reduced ink, and sizes its
+ * trailing slot differently -- which read as this row's checkbox sitting a
+ * few pixels off "Transparent"'s, and its label a shade greyer.
+ *
+ * Only "color" and "number" fields are handled -- the only two kinds either
+ * binding actually uses. A field of another kind is left out rather than
+ * guessed at.
+ */
+function BackgroundEffectRow({ id, studio }: { id: string; studio: Studio }) {
+  const layer = getLayer(id);
+  const { state, edit } = studio;
+  const on = layer?.isOn(state) ?? false;
+  if (!layer) return null;
+  return (
+    // A plain div, not a Fragment: `ParamGroup` gives every DIRECT child of
+    // its own a `gap` (var(--mo-space-2)) toward the next one, including
+    // toward this row's own collapsed-fields div even while that div is
+    // 0px tall -- flex `gap` inserts its full amount regardless of whether
+    // either side has any size. Two Fragment children read as two
+    // `ParamGroup` children, so Gradient/Dots carried 8px of dead space
+    // below them that Color/Transparent, with only one child each, never
+    // had -- the gap to "nothing" was still a real gap. One wrapping div
+    // makes this whole row ONE `ParamGroup` child, so that gap never
+    // applies inside it, and the space between header and fields is
+    // entirely the fields' own padding (already 0 while collapsed).
+    <div>
+      <div
+        className="flex w-full items-center cursor-pointer"
+        style={{ gap: "var(--mo-space-2)", padding: "6px var(--mo-space-2)", filter: "var(--mo-text-shadow)" }}
+        onClick={() => edit((prev) => layer.toggle(prev, !on))}
+      >
+        <Glyph muted={!on}>
+          <Icon name={layer.icon} />
+        </Glyph>
+        <span className="mo-title min-w-0 flex-1">{layer.name}</span>
+        <Checkbox
+          checked={on}
+          label={layer.name}
+          icon={<Icon name="checkbox" />}
+          checkedIcon={<Icon name="checkbox-checked" />}
+          onChange={(next) => edit((prev) => layer.toggle(prev, next))}
+        />
+      </div>
+      {
+        /*
+         * `grid-template-rows: 0fr -> 1fr` on a single-row grid, not a
+         * `max-height` guess or a measured pixel height: the row track
+         * itself is what animates, and a `1fr` track always resolves to
+         * exactly its content's own height, however many fields that turns
+         * out to be. `overflow: hidden` on the inner wrapper is what makes
+         * the collapsed `0fr` track actually clip its content instead of
+         * the content forcing the track open regardless.
+         *
+         * The fields stay mounted (just collapsed) rather than unmounting
+         * on close the way a hundred-chip grid needs to -- two or three
+         * rows cost nothing kept around, and it sidesteps `useMountTransition`
+         * entirely: two sibling instances of that hook's own "adjust state
+         * during render" trick, one per row, landed in the same commit and
+         * left one stuck thinking it was still collapsed after `on` had
+         * already gone true. A plain derived boolean driving the CSS
+         * transition directly has no state of its own to race.
+         */
+      }
+      <div
+        style={{
+          display: "grid",
+          gridTemplateRows: on ? "1fr" : "0fr",
+          transition: `grid-template-rows ${RATIO_MS}ms ${FULLSCREEN_EASE}`,
+        }}
+      >
+        {/* `overflow: hidden` clips CONTENT, but a box's own padding still
+            counts toward its minimum size regardless -- padding here, on the
+            box the grid row is actually sizing, was what kept the collapsed
+            row a few pixels tall instead of zero. Padding (and the gap
+            between fields) moved one level in, onto a plain child the grid
+            row clips wholesale, so the row itself has nothing of its own to
+            floor its height above 0. */}
+        <div style={{ overflow: "hidden", minHeight: 0 }}>
+          <div
+            className="flex flex-col"
+            style={{
+              gap: "var(--mo-space-1)",
+              paddingTop: 4,
+              paddingBottom: 10,
+            }}
+          >
+            {layer.sections.flatMap((section) =>
+              section.fields
+                .filter((f) => f.when?.(state) ?? true)
+                .map((f) =>
+                  f.kind === "color" ? (
+                    <ColorRow
+                      key={f.key}
+                      label={f.label}
+                      value={f.get(state)}
+                      onChange={(hex) => edit((prev) => f.set(prev, hex))}
+                    />
+                  ) : f.kind === "number" ? (
+                    <ParamRow
+                      key={f.key}
+                      label={f.label}
+                      value={f.get(state)}
+                      min={f.min}
+                      max={f.max}
+                      step={f.step}
+                      format={f.format}
+                      onChange={(n) => edit((prev) => f.set(prev, n))}
+                    />
+                  ) : null,
+                ),
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -805,12 +975,16 @@ function BackgroundFields({ studio, onClose }: { studio: Studio; onClose: () => 
     height, so it reads as a small picture rather than a colour swatch. */
 const PRESET_CHIP_R = 10;
 const PRESET_GAP = 8;
+const PRESET_COLUMNS = 2;
+/** Rows rendered above/below the visible window, so a chip is already in the
+    DOM by the time a scroll brings it into view rather than popping in. */
+const PRESET_OVERSCAN_ROWS = 2;
 /**
- * Three and a half rows of chips, then the grid scrolls. The half row is the
+ * Two and a half rows tall, then the grid scrolls. The half row is the
  * point: a category of wallpapers can run to dozens, and a row cut through
  * its middle says there is more below where a clean edge would not.
  */
-const PRESET_GRID_MAX = 3.5 * 52 + 3 * PRESET_GAP;
+const PRESET_GRID_MAX = 2.5 * 104 + 2 * PRESET_GAP;
 
 /**
  * The ready-made backdrops: a row of categories, then that category's chips,
@@ -842,58 +1016,120 @@ function BackgroundPresets({
       BACKGROUND_CATEGORIES.find((c) => c.items.some((i) => i.src === selected))?.id ??
       BACKGROUND_CATEGORIES[0]?.id,
   );
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Doubles as the width measurement and the absolute-positioning parent for
+  // the rendered window below.
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [trackWidth, setTrackWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    const node = trackRef.current;
+    if (!node) return;
+    const measure = () => setTrackWidth(node.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
   const category =
     BACKGROUND_CATEGORIES.find((c) => c.id === categoryId) ?? BACKGROUND_CATEGORIES[0];
   if (!category) return null;
 
+  /*
+   * A category can run to a hundred wallpapers. Rendering all of them --
+   * even with `loading="lazy"` on each `<img>` -- meant a hundred decode-
+   * eligible elements existed at once, and a hundred layout boxes for the
+   * browser to keep track of every time this popup re-rendered (a pick, a
+   * scroll, the popup's own reposition watcher). That is what read as the
+   * grid seizing up once a category actually needed to scroll.
+   *
+   * Rows are uniform (every chip is a square, two to a row), so which
+   * range is on screen is arithmetic, not a library: convert `scrollTop`
+   * to a row index, add a couple of rows of overscan, and only the chips
+   * in that window are ever mounted. Everything above and below is one
+   * spacer `div` at the category's true total height, so the scrollbar and
+   * scroll range read exactly as if every chip were there.
+   */
+  const itemSize =
+    trackWidth > 0 ? (trackWidth - (PRESET_COLUMNS - 1) * PRESET_GAP) / PRESET_COLUMNS : 0;
+  const pitch = itemSize + PRESET_GAP;
+  const totalRows = Math.ceil(category.items.length / PRESET_COLUMNS);
+  const totalHeight = totalRows > 0 ? totalRows * pitch - PRESET_GAP : 0;
+  const viewportH = PRESET_GRID_MAX + 8;
+  const startRow =
+    pitch > 0 ? Math.max(0, Math.floor(scrollTop / pitch) - PRESET_OVERSCAN_ROWS) : 0;
+  const endRow =
+    pitch > 0
+      ? Math.min(totalRows, Math.ceil((scrollTop + viewportH) / pitch) + PRESET_OVERSCAN_ROWS)
+      : totalRows;
+  const startIndex = startRow * PRESET_COLUMNS;
+  const endIndex = Math.min(category.items.length, endRow * PRESET_COLUMNS);
+  const visible = category.items.slice(startIndex, endIndex);
+
+  const goToCategory = (id: string) => {
+    setCategoryId(id);
+    // The scroller and its track are shared across every category --
+    // switching tabs re-renders their content, not the nodes themselves, so
+    // a scroll left deep in "Mac" carried straight into "iPad"'s grid: both
+    // the real scrollbar position and, now, which window of chips is even
+    // mounted. Reset both, not just the DOM's scrollTop, so the very first
+    // render of the new category already shows its own first rows rather
+    // than waiting on a native `scroll` event to catch up.
+    setScrollTop(0);
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  };
+
   return (
     <div className="flex flex-col" style={{ gap: PRESET_GAP }}>
       {BACKGROUND_CATEGORIES.length > 1 ? (
-        <div
-          role="tablist"
-          aria-label="Background categories"
-          className="mo-noscroll flex overflow-x-auto"
-          style={{
-            gap: 4,
-            // Fades the far edge, so a chip running under it reads as more
-            // to scroll to rather than as a label cut short.
-            WebkitMaskImage: "linear-gradient(to right, #000 calc(100% - 24px), transparent)",
-            maskImage: "linear-gradient(to right, #000 calc(100% - 24px), transparent)",
-          }}
-        >
-          {BACKGROUND_CATEGORIES.map((c) => {
-            const on = c.id === category.id;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                role="tab"
-                aria-selected={on}
-                onClick={() => setCategoryId(c.id)}
-                className="mo-code shrink-0 cursor-pointer whitespace-nowrap transition-colors duration-150"
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: "var(--mo-r-pill)",
-                  background: on ? "var(--mo-field)" : "transparent",
-                  color: on ? "var(--mo-ink)" : "var(--mo-ink-muted)",
-                }}
-              >
-                {c.label}
-              </button>
-            );
-          })}
-        </div>
+        // The same switch Crafting/Motion is -- one selected out of a short,
+        // fixed list -- so it is the same `Segmented`, not a second "tab bar"
+        // look invented for this one spot. `Segmented` splits evenly across
+        // however many `options` it is given, which is exactly right for a
+        // list that is three categories today and gains one per imported
+        // wallpaper set rather than growing without bound.
+        <Segmented
+          value={category.id}
+          onChange={goToCategory}
+          options={BACKGROUND_CATEGORIES.map((c) => ({ id: c.id, label: c.label }))}
+          height={32}
+          // `Segmented` defaults to `control.panelW` (250) absent an
+          // override -- a fixed number unrelated to what THIS popup
+          // actually measures out to, which is where the gap on the right
+          // against "Presets"/the header came from. `100%` ties it to its
+          // real container instead of a second, coincidentally-close number.
+          width="100%"
+        />
       ) : null}
       <div
+        ref={scrollRef}
         role="tabpanel"
         className="mo-noscroll overflow-y-auto"
         /* Room for the selected ring, which sits outside the chip -- the
            scroller clips on both axes, so without it the outer chips' rings
-           were cut. The margin hands the room back. */
-        style={{ maxHeight: PRESET_GRID_MAX + 8, padding: 4, margin: -4 }}
+           were cut. The margin hands the room back.
+           Both edges fade the same way the category row's far edge already
+           does (see its own comment, just the vertical axis here): a chip
+           cut off clean by the box's own edge reads as the end of the list,
+           where fading it out reads as more to scroll to instead. */
+        style={{
+          maxHeight: viewportH,
+          padding: 4,
+          margin: -4,
+          WebkitMaskImage:
+            "linear-gradient(to bottom, transparent, #000 20px, #000 calc(100% - 20px), transparent)",
+          maskImage:
+            "linear-gradient(to bottom, transparent, #000 20px, #000 calc(100% - 20px), transparent)",
+        }}
+        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
       >
-        <div className="grid grid-cols-4" style={{ gap: PRESET_GAP }}>
-          {category.items.map((preset) => {
+        <div ref={trackRef} style={{ position: "relative", width: "100%", height: totalHeight }}>
+          {visible.map((preset, i) => {
+            const index = startIndex + i;
+            const row = Math.floor(index / PRESET_COLUMNS);
+            const col = index % PRESET_COLUMNS;
             const on = preset.src === selected;
             return (
               <button
@@ -903,16 +1139,28 @@ function BackgroundPresets({
                 aria-label={`${preset.label} background`}
                 aria-pressed={on}
                 onClick={() => onPick(preset.src)}
-                className="aspect-square w-full cursor-pointer transition-transform duration-150 ease-out hover:scale-[1.04]"
+                className="cursor-pointer overflow-hidden transition-transform duration-150 ease-out hover:scale-[1.04]"
                 style={{
+                  position: "absolute",
+                  left: col * pitch,
+                  top: row * pitch,
+                  width: itemSize,
+                  height: itemSize,
                   borderRadius: PRESET_CHIP_R,
-                  backgroundImage: `url(${preset.thumb})`,
-                  backgroundSize: "cover",
                   border: "var(--mo-swatch-edge)",
                   outline: on ? "1.5px solid var(--mo-ink)" : undefined,
                   outlineOffset: 2,
                 }}
-              />
+              >
+                <img
+                  src={preset.thumb}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-cover"
+                  draggable={false}
+                />
+              </button>
             );
           })}
         </div>
@@ -938,7 +1186,6 @@ function ScreenImageFields({ studio, onClose }: { studio: Studio; onClose: () =>
       <ParamGroup>
         <ImageWell
           src={studio.screenSrc}
-          empty="No screen yet"
           onPick={studio.uploadScreen}
           onClear={studio.clearScreen}
         />
@@ -961,7 +1208,6 @@ function ScreenImageFields({ studio, onClose }: { studio: Studio; onClose: () =>
           <ParamGroup title="Front screen">
             <ImageWell
               src={studio.coverSrc}
-              empty="No front screen yet"
               onPick={studio.uploadCover}
               onClear={studio.clearCover}
             />

@@ -2207,10 +2207,14 @@ export function Divider({ inset }: { inset?: number }) {
 export function ColorRow({
   label,
   value,
+  icon,
   onChange,
 }: {
   label: string;
   value: string;
+  /** A glyph before the label -- most `ColorRow`s don't carry one, since the
+      swatch at the trailing edge already says what the row sets. */
+  icon?: ReactNode;
   onChange?: (hex: string) => void;
 }) {
   return (
@@ -2218,6 +2222,7 @@ export function ColorRow({
       className="flex w-full items-center"
       style={{ gap: "var(--mo-space-2)", padding: "0 var(--mo-space-2)", filter: "var(--mo-text-shadow)" }}
     >
+      {icon ? <Glyph>{icon}</Glyph> : null}
       <span className="mo-title min-w-0 flex-1">{label}</span>
       <span className="mo-code shrink-0 tabular-nums">
         <MorphText>{value.toUpperCase()}</MorphText>

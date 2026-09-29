@@ -83,7 +83,7 @@ import { MOTION_STEPS, Tour, type Step as TourStep } from "./Tour";
 import UpdateNotice from "./UpdateNotice";
 import { backgroundClass, backgroundCss } from "../backgrounds";
 import BackgroundImage from "../BackgroundImage";
-import { DEFAULT_BLUR, isBlurActive } from "../blurStyles";
+import { DEFAULT_BLUR } from "../blurStyles";
 import { PANEL_H as TIMELINE_H, Timeline } from "./Timeline";
 import { useStudio, type Studio } from "./useStudio";
 import {
@@ -151,8 +151,13 @@ const TIMELINE_CURVE = "cubic-bezier(0.32, 0.72, 0, 1)";
 /** For everything positioned off the timeline's reserve, so it moves with
     the slide instead of jumping ahead of it. */
 const RESERVE_EASE = `bottom ${TIMELINE_MS}ms ${TIMELINE_CURVE}`;
-/** Everything else the stack can add. */
-const EFFECT_LAYERS = LAYERS.filter((l) => !BASE_IDS.includes(l.id));
+/** Everything else the stack can add. Gradient and Dots left out on purpose:
+    they live in the Canvas background popup now, as two more things
+    `background.kind` can be, alongside Color -- a second "Add effect" row
+    for the same switch would be two places to turn the same thing on. */
+const EFFECT_LAYERS = LAYERS.filter(
+  (l) => !BASE_IDS.includes(l.id) && l.id !== "gradient" && l.id !== "dots",
+);
 
 /**
  * A menu of rows, opened from a trigger: the Effects plus and the dropdowns in
@@ -248,11 +253,25 @@ export function MenuPopover({
         width: rect.width,
       });
     };
+    // Capturing, so a scroll deep inside some other scrollable ancestor
+    // (the right dock's own list, say) still repositions this popup even
+    // though `scroll` does not bubble. But capturing also means a scroll
+    // INSIDE the popup's own content -- the Presets grid, once a category
+    // ran to dozens of chips and actually needed to scroll -- reaches this
+    // same listener, and `place()` reads only the trigger's rect, which a
+    // scroll in here never moves. Re-running it anyway re-rendered the whole
+    // popup on every wheel tick, which is what a hundred-chip grid turned
+    // into a stall that read as the scroll not working at all. A scroll that
+    // started inside `rootRef` moves nothing this popup needs to react to.
+    const onScroll = (event: Event) => {
+      if (rootRef.current?.contains(event.target as Node)) return;
+      place();
+    };
     place();
-    window.addEventListener("scroll", place, true);
+    window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", place);
     return () => {
-      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", place);
     };
   }, [anchor, placement, items?.length]);
@@ -392,10 +411,13 @@ function SelectRow({
 export function ToggleRow({
   label,
   value,
+  icon,
   onChange,
 }: {
   label: string;
   value: boolean;
+  /** A glyph before the label -- most `ToggleRow`s don't carry one. */
+  icon?: ReactNode;
   onChange: (on: boolean) => void;
 }) {
   return (
@@ -407,6 +429,7 @@ export function ToggleRow({
         filter: "var(--mo-text-shadow)",
       }}
     >
+      {icon ? <Glyph>{icon}</Glyph> : null}
       <span className="mo-title min-w-0 flex-1">{label}</span>
       <Checkbox
         checked={value}
@@ -1587,12 +1610,10 @@ export function ScreenAdjust({
  */
 export function ImageWell({
   src,
-  empty,
   onPick,
   onClear,
 }: {
   src: string | null;
-  empty: string;
   onPick: (file: File) => void;
   onClear: () => void;
 }) {
@@ -1601,59 +1622,62 @@ export function ImageWell({
   return (
     <div className="flex flex-col" style={{ gap: 6 }}>
       {/* `--mo-field` is the system's tinted well — the same ground a numeric
-          readout sits on, at the media corner rather than the row's. */}
-      <div
-        className="grid place-items-center overflow-hidden"
-        style={{
-          height: 132,
-          borderRadius: "var(--mo-r-well)",
-          background: "var(--mo-field)",
-        }}
-      >
-        {src && isVideoSource(src) ? (
-          /* A video upload shows its first frame; as an `img` it was a broken
-             picture icon. Still, not playing: the well only has to say which
-             clip is on the screen. The seek makes Safari paint that frame --
-             it leaves an unplayed video blank otherwise. */
-          <video
-            src={src}
-            muted
-            playsInline
-            preload="auto"
-            onLoadedMetadata={(event) => {
-              event.currentTarget.currentTime = 0.001;
-            }}
-            className="h-full w-full object-contain"
-            style={{ pointerEvents: "none" }}
-          />
-        ) : src ? (
-          /*
-           * A plain `img`, not `next/image`. The source is a data URL of a file
-           * the browser already holds — there is no origin to fetch it from and
-           * nothing for the optimiser to do but refuse it.
-           */
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={src}
-            alt=""
-            className="h-full w-full object-contain"
-            style={{ pointerEvents: "none" }}
-          />
-        ) : (
-          <span className="mo-code" style={{ color: "var(--mo-ink-muted)" }}>
-            {empty}
-          </span>
-        )}
-      </div>
+          readout sits on, at the media corner rather than the row's. Only
+          drawn once there is a picture: an empty well said "no image" in
+          words already sitting right beside "Upload", which says the same
+          thing by being the only thing there. */}
+      {src ? (
+        <div
+          className="grid place-items-center overflow-hidden"
+          style={{
+            height: 132,
+            borderRadius: "var(--mo-r-well)",
+            background: "var(--mo-field)",
+          }}
+        >
+          {isVideoSource(src) ? (
+            /* A video upload shows its first frame; as an `img` it was a broken
+               picture icon. Still, not playing: the well only has to say which
+               clip is on the screen. The seek makes Safari paint that frame --
+               it leaves an unplayed video blank otherwise. */
+            <video
+              src={src}
+              muted
+              playsInline
+              preload="auto"
+              onLoadedMetadata={(event) => {
+                event.currentTarget.currentTime = 0.001;
+              }}
+              className="h-full w-full object-contain"
+              style={{ pointerEvents: "none" }}
+            />
+          ) : (
+            /*
+             * A plain `img`, not `next/image`. The source is a data URL of a file
+             * the browser already holds — there is no origin to fetch it from and
+             * nothing for the optimiser to do but refuse it.
+             */
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={src}
+              alt=""
+              className="h-full w-full object-contain"
+              style={{ pointerEvents: "none" }}
+            />
+          )}
+        </div>
+      ) : null}
       <div className="flex items-center" style={{ gap: 6 }}>
         <Button grow onClick={() => input.current?.click()}>
           Upload
         </Button>
-        <Button width={44} height={44} title="Remove image" onClick={onClear}>
-          <Glyph>
-            <Icon name="trash" />
-          </Glyph>
-        </Button>
+        {src ? (
+          <Button width={44} height={44} title="Remove image" onClick={onClear}>
+            <Glyph>
+              <Icon name="trash" />
+            </Glyph>
+          </Button>
+        ) : null}
       </div>
       <input
         ref={input}
@@ -3078,7 +3102,6 @@ export default function StudioChrome({
   const fillBlur = studio.motionMode
     ? (studio.state.motionBlur ?? DEFAULT_BLUR)
     : studio.state.blur;
-  const fillBgBlurPx = isBlurActive(fillBlur) ? (fillBlur.strength / 100) * 28 : 0;
 
   return (
     <>
@@ -3163,7 +3186,7 @@ export default function StudioChrome({
             className={`absolute inset-0 overflow-hidden ${backgroundClass(studio.state.background)}`}
             style={backgroundCss(studio.state.background)}
           >
-            <BackgroundImage bg={studio.state.background} blurPx={fillBgBlurPx} />
+            <BackgroundImage bg={studio.state.background} blur={fillBlur} />
           </div>
         ) : null}
         <div
@@ -3478,7 +3501,7 @@ export default function StudioChrome({
                   ) : null}
                   {/* What has shipped, in the same sheet the shortcuts use. */}
                   <Row
-                    icon={<Icon name="effects" />}
+                    icon={<Icon name="changelog" />}
                     onClick={() => {
                       setMenuOpen(false);
                       setSheet("changelog");
@@ -3487,7 +3510,7 @@ export default function StudioChrome({
                     Changelog
                   </Row>
                   <Row
-                    icon={<Icon name="focus-point" />}
+                    icon={<Icon name="viewfinder" />}
                     onClick={() => {
                       setMenuOpen(false);
                       startTour();
@@ -4370,7 +4393,6 @@ export default function StudioChrome({
                                           ? state.background.imageSrc
                                           : null
                                       }
-                                      empty="No background image"
                                       onPick={studio.uploadBackground}
                                       onClear={studio.clearBackground}
                                     />

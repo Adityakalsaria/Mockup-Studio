@@ -16,14 +16,18 @@ export type BackgroundKind =
 
 export interface BackgroundSettings {
   kind: BackgroundKind;
-  /** Solid fill, and the base the dots are drawn on. */
+  /** Solid fill. */
   color: string;
   /** Gradient only. */
   gradientFrom: string;
   gradientTo: string;
   /** Gradient angle in degrees; 180 is top-to-bottom. */
   gradientAngle: number;
-  /** Dots only. */
+  /** Dots only. The ground the dots are drawn on -- its own field, not
+      `color`: the two read as one setting shared between Solid and Dots
+      when they are really two different rows in the same popup, and
+      picking a Solid colour has no business also repainting Dots. */
+  dotBase: string;
   dotColor: string;
   /** Dot grid pitch in CSS pixels. */
   dotSize: number;
@@ -43,6 +47,7 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
   gradientFrom: "#2d3350",
   gradientTo: "#0d0e14",
   gradientAngle: 180,
+  dotBase: "#f4f4f5",
   dotColor: "#3a3a3e",
   dotSize: 10,
   imageSrc: null,
@@ -82,17 +87,13 @@ export const BACKGROUND_PRESETS = [
 ];
 
 /**
- * Ready-made backdrops, in categories: mesh gradients with a fine grain, for
- * a shot that wants more than one colour behind it without a trip to find a
- * picture -- and after them, any wallpaper sets brought in with
- * `scripts/import-wallpapers`.
+ * Ready-made backdrops, in categories -- wallpaper sets brought in with
+ * `scripts/import-wallpapers`, one category per source subfolder.
  *
- * They ARE pictures -- the gradients rendered once by
- * `scripts/generate-canvas-backgrounds` -- served from `public/`, and picking
- * one is the same act as uploading one: `kind: "image"`, so the editor's CSS
- * and the export's canvas paint it through the one path that already agrees
- * with itself. The thumbnail is only for the chip; the canvas and the export
- * always read the full picture.
+ * Picking one is the same act as uploading one: `kind: "image"`, so the
+ * editor's CSS and the export's canvas paint it through the one path that
+ * already agrees with itself. The thumbnail is only for the chip; the canvas
+ * and the export always read the full picture.
  */
 export interface CanvasBackground {
   id: string;
@@ -107,54 +108,7 @@ export interface BackgroundCategory {
   items: CanvasBackground[];
 }
 
-const GRADIENT_DIR = "/figma-assets/mockup-studio/backgrounds";
-
-const gradients = (names: Array<[string, string]>): CanvasBackground[] =>
-  names.map(([id, label]) => ({
-    id,
-    label,
-    src: `${GRADIENT_DIR}/${id}.webp`,
-    thumb: `${GRADIENT_DIR}/thumbs/${id}.webp`,
-  }));
-
-/* Whole rows of four each, so no category ends on a stray chip. */
-export const BACKGROUND_CATEGORIES: BackgroundCategory[] = [
-  {
-    id: "light",
-    label: "Light",
-    items: gradients([
-      ["studio", "Studio"],
-      ["cloud", "Cloud"],
-      ["sky", "Sky"],
-      ["mint", "Mint"],
-      ["peach", "Peach"],
-      ["blush", "Blush"],
-      ["candy", "Candy"],
-      ["lavender", "Lavender"],
-    ]),
-  },
-  {
-    id: "vivid",
-    label: "Vivid",
-    items: gradients([
-      ["citrus", "Citrus"],
-      ["sunset", "Sunset"],
-      ["berry", "Berry"],
-      ["lagoon", "Lagoon"],
-    ]),
-  },
-  {
-    id: "dark",
-    label: "Dark",
-    items: gradients([
-      ["aurora", "Aurora"],
-      ["nebula", "Nebula"],
-      ["ember", "Ember"],
-      ["graphite", "Graphite"],
-    ]),
-  },
-  ...(WALLPAPERS as BackgroundCategory[]),
-];
+export const BACKGROUND_CATEGORIES: BackgroundCategory[] = WALLPAPERS as BackgroundCategory[];
 
 /**
  * The checkerboard that stands in for "no background".
@@ -184,7 +138,7 @@ export function backgroundCss(bg: BackgroundSettings): React.CSSProperties {
       };
     case "dots":
       return {
-        backgroundColor: bg.color,
+        backgroundColor: bg.dotBase,
         backgroundImage: `radial-gradient(circle, ${bg.dotColor} 1px, transparent 1.2px)`,
         backgroundSize: `${bg.dotSize}px ${bg.dotSize}px`,
       };
@@ -323,7 +277,7 @@ export function paintBackground(
     return;
   }
 
-  ctx.fillStyle = bg.color;
+  ctx.fillStyle = bg.dotBase;
   ctx.fillRect(0, 0, width, height);
   const pitch = bg.dotSize * scale;
   const radius = Math.max(0.5, 1 * scale);

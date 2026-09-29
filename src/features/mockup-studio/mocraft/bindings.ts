@@ -310,7 +310,7 @@ function shadowNum(
 
 function bgColor(
   label: string,
-  key: "color" | "gradientFrom" | "gradientTo" | "dotColor",
+  key: "color" | "gradientFrom" | "gradientTo" | "dotBase" | "dotColor",
 ): ColorField {
   return {
     kind: "color",
@@ -1083,10 +1083,11 @@ export const LAYERS: Layer[] = [
     sections: [
       {
         fields: [
-          // The frame's "Base" is the ground the dots are drawn on, which is
-          // the same `color` the solid background uses — one field, two rows
-          // that reach it, because that is what the file draws.
-          bgColor("Base", "color"),
+          // Its own field, not the solid fill's `color`: picking a Solid
+          // colour has no business also repainting what is under the dots,
+          // now that Solid and Dots are two rows in the same popup rather
+          // than two separate places you would only ever visit one of.
+          bgColor("Base", "dotBase"),
           bgColor("Dots", "dotColor"),
           {
             kind: "number",

@@ -22,12 +22,36 @@
  * system's.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { hexToHsv, hsvToHex, isLight, parseHex, type Hsv } from "./color";
 import { control, radius, space } from "./system";
 import { Glass, Slider } from "./ui";
+
+/**
+ * At most one `ColorPicker` open anywhere, at a time.
+ *
+ * Each instance used to own its `open` boolean outright, which was fine while
+ * a popup only ever held one or two swatches -- closing the one you had open
+ * before reaching for another was the natural gesture. The Canvas background
+ * popup's Gradient and Dots rows put four more swatches in the SAME panel,
+ * and `Popover` positions itself off `trigger.closest(".mo-glass")` -- the
+ * whole enclosing panel, not the swatch -- so any two pickers left open at
+ * once in that one panel land on the exact same spot and paint on top of
+ * each other. A single shared "who's open" slot makes opening one the same
+ * act as closing whichever other was already open, everywhere this is used.
+ */
+let openPicker: symbol | null = null;
+const pickerListeners = new Set<() => void>();
+function setOpenPicker(id: symbol | null) {
+  openPicker = id;
+  pickerListeners.forEach((listener) => listener());
+}
+function subscribePicker(listener: () => void) {
+  pickerListeners.add(listener);
+  return () => pickerListeners.delete(listener);
+}
 
 /* The saturation area is square at the panel's width (see its `aspectRatio`),
    6 between the rows; the hue's own height is `control.paramH`, the frame's
@@ -150,7 +174,12 @@ export function ColorPicker({
   onChange: (next: string) => void;
 }) {
   const anchor = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState(false);
+  const [id] = useState(() => Symbol("color-picker"));
+  const open = useSyncExternalStore(
+    subscribePicker,
+    () => openPicker === id,
+    () => false,
+  );
 
   return (
     <>
@@ -162,7 +191,7 @@ export function ColorPicker({
         aria-expanded={open}
         onClick={(event) => {
           event.stopPropagation();
-          setOpen((was) => !was);
+          setOpenPicker(open ? null : id);
         }}
         className="relative shrink-0 cursor-pointer"
         style={{
@@ -178,7 +207,7 @@ export function ColorPicker({
           anchor={anchor}
           value={value}
           onChange={onChange}
-          onClose={() => setOpen(false)}
+          onClose={() => setOpenPicker(null)}
         />
       ) : null}
     </>
