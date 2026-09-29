@@ -168,11 +168,22 @@ export function AaveGlass({
   // Shape only — observe the lens box. Transform/`x` does not change layout
   // size, so dragging never rebuilds the PNG.
   useMeasureEffect(() => {
-    if (!lensNode || !enabled) {
+    // `enabled` going false is a real off switch (reduced-transparency) and
+    // clears the map on purpose. `lensNode` going null on its own is NOT
+    // treated the same way: a callback ref reports null for an instant
+    // during some reconciliations that never actually tear the lens down --
+    // a big sibling subtree replacing itself elsewhere in the same commit
+    // was enough to trigger one live (the Crafting/Motion switch, which
+    // swaps most of the right panel). Clearing the map on that blip is what
+    // made the pill flash to bare material and back for a frame; keeping the
+    // last built map costs nothing when the node really is gone, since the
+    // whole component -- map included -- is torn down with it.
+    if (!enabled) {
       setMap(null);
       setMapKey("");
       return;
     }
+    if (!lensNode) return;
 
     const build = () => {
       // `offset*`, not `getBoundingClientRect()`: the latter reports the
@@ -191,10 +202,14 @@ export function AaveGlass({
   }, [lensNode, enabled, lens.borderRadius, lens.width, lens.height, bevel]);
 
   useMeasureEffect(() => {
-    if (!enabled || !mapKey || !lensNode) {
+    // Same reasoning as the effect above: only `enabled` going false and a
+    // genuinely empty `mapKey` (nothing has ever measured yet) clear the
+    // map. A `lensNode` blip alone leaves it as it was.
+    if (!enabled || !mapKey) {
       setMap(null);
       return;
     }
+    if (!lensNode) return;
     const width = lensNode.offsetWidth;
     const height = lensNode.offsetHeight;
     const next = generateLensMap({
