@@ -4191,6 +4191,24 @@ export default function PhoneStage3D({
         // visible as a soft, faintly stepped outline.
         dpr={[1, 2]}
         frameloop="demand"
+        /*
+         * Debounced, where r3f's own default is instant (`resize: 0`).
+         *
+         * The stage's container doesn't just resize on a window drag -- the
+         * Crafting/Motion switch eases the timeline's reserved height in over
+         * ~320ms (`RESERVE_EASE` in `StudioChrome.tsx`), and every intervening
+         * layout frame fired r3f's OWN resize handling: a `gl.setSize` plus,
+         * because this canvas runs `frameloop="demand"`, a fresh `invalidate()`
+         * from `RedrawOnResize` below -- a full re-render on top of a full
+         * resize, ten to twenty times over one tab switch, which is what read
+         * as lag. The CSS box still resizes every frame regardless (that part
+         * is free, the browser's own compositor); this only delays r3f's
+         * internal reconfigure until the size stops changing, so the browser
+         * scales the last real frame to fit in between -- a cheap stretch
+         * instead of an expensive re-render -- and the canvas snaps to a
+         * sharp, correctly-sized frame once, just after the ease settles.
+         */
+        resize={{ debounce: { scroll: 50, resize: 350 } }}
       >
         <CanvasRefBridge canvasRef={canvasRef} />
         <RedrawOnResize />
