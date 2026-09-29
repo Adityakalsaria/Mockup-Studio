@@ -35,7 +35,17 @@ import { DEFAULT_EDITOR_STATE } from "../editor/editorState";
 import { sampleAnimation, type Animation } from "../animation";
 import { springTo } from "../transformSpring";
 
-/** The negative arms, dimmed — the file's #979797. */
+/**
+ * The negative arms, dimmed toward their OWN axis's hue rather than to a
+ * shared neutral grey — each is `color.accent`'s red/green/blue blended 50/50
+ * with the file's own #979797, so -X still reads as "the red axis, dimmer"
+ * instead of as a fourth, colourless arm unrelated to the other five.
+ */
+const MUTED_RED = "#cb686a";
+const MUTED_GREEN = "#66af78";
+const MUTED_BLUE = "#4c90cb";
+/** The centre connector, where all six arms meet — belongs to no single
+    axis, so it keeps the original neutral grey rather than taking a tint. */
 const MUTED = "#979797";
 
 const DEG = Math.PI / 180;
@@ -158,11 +168,11 @@ function Arm({
 
 const AXES: { rotation: [number, number, number]; tint: string }[] = [
   { rotation: [0, 0, -Math.PI / 2], tint: color.accent.red },
-  { rotation: [0, 0, Math.PI / 2], tint: MUTED },
+  { rotation: [0, 0, Math.PI / 2], tint: MUTED_RED },
   { rotation: [0, 0, 0], tint: color.accent.green },
-  { rotation: [Math.PI, 0, 0], tint: MUTED },
+  { rotation: [Math.PI, 0, 0], tint: MUTED_GREEN },
   { rotation: [Math.PI / 2, 0, 0], tint: color.accent.blue },
-  { rotation: [-Math.PI / 2, 0, 0], tint: MUTED },
+  { rotation: [-Math.PI / 2, 0, 0], tint: MUTED_BLUE },
 ];
 
 /**
