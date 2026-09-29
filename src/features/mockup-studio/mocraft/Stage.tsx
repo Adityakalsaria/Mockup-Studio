@@ -175,6 +175,9 @@ function StageInner({
   // clear space beside the canvas rather than beside a 44px circle sitting
   // 12px inside it.
   const shotRef = useRef<HTMLDivElement | null>(null);
+  /** Wraps `PhoneStage3D` alone, not the frame around it -- see the ratio
+      hold-size effect below for why the two need separate elements. */
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const bgAnchorRef = useRef<HTMLDivElement | null>(null);
   const [bgAnchor, setBgAnchor] = useState<{ left: number; top: number } | null>(null);
   const bgPopover = useMountTransition(bgAnchor !== null);
@@ -240,6 +243,64 @@ function StageInner({
   useEffect(() => {
     fullscreenRef.current = fullscreen;
   });
+  /*
+   * Holds the phone's own apparent size across a ratio switch, in Crafting.
+   *
+   * The CSS transition on the shot's width/aspect-ratio (above) eases the
+   * FRAME smoothly, but the phone inside it is fit to whatever frame there
+   * is -- r3f's own resize is debounced (see `PhoneStage3D`'s `<Canvas
+   * resize>`), so for the length of that debounce the canvas is a stale
+   * render being CSS-stretched to the frame's new size, and the phone
+   * shrinks or grows right along with it. Motion wants exactly that (the
+   * clip is framed for a specific export ratio); Crafting does not -- the
+   * ratio there is a crop choice, not a reason for the subject to change
+   * size.
+   *
+   * The same FLIP `moveTo` already uses for full screen, run a second time
+   * for a second transition: measure the shot's height the instant before
+   * this commit lands (held in `lastShotHeightRef` from the PREVIOUS run),
+   * measure it again right after, and animate the ratio between the two
+   * back to identity. A transform, not a resize -- it runs on the
+   * compositor and never touches r3f, so it costs nothing extra and stays
+   * in lock step with the width/aspect-ratio transition it is covering for.
+   *
+   * Scaling `content` (below), not `shot` itself: `shot` IS the frame, and
+   * scaling it would carry its border radius and background along for the
+   * ride, growing the frame's own edges instead of leaving them to the ratio
+   * pick. Scaling only the content crops it against the frame's unmoved
+   * `overflow: hidden` boundary instead -- which is the trade the last round
+   * of feedback asked for: the frame is free to change shape, the subject is
+   * not.
+   */
+  const lastShotHeightRef = useRef<number | null>(null);
+  const holdSizeRef = useRef(false);
+  useEffect(() => {
+    holdSizeRef.current = !motionMode && !fullscreen && !fsMoving;
+  });
+  useLayoutEffect(() => {
+    const shot = shotRef.current;
+    const content = contentRef.current;
+    if (!shot || !content) return;
+    const newHeight = shot.getBoundingClientRect().height;
+    const oldHeight = lastShotHeightRef.current;
+    lastShotHeightRef.current = newHeight;
+    if (!holdSizeRef.current || oldHeight == null || !newHeight || !oldHeight)
+      return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const factor = oldHeight / newHeight;
+    if (Math.abs(factor - 1) < 0.01) return;
+    // On `content`, not `shot`: `shot` IS the frame -- its own border radius
+    // and background -- and scaling it along with its content would grow the
+    // frame's edges too, the exact thing a ratio pick is supposed to be free
+    // to do on its own. `content` wraps only `PhoneStage3D`, so scaling it
+    // crops against `shot`'s unmoved, unchanged `overflow: hidden` boundary
+    // instead of carrying that boundary along with it.
+    content.style.transformOrigin = "center";
+    content.animate(
+      [{ transform: `scale(${factor})` }, { transform: "none" }],
+      { duration: RATIO_MS, easing: FULLSCREEN_EASE },
+    );
+  }, [ratio]);
   useEffect(() => {
     // Escape leaves the preview -- only while it is up, or `moveTo(false)`
     // would flash the black over a shot that is already normal.
@@ -472,70 +533,72 @@ function StageInner({
         }}
       >
         <BackgroundImage bg={state.background} blur={blur} />
-        <PhoneStage3D
-          rail={undefined}
-          /* The two doors export goes through: one frame on demand for the
-             still, and a held-open resolution for the clip. Both are refs the
-             scene fills in — see `CaptureBridge` and `RecorderBridge`. */
-          captureRef={studio.captureRef}
-          recorderRef={studio.recorderRef}
-          focusFollow={motionMode ? (state.focusFollow ?? null) : null}
-          canvasRef={studio.stageCanvasRef}
-          screenTexture={screenTexture}
-          coverTexture={coverTexture}
-          deviceId={state.deviceId}
-          modelToken={modelToken}
-          finishId={state.finishId}
-          blur={blur}
-          rotateX={state.xAxis}
-          rotateY={state.yAxis}
-          rotateZ={state.zAxis}
-          fov={state.fov}
-          fold={state.fold}
-          cardRadius={state.cardRadius}
-          cardDepth={state.cardDepth}
-          shadow={state.shadow}
-          lighting={state.lighting}
-          lightAngle={state.lightAngle ?? 0}
-          lightElevation={state.lightElevation ?? 0}
-          coverScreenFit={studio.coverFit}
-          screenFit={{
-            ...studio.screenFit,
-            // A mirrored device screen already contains its own island.
-            sourceHasNotch: Boolean(studio.liveStream),
-          }}
-          offsetX={state.panX * 100}
-          offsetY={state.panY * 100}
-          offsetZ={state.panZ}
-          scale={state.zoom * 100}
-          scaleX={state.scaleX}
-          scaleY={state.scaleY}
-          scaleZ={state.scaleZ}
-          heightPct={100}
-          /*
-           * Easing is a lag filter — right for a slider nudge, wrong for
-           * playback, where it would smear every keyframe a fifth of a second
-           * late and round off the poses a preset was authored around.
-           */
-          immediate={timeDriven}
-          animation={state.animation}
-          timeRef={playheadRef}
-          playing={timeDriven}
-          /* The clock is RUNNING — only true for the transport, never for a
-             parked head or a frame-at-a-time export, both of which drive time
-             themselves. It is what keeps the demand loop asking. */
-          animating={playing}
-          /*
-           * Direct handling. `PhoneStage3D` mounts its pointer listener only
-           * when a handler is passed, so without these the model is a picture:
-           * the drag and the wheel have nothing on the canvas to reach.
-           */
-          onRotateDrag={studio.nudgeRotation}
-          onScaleWheel={studio.nudgeZoom}
-          onPanDrag={studio.nudgePan}
-          onScreenBox={setScreenBox}
-          liveGroupRef={liveGroupRef}
-        />
+        <div ref={contentRef} className="absolute inset-0">
+          <PhoneStage3D
+            rail={undefined}
+            /* The two doors export goes through: one frame on demand for the
+               still, and a held-open resolution for the clip. Both are refs the
+               scene fills in — see `CaptureBridge` and `RecorderBridge`. */
+            captureRef={studio.captureRef}
+            recorderRef={studio.recorderRef}
+            focusFollow={motionMode ? (state.focusFollow ?? null) : null}
+            canvasRef={studio.stageCanvasRef}
+            screenTexture={screenTexture}
+            coverTexture={coverTexture}
+            deviceId={state.deviceId}
+            modelToken={modelToken}
+            finishId={state.finishId}
+            blur={blur}
+            rotateX={state.xAxis}
+            rotateY={state.yAxis}
+            rotateZ={state.zAxis}
+            fov={state.fov}
+            fold={state.fold}
+            cardRadius={state.cardRadius}
+            cardDepth={state.cardDepth}
+            shadow={state.shadow}
+            lighting={state.lighting}
+            lightAngle={state.lightAngle ?? 0}
+            lightElevation={state.lightElevation ?? 0}
+            coverScreenFit={studio.coverFit}
+            screenFit={{
+              ...studio.screenFit,
+              // A mirrored device screen already contains its own island.
+              sourceHasNotch: Boolean(studio.liveStream),
+            }}
+            offsetX={state.panX * 100}
+            offsetY={state.panY * 100}
+            offsetZ={state.panZ}
+            scale={state.zoom * 100}
+            scaleX={state.scaleX}
+            scaleY={state.scaleY}
+            scaleZ={state.scaleZ}
+            heightPct={100}
+            /*
+             * Easing is a lag filter — right for a slider nudge, wrong for
+             * playback, where it would smear every keyframe a fifth of a second
+             * late and round off the poses a preset was authored around.
+             */
+            immediate={timeDriven}
+            animation={state.animation}
+            timeRef={playheadRef}
+            playing={timeDriven}
+            /* The clock is RUNNING — only true for the transport, never for a
+               parked head or a frame-at-a-time export, both of which drive time
+               themselves. It is what keeps the demand loop asking. */
+            animating={playing}
+            /*
+             * Direct handling. `PhoneStage3D` mounts its pointer listener only
+             * when a handler is passed, so without these the model is a picture:
+             * the drag and the wheel have nothing on the canvas to reach.
+             */
+            onRotateDrag={studio.nudgeRotation}
+            onScaleWheel={studio.nudgeZoom}
+            onPanDrag={studio.nudgePan}
+            onScreenBox={setScreenBox}
+            liveGroupRef={liveGroupRef}
+          />
+        </div>
 
         {/* Right-click-to-replace/delete on a filled screen only -- the
             empty-screen outline/icon/text this used to also draw is gone. */}
