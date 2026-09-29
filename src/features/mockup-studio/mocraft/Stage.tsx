@@ -19,7 +19,7 @@
  * scene on every drag of the window edge. Same technique as the editor's.
  */
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import PhoneStage3D, { type ScreenBox } from "../PhoneStage3D";
 import { OverlayLayer } from "../OverlayLayer";
@@ -59,7 +59,6 @@ import {
   Glyph,
   Checkbox,
   Segmented,
-  useMountTransition,
 } from "@/design/ui";
 import { getLayer } from "./bindings";
 
@@ -111,6 +110,9 @@ export const FRAME = 0.82;
     preview is there before the eye has asked for it. */
 const FULLSCREEN_MS = 450;
 const FULLSCREEN_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
+/** How long Gradient/Dots' own fields take to expand or collapse, on the
+    same curve as the full screen preview. */
+const RATIO_MS = 180;
 
 function StageInner({
   studio,
