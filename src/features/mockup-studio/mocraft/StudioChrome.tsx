@@ -155,7 +155,7 @@ const PRESETS_ID = "presets";
     same way as Presets. */
 const FOCUS_ID = "focus";
 /** The timeline's slide in and out of the bottom edge. */
-const TIMELINE_MS = 320;
+const TIMELINE_MS = 220;
 const TIMELINE_CURVE = "cubic-bezier(0.32, 0.72, 0, 1)";
 /** For everything positioned off the timeline's reserve, so it moves with
     the slide instead of jumping ahead of it. */

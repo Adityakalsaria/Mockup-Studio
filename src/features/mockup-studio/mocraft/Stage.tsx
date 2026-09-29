@@ -103,8 +103,8 @@ const FULLSCREEN_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
     Same curve as the full screen move and the timeline's own slide -- one
     material's worth of easing, reused rather than re-picked. Shorter than
     `FULLSCREEN_MS`: a ratio swap is a local resize, not a move across the
-    whole window, and the old duration read as sluggish for that. */
-const RATIO_MS = 280;
+    whole window, and 280 still read as sluggish for that. */
+const RATIO_MS = 180;
 
 function StageInner({
   studio,
