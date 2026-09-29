@@ -886,6 +886,21 @@ export const DEVICES: Device[] = [
      *    the rail.
      */
 
+    bodySurfaces: {
+      /*
+       * The frame, on the 17 Pro's numbers.
+       *
+       * Authored roughness 1 / metalness 0.87, which reads as a bar of raw
+       * metal: fully rough and almost fully metallic at once, so it takes
+       * colour from the environment and none of the light's own. Tuned by eye
+       * on the Surface bench for the 17 Pro and the same here, the frame being
+       * the same anodised rail on every one of these.
+       */
+      "SLmJkLdkhbbuEfG.001": { roughness: 0.76, metalness: 0.61, envMapIntensity: 1.65 },
+      /* The back glass, on the 17 Pro's numbers: smooth, non-metallic, and
+         lit hard enough to hold a reflection. */
+      "NWVRqxSZYCCnuGM": { roughness: 0.14, metalness: 0, envMapIntensity: 2.6 },
+    },
     materialColors: {
       /*
        * The back glass, a step above the rail.
@@ -1305,6 +1320,15 @@ export const DEVICES: Device[] = [
      * what makes them read is their own mesh texture and the shadow in their
      * recess, not a different colour.
      */
+    bodySurfaces: {
+      /* The back glass, on the 17 Pro's numbers: smooth, non-metallic, and
+         lit hard enough to hold a reflection. */
+      "SMUhrjUPCjJkPUK.008": { roughness: 0.14, metalness: 0, envMapIntensity: 2.6 },
+      "SMUhrjUPCjJkPUK.010": { roughness: 0.14, metalness: 0, envMapIntensity: 2.6 },
+      /* The antenna bands: the frame's matter cousin, so they read as inset
+         rather than as a seam drawn on it. */
+      "sJxAokqqlZYuwzy.010": { roughness: 0.52, metalness: 0.08 },
+    },
     materialColors: {
       /*
        * Inside the USB-C shell, and only inside it.
@@ -1395,7 +1419,13 @@ export const DEVICES: Device[] = [
        * the file authored it. Their own alpha is left alone -- glass over
        * glass is what gives the mark its depth.
        */
-      "SLmJkLdkhbbuEfG.034": { darken: 0.12 },
+      "SLmJkLdkhbbuEfG.034": {
+        darken: 0.12,
+        // The frame, on the 17 Pro's numbers -- see that entry.
+        roughness: 0.76,
+        metalness: 0.61,
+        envMapIntensity: 1.65,
+      },
       "awYxKfiOpRgQIxD.006": { darken: 0.12 },
     },
     /*
@@ -1598,6 +1628,16 @@ export const DEVICES: Device[] = [
      * way this particular question gets answered.
      */
     bodySurfaces: {
+      /*
+       * The frame, on the 17 Pro's numbers.
+       *
+       * Authored roughness 1 / metalness 0.87, which reads as a bar of raw
+       * metal: fully rough and almost fully metallic at once, so it takes
+       * colour from the environment and none of the light's own. Tuned by eye
+       * on the Surface bench for the 17 Pro and the same here, the frame being
+       * the same anodised rail on every one of these.
+       */
+      "vUgmkmbQjXTaqEc.008": { roughness: 0.76, metalness: 0.61, envMapIntensity: 1.65 },
       WElbLmMkunjUugH: { roughness: 0.25, metalness: 0.26, envMapIntensity: 0 },
       /*
        * The iris blades, darkened to read as a mechanism.
@@ -1891,6 +1931,16 @@ export const DEVICES: Device[] = [
      * way this particular question gets answered.
      */
     bodySurfaces: {
+      /*
+       * The frame, on the 17 Pro's numbers.
+       *
+       * Authored roughness 1 / metalness 0.87, which reads as a bar of raw
+       * metal: fully rough and almost fully metallic at once, so it takes
+       * colour from the environment and none of the light's own. Tuned by eye
+       * on the Surface bench for the 17 Pro and the same here, the frame being
+       * the same anodised rail on every one of these.
+       */
+      "vUgmkmbQjXTaqEc.008": { roughness: 0.76, metalness: 0.61, envMapIntensity: 1.65 },
       WElbLmMkunjUugH: { roughness: 0.25, metalness: 0.26, envMapIntensity: 0 },
       /*
        * The iris blades, darkened to read as a mechanism.
@@ -2636,7 +2686,16 @@ export const DEVICES: Device[] = [
        * into it as a black band. Still below the back panel's 0.10, so the
        * panel keeps reading as the lighter of the two.
        */
-      "cdkzsMrKAIfdCgl.016": { lighten: 0.06, saturate: 1.9 },
+      "cdkzsMrKAIfdCgl.016": {
+        lighten: 0.06,
+        saturate: 1.9,
+        // The frame, on the 17 Pro's numbers -- see that entry. Authored
+        // polished (roughness 0.01, metalness 1), which on titanium read as
+        // chrome; this is the same brushed rail the others wear.
+        roughness: 0.76,
+        metalness: 0.61,
+        envMapIntensity: 1.65,
+      },
       /*
        * The ring's second disc, made to match.
        *
