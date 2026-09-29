@@ -1579,7 +1579,18 @@ export const DEVICES: Device[] = [
      * because the gradient the eye was reading was the one on the pane in
      * front of it.
      */
-    plainMaterials: ["WElbLmMkunjUugH", "IxiedJEUxrDhLIX"],
+    /*
+     * `DodbyqhrrBLNbcB`, the shell, joins these two for the same reason:
+     * it carries a painted base map, and the antenna seam along the top
+     * edge and around the plateau is baked into it as a dark line. The new
+     * `materialColors` entry above sets colour with `lighten: 0`, which
+     * MULTIPLIES that map by the finish tint -- a black pixel stays black
+     * however light the finish, which is why the seam kept reading as a
+     * bold black stroke instead of the barely-there hairline the 17 Pro Max
+     * shows in the same spot. Dropping the map is the same fix as the other
+     * two: a flat panel takes the stated colour evenly.
+     */
+    plainMaterials: ["WElbLmMkunjUugH", "IxiedJEUxrDhLIX", "DodbyqhrrBLNbcB"],
     authoredBodyColor: "#452a2f",
     // Apple's render has no mirror on the rails at all — the chamfer is a
     // gradient. Measured against that rather than chosen: at the studio's 2.1
@@ -1855,7 +1866,18 @@ export const DEVICES: Device[] = [
      * because the gradient the eye was reading was the one on the pane in
      * front of it.
      */
-    plainMaterials: ["WElbLmMkunjUugH", "IxiedJEUxrDhLIX"],
+    /*
+     * `DodbyqhrrBLNbcB`, the shell, joins these two for the same reason:
+     * it carries a painted base map, and the antenna seam along the top
+     * edge and around the plateau is baked into it as a dark line. The new
+     * `materialColors` entry above sets colour with `lighten: 0`, which
+     * MULTIPLIES that map by the finish tint -- a black pixel stays black
+     * however light the finish, which is why the seam kept reading as a
+     * bold black stroke instead of the barely-there hairline the 17 Pro Max
+     * shows in the same spot. Dropping the map is the same fix as the other
+     * two: a flat panel takes the stated colour evenly.
+     */
+    plainMaterials: ["WElbLmMkunjUugH", "IxiedJEUxrDhLIX", "DodbyqhrrBLNbcB"],
     authoredBodyColor: "#452a2f",
     // Apple's render has no mirror on the rails at all — the chamfer is a
     // gradient. Measured against that rather than chosen: at the studio's 2.1
