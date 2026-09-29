@@ -99,6 +99,12 @@ export const FRAME = 0.82;
     preview is there before the eye has asked for it. */
 const FULLSCREEN_MS = 450;
 const FULLSCREEN_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
+/** How long the shot takes to grow or shrink into a new aspect ratio.
+    Same curve as the full screen move and the timeline's own slide -- one
+    material's worth of easing, reused rather than re-picked. Shorter than
+    `FULLSCREEN_MS`: a ratio swap is a local resize, not a move across the
+    whole window, and the old duration read as sluggish for that. */
+const RATIO_MS = 280;
 
 function StageInner({
   studio,
@@ -406,10 +412,12 @@ function StageInner({
     >
       {/*
         The canvas fills its frame by CSS, not by the pixel size R3F last
-        measured. The frame changes size -- eased when the timeline comes and
-        goes, at once when the ratio changes -- and R3F's measurement trails it
-        by a few frames; sized in pixels, the canvas sat at the OLD size inside
-        the new frame for those frames, cropped and off centre, then snapped.
+        measured. The frame changes size -- eased both when the timeline comes
+        and goes and when the ratio changes now -- and R3F's own resize is
+        debounced on top of that (`PhoneStage3D`'s `<Canvas resize>`), so its
+        measurement trails the frame by design; sized in pixels instead, the
+        canvas would sit at the OLD size inside the new frame for that whole
+        stretch, cropped and off centre, then snap.
 
         CONTAIN, not stretch: stretched, the last render took the new frame's
         proportions and a ratio change squashed the phone flat for those
@@ -435,6 +443,17 @@ function StageInner({
                 // frame always fits and never overflows.
                 width: `calc(min(100cqw, ${ratio} * 100cqh) * ${fullscreen ? 1 : FRAME})`,
               }),
+          // Off during the full screen move: `moveTo` already carries that
+          // one with a measured FLIP transform, and it depends on this box
+          // landing at its final size THE INSTANT `flushSync` commits --
+          // easing it here as well would still be mid-transition when
+          // `moveTo` takes its "after" measurement, and the FLIP would carry
+          // the shot to the wrong place. A ratio swap has no such handoff, so
+          // it eases freely: the canvas comment above already covers a frame
+          // that resizes out from under a render still trailing it.
+          transition: fsMoving
+            ? undefined
+            : `width ${RATIO_MS}ms ${FULLSCREEN_EASE}, aspect-ratio ${RATIO_MS}ms ${FULLSCREEN_EASE}, border-radius ${RATIO_MS}ms ${FULLSCREEN_EASE}`,
         }}
       >
         <BackgroundImage bg={state.background} />
