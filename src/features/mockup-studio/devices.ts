@@ -1592,11 +1592,18 @@ export const DEVICES: Device[] = [
      */
     plainMaterials: ["WElbLmMkunjUugH", "IxiedJEUxrDhLIX", "DodbyqhrrBLNbcB"],
     authoredBodyColor: "#452a2f",
-    // Apple's render has no mirror on the rails at all — the chamfer is a
-    // gradient. Measured against that rather than chosen: at the studio's 2.1
-    // this body throws white streaks that nothing on the real phone does.
-    // Tuned on the live bench against Apple's own render, then read off it.
-    bodyEnvMapIntensity: 1.8,
+    /*
+     * No `bodyEnvMapIntensity` override, unlike the version of this that once
+     * stood here: 1.8 was tuned to stop the shell throwing white streaks the
+     * real phone doesn't, but that shell (`DodbyqhrrBLNbcB`) now carries its
+     * own stated envMapIntensity via `materialColors` below -- the same 1.65
+     * the 17 Pro's frame uses -- and a material with a stated colour never
+     * reaches this fallback at all. Left in place, 1.8 was only dimming
+     * whatever DID still fall through to it, which is why the whole device
+     * read darker than the rest of the Pro line for no reason tied to the
+     * streak it was meant to fix. The default (2.1, same as everything else)
+     * is correct again now that the streak has its own, narrower fix.
+     */
     /*
      * The three surfaces that are not simply "the finish".
      *
@@ -1879,11 +1886,18 @@ export const DEVICES: Device[] = [
      */
     plainMaterials: ["WElbLmMkunjUugH", "IxiedJEUxrDhLIX", "DodbyqhrrBLNbcB"],
     authoredBodyColor: "#452a2f",
-    // Apple's render has no mirror on the rails at all — the chamfer is a
-    // gradient. Measured against that rather than chosen: at the studio's 2.1
-    // this body throws white streaks that nothing on the real phone does.
-    // Tuned on the live bench against Apple's own render, then read off it.
-    bodyEnvMapIntensity: 1.8,
+    /*
+     * No `bodyEnvMapIntensity` override, unlike the version of this that once
+     * stood here: 1.8 was tuned to stop the shell throwing white streaks the
+     * real phone doesn't, but that shell (`DodbyqhrrBLNbcB`) now carries its
+     * own stated envMapIntensity via `materialColors` below -- the same 1.65
+     * the 17 Pro's frame uses -- and a material with a stated colour never
+     * reaches this fallback at all. Left in place, 1.8 was only dimming
+     * whatever DID still fall through to it, which is why the whole device
+     * read darker than the rest of the Pro line for no reason tied to the
+     * streak it was meant to fix. The default (2.1, same as everything else)
+     * is correct again now that the streak has its own, narrower fix.
+     */
     /*
      * The three surfaces that are not simply "the finish".
      *
