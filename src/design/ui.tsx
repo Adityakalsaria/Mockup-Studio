@@ -29,7 +29,7 @@ import {
 } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { TextMorph } from "torph/react";
-import { control, material, motion, radius, SYSTEM_CSS, type ButtonTone } from "./system";
+import { control, material, morph, motion, radius, SYSTEM_CSS, type ButtonTone } from "./system";
 import { AaveGlass } from "./useContentLens";
 import { ColorPicker } from "./ColorPicker";
 
@@ -260,6 +260,68 @@ export function useSpring(
 
   return snap;
 }
+
+/**
+ * Keeps a conditionally-shown popup or sheet mounted long enough to play its
+ * own exit transition, instead of vanishing on the frame its condition flips
+ * to false — the same problem `useSpring` solves for a position, but for
+ * presence itself.
+ *
+ * Returns `mounted` (render the thing at all) and `shown` (which visual state
+ * to render it in). A CSS opacity/transform transition belongs on `shown`,
+ * not on the caller's own open flag — the flag flips true the instant the
+ * thing mounts, in the same commit that inserts it, and a style set then
+ * never transitions: the browser has to paint the "before" frame first. The
+ * two rAFs buy exactly that frame.
+ *
+ * `duration` has to match whatever CSS transition the caller actually runs on
+ * `shown`, in both places — this only knows how long to stay mounted while
+ * that plays, not what it looks like.
+ */
+export function useMountTransition(open: boolean, duration: number = morph) {
+  const [mounted, setMounted] = useState(open);
+  const [shown, setShown] = useState(open);
+  // A second piece of state, not a ref: refs cannot be read during render
+  // under this codebase's rules. React's own docs use exactly this shape for
+  // "adjust state when a prop just changed" -- the only place `mounted` can
+  // still be true on the very render `open` goes false. An effect fires a
+  // render later, which would unmount the thing before it ever got to fade.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    if (open) setMounted(true);
+    else setShown(false);
+  }
+
+  useEffect(() => {
+    if (open) {
+      let raf2 = 0;
+      const raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => setShown(true));
+      });
+      return () => {
+        cancelAnimationFrame(raf1);
+        cancelAnimationFrame(raf2);
+      };
+    }
+    const timeout = window.setTimeout(() => setMounted(false), duration);
+    return () => clearTimeout(timeout);
+  }, [open, duration]);
+
+  return { mounted, shown };
+}
+
+/**
+ * The one easing curve every mount/unmount transition in the system uses —
+ * fast out of rest, settling slowly, so a popup feels thrown into place
+ * rather than driven there at a constant rate. The timeline's own slide
+ * (`TIMELINE_CURVE` in `StudioChrome.tsx`) is this same curve; kept as two
+ * constants rather than one shared import because the timeline's is a
+ * position transition already living beside the pixel constant it pairs
+ * with, and duplicating four numbers is cheaper than a cross-file dependency
+ * for it.
+ */
+export const POPUP_CURVE = "cubic-bezier(0.32, 0.72, 0, 1)";
 
 /**
  * Displacement multiplier for a lens that is on the move.
