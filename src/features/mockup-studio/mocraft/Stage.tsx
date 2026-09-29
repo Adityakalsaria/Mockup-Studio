@@ -805,23 +805,25 @@ function BackgroundFields({ studio, onClose }: { studio: Studio; onClose: () => 
           onPick={studio.uploadBackground}
           onClear={studio.clearBackground}
         />
-        <ScreenAdjust
-          scale={bg.imageZoom ?? 1}
-          mode={bg.imageFit === "contain" ? "fit" : "fill"}
-          canReset={(bg.imageZoom ?? 1) !== 1}
-          onScale={(imageZoom) =>
-            edit((prev) => ({ ...prev, background: { ...prev.background, imageZoom } }))
-          }
-          onMode={(mode) =>
-            edit((prev) => ({
-              ...prev,
-              background: { ...prev.background, imageFit: mode === "fit" ? "contain" : "cover" },
-            }))
-          }
-          onReset={() =>
-            edit((prev) => ({ ...prev, background: { ...prev.background, imageZoom: 1 } }))
-          }
-        />
+        {uploaded ? (
+          <ScreenAdjust
+            scale={bg.imageZoom ?? 1}
+            mode={bg.imageFit === "contain" ? "fit" : "fill"}
+            canReset={(bg.imageZoom ?? 1) !== 1}
+            onScale={(imageZoom) =>
+              edit((prev) => ({ ...prev, background: { ...prev.background, imageZoom } }))
+            }
+            onMode={(mode) =>
+              edit((prev) => ({
+                ...prev,
+                background: { ...prev.background, imageFit: mode === "fit" ? "contain" : "cover" },
+              }))
+            }
+            onReset={() =>
+              edit((prev) => ({ ...prev, background: { ...prev.background, imageZoom: 1 } }))
+            }
+          />
+        ) : null}
       </ParamGroup>
       <Divider inset={-8} />
       <ParamGroup>

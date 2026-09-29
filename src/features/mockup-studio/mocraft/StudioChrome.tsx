@@ -4396,47 +4396,49 @@ export default function StudioChrome({
                                       onPick={studio.uploadBackground}
                                       onClear={studio.clearBackground}
                                     />
-                                    <ScreenAdjust
-                                      scale={state.background.imageZoom ?? 1}
-                                      mode={
-                                        state.background.imageFit === "contain"
-                                          ? "fit"
-                                          : "fill"
-                                      }
-                                      canReset={
-                                        (state.background.imageZoom ?? 1) !== 1
-                                      }
-                                      onScale={(imageZoom) =>
-                                        edit((prev) => ({
-                                          ...prev,
-                                          background: {
-                                            ...prev.background,
-                                            imageZoom,
-                                          },
-                                        }))
-                                      }
-                                      onMode={(mode) =>
-                                        edit((prev) => ({
-                                          ...prev,
-                                          background: {
-                                            ...prev.background,
-                                            imageFit:
-                                              mode === "fit"
-                                                ? "contain"
-                                                : "cover",
-                                          },
-                                        }))
-                                      }
-                                      onReset={() =>
-                                        edit((prev) => ({
-                                          ...prev,
-                                          background: {
-                                            ...prev.background,
-                                            imageZoom: 1,
-                                          },
-                                        }))
-                                      }
-                                    />
+                                    {state.background.kind === "image" ? (
+                                      <ScreenAdjust
+                                        scale={state.background.imageZoom ?? 1}
+                                        mode={
+                                          state.background.imageFit === "contain"
+                                            ? "fit"
+                                            : "fill"
+                                        }
+                                        canReset={
+                                          (state.background.imageZoom ?? 1) !== 1
+                                        }
+                                        onScale={(imageZoom) =>
+                                          edit((prev) => ({
+                                            ...prev,
+                                            background: {
+                                              ...prev.background,
+                                              imageZoom,
+                                            },
+                                          }))
+                                        }
+                                        onMode={(mode) =>
+                                          edit((prev) => ({
+                                            ...prev,
+                                            background: {
+                                              ...prev.background,
+                                              imageFit:
+                                                mode === "fit"
+                                                  ? "contain"
+                                                  : "cover",
+                                            },
+                                          }))
+                                        }
+                                        onReset={() =>
+                                          edit((prev) => ({
+                                            ...prev,
+                                            background: {
+                                              ...prev.background,
+                                              imageZoom: 1,
+                                            },
+                                          }))
+                                        }
+                                      />
+                                    ) : null}
                                   </ParamGroup>
                                 </>
                               ) : null}
