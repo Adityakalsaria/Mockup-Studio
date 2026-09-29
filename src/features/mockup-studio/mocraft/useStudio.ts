@@ -65,11 +65,12 @@ const HISTORY_LIMIT = 60;
 /**
  * How far the phone turns per pixel of drag across the canvas.
  *
- * The editor's figure: a full turn in about nine hundred pixels, which is a
- * comfortable sweep rather than a flick. The gizmo does not use it — see
+ * A full turn in about six hundred pixels — quicker than the editor's
+ * original nine hundred, which read as sluggish under a normal mouse swipe.
+ * Still a sweep rather than a flick. The gizmo does not use it — see
  * `GizmoCanvas`, where the gain follows the widget's radius instead.
  */
-const DRAG_DEG_PER_PX = 0.4;
+const DRAG_DEG_PER_PX = 0.6;
 
 /** Where Res and FPS open. 3x is the App Store's ask for a 6.9-inch
     screenshot and the number the old editor settled on; both are settings
@@ -690,9 +691,9 @@ export function useStudio() {
    * not make the stage ignore drags, it left nothing on the stage listening for
    * one at all. The phone sat there because there was no gesture to sit through.
    *
-   * The gain is the editor's own figure — a full turn in about nine hundred
-   * pixels of drag, which is a comfortable sweep rather than a flick. Past
-   * that this is `turn` in pixel clothing.
+   * The gain is `DRAG_DEG_PER_PX` — a full turn in about six hundred pixels
+   * of drag, a comfortable sweep rather than a flick. Past that this is
+   * `turn` in pixel clothing.
    */
   const nudgeRotation = useCallback(
     ({ dx, dy }: { dx: number; dy: number }) => {
