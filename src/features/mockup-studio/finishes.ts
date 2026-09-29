@@ -144,24 +144,28 @@ export const FINISHES: Finish[] = [
    * question of whether these four ever wanted to be one shared entry --
    * they are a different phone's swatches and always were.
    */
-  { id: "iphone18-black", label: "Black", color: "#242424", metalness: 0.48, roughness: 0.22 },
   /*
-   * Apple's own value for the 18's Burgundy, #2e0f14 -- and far darker than
-   * the #5e2b38 that stood here, which was read off a render rather than
-   * published. Near black until the light catches it, which is what the
-   * anodising actually does.
+   * Black and Burgundy, raised to 0.7 / 0.2 -- Silver and Sky Blue keep the
+   * original 0.48 / 0.22 below.
    *
-   * The surface below is unchanged, and is the thing to reach for if this
-   * reads as black rather than as a deep red: 0.48 / 0.22 was tuned against
-   * the lighter tone, and a body a third as light returns a third as much of
-   * whatever the rig gives it.
+   * Both are dark enough (#242424, #2e0f14) that 0.48 metalness returned too
+   * little of whatever the rig gave it to read as gloss at all: a body this
+   * dark shows almost none of its own albedo, so what a viewer actually sees
+   * is the REFLECTION, and there was not enough of one to see. Apple's real
+   * anodising is reflective regardless of how dark the dye is -- a black
+   * phone still throws a bright rim and a sharp highlight, it just does not
+   * show colour in between them -- and 0.48 flattened that into a near-void.
+   * Metalness raised, not the colour: the dye is correct, published straight
+   * off Apple's renders (see above); it simply needed more mirror behind it
+   * to be visible as dye rather than as the absence of light.
    */
+  { id: "iphone18-black", label: "Black", color: "#242424", metalness: 0.7, roughness: 0.2 },
   {
     id: "iphone18-burgundy",
     label: "Burgundy",
     color: "#2e0f14",
-    metalness: 0.48,
-    roughness: 0.22,
+    metalness: 0.7,
+    roughness: 0.2,
   },
   {
     id: "iphone18-silver",
