@@ -667,13 +667,20 @@ export function useStudio() {
         const y = snap("yAxis", rawY);
         const x = snap("xAxis", rawX);
         // Only where the gesture moves that axis: a sideways drag should not
-        // flash a guide for the tilt it never touched.
+        // flash a guide for the tilt it never touched -- and, for the same
+        // reason, must not snap it either. Shift's axis lock (see
+        // `PhoneStage3D`) sends the dropped axis a hard 0deg every event; take
+        // that at face value or a pose that already sat within the snap's 3deg
+        // window flipped to dead-on the instant Shift touched the OTHER axis.
         const hits = [
           ...(dxDeg !== 0 ? [{ key: "yAxis" as const, ...y }] : []),
           ...(dyDeg !== 0 ? [{ key: "xAxis" as const, ...x }] : []),
         ];
         queueMicrotask(() => showGuides(hits));
-        answer = { yAxis: y.value, xAxis: x.value };
+        answer = {
+          yAxis: dxDeg !== 0 ? y.value : y0,
+          xAxis: dyDeg !== 0 ? x.value : x0,
+        };
         return answer;
       };
       edit((prev) => {
