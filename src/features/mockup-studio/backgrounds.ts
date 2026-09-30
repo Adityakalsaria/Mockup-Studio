@@ -39,6 +39,8 @@ export interface BackgroundSettings {
   imageFit: "cover" | "contain";
   /** Image only. Zoom into the picture, 1-4; absent is 1. */
   imageZoom?: number;
+  /** Image only. 0/90/180/270; absent is 0. */
+  imageRotate?: number;
 }
 
 export const DEFAULT_BACKGROUND: BackgroundSettings = {
@@ -210,7 +212,13 @@ export async function preloadBackgroundImage(
   });
 }
 
-/** Draw an image the way CSS `cover` and `contain` do. */
+/** Draw an image the way CSS `cover` and `contain` do.
+
+    `rotateDeg` turns the drawn picture around the box's own centre, AFTER
+    fitting -- the same order `BackgroundImage`'s `transform: rotate(...)
+    scale(...)` applies to the DOM layer, so cover/contain fits against the
+    box's own (unrotated) size in both places and the export never drifts
+    from what the editor showed. */
 function drawFitted(
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
@@ -218,6 +226,7 @@ function drawFitted(
   height: number,
   fit: "cover" | "contain",
   zoom = 1,
+  rotateDeg = 0,
 ): void {
   const scale =
     (fit === "cover"
@@ -225,7 +234,11 @@ function drawFitted(
       : Math.min(width / image.width, height / image.height)) * zoom;
   const w = image.width * scale;
   const h = image.height * scale;
-  ctx.drawImage(image, (width - w) / 2, (height - h) / 2, w, h);
+  ctx.save();
+  ctx.translate(width / 2, height / 2);
+  ctx.rotate((rotateDeg * Math.PI) / 180);
+  ctx.drawImage(image, -w / 2, -h / 2, w, h);
+  ctx.restore();
 }
 
 export function paintBackground(
@@ -251,7 +264,15 @@ export function paintBackground(
     ctx.fillRect(0, 0, width, height);
     const image = bg.imageSrc ? imageCache.get(bg.imageSrc) : undefined;
     if (image)
-      drawFitted(ctx, image, width, height, bg.imageFit, bg.imageZoom ?? 1);
+      drawFitted(
+        ctx,
+        image,
+        width,
+        height,
+        bg.imageFit,
+        bg.imageZoom ?? 1,
+        bg.imageRotate ?? 0,
+      );
     return;
   }
 

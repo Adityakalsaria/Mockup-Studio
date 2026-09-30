@@ -306,9 +306,9 @@ function Popover({
        * The swatch is a 16px chip on a row halfway down a popup, so opening from
        * it put the picker across the rows you are choosing a colour for -- the
        * one place it must not be. The panels sit on the right of the studio and
-       * the shot is to their left, so the picker goes there: level with the
-       * panel's top, next to the model, clear of every row. Only where there is
-       * no room on the left does it fall back to hanging under the panel.
+       * the shot is to their left, so the picker goes there, clear of every
+       * row. Only where there is no room on the left does it fall back to
+       * hanging under the panel.
        *
        * Found by walking up from the trigger rather than passed in, so any
        * `ColorRow` in any surface gets this without being told where it is.
@@ -323,8 +323,12 @@ function Popover({
         ? panel.left - SIDE_GAP - w
         : Math.min(Math.max(M, panel.left), window.innerWidth - w - M);
       const below = panel.bottom + GAP;
+      // Level with the TRIGGER, not the panel -- a popup with a tall Presets
+      // grid above the swatch put "the panel's top" far above the row it was
+      // opened from, and the picker looked pinned to a random corner rather
+      // than opened from the swatch you clicked.
       const top = roomLeft
-        ? Math.max(M, Math.min(panel.top, window.innerHeight - M - h))
+        ? Math.max(M, Math.min(rect.top, window.innerHeight - M - h))
         : below + h > window.innerHeight - M
           ? Math.max(M, panel.top - GAP - h)
           : below;

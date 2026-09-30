@@ -435,6 +435,7 @@ export function useStudio() {
           imageSrc,
           imageFit: "cover",
           imageZoom: 1,
+          imageRotate: 0,
         },
       }));
       void preloadBackgroundImage({
@@ -445,6 +446,19 @@ export function useStudio() {
     },
     [edit],
   );
+
+  /** Turns the SELECTED preset a further 90deg clockwise. Presets only -- a
+      custom upload has no such control today, and this reuses `imageRotate`
+      rather than adding a second field for the same idea. */
+  const rotateBackground = useCallback(() => {
+    edit((prev) => ({
+      ...prev,
+      background: {
+        ...prev.background,
+        imageRotate: ((prev.background.imageRotate ?? 0) + 90) % 360,
+      },
+    }));
+  }, [edit]);
 
   const clearBackground = useCallback(() => {
     edit((prev) => ({
@@ -1724,6 +1738,7 @@ export function useStudio() {
       // Background
       uploadBackground,
       pickBackground,
+      rotateBackground,
       clearBackground,
       // Mirror
       broadcast,
@@ -1834,6 +1849,7 @@ export function useStudio() {
       clearCover,
       uploadBackground,
       pickBackground,
+      rotateBackground,
       clearBackground,
       broadcast,
       liveStream,

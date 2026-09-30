@@ -837,6 +837,12 @@ function BackgroundFields({ studio, onClose }: { studio: Studio; onClose: () => 
         <BackgroundPresets
           selected={bg.kind === "image" ? bg.imageSrc : null}
           onPick={studio.pickBackground}
+          onClear={studio.clearBackground}
+          fit={bg.imageFit === "contain" ? "contain" : "cover"}
+          onSetFit={(imageFit) =>
+            edit((prev) => ({ ...prev, background: { ...prev.background, imageFit } }))
+          }
+          onRotate={studio.rotateBackground}
         />
       </ParamGroup>
       <Divider />
@@ -1098,9 +1104,22 @@ const PRESET_GRID_MAX = 2.5 * 104 + 2 * PRESET_GAP;
 function BackgroundPresets({
   selected,
   onPick,
+  onClear,
+  fit,
+  onSetFit,
+  onRotate,
 }: {
   selected: string | null;
   onPick: (src: string) => void;
+  /** The grid's own first tile -- back to a solid colour, no preset chosen. */
+  onClear: () => void;
+  /** How the SELECTED preset fills its screen -- the same choice the Custom
+      image well's own Fill/Fit makes, just reachable without leaving the
+      grid. */
+  fit: "cover" | "contain";
+  onSetFit: (fit: "cover" | "contain") => void;
+  /** Turns the selected preset a further 90deg clockwise. */
+  onRotate: () => void;
 }) {
   const [categoryId, setCategoryId] = useState(
     () =>
@@ -1143,10 +1162,14 @@ function BackgroundPresets({
    * spacer `div` at the category's true total height, so the scrollbar and
    * scroll range read exactly as if every chip were there.
    */
+  // Slot 0 is the "None" tile -- back to a solid colour -- so every
+  // category's own list shifts down by one rather than needing a second,
+  // unvirtualized element above the scroller.
+  const itemCount = category.items.length + 1;
   const itemSize =
     trackWidth > 0 ? (trackWidth - (PRESET_COLUMNS - 1) * PRESET_GAP) / PRESET_COLUMNS : 0;
   const pitch = itemSize + PRESET_GAP;
-  const totalRows = Math.ceil(category.items.length / PRESET_COLUMNS);
+  const totalRows = Math.ceil(itemCount / PRESET_COLUMNS);
   const totalHeight = totalRows > 0 ? totalRows * pitch - PRESET_GAP : 0;
   const viewportH = PRESET_GRID_MAX + 8;
   const startRow =
@@ -1156,8 +1179,17 @@ function BackgroundPresets({
       ? Math.min(totalRows, Math.ceil((scrollTop + viewportH) / pitch) + PRESET_OVERSCAN_ROWS)
       : totalRows;
   const startIndex = startRow * PRESET_COLUMNS;
-  const endIndex = Math.min(category.items.length, endRow * PRESET_COLUMNS);
-  const visible = category.items.slice(startIndex, endIndex);
+  const endIndex = Math.min(itemCount, endRow * PRESET_COLUMNS);
+  // A chip cut off clean by the scroller's own edge reads as the end of the
+  // list; fading it out reads as more to scroll to instead -- but only where
+  // there actually is more, or the very first/last row fades for no reason.
+  const canScrollUp = scrollTop > 0;
+  const canScrollDown = scrollTop < totalHeight - viewportH - 0.5;
+  const mask = canScrollUp || canScrollDown
+    ? `linear-gradient(to bottom, ${canScrollUp ? "transparent, #000 20px" : "#000 0"}, ${
+        canScrollDown ? "#000 calc(100% - 20px), transparent" : "#000 100%"
+      })`
+    : undefined;
 
   const goToCategory = (id: string) => {
     setCategoryId(id);
@@ -1200,28 +1232,61 @@ function BackgroundPresets({
         className="mo-noscroll overflow-y-auto"
         /* Room for the selected ring, which sits outside the chip -- the
            scroller clips on both axes, so without it the outer chips' rings
-           were cut. The margin hands the room back.
-           Both edges fade the same way the category row's far edge already
-           does (see its own comment, just the vertical axis here): a chip
-           cut off clean by the box's own edge reads as the end of the list,
-           where fading it out reads as more to scroll to instead. */
+           were cut. The margin hands the room back. */
         style={{
           maxHeight: viewportH,
           padding: 4,
           margin: -4,
-          WebkitMaskImage:
-            "linear-gradient(to bottom, transparent, #000 20px, #000 calc(100% - 20px), transparent)",
-          maskImage:
-            "linear-gradient(to bottom, transparent, #000 20px, #000 calc(100% - 20px), transparent)",
+          WebkitMaskImage: mask,
+          maskImage: mask,
         }}
         onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
       >
         <div ref={trackRef} style={{ position: "relative", width: "100%", height: totalHeight }}>
-          {visible.map((preset, i) => {
+          {Array.from({ length: endIndex - startIndex }, (_, i) => {
             const index = startIndex + i;
             const row = Math.floor(index / PRESET_COLUMNS);
             const col = index % PRESET_COLUMNS;
-            const on = preset.src === selected;
+            const preset = index === 0 ? null : category.items[index - 1];
+            const on = preset ? preset.src === selected : selected === null;
+            const chipStyle: React.CSSProperties = {
+              position: "absolute",
+              left: col * pitch,
+              top: row * pitch,
+              width: itemSize,
+              height: itemSize,
+              borderRadius: PRESET_CHIP_R,
+              border: "var(--mo-swatch-edge)",
+              // A ring that hugs the chip exactly -- an outline with an
+              // offset left a gap around every selected tile where the page
+              // showed through, which read as the photo itself being
+              // cropped smaller than its own chip. Muted, not full ink: at
+              // full strength against a bright preset the ring itself read
+              // as a heavy black frame rather than a selection mark.
+              boxShadow: on ? "0 0 0 1.5px var(--mo-ink-muted)" : undefined,
+            };
+            if (!preset) {
+              return (
+                <button
+                  key="none"
+                  type="button"
+                  title="None"
+                  aria-label="No preset background"
+                  aria-pressed={on}
+                  onClick={onClear}
+                  className="mo-label cursor-pointer overflow-hidden transition-transform duration-150 ease-out hover:scale-[1.04]"
+                  style={{
+                    ...chipStyle,
+                    display: "grid",
+                    placeItems: "center",
+                    background: "var(--mo-field)",
+                    color: "var(--mo-ink-muted)",
+                  }}
+                >
+                  None
+                </button>
+              );
+            }
             return (
               <button
                 key={preset.id}
@@ -1231,17 +1296,7 @@ function BackgroundPresets({
                 aria-pressed={on}
                 onClick={() => onPick(preset.src)}
                 className="cursor-pointer overflow-hidden transition-transform duration-150 ease-out hover:scale-[1.04]"
-                style={{
-                  position: "absolute",
-                  left: col * pitch,
-                  top: row * pitch,
-                  width: itemSize,
-                  height: itemSize,
-                  borderRadius: PRESET_CHIP_R,
-                  border: "var(--mo-swatch-edge)",
-                  outline: on ? "1.5px solid var(--mo-ink)" : undefined,
-                  outlineOffset: 2,
-                }}
+                style={chipStyle}
               >
                 <img
                   src={preset.thumb}
@@ -1251,6 +1306,51 @@ function BackgroundPresets({
                   className="h-full w-full object-cover"
                   draggable={false}
                 />
+                {on ? (
+                  <div
+                    className="absolute flex items-center"
+                    style={{ right: 4, bottom: 4, gap: 4 }}
+                  >
+                    <button
+                      type="button"
+                      title="Rotate 90 degrees"
+                      aria-label="Rotate 90 degrees"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onRotate();
+                      }}
+                      className="grid cursor-pointer place-items-center"
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 999,
+                        background: "#fff",
+                        boxShadow: "var(--mo-swatch-shadow)",
+                      }}
+                    >
+                      <Icon name="rotate" size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      title={fit === "cover" ? "Fill -- click for Fit" : "Fit -- click for Fill"}
+                      aria-label="Toggle fill or fit"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSetFit(fit === "cover" ? "contain" : "cover");
+                      }}
+                      className="grid cursor-pointer place-items-center"
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 999,
+                        background: "#fff",
+                        boxShadow: "var(--mo-swatch-shadow)",
+                      }}
+                    >
+                      <Icon name={fit === "cover" ? "fill-mode" : "fit-mode"} size={14} />
+                    </button>
+                  </div>
+                ) : null}
               </button>
             );
           })}

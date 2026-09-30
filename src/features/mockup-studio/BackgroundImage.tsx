@@ -47,7 +47,10 @@ export default function BackgroundImage({
     backgroundSize: bg.imageFit,
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
-    transform: `scale(${bg.imageZoom ?? 1})`,
+    // `cover`/`contain` size against this element's own (unrotated) box,
+    // then the whole result turns -- the same order `paintBackground`'s
+    // `drawFitted` rotates in, so the export never drifts from this.
+    transform: `rotate(${bg.imageRotate ?? 0}deg) scale(${bg.imageZoom ?? 1})`,
   } as const;
 
   if (!active) {
