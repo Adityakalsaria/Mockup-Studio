@@ -1878,6 +1878,11 @@ function ExportRow({
       // `mt-auto` still pins it to the foot of a capped panel.
       style={{ gap: "var(--mo-space-2)", paddingTop: 80 }}
     >
+      <ToggleRow
+        label="Watermark"
+        value={studio.watermark}
+        onChange={studio.setWatermark}
+      />
       <Divider />
       {/* The same title treatment a popup's sections get — `ParamGroup`'s own
           class and inset, so a heading in the stack and a heading in a panel
@@ -1941,6 +1946,11 @@ function MotionExportRow({ studio }: { studio: Studio }) {
       // `mt-auto` still pins it to the foot of a capped panel.
       style={{ gap: "var(--mo-space-2)", paddingTop: 80 }}
     >
+      <ToggleRow
+        label="Watermark"
+        value={studio.watermark}
+        onChange={studio.setWatermark}
+      />
       <Divider />
       <span
         data-tour="export"
@@ -3882,14 +3892,6 @@ export default function StudioChrome({
 
                       {tool === "canvas" ? (
                         <div className="flex flex-col">
-                          <ToggleRow
-                            label="Watermark"
-                            value={studio.watermark}
-                            onChange={studio.setWatermark}
-                          />
-                          {/* With the frame's size, since it is about what the
-                              exported frame carries: every image and video. */}
-                          <Divider inset={8} />
                           <RowGroup>
                             {CANVAS_SIZES.map((c) => (
                               <Row
