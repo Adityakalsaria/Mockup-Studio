@@ -382,13 +382,25 @@ function useColumnSpans() {
         s.height === b[i].height,
     );
 
+  // Whole pixels, not raw `getBoundingClientRect()` floats: two measurements
+  // of a layout that has not actually changed can still land a fraction of a
+  // pixel apart (subpixel text rounding, a nearby compositor layer), and
+  // since this now runs on every render, that noise alone would fail the
+  // equality check below forever -- the spring never sees two consecutive
+  // identical targets to rest on, and chases a target that twitches by
+  // fractions of a pixel every frame, which reads as never quite settling
+  // into place. Rounding at the source makes two honestly-unchanged
+  // measurements compare equal.
+  const px = (n: number) => Math.round(n);
+
   const measure = useCallback(() => {
     if (!node) return;
     const base = node.getBoundingClientRect();
+    const nextSize = { width: px(base.width), height: px(base.height) };
     setSize((prev) =>
-      prev.width === base.width && prev.height === base.height
+      prev.width === nextSize.width && prev.height === nextSize.height
         ? prev
-        : { width: base.width, height: base.height },
+        : nextSize,
     );
     const next = Array.from(node.children).map((child) => {
       // `[data-lens]` lets a child say which part of itself the selection
@@ -397,10 +409,10 @@ function useColumnSpans() {
       const covered = child.querySelector("[data-lens]") ?? child;
       const box = covered.getBoundingClientRect();
       return {
-        top: box.top - base.top,
-        left: box.left - base.left,
-        width: box.width,
-        height: box.height,
+        top: px(box.top - base.top),
+        left: px(box.left - base.left),
+        width: px(box.width),
+        height: px(box.height),
       };
     });
     setSpans((prev) => (sameSpans(prev, next) ? prev : next));
