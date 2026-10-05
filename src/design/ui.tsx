@@ -568,15 +568,22 @@ export function Row({ icon, children, trailing, value, selected, onClick, title,
         gap: "var(--mo-space-2)",
         padding: "10px var(--mo-space-3)",
         borderRadius: flat ? "var(--mo-r-selected)" : "var(--mo-r-row)",
-        // Flat groups have no travelling lens to paint a fill underneath —
-        // this row IS the selected mark, immediately, the moment its own
-        // `selected` prop says so. `--mo-selected` is a translucent WHITE,
-        // tuned to sit inside the lens's own glass (blur, rim, shadow) --
-        // alone over a light panel it reads as nothing at all. `--mo-field`
-        // is the same ink-tinted fill the Presets grid's own "None" tile
-        // already uses on this same light surface.
-        background: flat && selected ? "var(--mo-field)" : undefined,
-        transition: flat ? "background 150ms ease-out" : undefined,
+        /*
+         * Flat groups have no travelling lens to paint a fill underneath —
+         * this row IS the selected mark, immediately, the moment its own
+         * `selected` prop says so. Not a custom look: `--mo-selected-shadow`
+         * is the lens's own already-assembled rim hairline + drop shadow
+         * (`material.selected` in system.ts), the exact recipe that pill
+         * everywhere else in the app is built from -- applied here as a
+         * static box-shadow instead of something a spring has to carry.
+         * `--mo-selected`, the glass's own translucent white, needs that
+         * rim to read at all; alone it was invisible over this light panel.
+         */
+        background: flat && selected ? "var(--mo-selected)" : undefined,
+        boxShadow: flat && selected ? "var(--mo-selected-shadow)" : undefined,
+        transition: flat
+          ? "background 150ms ease-out, box-shadow 150ms ease-out"
+          : undefined,
       }}
     >
       {icon ? (
