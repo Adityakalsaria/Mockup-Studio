@@ -488,7 +488,7 @@ export type RowProps = {
  * drawn at full ink so whichever one the lens happens to be over reads as the
  * selected one.
  */
-type RowGroupState = { copy: boolean };
+type RowGroupState = { copy: boolean; flat: boolean };
 const RowGroupCtx = createContext<RowGroupState | null>(null);
 
 /** Shared by `Row` and `RailItem`: ink strength, and whether to wire clicks. */
@@ -502,6 +502,8 @@ function useRowState(selected?: boolean, onClick?: () => void) {
     // The copy is inert: it is `aria-hidden`, so leaving it focusable would
     // put a tab stop on a row a screen reader has been told does not exist.
     interactive: Boolean(onClick) && !copy,
+    // No lens above to paint a fill -- see `RowGroupProps.flat`.
+    flat: group?.flat ?? false,
   };
 }
 
@@ -525,7 +527,7 @@ function pressKeys(onClick?: () => void) {
  * implementation of the selected look rather than two that can drift.
  */
 export function Row({ icon, children, trailing, value, selected, onClick, title, hug }: RowProps) {
-  const { grouped, strong: selectedInk, interactive } = useRowState(selected, onClick);
+  const { grouped, strong: selectedInk, interactive, flat } = useRowState(selected, onClick);
   /*
    * Hover borrows the selected INK, not the lens: text and glyphs go to full
    * strength under the pointer so a row reads as reachable before it is
@@ -565,7 +567,12 @@ export function Row({ icon, children, trailing, value, selected, onClick, title,
       style={{
         gap: "var(--mo-space-2)",
         padding: "10px var(--mo-space-3)",
-        borderRadius: "var(--mo-r-row)",
+        borderRadius: flat ? "var(--mo-r-selected)" : "var(--mo-r-row)",
+        // Flat groups have no travelling lens to paint a fill underneath —
+        // this row IS the selected mark, immediately, the moment its own
+        // `selected` prop says so.
+        background: flat && selected ? "var(--mo-selected)" : undefined,
+        transition: flat ? "background 150ms ease-out" : undefined,
       }}
     >
       {icon ? (
@@ -937,6 +944,18 @@ export type RowGroupProps = {
   radius?: number;
   className?: string;
   style?: CSSProperties;
+  /**
+   * No travelling lens -- each row paints its own selected fill instead,
+   * flat and immediate, the moment its own `selected` prop says so.
+   *
+   * The lens measures and springs a shared box across the whole column,
+   * which is the point everywhere it is correct — but that shared box is
+   * also the one thing that can be measured against the wrong row for a
+   * moment, or settle a spring's-width of overshoot past where it is
+   * aiming. A row painting its own background can never be wrong about
+   * which row it is.
+   */
+  flat?: boolean;
 };
 
 /**
@@ -968,6 +987,7 @@ export function RowGroup({
   radius: corner = radius.selected,
   className = "",
   style,
+  flat = false,
 }: RowGroupProps) {
   const items = Children.toArray(children);
   const found = items.findIndex(
@@ -981,6 +1001,9 @@ export function RowGroup({
   if (found >= 0 && found !== parked) setParked(found);
   const index = found >= 0 ? found : parked;
 
+  // Called either way -- hooks don't get to be conditional -- but its
+  // result goes unused below when `flat`, which never reaches the lens
+  // that would otherwise consume it.
   const [columnRef, spans, size] = useColumnSpans();
 
   const column = (
@@ -989,9 +1012,19 @@ export function RowGroup({
       className={`flex w-full ${wrap ? "flex-wrap" : "flex-col"}`}
       style={{ gap }}
     >
-      <RowGroupCtx.Provider value={{ copy: false }}>{children}</RowGroupCtx.Provider>
+      <RowGroupCtx.Provider value={{ copy: false, flat }}>{children}</RowGroupCtx.Provider>
     </div>
   );
+
+  // No shared box to measure or spring for -- each row already painted its
+  // own fill, off nothing but its own `selected` prop. See `RowGroupProps.flat`.
+  if (flat) {
+    return (
+      <div className={`w-full ${className}`.trim()} style={style}>
+        {column}
+      </div>
+    );
+  }
 
   /*
    * No lens until there is a box to put it on.
@@ -1026,7 +1059,7 @@ export function RowGroup({
       bend={bend}
       className={className}
       style={style}
-      copy={<RowGroupCtx.Provider value={{ copy: true }}>{children}</RowGroupCtx.Provider>}
+      copy={<RowGroupCtx.Provider value={{ copy: true, flat: false }}>{children}</RowGroupCtx.Provider>}
     >
       {column}
     </SelectionLens>

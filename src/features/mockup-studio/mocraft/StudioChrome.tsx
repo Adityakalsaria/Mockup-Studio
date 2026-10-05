@@ -344,7 +344,7 @@ export function MenuPopover({
     >
       <Glass width={width ?? pos?.width}>
         {children ?? (
-          <RowGroup>
+          <RowGroup flat>
             {(items ?? []).map((item) => (
               <Row
                 key={item.id}
