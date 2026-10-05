@@ -3882,6 +3882,14 @@ export default function StudioChrome({
 
                       {tool === "canvas" ? (
                         <div className="flex flex-col">
+                          <ToggleRow
+                            label="Watermark"
+                            value={studio.watermark}
+                            onChange={studio.setWatermark}
+                          />
+                          {/* With the frame's size, since it is about what the
+                              exported frame carries: every image and video. */}
+                          <Divider inset={8} />
                           <RowGroup>
                             {CANVAS_SIZES.map((c) => (
                               <Row
@@ -3895,14 +3903,6 @@ export default function StudioChrome({
                               </Row>
                             ))}
                           </RowGroup>
-                          {/* With the frame's size, since it is about what the
-                              exported frame carries: every image and video. */}
-                          <Divider inset={8} />
-                          <ToggleRow
-                            label="Watermark"
-                            value={studio.watermark}
-                            onChange={studio.setWatermark}
-                          />
                         </div>
                       ) : null}
                     </AutoHeight>
