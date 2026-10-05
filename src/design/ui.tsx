@@ -395,6 +395,13 @@ function useColumnSpans(count: number) {
     };
 
     measure();
+    // The webfont can still swap in after this first pass, shifting every
+    // row's line height -- `ResizeObserver` only reacts to a change it is
+    // already watching FOR, so a swap it missed by a beat leaves the lens
+    // parked on a measurement taken against the fallback font forever. One
+    // deliberate remeasure once the real font is in, rather than hoping a
+    // subsequent resize happens to catch it.
+    void document.fonts?.ready.then(measure);
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     for (const child of Array.from(node.children)) observer.observe(child);
