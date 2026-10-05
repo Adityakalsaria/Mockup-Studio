@@ -24,6 +24,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -353,7 +354,7 @@ type Span = { top: number; left: number; width: number; height: number };
  * observer watches the children as well as the column because a row can change
  * height without the column doing so.
  */
-function useColumnSpans(count: number) {
+function useColumnSpans() {
   /*
    * A callback ref, not a ref object.
    *
@@ -371,42 +372,69 @@ function useColumnSpans(count: number) {
   // lens stops spanning the full width.
   const [size, setSize] = useState({ width: 0, height: 0 });
 
+  const sameSpans = (a: Span[], b: Span[]) =>
+    a.length === b.length &&
+    a.every(
+      (s, i) =>
+        s.top === b[i].top &&
+        s.left === b[i].left &&
+        s.width === b[i].width &&
+        s.height === b[i].height,
+    );
+
+  const measure = useCallback(() => {
+    if (!node) return;
+    const base = node.getBoundingClientRect();
+    setSize((prev) =>
+      prev.width === base.width && prev.height === base.height
+        ? prev
+        : { width: base.width, height: base.height },
+    );
+    const next = Array.from(node.children).map((child) => {
+      // `[data-lens]` lets a child say which part of itself the selection
+      // covers — a preset tile is a square of artwork with a caption under
+      // it, and the selection belongs to the square.
+      const covered = child.querySelector("[data-lens]") ?? child;
+      const box = covered.getBoundingClientRect();
+      return {
+        top: box.top - base.top,
+        left: box.left - base.left,
+        width: box.width,
+        height: box.height,
+      };
+    });
+    setSpans((prev) => (sameSpans(prev, next) ? prev : next));
+  }, [node]);
+
+  /*
+   * Every render, not just when `node`/`count` change.
+   *
+   * `count` was a proxy for "the list is different now" — true for an added
+   * or removed row, false for two DIFFERENT lists that happen to hold the
+   * same number of rows (switching device groups where both groups have
+   * eight phones, say). Nothing else was watching for that case: the content
+   * swaps, the row heights stay pixel-identical, so `ResizeObserver` never
+   * fires either, and the lens parks on the OLD list's geometry under
+   * whichever row now sits at that same index. A layout effect with no
+   * dependency array re-measures after every commit instead, and the
+   * equality check above keeps it from looping on its own `setState` — a
+   * render this writes nothing new into never schedules another one.
+   */
+  useLayoutEffect(() => {
+    // Measuring a DOM node and syncing it into state is what this hook is
+    // for; the rule below can't see that `sameSpans`/the size compare above
+    // make this a no-op once the measurement stops changing.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    measure();
+  });
+
   useEffect(() => {
     if (!node) return;
-
-    const measure = () => {
-      const base = node.getBoundingClientRect();
-      setSize({ width: base.width, height: base.height });
-      setSpans(
-        Array.from(node.children).map((child) => {
-          // `[data-lens]` lets a child say which part of itself the selection
-          // covers — a preset tile is a square of artwork with a caption under
-          // it, and the selection belongs to the square.
-          const covered = child.querySelector("[data-lens]") ?? child;
-          const box = covered.getBoundingClientRect();
-          return {
-            top: box.top - base.top,
-            left: box.left - base.left,
-            width: box.width,
-            height: box.height,
-          };
-        }),
-      );
-    };
-
-    measure();
-    // The webfont can still swap in after this first pass, shifting every
-    // row's line height -- `ResizeObserver` only reacts to a change it is
-    // already watching FOR, so a swap it missed by a beat leaves the lens
-    // parked on a measurement taken against the fallback font forever. One
-    // deliberate remeasure once the real font is in, rather than hoping a
-    // subsequent resize happens to catch it.
-    void document.fonts?.ready.then(measure);
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     for (const child of Array.from(node.children)) observer.observe(child);
     return () => observer.disconnect();
-  }, [node, count]);
+  }, [node, measure]);
 
   return [ref, spans, size] as const;
 }
@@ -941,7 +969,7 @@ export function RowGroup({
   if (found >= 0 && found !== parked) setParked(found);
   const index = found >= 0 ? found : parked;
 
-  const [columnRef, spans, size] = useColumnSpans(items.length);
+  const [columnRef, spans, size] = useColumnSpans();
 
   const column = (
     <div
